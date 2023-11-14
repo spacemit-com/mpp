@@ -1,0 +1,152 @@
+mpp (0.0.22) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.22
+
+ -- fuqiang <qiang.fu@spacemit.com>  Tue, 14 Nov 2023 19:49:33 +0800
+
+mpp (0.0.21) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.21
+
+ -- fuqiang <qiang.fu@spacemit.com>  Tue, 14 Nov 2023 14:13:03 +0800
+
+mpp (0.0.20) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.20
+
+ -- fuqiang <qiang.fu@spacemit.com>  Mon, 13 Nov 2023 18:54:01 +0800
+
+mpp (0.0.19) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.19
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 09 Nov 2023 18:30:49 +0800
+
+mpp (0.0.18) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.18
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 09 Nov 2023 16:19:48 +0800
+
+mpp (0.0.17) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.17
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 09 Nov 2023 11:42:48 +0800
+
+mpp (0.0.16) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.16
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 09 Nov 2023 11:25:48 +0800
+
+mpp (0.0.15) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.15
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 09 Nov 2023 11:06:48 +0800
+
+mpp (0.0.14) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.14
+
+ -- fuqiang <qiang.fu@spacemit.com>  Tue, 07 Nov 2023 15:37:47 +0800
+
+mpp (0.0.13) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.13
+
+ -- fuqiang <qiang.fu@spacemit.com>  Fri, 03 Nov 2023 18:04:32 +0800
+
+mpp (0.0.12) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.12
+
+ -- fuqiang <qiang.fu@spacemit.com>  Fri, 03 Nov 2023 17:29:09 +0800
+
+mpp (0.0.11) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.11
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 02 Nov 2023 18:50:33 +0800
+
+mpp (0.0.10) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.10
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 02 Nov 2023 18:37:36 +0800
+
+mpp (0.0.9) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.9
+
+ -- fuqiang <qiang.fu@spacemit.com>  Tue, 31 Oct 2023 17:01:31 +0800
+
+mpp (0.0.8) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.8
+
+ -- fuqiang <qiang.fu@spacemit.com>  Fri, 27 Oct 2023 17:25:02 +0800
+
+mpp (0.0.7) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.7
+
+ -- 黎志荣 <lizhirong>  Fri, 13 Oct 2023 09:24:03 +0800
+
+mpp (0.0.6) lunar; urgency=medium
+
+  [ bianbu-ci ]
+  * Sync change from bianbu-23.04/0.0.6
+
+ -- 黎志荣 <lizhirong>  Mon, 25 Sep 2023 15:12:17 +0800
+
+mpp (0.0.5) lunar; urgency=medium
+
+  [ lizhirong ]
+  * Sync change from bianbu-23.04/0.0.5
+
+ -- 黎志荣 <lizhirong>  Mon, 25 Sep 2023 15:08:38 +0800
+
+mpp (0.0.4) lunar; urgency=medium
+
+  * remove some unuseful tmp files
+  * Sync change from bianbu-23.04/0.0.4
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 07 Sep 2023 17:40:04 +0800
+
+mpp (0.0.3) lunar; urgency=medium
+
+  * rm tmp files
+  * Sync change from bianbu-23.04/0.0.3
+
+ -- fuqiang <qiang.fu@spacemit.com>  Thu, 07 Sep 2023 15:42:25 +0800
+
+mpp (0.0.2) lunar; urgency=medium
+
+  * Sync change from bianbu-23.04/0.0.2
+
+ -- fuqiang <qiang.fu@spacemit.com>  Mon, 04 Sep 2023 17:11:04 +0800
+
+mpp (0.0.1) lunar; urgency=medium
+
+  * Initial for bianbu-23.04
+
+ -- 付强 <fuqiang@lnode1>  Wed, 30 Aug 2023 15:04:59 +0800
+
