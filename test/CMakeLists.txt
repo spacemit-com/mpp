@@ -39,13 +39,15 @@ set(SRC_LIST ./venc_test.c)
 add_executable(venc_test ${SRC_LIST})
 target_link_libraries(venc_test spacemit_mpp)
 
-set(SRC_LIST ./test_g2d_one_frame.c)
-add_executable(test_g2d_one_frame ${SRC_LIST})
-target_link_libraries(test_g2d_one_frame spacemit_mpp)
+set(SRC_LIST ./g2d_test.c)
+add_executable(g2d_test ${SRC_LIST})
+target_link_libraries(g2d_test spacemit_mpp)
 
 install(TARGETS vdec_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 install(TARGETS venc_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-        install(TARGETS vdec_venc_test RUNTIME
+install(TARGETS vdec_venc_test RUNTIME
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+install(TARGETS g2d_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2023-11-14 19:34:09
+ * @LastEditTime: 2023-11-15 09:17:56
  * @Description:
  */
 
@@ -234,18 +234,16 @@ void *do_parse(void *private_data) {
               *(S32 *)(PACKET_GetDataPointer(context->pPacket) + 8),
               *(S32 *)(PACKET_GetDataPointer(context->pPacket) + 12));
 
-        ret = -1;
-
-        while (ret != 0) {
+        do {
           ret = VDEC_Decode(context->pVdecCtx,
                             PACKET_GetBaseData(context->pPacket));
-        }
+        } while (ret != 0);
 
         need_drain = 0;
       } else {
         length = stream_length;
         fseek(context->pInputFile, context->nFileOffset, SEEK_SET);
-        debug("mamamamamamamamamama fileoffset = %d", context->nFileOffset);
+        debug("fileoffset = %d", context->nFileOffset);
         break;
       }
     }
