@@ -1,0 +1,12 @@
+out
+.vscode
+.VSCodeCounter
+test_result
+mpp-cppcheck-build-dir
+debian/.debhelper
+debian/debhelper-build-stamp
+debian/files
+debian/mpp.substvars
+debian/mpp
+obj-riscv64-linux-gnu
+*.code-workspace
