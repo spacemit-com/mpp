@@ -101,6 +101,13 @@ S32 al_dec_flush(ALBaseContext *ctx);
  * @param {ALBaseContext} *ctx
  * @return {*}
  */
+S32 al_dec_reset(ALBaseContext *ctx);
+
+/**
+ * @description:
+ * @param {ALBaseContext} *ctx
+ * @return {*}
+ */
 void al_dec_destory(ALBaseContext *ctx);
 
 #ifdef __cplusplus

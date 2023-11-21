@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2023-11-14 09:18:16
+ * @LastEditTime: 2023-11-21 11:25:07
  * @Description: video decode plugin for starfive omxIL layer
  */
 
@@ -524,7 +524,7 @@ void *do_decode(void *private_data) {
 
         if (!ret) {
         } else {
-          debug("outputqueue push fail!");
+          //debug("outputqueue push fail!");
           Message data;
           data.msg_type = MSG_CONTROL;
           data.msg_flag = FILL_BUFFER_DONE;
@@ -719,6 +719,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->nMsgid = msg_queue_init();
   context->bIsDestorying = MPP_FALSE;
   context->bIsFrameReady = MPP_FALSE;
+  context->DecRetEos = MPP_FALSE;
 
   para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
   para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_ASYNC;
@@ -1286,6 +1287,15 @@ S32 al_dec_flush(ALBaseContext *ctx) {
   debug("finish to seek flush.(%u, %u)", context->decOutNum, context->decInNum);
 
   return MPP_OK;
+}
+
+S32 al_dec_reset(ALBaseContext *ctx) {
+  ALSfOmxilDecContext *context = (ALSfOmxilDecContext *)ctx;
+  S32 ret = 0;
+
+  //ret = al_dec_flush(ctx);
+
+  return ret;
 }
 
 void al_dec_destory(ALBaseContext *ctx) {

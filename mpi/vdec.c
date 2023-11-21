@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-18 11:46:03
- * @LastEditTime: 2023-11-14 10:05:23
+ * @LastEditTime: 2023-11-20 16:20:03
  * @Description: MPP VDEC API, use these API to do video decode
  *               from stream(H.264 etc.) to frame(YUV420)
  */
@@ -37,6 +37,7 @@ S32 (*dec_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
 S32 (*dec_request_output_frame_2)(ALBaseContext *ctx, MppData **src_data);
 S32 (*dec_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
 S32 (*dec_flush)(ALBaseContext *ctx);
+S32 (*dec_reset)(ALBaseContext *ctx);
 void (*dec_destory)(ALBaseContext *ctx);
 
 /**
@@ -87,6 +88,8 @@ S32 VDEC_Init(MppVdecCtx *ctx) {
       dlsym(module_get_so_path(ctx->pModule), "al_dec_destory");
   dec_flush = (S32(*)(ALBaseContext * ctx))
       dlsym(module_get_so_path(ctx->pModule), "al_dec_flush");
+  dec_reset = (S32(*)(ALBaseContext * ctx))
+      dlsym(module_get_so_path(ctx->pModule), "al_dec_reset");
 
   ctx->pNode.pAlBaseContext = dec_create();
 
@@ -230,4 +233,9 @@ S32 VDEC_DestoryChannel(MppVdecCtx *ctx) {
   return MPP_OK;
 }
 
-S32 VDEC_ResetChannel(MppVdecCtx *ctx) { return MPP_OK; }
+S32 VDEC_ResetChannel(MppVdecCtx *ctx) {
+  S32 ret = 0;
+  ret = dec_reset(ctx->pNode.pAlBaseContext);
+
+  return ret;
+}
