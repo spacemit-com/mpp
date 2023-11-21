@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2023-11-21 16:11:42
+ * @LastEditTime: 2023-11-21 17:55:03
  * @Description: video decode plugin for starfive omxIL layer
  */
 
@@ -1291,12 +1291,28 @@ S32 al_dec_flush(ALBaseContext *ctx) {
 }
 
 S32 al_dec_reset(ALBaseContext *ctx) {
+  if (!ctx) return MPP_NULL_POINTER;
+
   ALSfOmxilDecContext *context = (ALSfOmxilDecContext *)ctx;
-  S32 ret = 0;
+  MppDataQueueNode *node = NULL;
+  S32 count = 0;
+  U32 wait_num;
+  S32 oqueuenum, release_num = 0;
 
-  ret = al_dec_flush(ctx);
+  if (context->DecRetEos) {
+    debug("start to restart dec.");
+    omx_dec_reinit(ctx);
 
-  return ret;
+    DATAQUEUE_SetWaitExit(context->pInputQueue, MPP_FALSE);
+    DATAQUEUE_SetWaitExit(context->pOutputQueue, MPP_FALSE);
+    context->DecRetEos = MPP_FALSE;
+    pthread_cond_signal(&context->condEos);
+    debug("finish to restart dec.");
+
+    return MPP_OK;
+  }
+
+  return MPP_OK;
 }
 
 void al_dec_destory(ALBaseContext *ctx) {
