@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2023-11-21 11:25:07
+ * @LastEditTime: 2023-11-21 16:11:42
  * @Description: video decode plugin for starfive omxIL layer
  */
 
@@ -1190,6 +1190,7 @@ S32 omx_dec_reinit(ALBaseContext *ctx) {
 
   context->port0Flushed = MPP_FALSE;
   context->port1Flushed = MPP_FALSE;
+  context->DecRetEos = MPP_FALSE;
 
   DATAQUEUE_SetWaitExit(context->pInputQueue, MPP_FALSE);
   DATAQUEUE_SetWaitExit(context->pOutputQueue, MPP_FALSE);
@@ -1293,7 +1294,7 @@ S32 al_dec_reset(ALBaseContext *ctx) {
   ALSfOmxilDecContext *context = (ALSfOmxilDecContext *)ctx;
   S32 ret = 0;
 
-  //ret = al_dec_flush(ctx);
+  ret = al_dec_flush(ctx);
 
   return ret;
 }
