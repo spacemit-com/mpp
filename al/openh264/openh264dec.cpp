@@ -317,6 +317,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     WelsDestroyDecoder(context->pSvcDecoder);
     context->pSvcDecoder = NULL;
   }
+  para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_ASYNC;
 
   WelsCreateDecoder(&(context->pSvcDecoder));
 

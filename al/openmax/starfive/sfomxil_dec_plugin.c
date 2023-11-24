@@ -49,6 +49,7 @@
 #define MORE_OUTPUT_BUFFER_NEEDED 4
 
 //#define ENABLE_FILE_SAVE_DEBUG
+//#define USE_CIRCULAR_BUFFER
 
 #ifdef ENABLE_FILE_SAVE_DEBUG
 U8 *pOutputFileName = "/tmp/output.yuv";
@@ -139,6 +140,8 @@ struct _ALSfOmxilDecContext {
   U32 decInNum;
   U32 decOutNum;
   BOOL bIsFrameReady;
+
+  CircularBuffer cb;
 };
 
 static void mppframe_create_and_config(ALSfOmxilDecContext *context, S32 i,
@@ -337,7 +340,7 @@ static OMX_ERRORTYPE empty_buffer_done_handler(OMX_HANDLETYPE hComponent,
   return OMX_ErrorNone;
 }
 
-static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *decodeTestContext,
+static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *context,
                                MppData *sink_data,
                                OMX_BUFFERHEADERTYPE *pInputBuffer) {
   MppPacket *sink_packet = PACKET_GetPacket(sink_data);
@@ -353,8 +356,12 @@ static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *decodeTestContext,
   }
 
   pInputBuffer->nFilledLen = PACKET_GetLength(sink_packet);
+#ifdef USE_CIRCULAR_BUFFER
+  CircularBufferPop (context->cb, pInputBuffer->nFilledLen, pInputBuffer->pBuffer);
+#else
   memcpy(pInputBuffer->pBuffer, PACKET_GetDataPointer(sink_packet),
          pInputBuffer->nFilledLen);
+#endif
   pInputBuffer->nTimeStamp = PACKET_GetPts(sink_packet);
   // debug("input pts: %lld", (S64)pInputBuffer->nTimeStamp);
 
@@ -410,7 +417,7 @@ void *do_decode(void *private_data) {
       if (node) {
         MppData *sink_data = DATAQUEUE_GetData(node);
         MppPacket *sink_packet = PACKET_GetPacket(sink_data);
-
+#ifndef USE_CIRCULAR_BUFFER
         debug("input check:%x %x %x %x %x %x %x %x %x",
               *(S32 *)PACKET_GetDataPointer(sink_packet),
               *(S32 *)(PACKET_GetDataPointer(sink_packet) + 4),
@@ -421,7 +428,7 @@ void *do_decode(void *private_data) {
               *(S32 *)(PACKET_GetDataPointer(sink_packet) + 24),
               *(S32 *)(PACKET_GetDataPointer(sink_packet) + 28),
               *(S32 *)(PACKET_GetDataPointer(sink_packet) + 32));
-
+#endif
         FillInputBuffer(context, sink_data, context->pInputBufferArray[i]);
 
         OMX_EmptyThisBuffer(context->hComponentDecoder,
@@ -430,6 +437,9 @@ void *do_decode(void *private_data) {
         context->decInNum++;
 
         // free packet && free packet node
+#ifdef USE_CIRCULAR_BUFFER
+        PACKET_SetDataPointer (sink_packet, NULL);
+#endif
         PACKET_Free(sink_packet);
         PACKET_Destory(sink_packet);
         DATAQUEUE_Node_Destory(node);
@@ -470,6 +480,9 @@ void *do_decode(void *private_data) {
           context->decInNum++;
 
           OMX_EmptyThisBuffer(context->hComponentDecoder, pBuffer);
+#ifdef USE_CIRCULAR_BUFFER
+          PACKET_SetDataPointer (sink_packet, NULL);
+#endif
           PACKET_Free(sink_packet);
           PACKET_Destory(sink_packet);
           DATAQUEUE_Node_Destory(node);
@@ -760,7 +773,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
   context->pInputQueue = DATAQUEUE_Init(para->bInputBlockModeEnable, MPP_FALSE);
   context->pOutputQueue =
-      DATAQUEUE_Init(MPP_FALSE, para->bOutputBlockModeEnable);
+      DATAQUEUE_Init(MPP_TRUE, para->bOutputBlockModeEnable);
   context->DecRetEos = MPP_FALSE;
   context->port0Flushed = MPP_FALSE;
   context->port1Flushed = MPP_FALSE;
@@ -773,6 +786,9 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   pthread_cond_init(&context->condEos, NULL);
   pthread_mutex_init(&context->mutex, NULL);
 
+#ifdef USE_CIRCULAR_BUFFER
+  context->cb = CircularBufferCreate(1024 * 512 * 1);
+#endif
   if (context->pVdecPara->nWidth > 0 && context->pVdecPara->nHeight > 0) {
     debug("init get width and height (%d x %d)", context->pVdecPara->nWidth,
           context->pVdecPara->nHeight);
@@ -921,13 +937,25 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
 #endif
 
   MppPacket *packet = NULL;
-
-  if (context->pVdecPara->nInputQueueLeftNum > 0) {
+  if (context->pVdecPara->nInputQueueLeftNum > 0 ||
+    context->pVdecPara->bInputBlockModeEnable) {
     packet = PACKET_Create();
+
+#ifdef USE_CIRCULAR_BUFFER
+    void *tmp = CircularBufferGetTailAddr (context->cb);
+
+    CircularBufferPush (context->cb,
+      PACKET_GetDataPointer(sink_packet), PACKET_GetLength(sink_packet));
+
+    PACKET_SetDataPointer (packet, tmp);
+    PACKET_SetLength(packet, PACKET_GetLength(sink_packet));
+
+#else
     PACKET_Alloc(packet, PACKET_GetLength(sink_packet));
     PACKET_SetLength(packet, PACKET_GetLength(sink_packet));
     memcpy(PACKET_GetDataPointer(packet), PACKET_GetDataPointer(sink_packet),
            PACKET_GetLength(sink_packet));
+#endif
     PACKET_SetPts(packet, PACKET_GetPts(sink_packet));
     PACKET_SetID(packet, PACKET_GetID(sink_packet));
 
@@ -940,9 +968,9 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
   }
 
   ret = DATAQUEUE_Push(context->pInputQueue, node);
-  context->pVdecPara->nInputQueueLeftNum =
-      DATAQUEUE_GetMaxSize(context->pInputQueue) -
-      DATAQUEUE_GetCurrentSize(context->pInputQueue);
+
+//  debug("push packet to dec, %d %d, (%d)", ret,
+//       ++count,  PACKET_GetLength(PACKET_GetPacket(sink_data)));
 
   if (ret) {
     PACKET_Free(packet);
@@ -977,9 +1005,11 @@ S32 al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
         DATAQUEUE_GetCurrentSize(context->pOutputQueue),
         DATAQUEUE_GetCurrentSize(context->pInputQueue));
 
-  FRAME_Destory(FRAME_GetFrame(DATAQUEUE_GetData(node)));
+//note: will double free err in vdec_test
+//  FRAME_Destory(FRAME_GetFrame(DATAQUEUE_GetData(node)));
 
   // free output node
+  context->bIsFrameReady = MPP_TRUE;
   DATAQUEUE_Node_Destory(node);
 
   return MPP_OK;
@@ -1338,8 +1368,9 @@ void al_dec_destory(ALBaseContext *ctx) {
                   OMX_StateLoaded, NULL);
 
   context->bIsDestorying = MPP_TRUE;
-  pthread_join(context->workthread, NULL);
-  debug("destory 3");
+
+//note:thread had call pthread_exit
+//  pthread_join(context->workthread, NULL);
   for (S32 i = 0; i < context->nOutputBufferCount; i++) {
     OMX_FreeBuffer(context->hComponentDecoder, 1,
                    context->pOutputBufferArray[i]);
@@ -1369,6 +1400,9 @@ void al_dec_destory(ALBaseContext *ctx) {
 
   DATAQUEUE_Destory(context->pInputQueue);
   DATAQUEUE_Destory(context->pOutputQueue);
+#ifdef USE_CIRCULAR_BUFFER
+  CircularBufferFree(context->cb);
+#endif
   error("destory 8");
 #ifdef ENABLE_FILE_SAVE_DEBUG
   fclose(context->pOutputFile);

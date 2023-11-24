@@ -233,12 +233,12 @@ RETURN PACKET_SetDataPointer(MppPacket *packet, U8 *data_pointer) {
     error("input para MppPacket is NULL, please check!");
     return MPP_NULL_POINTER;
   }
-
-  if (!data_pointer) {
-    error("input para data_pointer is NULL, please check!");
-    return MPP_NULL_POINTER;
-  }
-
+  /*
+    if (!data_pointer) {
+      error("input para data_pointer is NULL, please check!");
+      return MPP_NULL_POINTER;
+    }
+  */
   packet->pData = data_pointer;
 
   return MPP_OK;

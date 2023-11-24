@@ -17,6 +17,7 @@
 #include "frame.h"
 #include "packet.h"
 #include "para.h"
+#include "circularbuffer.h"
 
 #ifdef __cplusplus
 extern "C" {
