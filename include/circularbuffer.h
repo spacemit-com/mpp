@@ -3,17 +3,18 @@
  * @Use of this source code is governed by a BSD-style license
  * @that can be found in the LICENSE file.
  * @
- * @Author: David(qiang.fu@spacemit.com)
+ * @Author: ZRong(zirong.li@spacemit.com)
  * @Date: 2023-10-07 14:08:18
  * @LastEditTime: 2023-10-07 16:08:51
  * @Description:
  */
 
-#ifndef _CIRCULARBUFFER_H_
-#define _CIRCULARBUFFER_H_
-#include "type.h"
+#ifndef _MPP_CIRCULARBUFFER_H_
+#define _MPP_CIRCULARBUFFER_H_
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "type.h"
 
 /*
  * A circular buffer(circular queue, cyclic buffer or ring buffer), is a data
@@ -47,4 +48,4 @@ void *CircularBufferGetTailAddr(CircularBuffer cBuf);
 
 void TestCircularBuffer(void);
 
-#endif
+#endif /*_MPP_CIRCULARBUFFER_H_*/

@@ -3,9 +3,9 @@
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
  *
- * @Author: David(qiang.fu@spacemit.com)
+ * @Author: ZRong(zhirong.li@spacemit.com)
  * @Date: 2023-11-20 14:08:38
- * @LastEditTime: 2023-11-20 14:08:38
+ * @LastEditTime: 2023-11-27 10:14:32
  * @Description:
  */
 
@@ -19,6 +19,7 @@
 #include <string.h>
 //#include <time.h>
 #include <sys/time.h>
+
 #include "log.h"
 
 struct s_circularBuffer {
@@ -42,7 +43,7 @@ CircularBuffer CircularBufferCreate(U32 size) {
   U32 totalSize = sizeof(struct s_circularBuffer) + size;
   void *p = malloc(totalSize);
   if (!p) {
-    error("malloc size: %u , fail\n", totalSize);
+    error("malloc size: %u , fail", totalSize);
     return NULL;
   }
 
@@ -94,7 +95,7 @@ U32 CircularBufferPush(CircularBuffer cBuf, void *src, U32 length) {
   U32 try_count = 0;
 
   if (writableLen > cBuf->size || length == 0) {
-    error("push paras error(%u, %u), please check!\n", writableLen, cBuf->size);
+    error("push paras error(%u, %u), please check!", writableLen, cBuf->size);
     return -1;
   }
 
@@ -102,36 +103,34 @@ try_loop:
   remainSize = CircularBufferRemainSize(cBuf);  // remainSize will bigger
   if (remainSize < writableLen) {
     if (try_count++ == 4) {
-      error("error, tried to wait max times:%d\n", try_count);
+      error("error, tried to wait max times:%d", try_count);
       return -1;
     }
 
-    debug("wait for space to push(%u, %u, %u)\n",
-          cBuf->tailOffset, cBuf->headOffset, try_count);
+    debug("wait for space to push(%u, %u, %u)", cBuf->tailOffset,
+          cBuf->headOffset, try_count);
 
     pthread_mutex_lock(&cBuf->mutex);
 
     pthread_cond_wait(&cBuf->cond, &cBuf->mutex);
-/*
-    struct timespec tm;
-    struct timeval now;
+    /*
+        struct timespec tm;
+        struct timeval now;
 
-    gettimeofday(&now, NULL);
+        gettimeofday(&now, NULL);
 
-    tm.tv_sec = now.tv_sec + 5;
-    tm.tv_nsec = now.tv_usec * 1000;
+        tm.tv_sec = now.tv_sec + 5;
+        tm.tv_nsec = now.tv_usec * 1000;
 
-    if (pthread_cond_timedwait(&cBuf->cond, &cBuf->mutex, &tm) == ETIMEDOUT) {
-      error("error, wait for space timeout(%u, %u)\n", remainSize, writableLen);
-      pthread_mutex_unlock(&cBuf->mutex);
-      return -1;
-    }
-*/
+        if (pthread_cond_timedwait(&cBuf->cond, &cBuf->mutex, &tm) == ETIMEDOUT)
+       { error("error, wait for space timeout(%u, %u)", remainSize,
+       writableLen); pthread_mutex_unlock(&cBuf->mutex); return -1;
+        }
+    */
     pthread_mutex_unlock(&cBuf->mutex);
 
     goto try_loop;
   }
-
 
   if (cBuf->tailOffset == -1) {
     remainSize = cBuf->size;
@@ -140,13 +139,13 @@ try_loop:
 
   BOOL toHead = MPP_FALSE;
   if (cBuf->tailOffset + writableLen > cBuf->size) {
-    // debug("push data mode: toHead is true (%u, %u)\n",  cBuf->tailOffset,
+    // debug("push data mode: toHead is true (%u, %u)",  cBuf->tailOffset,
     // cBuf->headOffset);
     toHead = MPP_TRUE;
   }
 
   if (!toHead) {
-    // debug("push data (%u, %u)\n",  cBuf->tailOffset,
+    // debug("push data (%u, %u)",  cBuf->tailOffset,
     // cBuf->headOffset);
     memcpy(cBuf->buffer + cBuf->tailOffset, pSrc, writableLen);
 
@@ -156,13 +155,13 @@ try_loop:
     if (cBuf->tailOffset == cBuf->size) {
       cBuf->tailOffset = 0;
     } else if (cBuf->tailOffset > cBuf->size) {
-      error("error, tailOffset cross the border(%u)\n", cBuf->headOffset);
+      error("error, tailOffset cross the border(%u)", cBuf->headOffset);
       return -1;
     }
 
   } else  // in case the tailOffset will be restart after adding the data
   {
-    // debug("push restart data(%u, %u)\n",
+    // debug("push restart data(%u, %u)",
     // cBuf->tailOffset, cBuf->headOffset);
     U32 toHeadSize = cBuf->size - cBuf->tailOffset;  // the remain size for head
     memcpy(cBuf->buffer + cBuf->tailOffset, pSrc, toHeadSize);
@@ -174,8 +173,8 @@ try_loop:
     cBuf->tailOffset = headSize;
     atomic_store(&cBuf->dataSize, atomic_load(&cBuf->dataSize) + writableLen);
 
-    debug("finish push restart data (%u, %u, %u)\n",
-          cBuf->tailOffset, toHeadSize, headSize);
+    debug("finish push restart data (%u, %u, %u)", cBuf->tailOffset, toHeadSize,
+          headSize);
   }
 
   return writableLen;
@@ -194,8 +193,8 @@ U32 inter_circularBuffer_read(CircularBuffer cBuf, U32 length, void *dataOut,
   if (dataSize < drLen) {
     // blocking && wake up && check && blocking again?
     // for mpp , this case is err
-    error("error, no need to wait for reading data(%u, %u)\n",
-          cBuf->tailOffset, cBuf->headOffset);
+    error("error, no need to wait for reading data(%u, %u)", cBuf->tailOffset,
+          cBuf->headOffset);
     return -1;
   }
 
@@ -207,7 +206,7 @@ U32 inter_circularBuffer_read(CircularBuffer cBuf, U32 length, void *dataOut,
   }
 
   if (!toHead) {
-    // debug("read data(%u, %u)\n",  cBuf->tailOffset,
+    // debug("read data(%u, %u)",  cBuf->tailOffset,
     // cBuf->headOffset);
     memcpy(dataOut, cBuf->buffer + cBuf->headOffset, drLen);
 
@@ -217,12 +216,12 @@ U32 inter_circularBuffer_read(CircularBuffer cBuf, U32 length, void *dataOut,
     if (cBuf->headOffset == cBuf->size) {
       cBuf->headOffset = 0;
     } else if (cBuf->headOffset > cBuf->size) {
-      error("error, headOffset cross the border(%u)\n", cBuf->headOffset);
+      error("error, headOffset cross the border(%u)", cBuf->headOffset);
       return -1;
     }
   } else  // in case the headOffset will be restart after reading the data
   {
-    // debug("read restart data(%u, %u)\n",
+    // debug("read restart data(%u, %u)",
     // cBuf->tailOffset, cBuf->headOffset);
     U32 toHeadSize = cSize - cBuf->headOffset;  // the remain size for head
     memcpy(dataOut, cBuf->buffer + cBuf->headOffset, toHeadSize);
@@ -234,8 +233,8 @@ U32 inter_circularBuffer_read(CircularBuffer cBuf, U32 length, void *dataOut,
     cBuf->headOffset = headSize;
     atomic_store(&cBuf->dataSize, atomic_load(&cBuf->dataSize) - drLen);
 
-    debug("finish read restart data (%u, %u, %u)\n",
-           cBuf->headOffset, toHeadSize, headSize);
+    debug("finish read restart data (%u, %u, %u)", cBuf->headOffset, toHeadSize,
+          headSize);
   }
   pthread_cond_signal(&cBuf->cond);
 
@@ -268,8 +267,8 @@ void CircularBufferPrint(CircularBuffer cBuf, BOOL hex) {
       else
         c = b[i];
     } else if (cBuf->headOffset < cBuf->tailOffset) {
-//      debug("zrong ------------ jjjjj (%u, %u, %u)\n",
-//            cBuf->headOffset, cBuf->tailOffset, i);
+      //      debug("zrong ------------ jjjjj (%u, %u, %u)",
+      //            cBuf->headOffset, cBuf->tailOffset, i);
       if (i >= cBuf->headOffset && i < cBuf->tailOffset)
         c = b[i];
       else
@@ -289,7 +288,7 @@ void CircularBufferPrint(CircularBuffer cBuf, BOOL hex) {
       sprintf(str + i * 2, "%c|", c);
   }
 
-  debug("CircularBuffer: %s <size %u dataSize:%u>\n", str,
+  debug("CircularBuffer: %s <size %u dataSize:%u>", str,
         CircularBufferGetSize(cBuf), CircularBufferGetDataSize(cBuf));
 
   free(str);
@@ -304,16 +303,16 @@ void TestCircularBuffer(void) {
 
   srand(time(NULL));
 
-  printf("\n==================START 1111 TEST===================\n");
+  debug("==================START 1111 TEST===================");
 
   for (j = 0; j < 10; j++) {
     for (i = 0; i < 3; i++) {
       // push
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 3 + 1;
       ;
-      printf("++push=> %d bytes chars:(%c - %c)\n", len, *(a + offset),
-             *(a + offset + len - 1));
+      debug("++push=> %d bytes chars:(%c - %c)", len, *(a + offset),
+            *(a + offset + len - 1));
       CircularBufferPush(cb, a + offset, len);
       offset += len;
       if (strlen(a) < offset + 3) offset = 0;
@@ -321,26 +320,26 @@ void TestCircularBuffer(void) {
     }
     for (i = 0; i < 3; i++) {
       // pop
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 3 + 1;
       memset(b, '\0', 128);
       outLen = (int)CircularBufferPop(cb, len, b);
-      printf("--pop=> %d , read: %s \n", outLen, b);
+      debug("--pop=> %d , read: %s ", outLen, b);
       // CircularBufferPrint(cb,MPP_FALSE);
     }
   }
-  printf("\n==================FINISH 1111 TEST===================\n");
+  debug("==================FINISH 1111 TEST===================");
 
-  printf("\n==================START 2222 TEST===================\n");
+  debug("==================START 2222 TEST===================");
 
   for (j = 0; j < 30; j++) {
     for (i = 0; i < 1; i++) {
       // push
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 2 + 1;
       ;
-      printf("++push=> %d bytes chars:(%c - %c)\n", len, *(a + offset),
-             *(a + offset + len - 1));
+      debug("++push=> %d bytes chars:(%c - %c)", len, *(a + offset),
+            *(a + offset + len - 1));
       CircularBufferPush(cb, a + offset, len);
       offset += len;
       if (strlen(a) < offset + 3) offset = 0;
@@ -348,27 +347,27 @@ void TestCircularBuffer(void) {
     }
     for (i = 0; i < 1; i++) {
       // pop
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 2 + 1;
       memset(b, '\0', 128);
       outLen = (int)CircularBufferPop(cb, len, b);
-      printf("--pop=> %d , read: %s \n", outLen, b);
+      debug("--pop=> %d , read: %s ", outLen, b);
       // CircularBufferPrint(cb,MPP_FALSE);
     }
   }
 
-  printf("\n==================FINISH 2222 TEST===================\n");
+  debug("==================FINISH 2222 TEST===================");
 
-  printf("\n==================START 3333 TEST===================\n");
+  debug("==================START 3333 TEST===================");
 
   for (j = 0; j < 30; j++) {
     for (i = 0; i < 1; i++) {
       // push
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 4 + 1;
       ;
-      printf("++push=> %d bytes chars:(%c - %c)\n", len, *(a + offset),
-             *(a + offset + len - 1));
+      debug("++push=> %d bytes chars:(%c - %c)", len, *(a + offset),
+            *(a + offset + len - 1));
       CircularBufferPush(cb, a + offset, len);
       offset += len;
       if (strlen(a) < offset + 3) offset = 0;
@@ -376,27 +375,27 @@ void TestCircularBuffer(void) {
     }
     for (i = 0; i < 1; i++) {
       // pop
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 4 + 1;
       memset(b, '\0', 128);
       outLen = (int)CircularBufferPop(cb, len, b);
-      printf("--pop=> %d , read: %s \n", outLen, b);
+      debug("--pop=> %d , read: %s ", outLen, b);
       CircularBufferPrint(cb, MPP_FALSE);
     }
   }
 
-  printf("\n==================FINISH 3333 TEST===================\n");
+  debug("==================FINISH 3333 TEST===================");
 
-  printf("\n==================START 4444 TEST===================\n");
+  debug("==================START 4444 TEST===================");
 
   for (j = 0; j < 30; j++) {
     for (i = 0; i < 1; i++) {
       // push
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 7 + 1;
       ;
-      printf("++push=> %d bytes chars:(%c - %c)\n", len, *(a + offset),
-             *(a + offset + len - 1));
+      debug("++push=> %d bytes chars:(%c - %c)", len, *(a + offset),
+            *(a + offset + len - 1));
       CircularBufferPush(cb, a + offset, len);
       offset += len;
       if (strlen(a) < offset + 3) offset = 0;
@@ -404,14 +403,14 @@ void TestCircularBuffer(void) {
     }
     for (i = 0; i < 1; i++) {
       // pop
-      printf("\n=====================================\n");
+      debug("=====================================");
       len = random_number = rand() % 7 + 1;
       memset(b, '\0', 128);
       outLen = (int)CircularBufferPop(cb, len, b);
-      printf("--pop=> %d , read: %s \n", outLen, b);
+      debug("--pop=> %d , read: %s ", outLen, b);
       CircularBufferPrint(cb, MPP_FALSE);
     }
   }
 
-  printf("\n==================FINISH 4444 TEST===================\n");
+  debug("==================FINISH 4444 TEST===================");
 }

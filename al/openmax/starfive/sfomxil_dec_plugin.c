@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2023-11-21 17:55:03
+ * @LastEditTime: 2023-11-27 09:37:37
  * @Description: video decode plugin for starfive omxIL layer
  */
 
@@ -340,8 +340,7 @@ static OMX_ERRORTYPE empty_buffer_done_handler(OMX_HANDLETYPE hComponent,
   return OMX_ErrorNone;
 }
 
-static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *context,
-                               MppData *sink_data,
+static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *context, MppData *sink_data,
                                OMX_BUFFERHEADERTYPE *pInputBuffer) {
   MppPacket *sink_packet = PACKET_GetPacket(sink_data);
 
@@ -357,7 +356,8 @@ static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *context,
 
   pInputBuffer->nFilledLen = PACKET_GetLength(sink_packet);
 #ifdef USE_CIRCULAR_BUFFER
-  CircularBufferPop (context->cb, pInputBuffer->nFilledLen, pInputBuffer->pBuffer);
+  CircularBufferPop(context->cb, pInputBuffer->nFilledLen,
+                    pInputBuffer->pBuffer);
 #else
   memcpy(pInputBuffer->pBuffer, PACKET_GetDataPointer(sink_packet),
          pInputBuffer->nFilledLen);
@@ -438,7 +438,7 @@ void *do_decode(void *private_data) {
 
         // free packet && free packet node
 #ifdef USE_CIRCULAR_BUFFER
-        PACKET_SetDataPointer (sink_packet, NULL);
+        PACKET_SetDataPointer(sink_packet, NULL);
 #endif
         PACKET_Free(sink_packet);
         PACKET_Destory(sink_packet);
@@ -481,7 +481,7 @@ void *do_decode(void *private_data) {
 
           OMX_EmptyThisBuffer(context->hComponentDecoder, pBuffer);
 #ifdef USE_CIRCULAR_BUFFER
-          PACKET_SetDataPointer (sink_packet, NULL);
+          PACKET_SetDataPointer(sink_packet, NULL);
 #endif
           PACKET_Free(sink_packet);
           PACKET_Destory(sink_packet);
@@ -787,7 +787,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   pthread_mutex_init(&context->mutex, NULL);
 
 #ifdef USE_CIRCULAR_BUFFER
-  context->cb = CircularBufferCreate(1024 * 512 * 1);
+  context->cb = CircularBufferCreate(1024 * 1024 * 10);
 #endif
   if (context->pVdecPara->nWidth > 0 && context->pVdecPara->nHeight > 0) {
     debug("init get width and height (%d x %d)", context->pVdecPara->nWidth,
@@ -938,16 +938,16 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
 
   MppPacket *packet = NULL;
   if (context->pVdecPara->nInputQueueLeftNum > 0 ||
-    context->pVdecPara->bInputBlockModeEnable) {
+      context->pVdecPara->bInputBlockModeEnable) {
     packet = PACKET_Create();
 
 #ifdef USE_CIRCULAR_BUFFER
-    void *tmp = CircularBufferGetTailAddr (context->cb);
+    void *tmp = CircularBufferGetTailAddr(context->cb);
 
-    CircularBufferPush (context->cb,
-      PACKET_GetDataPointer(sink_packet), PACKET_GetLength(sink_packet));
+    CircularBufferPush(context->cb, PACKET_GetDataPointer(sink_packet),
+                       PACKET_GetLength(sink_packet));
 
-    PACKET_SetDataPointer (packet, tmp);
+    PACKET_SetDataPointer(packet, tmp);
     PACKET_SetLength(packet, PACKET_GetLength(sink_packet));
 
 #else
@@ -968,9 +968,12 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
   }
 
   ret = DATAQUEUE_Push(context->pInputQueue, node);
+  context->pVdecPara->nInputQueueLeftNum =
+      DATAQUEUE_GetMaxSize(context->pInputQueue) -
+      DATAQUEUE_GetCurrentSize(context->pInputQueue);
 
-//  debug("push packet to dec, %d %d, (%d)", ret,
-//       ++count,  PACKET_GetLength(PACKET_GetPacket(sink_data)));
+  //  debug("push packet to dec, %d %d, (%d)", ret,
+  //       ++count,  PACKET_GetLength(PACKET_GetPacket(sink_data)));
 
   if (ret) {
     PACKET_Free(packet);
@@ -1005,8 +1008,8 @@ S32 al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
         DATAQUEUE_GetCurrentSize(context->pOutputQueue),
         DATAQUEUE_GetCurrentSize(context->pInputQueue));
 
-//note: will double free err in vdec_test
-//  FRAME_Destory(FRAME_GetFrame(DATAQUEUE_GetData(node)));
+  // note: will double free err in vdec_test
+  //   FRAME_Destory(FRAME_GetFrame(DATAQUEUE_GetData(node)));
 
   // free output node
   context->bIsFrameReady = MPP_TRUE;
@@ -1369,8 +1372,8 @@ void al_dec_destory(ALBaseContext *ctx) {
 
   context->bIsDestorying = MPP_TRUE;
 
-//note:thread had call pthread_exit
-//  pthread_join(context->workthread, NULL);
+  // note:thread had call pthread_exit
+  //   pthread_join(context->workthread, NULL);
   for (S32 i = 0; i < context->nOutputBufferCount; i++) {
     OMX_FreeBuffer(context->hComponentDecoder, 1,
                    context->pOutputBufferArray[i]);
