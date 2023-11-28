@@ -12,7 +12,7 @@
 #ifndef _AL_INTERFACE_BASE_H_
 #define _AL_INTERFACE_BASE_H_
 
-#include "circularbuffer.h"
+#include "ringbuffer.h"
 #include "data.h"
 #include "dataqueue.h"
 #include "frame.h"

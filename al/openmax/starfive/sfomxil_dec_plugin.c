@@ -49,7 +49,7 @@
 #define MORE_OUTPUT_BUFFER_NEEDED 4
 
 //#define ENABLE_FILE_SAVE_DEBUG
-//#define USE_CIRCULAR_BUFFER
+#define USE_CIRCULAR_BUFFER
 
 #ifdef ENABLE_FILE_SAVE_DEBUG
 U8 *pOutputFileName = "/tmp/output.yuv";
@@ -141,7 +141,7 @@ struct _ALSfOmxilDecContext {
   U32 decOutNum;
   BOOL bIsFrameReady;
 
-  CircularBuffer cb;
+  MppRingBuffer *rb;
 };
 
 static void mppframe_create_and_config(ALSfOmxilDecContext *context, S32 i,
@@ -356,8 +356,7 @@ static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *context, MppData *sink_data,
 
   pInputBuffer->nFilledLen = PACKET_GetLength(sink_packet);
 #ifdef USE_CIRCULAR_BUFFER
-  CircularBufferPop(context->cb, pInputBuffer->nFilledLen,
-                    pInputBuffer->pBuffer);
+  RingBufferPop (context->rb, pInputBuffer->nFilledLen, pInputBuffer->pBuffer);
 #else
   memcpy(pInputBuffer->pBuffer, PACKET_GetDataPointer(sink_packet),
          pInputBuffer->nFilledLen);
@@ -787,7 +786,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   pthread_mutex_init(&context->mutex, NULL);
 
 #ifdef USE_CIRCULAR_BUFFER
-  context->cb = CircularBufferCreate(1024 * 1024 * 10);
+  context->rb = RingBufferCreate(1024 * 512 * 1);
 #endif
   if (context->pVdecPara->nWidth > 0 && context->pVdecPara->nHeight > 0) {
     debug("init get width and height (%d x %d)", context->pVdecPara->nWidth,
@@ -942,10 +941,10 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
     packet = PACKET_Create();
 
 #ifdef USE_CIRCULAR_BUFFER
-    void *tmp = CircularBufferGetTailAddr(context->cb);
+    void *tmp = RingBufferGetTailAddr (context->rb);
 
-    CircularBufferPush(context->cb, PACKET_GetDataPointer(sink_packet),
-                       PACKET_GetLength(sink_packet));
+    RingBufferPush (context->rb,
+      PACKET_GetDataPointer(sink_packet), PACKET_GetLength(sink_packet));
 
     PACKET_SetDataPointer(packet, tmp);
     PACKET_SetLength(packet, PACKET_GetLength(sink_packet));
@@ -1404,7 +1403,7 @@ void al_dec_destory(ALBaseContext *ctx) {
   DATAQUEUE_Destory(context->pInputQueue);
   DATAQUEUE_Destory(context->pOutputQueue);
 #ifdef USE_CIRCULAR_BUFFER
-  CircularBufferFree(context->cb);
+  RingBufferFree(context->rb);
 #endif
   error("destory 8");
 #ifdef ENABLE_FILE_SAVE_DEBUG

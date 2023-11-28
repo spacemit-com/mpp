@@ -23,5 +23,5 @@ set(SRC_LIST ./log.c
             ./utils.c
             ./resolution_utils.c
             ./dmabufwrapper.c
-            ./circularbuffer.c)
+            ./ringbuffer.c)
 add_library(utils STATIC ${SRC_LIST})
