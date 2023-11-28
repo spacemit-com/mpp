@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 15:35:41
- * @LastEditTime: 2023-10-19 16:52:39
+ * @LastEditTime: 2023-11-28 11:26:18
  * @Description: some V4L2 utils
  */
 
@@ -82,7 +82,6 @@ BOOL check_output_is_stream(S32 video_fd) {
       case V4L2_PIX_FMT_MPEG2_SLICE:
       case V4L2_PIX_FMT_MPEG4:
       case V4L2_PIX_FMT_VP8:
-      case V4L2_PIX_FMT_VP8_FRAME:
       case V4L2_PIX_FMT_VP9:
       case V4L2_PIX_FMT_HEVC:
       case V4L2_PIX_FMT_FWHT:
@@ -121,7 +120,6 @@ BOOL check_output_is_stream(S32 video_fd) {
       case V4L2_PIX_FMT_MPEG2_SLICE:
       case V4L2_PIX_FMT_MPEG4:
       case V4L2_PIX_FMT_VP8:
-      case V4L2_PIX_FMT_VP8_FRAME:
       case V4L2_PIX_FMT_VP9:
       case V4L2_PIX_FMT_HEVC:
       case V4L2_PIX_FMT_FWHT:
@@ -170,7 +168,6 @@ BOOL check_output_is_frame(S32 video_fd) {
       case V4L2_PIX_FMT_NV21:
       case V4L2_PIX_FMT_YUV420:
       case V4L2_PIX_FMT_YVU420:
-      case V4L2_PIX_FMT_P010:
         check_result = MPP_TRUE;
         break;
       default:
@@ -200,7 +197,6 @@ BOOL check_output_is_frame(S32 video_fd) {
       case V4L2_PIX_FMT_NV21:
       case V4L2_PIX_FMT_YUV420:
       case V4L2_PIX_FMT_YVU420:
-      case V4L2_PIX_FMT_P010:
         check_result = MPP_TRUE;
         break;
       default:
@@ -306,7 +302,6 @@ BOOL check_input_is_stream(S32 video_fd) {
       case V4L2_PIX_FMT_MPEG2_SLICE:
       case V4L2_PIX_FMT_MPEG4:
       case V4L2_PIX_FMT_VP8:
-      case V4L2_PIX_FMT_VP8_FRAME:
       case V4L2_PIX_FMT_VP9:
       case V4L2_PIX_FMT_HEVC:
       case V4L2_PIX_FMT_FWHT:
@@ -347,7 +342,6 @@ BOOL check_input_is_stream(S32 video_fd) {
       case V4L2_PIX_FMT_MPEG2_SLICE:
       case V4L2_PIX_FMT_MPEG4:
       case V4L2_PIX_FMT_VP8:
-      case V4L2_PIX_FMT_VP8_FRAME:
       case V4L2_PIX_FMT_VP9:
       case V4L2_PIX_FMT_HEVC:
       case V4L2_PIX_FMT_FWHT:
