@@ -49,7 +49,7 @@
 #define MORE_OUTPUT_BUFFER_NEEDED 4
 
 //#define ENABLE_FILE_SAVE_DEBUG
-#define USE_CIRCULAR_BUFFER
+//#define USE_CIRCULAR_BUFFER
 
 #ifdef ENABLE_FILE_SAVE_DEBUG
 U8 *pOutputFileName = "/tmp/output.yuv";
@@ -786,7 +786,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   pthread_mutex_init(&context->mutex, NULL);
 
 #ifdef USE_CIRCULAR_BUFFER
-  context->rb = RingBufferCreate(1024 * 512 * 1);
+  context->rb = RingBufferCreate(1024 * 1024 * 10);
 #endif
   if (context->pVdecPara->nWidth > 0 && context->pVdecPara->nHeight > 0) {
     debug("init get width and height (%d x %d)", context->pVdecPara->nWidth,

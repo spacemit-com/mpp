@@ -22,7 +22,6 @@
  * visit https://en.wikipedia.org/wiki/Circular_buffer to see more information.
  */
 typedef struct _MppRingBuffer MppRingBuffer;
-typedef struct _MppRbDataQueue MppRbDataQueue;
 
 // Construct RingBuffer with ‘size' in byte. You must call
 // RingBufferFree() in balance for destruction.

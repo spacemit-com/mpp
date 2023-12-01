@@ -32,13 +32,6 @@ struct _MppRingBuffer {
   pthread_mutex_t mutex;
   pthread_cond_t cond;
 };
-struct _MppRbDataQueue {
-
-};
-
-MppRbDataQueue *rb_dataqueu_init(void) {
-
-}
 
 void ringbuffer_reset(MppRingBuffer *rBuf) {
   rBuf->headOffset = -1;
