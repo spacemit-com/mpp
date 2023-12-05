@@ -12,12 +12,12 @@
 #ifndef _AL_INTERFACE_BASE_H_
 #define _AL_INTERFACE_BASE_H_
 
-#include "ringbuffer.h"
 #include "data.h"
 #include "dataqueue.h"
 #include "frame.h"
 #include "packet.h"
 #include "para.h"
+#include "ringbuffer.h"
 
 #ifdef __cplusplus
 extern "C" {

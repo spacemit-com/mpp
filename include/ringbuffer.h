@@ -11,9 +11,10 @@
 
 #ifndef _RINGBUFFER_H_
 #define _RINGBUFFER_H_
-#include "type.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "type.h"
 
 /*
  * A Ring buffer(Ring queue, cyclic buffer or ring buffer), is a data

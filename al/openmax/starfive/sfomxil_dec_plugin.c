@@ -356,7 +356,7 @@ static OMX_S32 FillInputBuffer(ALSfOmxilDecContext *context, MppData *sink_data,
 
   pInputBuffer->nFilledLen = PACKET_GetLength(sink_packet);
 #ifdef USE_CIRCULAR_BUFFER
-  RingBufferPop (context->rb, pInputBuffer->nFilledLen, pInputBuffer->pBuffer);
+  RingBufferPop(context->rb, pInputBuffer->nFilledLen, pInputBuffer->pBuffer);
 #else
   memcpy(pInputBuffer->pBuffer, PACKET_GetDataPointer(sink_packet),
          pInputBuffer->nFilledLen);
@@ -941,10 +941,10 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
     packet = PACKET_Create();
 
 #ifdef USE_CIRCULAR_BUFFER
-    void *tmp = RingBufferGetTailAddr (context->rb);
+    void *tmp = RingBufferGetTailAddr(context->rb);
 
-    RingBufferPush (context->rb,
-      PACKET_GetDataPointer(sink_packet), PACKET_GetLength(sink_packet));
+    RingBufferPush(context->rb, PACKET_GetDataPointer(sink_packet),
+                   PACKET_GetLength(sink_packet));
 
     PACKET_SetDataPointer(packet, tmp);
     PACKET_SetLength(packet, PACKET_GetLength(sink_packet));
