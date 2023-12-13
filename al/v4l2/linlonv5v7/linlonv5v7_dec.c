@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2023-12-13 16:19:24
+ * @LastEditTime: 2023-12-13 16:52:01
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -286,6 +286,9 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
   ret = pthread_create(&context->pollthread, NULL, runpoll, (void *)context);
 
+  context->pVdecPara->nInputQueueLeftNum =
+      getBufNum(getInputPort(context->stCodec));
+
   debug("init finish");
 
   return MPP_OK;
@@ -298,6 +301,26 @@ RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
   }
 
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
+
+  struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
+  S32 ret = poll(&p, 1, 1000);
+
+  if (ret < 0) {
+    error("Poll returned error code.");
+  }
+
+  if (p.revents & POLLERR) {
+    error("Poll returned error event.");
+  }
+
+  if (ret == 0) {
+    error("Poll timed out.");
+  }
+
+  if (p.revents & POLLOUT && !context->pVdecPara->nInputQueueLeftNum) {
+    context->pVdecPara->nInputQueueLeftNum = 1;
+  }
+
   *para = context->pVdecPara;
   return MPP_OK;
 }
@@ -340,6 +363,7 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
 
     queueBuffer(getInputPort(context->stCodec), buf);
     i++;
+    context->pVdecPara->nInputQueueLeftNum--;
   } else {
     ret = runPoll(context->stCodec, &p);
 
@@ -347,6 +371,7 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
       handleInputBuffer(getInputPort(context->stCodec), context->bInputEos,
                         sink_data);
       context->bInputReady = MPP_FALSE;
+      context->pVdecPara->nInputQueueLeftNum--;
     } else {
       return MPP_POLL_FAILED;
     }
