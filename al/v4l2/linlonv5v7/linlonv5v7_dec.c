@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2023-11-09 09:38:54
+ * @LastEditTime: 2023-12-13 16:19:24
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -288,6 +288,17 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
   debug("init finish");
 
+  return MPP_OK;
+}
+
+RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
+  if (!ctx) {
+    error("input para ALBaseContext is NULL, please check!");
+    return MPP_NULL_POINTER;
+  }
+
+  ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
+  *para = context->pVdecPara;
   return MPP_OK;
 }
 

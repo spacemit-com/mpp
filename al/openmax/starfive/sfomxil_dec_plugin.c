@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2023-11-27 09:37:37
+ * @LastEditTime: 2023-12-13 16:20:10
  * @Description: video decode plugin for starfive omxIL layer
  */
 
@@ -846,6 +846,11 @@ exit:
 }
 
 RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
+  if (!ctx) {
+    error("input para ALBaseContext is NULL, please check!");
+    return MPP_NULL_POINTER;
+  }
+
   ALSfOmxilDecContext *context = (ALSfOmxilDecContext *)ctx;
   *para = context->pVdecPara;
   return MPP_OK;
