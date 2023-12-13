@@ -80,6 +80,13 @@ BOOL DATAQUEUE_IsEmpty(MppDataQueue *queue);
  * @param {MppDataQueue} *queue
  * @return {*}
  */
+BOOL DATAQUEUE_IsFull(MppDataQueue *queue);
+
+/**
+ * @description:
+ * @param {MppDataQueue} *queue
+ * @return {*}
+ */
 S32 DATAQUEUE_GetCurrentSize(MppDataQueue *queue);
 
 /**

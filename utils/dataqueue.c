@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2023-11-03 10:35:32
+ * @LastEditTime: 2023-12-05 11:30:01
  * @Description:
  */
 
@@ -225,6 +225,19 @@ BOOL DATAQUEUE_IsEmpty(MppDataQueue *queue) {
   }
 
   if (atomic_load(&queue->nCurrentNum) == 0) {
+    return MPP_TRUE;
+  }
+
+  return MPP_FALSE;
+}
+
+BOOL DATAQUEUE_IsFull(MppDataQueue *queue) {
+  if (!queue) {
+    error("input para MppDataQueue is NULL, please check!");
+    return MPP_CHECK_FAILED;
+  }
+
+  if (queue->nMaxNum - atomic_load(&queue->nCurrentNum) == 0) {
     return MPP_TRUE;
   }
 
