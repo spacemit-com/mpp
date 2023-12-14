@@ -5,8 +5,8 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2023-11-09 16:12:15
- * @Description: video decode plugin for starfive omxIL layer
+ * @LastEditTime: 2023-12-13 20:13:57
+ * @Description: video decode plugin for fake test
  */
 
 #define ENABLE_DEBUG 1

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 10:27:53
- * @LastEditTime: 2023-11-13 10:45:30
+ * @LastEditTime: 2023-12-13 20:21:47
  * @Description: dlopen the video codec library dynamicly
  */
 
@@ -62,6 +62,7 @@ FIND_PLUGIN(V4L2, v4l2, v4l2_standard_codec)
 FIND_PLUGIN(FAKEDEC, fakedec, fake_dec_plugin)
 FIND_PLUGIN(V4L2_LINLONV5V7, v4l2_linlonv5v7, v4l2_linlonv5v7_codec)
 FIND_PLUGIN(K1X_V2D, k1x_v2d, v2d_plugin)
+FIND_PLUGIN(K1X_JPU, k1x_jpu, jpu_plugin)
 
 #define CHECK_LIBRARY(TYPE, type, name, path1, path2) \
 S32 check_##type() \
@@ -87,6 +88,7 @@ CHECK_LIBRARY(FFMPEG, ffmpeg, avcodec, /usr/lib/ffmpeg, /usr/local/lib/ffmpeg)
 CHECK_LIBRARY(OPENH264, openh264, openh264, /usr/lib/x86_64-linux-gnu, /usr/local/lib/x86_64-linux-gnu)
 CHECK_LIBRARY(FAKEDEC, fakedec, c, /, /)
 CHECK_LIBRARY(K1X_V2D, k1x_v2d, v2d, /, /)
+CHECK_LIBRARY(K1X_JPU, k1x_jpu, jpu, /, /)
 
 #define CHECKCODEC_BY_TYPE(TYPE, type) \
 { \
@@ -165,6 +167,10 @@ MppModule*  module_init(MppCodecType codec_type)
     else if(CODEC_K1X_V2D == codec_type)
     {
         CHECKCODEC_BY_TYPE(K1X_V2D, k1x_v2d);
+    }
+    else if(CODEC_K1X_JPU == codec_type)
+    {
+        CHECKCODEC_BY_TYPE(K1X_JPU, k1x_v2d);
     }
     else
     {

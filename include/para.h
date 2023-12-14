@@ -43,6 +43,8 @@
 +-----------------------+---------+---------+-----------+
 | CODEC_K1X_V2D         | x       | x       | √         |
 +-----------------------+---------+---------+-----------+
+| CODEC_K1X_JPU         | √       | √       | x         |
++-----------------------+---------+---------+-----------+
 
 */
 
@@ -103,6 +105,11 @@ typedef enum _MppCodecType {
    */
   CODEC_K1X_V2D,
 
+  /***
+   * use jpu for jpeg decoder and encoder (K1X).
+   */
+  CODEC_K1X_JPU,
+
   CODEC_MAX,
 } MppCodecType;
 
@@ -123,6 +130,7 @@ static inline const char* mpp_codectype2str(int cmd) {
     MPP_CODECTYPE2STR(CODEC_FAKEDEC);
     MPP_CODECTYPE2STR(CODEC_V4L2_LINLONV5V7);
     MPP_CODECTYPE2STR(CODEC_K1X_V2D);
+    MPP_CODECTYPE2STR(CODEC_K1X_JPU);
     default:
       return "UNKNOWN";
   }

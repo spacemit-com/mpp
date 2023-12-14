@@ -15,3 +15,10 @@ add_library(v2d_plugin SHARED ${SRC_LIST})
 target_link_libraries(v2d_plugin utils)
 install(TARGETS v2d_plugin LIBRARY
         DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
+
+include_directories(jpu/include)
+set(SRC_LIST ./jpu/jpudec.c ./jpu/jpuenc.c)
+add_library(jpu_plugin SHARED ${SRC_LIST})
+target_link_libraries(jpu_plugin utils)
+install(TARGETS jpu_plugin LIBRARY
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
