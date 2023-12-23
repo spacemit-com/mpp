@@ -9,7 +9,7 @@
  * @Description:
  */
 
-#define ENABLE_DEBUG 0
+#define ENABLE_DEBUG 1
 
 #include "vdec.h"
 
@@ -367,7 +367,7 @@ S32 main(S32 argc, char **argv) {
   context->pVdecCtx->eCodecType = context->eCodecType;
 
   ret = VDEC_Init(context->pVdecCtx);
-  if (!ret) {
+  if (ret) {
     error("VDEC_init failed, please check!");
     VDEC_DestoryChannel(context->pVdecCtx);
     PARSE_Destory(context->pParseCtx);
@@ -426,9 +426,16 @@ S32 main(S32 argc, char **argv) {
         VDEC_ReturnOutputFrame(context->pVdecCtx,
                                FRAME_GetBaseData(context->pFrame));
       } else if (ret == MPP_CODER_EOS) {
+        if (context->eCodecType == CODEC_OPENH264)
+          save_yuv_to_file(context, (S32 *)FRAME_GetMetaData(context->pFrame));
+        else
+          save_yuv_to_file(context, NULL);
+
+        VDEC_ReturnOutputFrame(context->pVdecCtx,
+                               FRAME_GetBaseData(context->pFrame));
         debug("get eos msg, go out of the main while!");
         goto finish_pre;
-      } else if (ret == MPP_CODER_NO_DATA) {
+      } else if (ret == MPP_CODER_NO_DATA || ret == MPP_RESOLUTION_CHANGED) {
         continue;
       } else {
         error("get something wrong(%d), go out of the main while!", ret);
@@ -451,8 +458,8 @@ finish_pre:
   }
 
 finish:
-  FRAME_Free(context->pFrame);
-  FRAME_Destory(context->pFrame);
+  // FRAME_Free(context->pFrame);
+  // FRAME_Destory(context->pFrame);
   PACKET_Free(context->pPacket);
   PACKET_Destory(context->pPacket);
 

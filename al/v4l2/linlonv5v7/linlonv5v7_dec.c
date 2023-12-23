@@ -261,6 +261,9 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
   context->pVdecPara->nInputQueueLeftNum = 1;
 
+  para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
+  para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_ASYNC;
+
   context->nVideoFd =
       find_v4l2_decoder(context->sDevicePath,
                         get_linlonv5v7dec_codec_coding_type(para->eCodingType));
