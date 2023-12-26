@@ -415,7 +415,7 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
       p->events |= POLLIN;
   }*/
 
-  S32 ret = poll(p, 1, 1000);
+  S32 ret = poll(p, 1, 50);
   // debug("poll ret = %d p->revents=%x", ret, p->revents);
 
   if (ret < 0) {

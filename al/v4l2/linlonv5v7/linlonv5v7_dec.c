@@ -191,7 +191,7 @@ void *runpoll(void *private_data) {
     // if (context->stCodec->stOutputPort->pending > 0)
     //{ p.events |= POLLIN; }
 
-    S32 ret = poll(&p, 1, 1000);
+    S32 ret = poll(&p, 1, 50);
 
     // debug("pending %d %d ret = %d revents=%x",
     // context->stCodec->stInputPort->pending,
@@ -306,7 +306,7 @@ RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
 
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
-  S32 ret = poll(&p, 1, 1000);
+  S32 ret = poll(&p, 1, 50);
 
   if (ret < 0) {
     error("Poll returned error code.");
@@ -405,7 +405,7 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
     context->bOutputReady = MPP_FALSE;
   } else {
     // debug("============ no data, please try again!");
-    usleep(200000);
+    // usleep(200000);
     return MPP_CODER_NO_DATA;
   }
 

@@ -42,6 +42,7 @@ typedef struct _TestVdecContext {
   S32 eOutputPixelFormat;
   MppCodecType eCodecType;
   MppVdecCtx *pVdecCtx;
+  MppVdecPara* pVdecPara;
   MppPacket *pPacket;
   MppFrame *pFrame;
   S32 nWidth;
@@ -235,6 +236,9 @@ void *do_parse(void *private_data) {
               *(S32 *)(PACKET_GetDataPointer(context->pPacket) + 12));
 
         do {
+          ret = -1;
+          VDEC_GetParam(context->pVdecCtx, &(context->pVdecPara));
+          if (!context->pVdecPara->nInputQueueLeftNum) continue;
           ret = VDEC_Decode(context->pVdecCtx,
                             PACKET_GetBaseData(context->pPacket));
         } while (ret != 0);
