@@ -206,7 +206,7 @@ void *runpoll(void *private_data) {
     }
 
     if (ret == 0) {
-      error("Poll timed out.");
+      error("Event poll timed out.");
     }
 
     // if (p.revents & POLLOUT) {
@@ -317,7 +317,7 @@ RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
   }
 
   if (ret == 0) {
-    error("Poll timed out.");
+    error("Getpara poll timed out.");
   }
 
   if (p.revents & POLLOUT && !context->pVdecPara->nInputQueueLeftNum) {

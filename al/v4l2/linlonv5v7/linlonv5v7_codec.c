@@ -24,8 +24,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define INPUT_NUM_BUFFERS 12
-#define OUTPUT_NUM_BUFFERS 12
+#define INPUT_NUM_BUFFERS 6
+#define OUTPUT_NUM_BUFFERS 6
 
 struct _Codec {
   U8 sDevicePath[20];
@@ -429,7 +429,7 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
   }
 
   if (ret == 0) {
-    error("Poll timed out.");
+    error("Queue and dequeue poll timed out.");
     return MPP_POLL_FAILED;
   }
 

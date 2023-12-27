@@ -13,6 +13,8 @@
 
 #include "linlonv5v7_port.h"
 
+#include <errno.h>
+
 struct _Port {
   U32 nFormatFourcc;
   U32 nMemType;
@@ -445,7 +447,7 @@ void streamon(Port *port) {
 
   S32 ret = ioctl(port->fd, VIDIOC_STREAMON, &(port->eBufType));
   if (ret) {
-    error("Failed to stream on.");
+    error("Failed to stream on.  fd = %d, (%s)", port->fd, strerror(errno));
   }
 }
 
@@ -1402,7 +1404,7 @@ void handleResolutionChange(Port *port, BOOL eof) {
   streamoff(port);
   getPortFormat(port);
   allocateBuffers(port, 0);
-  allocateBuffers(port, 12 /*getBufferCount(port) + 6*/);
+  allocateBuffers(port, getBufferCount(port));
   streamon(port);
   queueBuffers(port, eof);
   port->frames_processed = 0;

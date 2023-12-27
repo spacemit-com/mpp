@@ -42,7 +42,7 @@ typedef struct _TestVdecContext {
   S32 eOutputPixelFormat;
   MppCodecType eCodecType;
   MppVdecCtx *pVdecCtx;
-  MppVdecPara* pVdecPara;
+  MppVdecPara *pVdecPara;
   MppPacket *pPacket;
   MppFrame *pFrame;
   S32 nWidth;
