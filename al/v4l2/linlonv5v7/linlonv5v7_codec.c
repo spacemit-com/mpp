@@ -24,7 +24,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define INPUT_NUM_BUFFERS 6
+#define INPUT_NUM_BUFFERS 12
 #define OUTPUT_NUM_BUFFERS 6
 
 struct _Codec {
@@ -415,7 +415,7 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
       p->events |= POLLIN;
   }*/
 
-  S32 ret = poll(p, 1, 50);
+  S32 ret = poll(p, 1, 10);
   // debug("poll ret = %d p->revents=%x", ret, p->revents);
 
   if (ret < 0) {

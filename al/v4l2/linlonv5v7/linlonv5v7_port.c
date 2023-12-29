@@ -1404,7 +1404,9 @@ void handleResolutionChange(Port *port, BOOL eof) {
   streamoff(port);
   getPortFormat(port);
   allocateBuffers(port, 0);
-  allocateBuffers(port, getBufferCount(port));
+  U32 count = getBufferCount(port);
+  if (count < 8) count = 8;
+  allocateBuffers(port, count);
   streamon(port);
   queueBuffers(port, eof);
   port->frames_processed = 0;
