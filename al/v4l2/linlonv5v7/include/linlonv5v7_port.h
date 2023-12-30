@@ -24,14 +24,11 @@
 #include "data.h"
 #include "frame.h"
 #include "linlonv5v7_buffer.h"
+#include "linlonv5v7_constant.h"
 #include "log.h"
 #include "mvx-v4l2-controls.h"
 #include "packet.h"
 #include "v4l2_utils.h"
-
-#define MAX_BUF_NUM (24)
-#define INPUT_BUF_NUM (24)
-#define OUTPUT_BUF_NUM (24)
 
 typedef enum _DIRECTION {
   INPUT = 0,

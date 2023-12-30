@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2023-11-09 15:52:13
+ * @LastEditTime: 2023-12-30 11:24:21
  * @Description:
  */
 
@@ -1405,7 +1405,7 @@ void handleResolutionChange(Port *port, BOOL eof) {
   getPortFormat(port);
   allocateBuffers(port, 0);
   U32 count = getBufferCount(port);
-  if (count < 8) count = 8;
+  if (count < OUTPUT_BUF_NUM) count = OUTPUT_BUF_NUM;
   allocateBuffers(port, count);
   streamon(port);
   queueBuffers(port, eof);

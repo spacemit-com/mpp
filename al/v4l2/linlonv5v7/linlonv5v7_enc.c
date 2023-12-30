@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2023-11-14 10:25:35
+ * @LastEditTime: 2023-12-30 11:01:58
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -29,8 +29,6 @@
 
 #define MODULE_TAG "v4l2enc"
 
-//#define INPUT_BUF_NUM (3)
-//#define OUTPUT_BUF_NUM (3)
 #define BS_BUF_SIZE (1 << 20)
 
 CODING_TYPE_MAPPING_DEFINE(Linlonv5v7Enc, S32)

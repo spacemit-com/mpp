@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:28:42
- * @LastEditTime: 2023-11-09 16:13:15
+ * @LastEditTime: 2023-12-30 11:19:02
  * @Description:
  */
 
@@ -23,9 +23,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#define INPUT_NUM_BUFFERS 12
-#define OUTPUT_NUM_BUFFERS 6
 
 struct _Codec {
   U8 sDevicePath[20];
@@ -352,8 +349,8 @@ void unsubscribeEvent(Codec *codec, U32 event) {
 }
 
 void allocateCodecBuffers(Codec *codec) {
-  allocateBuffers(codec->stInputPort, INPUT_NUM_BUFFERS);
-  allocateBuffers(codec->stOutputPort, OUTPUT_NUM_BUFFERS);
+  allocateBuffers(codec->stInputPort, INPUT_BUF_NUM);
+  allocateBuffers(codec->stOutputPort, OUTPUT_BUF_NUM);
 }
 
 void freeCodecBuffers(Codec *codec) {
@@ -415,7 +412,7 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
       p->events |= POLLIN;
   }*/
 
-  S32 ret = poll(p, 1, 10);
+  S32 ret = poll(p, 1, POLL_TIMEOUT);
   // debug("poll ret = %d p->revents=%x", ret, p->revents);
 
   if (ret < 0) {
