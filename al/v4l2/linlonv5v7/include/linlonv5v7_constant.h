@@ -17,8 +17,8 @@
 #define MAX_OUTPUT_BUF_NUM (24)
 
 #define INPUT_BUF_NUM (12)
-#define OUTPUT_BUF_NUM (8)
+#define OUTPUT_BUF_NUM (10)
 
-#define POLL_TIMEOUT (10)
+#define POLL_TIMEOUT (0)
 
 #endif /*_LINLONV5V7_CONSTANT_H_*/

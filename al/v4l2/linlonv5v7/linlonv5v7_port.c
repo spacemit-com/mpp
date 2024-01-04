@@ -166,7 +166,7 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
     f->width = width;
     f->height = height;
     f->bytesperline = 0;
-    f->sizeimage = 5 * 1024 * 1024;
+    f->sizeimage = 2 * 1024 * 1024;
     // f->field = interlaced ? V4L2_FIELD_SEQ_TB : V4L2_FIELD_NONE;
   }
 

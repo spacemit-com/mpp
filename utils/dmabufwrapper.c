@@ -29,8 +29,9 @@ DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap) {
   memset(wrapper_tmp, 0, sizeof(DmaBufWrapper));
 
   U8 *dma_heap_path[64] = {
-      //"/dev/dma_heap/linux,cma",
-      "/dev/dma_heap/linux,cma@70000000", "/dev/dma_heap/system"};
+      "/dev/dma_heap/linux,cma",
+      //"/dev/dma_heap/linux,cma@70000000",
+      "/dev/dma_heap/system"};
 
   wrapper_tmp->nDmaHeapFd = open(dma_heap_path[heap], O_RDONLY | O_CLOEXEC);
   if (wrapper_tmp->nDmaHeapFd < 0) {
