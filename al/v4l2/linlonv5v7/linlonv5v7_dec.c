@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2023-12-13 16:52:01
+ * @LastEditTime: 2024-01-04 15:41:21
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -206,7 +206,7 @@ void *runpoll(void *private_data) {
     }
 
     if (ret == 0) {
-      error("Event poll timed out.");
+      // error("Event poll timed out.");
     }
 
     // if (p.revents & POLLOUT) {
@@ -317,7 +317,7 @@ RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
   }
 
   if (ret == 0) {
-    error("Getpara poll timed out.");
+    // error("Getpara poll timed out.");
   }
 
   if (p.revents & POLLOUT && !context->pVdecPara->nInputQueueLeftNum) {
@@ -440,9 +440,17 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
   return MPP_OK;
 }
 
+S32 al_dec_reset(ALBaseContext *ctx) {
+  if (!ctx) return MPP_NULL_POINTER;
+
+  debug("al_Dec_reset");
+
+  return MPP_OK;
+}
+
 void al_dec_destory(ALBaseContext *ctx) {
   if (!ctx) return;
-
+  debug("1111111111110");
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
 
   context->bIsDestoryed = MPP_TRUE;
