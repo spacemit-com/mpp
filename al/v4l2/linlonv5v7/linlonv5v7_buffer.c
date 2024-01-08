@@ -338,14 +338,16 @@ S32 memoryUnmap(Buffer *buf) {
     /*for (S32 i = 0; i < buf->stBufArr.length; ++i) {
       if (buf->pUserPtr[i] != 0) {
         if (munmap(buf->pUserPtr[i], buf->stBufArr.m.planes[i].length)) {
-          error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)", buf->stBufArr.m.planes[i].length, buf->pUserPtr[i], strerror(errno));
-          return MPP_MUNMAP_FAILED;
+          error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)",
+    buf->stBufArr.m.planes[i].length, buf->pUserPtr[i], strerror(errno)); return
+    MPP_MUNMAP_FAILED;
         }
       }
     }*/
     if (buf->pUserPtr[0]) {
       if (munmap(buf->pUserPtr[0], buf->nTotalLength)) {
-        error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)", buf->nTotalLength, buf->pUserPtr[0], strerror(errno));
+        error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)",
+              buf->nTotalLength, buf->pUserPtr[0], strerror(errno));
         return MPP_MUNMAP_FAILED;
       }
       close(buf->stBufArr.m.planes[0].m.fd);

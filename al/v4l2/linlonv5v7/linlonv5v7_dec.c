@@ -359,8 +359,10 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
     context->bInputEos = MPP_TRUE;
   }
 
-  if (unlikely(context->nInputQueuedNum < getBufNum(getInputPort(context->stCodec)))) {
-    Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
+  if (unlikely(context->nInputQueuedNum <
+               getBufNum(getInputPort(context->stCodec)))) {
+    Buffer *buf =
+        getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
     memcpy(getUserPtr(buf, 0), PACKET_GetDataPointer(packet),
            PACKET_GetLength(packet));
     struct v4l2_buffer *b = getV4l2Buffer(buf);
@@ -380,7 +382,7 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
       context->bInputReady = MPP_FALSE;
       context->pVdecPara->nInputQueueLeftNum--;
     } else {
-      //error("can not get input buffer");
+      // error("can not get input buffer");
       usleep(1000);
       return MPP_POLL_FAILED;
     }
@@ -403,22 +405,26 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
   ret = runPoll(context->stCodec, &p);
 
   if (/*context->bOutputReady*/ MPP_OK == ret && p.revents & POLLIN) {
-    //debug(
-    //    "============================= ok, a frame is ready, "
-    //    "get it!");
-    if(!context->stCodec) {
+    // debug(
+    //     "============================= ok, a frame is ready, "
+    //     "get it!");
+    if (!context->stCodec) {
       error("aoaoaoao\n");
     } else {
       ret = handleOutputBuffer(getOutputPort(context->stCodec), MPP_FALSE,
-                              src_data);
-      //debug("============ ok, a frame is handled, get it! ret = %d", ret);
+                               src_data);
+      // debug("============ ok, a frame is handled, get it! ret = %d", ret);
       context->bOutputReady = MPP_FALSE;
-      if(ret == MPP_RESOLUTION_CHANGED) {
-        context->pVdecPara->nWidth = getBufWidth(getOutputPort(context->stCodec));
-        context->pVdecPara->nHeight = getBufHeight(getOutputPort(context->stCodec));
-        context->pVdecPara->nOutputBufferNum = getBufNum(getOutputPort(context->stCodec));
-        for(U32 i = 0; i < context->pVdecPara->nOutputBufferNum; i++) {
-          context->pVdecPara->nOutputBufferFd[i] = getBufFd(getOutputPort(context->stCodec), i);
+      if (ret == MPP_RESOLUTION_CHANGED) {
+        context->pVdecPara->nWidth =
+            getBufWidth(getOutputPort(context->stCodec));
+        context->pVdecPara->nHeight =
+            getBufHeight(getOutputPort(context->stCodec));
+        context->pVdecPara->nOutputBufferNum =
+            getBufNum(getOutputPort(context->stCodec));
+        for (U32 i = 0; i < context->pVdecPara->nOutputBufferNum; i++) {
+          context->pVdecPara->nOutputBufferFd[i] =
+              getBufFd(getOutputPort(context->stCodec), i);
           context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
         }
       }
@@ -426,12 +432,13 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
   } else {
     // debug("============ no data, please try again!");
     usleep(1000);
-    //error("can not get output buffer");
+    // error("can not get output buffer");
     return MPP_CODER_NO_DATA;
   }
 
-  if(ret == MPP_OK)
-    context->pVdecPara->bIsBufferInDecoder[FRAME_GetID(FRAME_GetFrame(src_data))] = MPP_FALSE;
+  if (ret == MPP_OK)
+    context->pVdecPara
+        ->bIsBufferInDecoder[FRAME_GetID(FRAME_GetFrame(src_data))] = MPP_FALSE;
 
   return ret;
 }
@@ -453,7 +460,7 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
   S32 buf_idx = FRAME_GetID(FRAME_GetFrame(src_data));
   debug("release output idx = %d", buf_idx);
   Buffer *buf = getBuffer(getOutputPort(context->stCodec), buf_idx);
-  if(!buf) {
+  if (!buf) {
     error("buf is NULL, please check!");
   } else {
     clearBytesUsed(buf);
@@ -470,7 +477,7 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
 S32 al_dec_reset(ALBaseContext *ctx) {
   if (!ctx) return MPP_NULL_POINTER;
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
-  if(!context->bIsFlushed) {
+  if (!context->bIsFlushed) {
     debug("al_Dec_reset0");
     usleep(100000);
     debug("al_Dec_reset1");

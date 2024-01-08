@@ -287,7 +287,7 @@ void allocateBuffers(Port *port, S32 count) {
 }
 
 void freeBuffers(Port *port) {
-  for(S32 i = 0; i < port->nBufNum; i++) {
+  for (S32 i = 0; i < port->nBufNum; i++) {
     destoryBuffer(port->stBuf[i]);
   }
 }
@@ -1225,7 +1225,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   debug("handle output frame!!!");
   Buffer *buffer = dequeueBuffer(port);
-  if(!buffer) {
+  if (!buffer) {
     error("buf is NULL, please check!");
     return MPP_OK;
   }
@@ -1437,13 +1437,9 @@ void handleFlush(Port *port, BOOL eof) {
 
 S32 getBufNum(Port *port) { return port->nBufNum; }
 
-S32 getBufWidth(Port *port) {
-  return  port->stFormat.fmt.pix_mp.width;
-}
+S32 getBufWidth(Port *port) { return port->stFormat.fmt.pix_mp.width; }
 
-S32 getBufHeight(Port *port) {
-  return port->stFormat.fmt.pix_mp.height;
-}
+S32 getBufHeight(Port *port) { return port->stFormat.fmt.pix_mp.height; }
 
 S32 getBufFd(Port *port, U32 index) {
   struct v4l2_buffer *b = getV4l2Buffer(port->stBuf[index]);

@@ -426,7 +426,7 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
   }
 
   if (ret == 0) {
-    //error("Queue and dequeue poll timed out.");
+    // error("Queue and dequeue poll timed out.");
     return MPP_POLL_FAILED;
   }
 
