@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-08 10:57:03
+ * @LastEditTime: 2024-01-08 11:31:22
  * @Description:
  */
 
@@ -1225,6 +1225,10 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   debug("handle output frame!!!");
   Buffer *buffer = dequeueBuffer(port);
+  if(!buffer) {
+    error("buf is NULL, please check!");
+    return MPP_OK;
+  }
 
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   MppFrame *frame = FRAME_GetFrame(data);

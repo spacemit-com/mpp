@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-04 15:41:21
+ * @LastEditTime: 2024-01-08 11:30:20
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -109,6 +109,8 @@ struct _ALLinlonv5v7DecContext {
   BOOL bOutputReady;
 
   BOOL bIsDestoryed;
+  U32 nInputQueuedNum;
+  BOOL bIsFlushed;
 };
 
 static void setH264IntBufSize(ALLinlonv5v7DecContext *context, U32 ibs) {
@@ -258,8 +260,11 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->bInputReady = MPP_FALSE;
   context->bOutputReady = MPP_FALSE;
   context->bIsDestoryed = MPP_FALSE;
+  context->nInputQueuedNum = 0;
+  context->bIsFlushed = MPP_FALSE;
 
   context->pVdecPara->nInputQueueLeftNum = 1;
+  context->pVdecPara->nOutputBufferNum = OUTPUT_BUF_NUM;
 
   para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
   para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_ASYNC;
@@ -342,7 +347,6 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
   MppPacket *packet = PACKET_GetPacket(sink_data);
   S32 ret = 0;
-  static S32 i = 0;
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
   if ((!PACKET_GetLength(packet))) {
@@ -355,8 +359,8 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
     context->bInputEos = MPP_TRUE;
   }
 
-  if (unlikely(i < getBufNum(getInputPort(context->stCodec)))) {
-    Buffer *buf = getBuffer(getInputPort(context->stCodec), i);
+  if (unlikely(context->nInputQueuedNum < getBufNum(getInputPort(context->stCodec)))) {
+    Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
     memcpy(getUserPtr(buf, 0), PACKET_GetDataPointer(packet),
            PACKET_GetLength(packet));
     struct v4l2_buffer *b = getV4l2Buffer(buf);
@@ -365,7 +369,7 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
     setTimeStamp(buf, PACKET_GetPts(packet));
 
     queueBuffer(getInputPort(context->stCodec), buf);
-    i++;
+    context->nInputQueuedNum++;
     context->pVdecPara->nInputQueueLeftNum--;
   } else {
     ret = runPoll(context->stCodec, &p);
@@ -376,7 +380,8 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
       context->bInputReady = MPP_FALSE;
       context->pVdecPara->nInputQueueLeftNum--;
     } else {
-      error("nonononono 1111111111111111111111111111");
+      //error("can not get input buffer");
+      usleep(1000);
       return MPP_POLL_FAILED;
     }
   }
@@ -391,25 +396,42 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
 
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
   S32 ret = 0;
+  context->bIsFlushed = MPP_FALSE;
 
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLIN};
 
   ret = runPoll(context->stCodec, &p);
 
   if (/*context->bOutputReady*/ MPP_OK == ret && p.revents & POLLIN) {
-    debug(
-        "============================================= ok, a frame is ready, "
-        "get it!");
-    ret = handleOutputBuffer(getOutputPort(context->stCodec), MPP_FALSE,
-                             src_data);
-    debug("============ ok, a frame is handled, get it! ret = %d", ret);
-    context->bOutputReady = MPP_FALSE;
+    //debug(
+    //    "============================= ok, a frame is ready, "
+    //    "get it!");
+    if(!context->stCodec) {
+      error("aoaoaoao\n");
+    } else {
+      ret = handleOutputBuffer(getOutputPort(context->stCodec), MPP_FALSE,
+                              src_data);
+      //debug("============ ok, a frame is handled, get it! ret = %d", ret);
+      context->bOutputReady = MPP_FALSE;
+      if(ret == MPP_RESOLUTION_CHANGED) {
+        context->pVdecPara->nWidth = getBufWidth(getOutputPort(context->stCodec));
+        context->pVdecPara->nHeight = getBufHeight(getOutputPort(context->stCodec));
+        context->pVdecPara->nOutputBufferNum = getBufNum(getOutputPort(context->stCodec));
+        for(U32 i = 0; i < context->pVdecPara->nOutputBufferNum; i++) {
+          context->pVdecPara->nOutputBufferFd[i] = getBufFd(getOutputPort(context->stCodec), i);
+          context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
+        }
+      }
+    }
   } else {
     // debug("============ no data, please try again!");
-    // usleep(200000);
-    error("nonononono 22222222222222222222222222222");
+    usleep(1000);
+    //error("can not get output buffer");
     return MPP_CODER_NO_DATA;
   }
+
+  if(ret == MPP_OK)
+    context->pVdecPara->bIsBufferInDecoder[FRAME_GetID(FRAME_GetFrame(src_data))] = MPP_FALSE;
 
   return ret;
 }
@@ -431,19 +453,35 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
   S32 buf_idx = FRAME_GetID(FRAME_GetFrame(src_data));
   debug("release output idx = %d", buf_idx);
   Buffer *buf = getBuffer(getOutputPort(context->stCodec), buf_idx);
+  if(!buf) {
+    error("buf is NULL, please check!");
+  } else {
+    clearBytesUsed(buf);
 
-  clearBytesUsed(buf);
+    queueBuffer(getOutputPort(context->stCodec), buf);
+    debug("release output ret = %d", ret);
 
-  queueBuffer(getOutputPort(context->stCodec), buf);
-  debug("release output ret = %d", ret);
+    context->pVdecPara->bIsBufferInDecoder[buf_idx] = MPP_TRUE;
+  }
 
   return MPP_OK;
 }
 
 S32 al_dec_reset(ALBaseContext *ctx) {
   if (!ctx) return MPP_NULL_POINTER;
-
-  debug("al_Dec_reset");
+  ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
+  if(!context->bIsFlushed) {
+    debug("al_Dec_reset0");
+    usleep(100000);
+    debug("al_Dec_reset1");
+    context->bInputEos = MPP_FALSE;
+    debug("al_Dec_reset2");
+    handleFlush(getOutputPort(context->stCodec), MPP_FALSE);
+    context->bIsFlushed = MPP_TRUE;
+    debug("al_Dec_reset3");
+  } else {
+    error("already flushed, please check!");
+  }
 
   return MPP_OK;
 }
@@ -464,6 +502,7 @@ void al_dec_destory(ALBaseContext *ctx) {
   mpp_v4l2_stream_off(context->nVideoFd, &input_type);
   mpp_v4l2_stream_off(context->nVideoFd, &output_type);
   debug("111111111113");
+  usleep(50000);
   destoryCodec(context->stCodec);
   debug("111111111114");
   close(context->nVideoFd);
