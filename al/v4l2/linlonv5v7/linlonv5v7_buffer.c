@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2023-11-13 17:08:05
+ * @LastEditTime: 2024-01-08 11:18:47
  * @Description:
  */
 
@@ -335,13 +335,20 @@ void memoryMap(Buffer *buf, S32 fd) {
 
 S32 memoryUnmap(Buffer *buf) {
   if (V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type)) {
-    for (S32 i = 0; i < buf->stBufArr.length; ++i) {
+    /*for (S32 i = 0; i < buf->stBufArr.length; ++i) {
       if (buf->pUserPtr[i] != 0) {
         if (munmap(buf->pUserPtr[i], buf->stBufArr.m.planes[i].length)) {
-          error("munmap dma buf fail, please check!! (%s)", strerror(errno));
+          error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)", buf->stBufArr.m.planes[i].length, buf->pUserPtr[i], strerror(errno));
           return MPP_MUNMAP_FAILED;
         }
       }
+    }*/
+    if (buf->pUserPtr[0]) {
+      if (munmap(buf->pUserPtr[0], buf->nTotalLength)) {
+        error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)", buf->nTotalLength, buf->pUserPtr[0], strerror(errno));
+        return MPP_MUNMAP_FAILED;
+      }
+      close(buf->stBufArr.m.planes[0].m.fd);
     }
   } else {
     if (buf->pUserPtr[0]) {
