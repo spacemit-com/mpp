@@ -19,5 +19,5 @@ message(STATUS "Find libavcodec.so in ${LIB_AVCODEC_LIBRARIES}")
 
 if(LIB_AVCODEC_LIBRARIES)
     message(STATUS "avcodec exist !!!")
-    option(COMPILE_AVCODEC "compile avcodec" ON)
+#   option(COMPILE_AVCODEC "compile avcodec" ON)
 endif()
