@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:28:42
- * @LastEditTime: 2023-12-30 11:19:02
+ * @LastEditTime: 2024-01-06 12:03:33
  * @Description:
  */
 
@@ -426,7 +426,7 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
   }
 
   if (ret == 0) {
-    error("Queue and dequeue poll timed out.");
+    //error("Queue and dequeue poll timed out.");
     return MPP_POLL_FAILED;
   }
 
