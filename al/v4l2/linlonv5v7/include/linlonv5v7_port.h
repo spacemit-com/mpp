@@ -66,6 +66,7 @@ BOOL handleBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data);
 void handleResolutionChange(Port *port, BOOL eof);
+void handleFlush(Port *port, BOOL eof);
 
 void streamon(Port *port);
 void streamoff(Port *port);
@@ -126,6 +127,9 @@ void setLongTermRef(Port *port, U32 mode, U32 period);
 void setDSLMode(Port *port, S32 mode);
 
 S32 getBufNum(Port *port);
+S32 getBufWidth(Port *port);
+S32 getBufHeight(Port *port);
+S32 getBufFd(Port *port, U32 index);
 
 void notifySourceChange(Port *port);
 

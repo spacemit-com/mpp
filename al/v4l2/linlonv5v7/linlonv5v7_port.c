@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2023-12-30 11:24:21
+ * @LastEditTime: 2024-01-08 10:57:03
  * @Description:
  */
 
@@ -78,10 +78,10 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
 }
 
 void destoryPort(Port *port) {
-  for (S32 i = 0; i < port->nBufNum; i++) {
+  /*for (S32 i = 0; i < port->nBufNum; i++) {
     debug("--- destory buffer[%d]", i);
     destoryBuffer(port->stBuf[i]);
-  }
+  }*/
   allocateBuffers(port, 0);
   debug("--- free port");
   free(port);
@@ -286,7 +286,11 @@ void allocateBuffers(Port *port, S32 count) {
   }
 }
 
-void freeBuffers(Port *port) {}
+void freeBuffers(Port *port) {
+  for(S32 i = 0; i < port->nBufNum; i++) {
+    destoryBuffer(port->stBuf[i]);
+  }
+}
 
 U32 getBufferCount(Port *port) {
   struct v4l2_control control;
@@ -1249,6 +1253,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
 
       FRAME_SetID(frame, b->index);
     }
+    FRAME_SetPts(frame, b->timestamp.tv_sec * 1000000);
   }
 
   /* EOS on capture port-> */
@@ -1407,11 +1412,38 @@ void handleResolutionChange(Port *port, BOOL eof) {
   U32 count = getBufferCount(port);
   if (count < OUTPUT_BUF_NUM) count = OUTPUT_BUF_NUM;
   allocateBuffers(port, count);
+  port->nBufNum = count;
   streamon(port);
   queueBuffers(port, eof);
   port->frames_processed = 0;
 }
 
+void handleFlush(Port *port, BOOL eof) {
+  streamoff(port);
+  getPortFormat(port);
+  allocateBuffers(port, 0);
+  U32 count = getBufferCount(port);
+  if (count < OUTPUT_BUF_NUM) count = OUTPUT_BUF_NUM;
+  allocateBuffers(port, count);
+  port->nBufNum = count;
+  streamon(port);
+  queueBuffers(port, MPP_FALSE);
+  port->frames_processed = 0;
+}
+
 S32 getBufNum(Port *port) { return port->nBufNum; }
+
+S32 getBufWidth(Port *port) {
+  return  port->stFormat.fmt.pix_mp.width;
+}
+
+S32 getBufHeight(Port *port) {
+  return port->stFormat.fmt.pix_mp.height;
+}
+
+S32 getBufFd(Port *port, U32 index) {
+  struct v4l2_buffer *b = getV4l2Buffer(port->stBuf[index]);
+  return b->m.planes[0].m.fd;
+}
 
 void notifySourceChange(Port *port) { port->isSourceChange = MPP_TRUE; }
