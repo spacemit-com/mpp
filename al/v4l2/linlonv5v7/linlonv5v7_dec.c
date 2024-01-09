@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-08 11:30:20
+ * @LastEditTime: 2024-01-08 17:05:33
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -458,7 +458,7 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
   S32 ret = 0;
 
   S32 buf_idx = FRAME_GetID(FRAME_GetFrame(src_data));
-  debug("release output idx = %d", buf_idx);
+  // debug("release output idx = %d", buf_idx);
   Buffer *buf = getBuffer(getOutputPort(context->stCodec), buf_idx);
   if (!buf) {
     error("buf is NULL, please check!");
@@ -466,7 +466,7 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
     clearBytesUsed(buf);
 
     queueBuffer(getOutputPort(context->stCodec), buf);
-    debug("release output ret = %d", ret);
+    // debug("release output ret = %d", ret);
 
     context->pVdecPara->bIsBufferInDecoder[buf_idx] = MPP_TRUE;
   }

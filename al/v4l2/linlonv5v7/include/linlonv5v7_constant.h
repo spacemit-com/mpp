@@ -12,13 +12,15 @@
 #ifndef _LINLONV5V7_CONSTANT_H_
 #define _LINLONV5V7_CONSTANT_H_
 
-#define MAX_BUF_NUM (24)
-#define MAX_INPUT_BUF_NUM (24)
-#define MAX_OUTPUT_BUF_NUM (24)
+#define MAX_BUF_NUM (32)
+#define MAX_INPUT_BUF_NUM (32)
+#define MAX_OUTPUT_BUF_NUM (32)
 
 #define INPUT_BUF_NUM (12)
-#define OUTPUT_BUF_NUM (10)
+#define OUTPUT_BUF_NUM (15)
 
 #define POLL_TIMEOUT (0)
+
+#define SIZE_IMAGE (1024 * 1024)
 
 #endif /*_LINLONV5V7_CONSTANT_H_*/

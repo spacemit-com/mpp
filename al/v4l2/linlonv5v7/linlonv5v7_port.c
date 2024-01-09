@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-08 11:31:22
+ * @LastEditTime: 2024-01-09 14:47:36
  * @Description:
  */
 
@@ -41,6 +41,9 @@ struct _Port {
   S32 rc_type;
 
   BOOL isSourceChange;
+
+  S32 nQueueNumInput;
+  S32 nQueueNumOutput;
 };
 
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
@@ -66,6 +69,8 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
   port_tmp->frames_processed = 0;
   port_tmp->frames_count = 0;
   port_tmp->isSourceChange = MPP_FALSE;
+  port_tmp->nQueueNumInput = 0;
+  port_tmp->nQueueNumOutput = 0;
 
   if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT ||
       type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
@@ -166,7 +171,7 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
     f->width = width;
     f->height = height;
     f->bytesperline = 0;
-    f->sizeimage = 2 * 1024 * 1024;
+    f->sizeimage = SIZE_IMAGE;
     // f->field = interlaced ? V4L2_FIELD_SEQ_TB : V4L2_FIELD_NONE;
   }
 
@@ -380,6 +385,17 @@ void queueBuffer(Port *port, Buffer *buf) {
     port->frames_processed++;
   }
 
+  if (!ret) {
+    if (port->direction == INPUT) {
+      port->nQueueNumInput++;
+      // error("input queue:%d", port->nQueueNumInput);
+    }
+    if (port->direction == OUTPUT) {
+      port->nQueueNumOutput++;
+      // error("output queue:%d", port->nQueueNumOutput);
+    }
+  }
+
   ++port->pending;
 }
 
@@ -397,6 +413,17 @@ Buffer *dequeueBuffer(Port *port) {
   if (ret) {
     error("Failed to dequeue buffer. type=%u, memory=%u", buf.type, buf.memory);
     return NULL;
+  }
+
+  if (!ret) {
+    if (port->direction == INPUT) {
+      port->nQueueNumInput--;
+      // error("input dequeue:%d", port->nQueueNumInput);
+    }
+    if (port->direction == OUTPUT) {
+      port->nQueueNumOutput--;
+      // error("output dequeue:%d", port->nQueueNumOutput);
+    }
   }
 
   --port->pending;
@@ -1223,7 +1250,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
 }
 
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
-  debug("handle output frame!!!");
+  // debug("handle output frame!!!");
   Buffer *buffer = dequeueBuffer(port);
   if (!buffer) {
     error("buf is NULL, please check!");
@@ -1248,7 +1275,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
       }
       FRAME_SetID(frame, b->index);
 
-      debug("request output idx = %d", b->index);
+      // debug("request output idx = %d", b->index);
     } else if (V4L2_MEMORY_MMAP == port->nMemType) {
       FRAME_SetDataUsedNum(frame, b->length);
       for (S32 i = 0; i < b->length; i++) {
