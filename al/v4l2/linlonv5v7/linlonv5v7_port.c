@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-09 14:47:36
+ * @LastEditTime: 2024-01-09 16:17:10
  * @Description:
  */
 
@@ -18,6 +18,7 @@
 struct _Port {
   U32 nFormatFourcc;
   U32 nMemType;
+  U32 nNeededBufNum;
   enum v4l2_buf_type
       eBufType;  // V4L2_BUF_TYPE_VIDEO_OUTPUT/V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE
   struct v4l2_format stFormat;
@@ -47,7 +48,7 @@ struct _Port {
 };
 
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
-                 U32 memtype) {
+                 U32 memtype, U32 buffer_num) {
   Port *port_tmp = (Port *)malloc(sizeof(Port));
   if (!port_tmp) {
     error("can not malloc Port, please check! (%s)", strerror(errno));
@@ -61,6 +62,7 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
   port_tmp->eBufType = type;
   port_tmp->nFormatFourcc = format_fourcc;
   port_tmp->nMemType = memtype;
+  port_tmp->nNeededBufNum = buffer_num;
   port_tmp->interlaced = MPP_FALSE;
   port_tmp->tryEncStop = MPP_FALSE;
   port_tmp->tryDecStop = MPP_FALSE;
@@ -1441,7 +1443,7 @@ void handleResolutionChange(Port *port, BOOL eof) {
   getPortFormat(port);
   allocateBuffers(port, 0);
   U32 count = getBufferCount(port);
-  if (count < OUTPUT_BUF_NUM) count = OUTPUT_BUF_NUM;
+  if (count < port->nNeededBufNum) count = port->nNeededBufNum;
   allocateBuffers(port, count);
   port->nBufNum = count;
   streamon(port);
@@ -1454,7 +1456,7 @@ void handleFlush(Port *port, BOOL eof) {
   getPortFormat(port);
   allocateBuffers(port, 0);
   U32 count = getBufferCount(port);
-  if (count < OUTPUT_BUF_NUM) count = OUTPUT_BUF_NUM;
+  if (count < port->nNeededBufNum) count = port->nNeededBufNum;
   allocateBuffers(port, count);
   port->nBufNum = count;
   streamon(port);

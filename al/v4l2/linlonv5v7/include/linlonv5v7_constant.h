@@ -17,7 +17,7 @@
 #define MAX_OUTPUT_BUF_NUM (32)
 
 #define INPUT_BUF_NUM (12)
-#define OUTPUT_BUF_NUM (15)
+#define OUTPUT_BUF_NUM (10)
 
 #define POLL_TIMEOUT (0)
 

@@ -38,7 +38,7 @@ typedef enum _DIRECTION {
 typedef struct _Port Port;
 
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
-                 U32 memtype);
+                 U32 memtype, U32 buffer_num);
 void destoryPort(Port *port);
 
 Buffer *getBuffer(Port *port, S32 index);

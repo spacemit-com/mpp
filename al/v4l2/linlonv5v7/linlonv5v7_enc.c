@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2023-12-30 11:01:58
+ * @LastEditTime: 2024-01-09 16:21:31
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -380,7 +380,8 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
       context->nVideoFd, context->nWidth, context->nHeight,
       context->bIsInterlaced, context->nInputType, context->nOutputType,
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
-      context->nInputMemType, context->nOutputMemType, context->bIsBlockMode);
+      context->nInputMemType, context->nOutputMemType, INPUT_BUF_NUM,
+      OUTPUT_BUF_NUM, context->bIsBlockMode);
 
   setH264MinQP(context, 1);
   setH264MaxQP(context, 20);

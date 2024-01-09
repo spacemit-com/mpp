@@ -41,7 +41,8 @@ typedef struct _Codec Codec;
 Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
                    enum v4l2_buf_type inputType, enum v4l2_buf_type outputType,
                    U32 input_format_fourcc, U32 output_format_fourcc,
-                   U32 input_memtype, U32 output_memtype, BOOL block);
+                   U32 input_memtype, U32 output_memtype, U32 input_buffer_num,
+                   U32 output_buffer_num, BOOL block);
 void destoryCodec(Codec *codec);
 
 Port *getInputPort(Codec *codec);

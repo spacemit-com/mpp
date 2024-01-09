@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-08 17:05:33
+ * @LastEditTime: 2024-01-09 16:48:49
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -92,6 +92,9 @@ struct _ALLinlonv5v7DecContext {
 
   U32 nInputMemType;
   U32 nOutputMemType;
+
+  U32 nInputBufferNum;
+  U32 nOutputBufferNum;
 
   BOOL bIsBlockMode;
   BOOL bIsInterlaced;
@@ -264,7 +267,18 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->bIsFlushed = MPP_FALSE;
 
   context->pVdecPara->nInputQueueLeftNum = 1;
-  context->pVdecPara->nOutputBufferNum = OUTPUT_BUF_NUM;
+
+  if (!context->pVdecPara->nInputBufferNum)
+    context->pVdecPara->nInputBufferNum = INPUT_BUF_NUM;
+  if (!context->pVdecPara->nOutputBufferNum)
+    context->pVdecPara->nOutputBufferNum = OUTPUT_BUF_NUM;
+
+  debug("new input buffer num:%d output buffer num:%d",
+        context->pVdecPara->nInputBufferNum,
+        context->pVdecPara->nOutputBufferNum);
+
+  context->nInputBufferNum = context->pVdecPara->nInputBufferNum;
+  context->nOutputBufferNum = context->pVdecPara->nOutputBufferNum;
 
   para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
   para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_ASYNC;
@@ -284,7 +298,8 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
       context->nVideoFd, context->nWidth, context->nHeight,
       context->bIsInterlaced, context->nInputType, context->nOutputType,
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
-      context->nInputMemType, context->nOutputMemType, context->bIsBlockMode);
+      context->nInputMemType, context->nOutputMemType, context->nInputBufferNum,
+      context->nOutputBufferNum, context->bIsBlockMode);
 
   setDecoderInterlaced(context, context->bIsInterlaced);
   setDecoderRotation(context, context->nRotation);

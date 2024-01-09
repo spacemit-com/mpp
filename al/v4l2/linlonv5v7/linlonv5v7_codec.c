@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:28:42
- * @LastEditTime: 2024-01-06 12:03:33
+ * @LastEditTime: 2024-01-09 16:43:45
  * @Description:
  */
 
@@ -39,6 +39,9 @@ struct _Codec {
   U32 nInputMemtype;  // V4L2_MEMORY_MMAP/V4L2_MEMORY_USERPTR/V4L2_MEMORY_DMABUF
   U32 nOutputMemtype;  // V4L2_MEMORY_MMAP/V4L2_MEMORY_USERPTR/V4L2_MEMORY_DMABUF
 
+  U32 nInputBufferNum;
+  U32 nOutputBufferNum;
+
   Port *stInputPort;
 
   Port *stOutputPort;
@@ -54,7 +57,8 @@ struct _Codec {
 Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
                    enum v4l2_buf_type inputType, enum v4l2_buf_type outputType,
                    U32 input_format_fourcc, U32 output_format_fourcc,
-                   U32 input_memtype, U32 output_memtype, BOOL block) {
+                   U32 input_memtype, U32 output_memtype, U32 input_buffer_num,
+                   U32 output_buffer_num, BOOL block) {
   Codec *codec_tmp = (Codec *)malloc(sizeof(Codec));
   if (!codec_tmp) {
     error("can not malloc Codec, please check! (%s)", strerror(errno));
@@ -64,9 +68,9 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
 
   debug(
       "create a codec, width=%d height=%d inputtype=%d outputtype=%d "
-      "inputformat=%x outputformat=%x",
+      "inputformat=%x outputformat=%x inputbufnum=%d outputbufnum=%d",
       width, height, inputType, outputType, input_format_fourcc,
-      output_format_fourcc);
+      output_format_fourcc, input_buffer_num, output_buffer_num);
 
   codec_tmp->nVideoFd = fd;
   codec_tmp->bIsBlockMode = block;
@@ -74,10 +78,12 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
   codec_tmp->nOutputFormatFourcc = output_format_fourcc;
   codec_tmp->nInputMemtype = input_memtype;
   codec_tmp->nOutputMemtype = output_memtype;
-  codec_tmp->stInputPort =
-      createPort(fd, inputType, input_format_fourcc, input_memtype);
-  codec_tmp->stOutputPort =
-      createPort(fd, outputType, output_format_fourcc, output_memtype);
+  codec_tmp->nInputBufferNum = input_buffer_num;
+  codec_tmp->nOutputBufferNum = output_buffer_num;
+  codec_tmp->stInputPort = createPort(fd, inputType, input_format_fourcc,
+                                      input_memtype, input_buffer_num);
+  codec_tmp->stOutputPort = createPort(fd, outputType, output_format_fourcc,
+                                       output_memtype, output_buffer_num);
   codec_tmp->nWidth = width;
   codec_tmp->nHeight = height;
   codec_tmp->bIsInterlaced = isInterlaced;
@@ -349,8 +355,8 @@ void unsubscribeEvent(Codec *codec, U32 event) {
 }
 
 void allocateCodecBuffers(Codec *codec) {
-  allocateBuffers(codec->stInputPort, INPUT_BUF_NUM);
-  allocateBuffers(codec->stOutputPort, OUTPUT_BUF_NUM);
+  allocateBuffers(codec->stInputPort, codec->nInputBufferNum);
+  allocateBuffers(codec->stOutputPort, codec->nOutputBufferNum);
 }
 
 void freeCodecBuffers(Codec *codec) {
