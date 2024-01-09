@@ -49,7 +49,7 @@ S32 getBytesUsed(struct v4l2_buffer *buf);
 void clearBytesUsed(Buffer *buf);
 void resetVendorFlags(Buffer *buf);
 void setCodecConfig(Buffer *buf, BOOL codecConfig);
-void setTimeStamp(Buffer *buf, U32 timeUs);
+void setTimeStamp(Buffer *buf, S64 timeUs);
 void setEndOfFrame(Buffer *buf, BOOL eof);
 void setEndOfStream(Buffer *buf, BOOL eos);
 void update(Buffer *buf, struct v4l2_buffer b);

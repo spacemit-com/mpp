@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2024-01-08 11:18:47
+ * @LastEditTime: 2024-01-09 14:06:31
  * @Description:
  */
 
@@ -152,7 +152,7 @@ void setCodecConfig(Buffer *buf, BOOL codecConfig) {
   buf->stBufArr.flags |= codecConfig ? V4L2_BUF_FLAG_MVX_CODEC_CONFIG : 0;
 }
 
-void setTimeStamp(Buffer *buf, U32 timeUs) {
+void setTimeStamp(Buffer *buf, S64 timeUs) {
   buf->stBufArr.flags |= V4L2_BUF_FLAG_TIMESTAMP_COPY;
   buf->stBufArr.timestamp.tv_sec = timeUs / 1000000;
   buf->stBufArr.timestamp.tv_usec = timeUs % 1000000;
