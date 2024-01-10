@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-09 16:48:49
+ * @LastEditTime: 2024-01-10 14:00:08
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -273,9 +273,12 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   if (!context->pVdecPara->nOutputBufferNum)
     context->pVdecPara->nOutputBufferNum = OUTPUT_BUF_NUM;
 
-  debug("new input buffer num:%d output buffer num:%d",
-        context->pVdecPara->nInputBufferNum,
-        context->pVdecPara->nOutputBufferNum);
+  debug(
+      "input para check: foramt:0x%x output format:0x%x input buffer num:%d "
+      "output buffer num:%d",
+      context->nInputFormatFourcc, context->nOutputFormatFourcc,
+      context->pVdecPara->nInputBufferNum,
+      context->pVdecPara->nOutputBufferNum);
 
   context->nInputBufferNum = context->pVdecPara->nInputBufferNum;
   context->nOutputBufferNum = context->pVdecPara->nOutputBufferNum;
