@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-18 11:46:03
- * @LastEditTime: 2023-11-20 16:20:03
+ * @LastEditTime: 2024-01-10 14:36:25
  * @Description: MPP VDEC API, use these API to do video decode
  *               from stream(H.264 etc.) to frame(YUV420)
  */
@@ -224,8 +224,9 @@ S32 VDEC_DestoryChannel(MppVdecCtx *ctx) {
     error("input para ctx is NULL, please check!");
     return MPP_NULL_POINTER;
   }
-
+  error("destory decoder");
   dec_destory(ctx->pNode.pAlBaseContext);
+  error("destory module");
   module_destory(ctx->pModule);
   free(ctx);
   // ctx = NULL;
