@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-10 14:29:38
+ * @LastEditTime: 2024-01-10 19:19:14
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -385,6 +385,7 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
            PACKET_GetLength(packet));
     struct v4l2_buffer *b = getV4l2Buffer(buf);
     b->bytesused = PACKET_GetLength(packet);
+    setEndOfFrame(buf, MPP_TRUE);
 
     setTimeStamp(buf, PACKET_GetPts(packet));
 
