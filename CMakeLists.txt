@@ -23,6 +23,10 @@ cmake_minimum_required(VERSION 2.8.8)
 project(spacemit_mpp)
 
 add_definitions(-fPIC -Werror)
+#add_definitions(-fPIC -Werror -fsanitize=address -fno-omit-frame-pointer -g)
+
+#set(CMAKE_CXX_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
+#set(CMAKE_C_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules)
 find_package(libopenh264    REQUIRED)
