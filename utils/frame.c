@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2023-11-13 19:31:45
+ * @LastEditTime: 2024-01-11 09:35:31
  * @Description:
  */
 
@@ -257,6 +257,8 @@ RETURN FRAME_Free(MppFrame *frame) {
       error("can not free dmabuf, please check!");
       return MPP_CHECK_FAILED;
     }
+
+    destoryDmaBufWrapper(frame->pDmaBufWrapper);
 
 #ifdef DEBUG_MEMORY
     num_of_unfree_data--;
@@ -675,8 +677,6 @@ void FRAME_Destory(MppFrame *frame) {
     error("input para MppFrame is NULL, please check!");
     return;
   }
-
-  destoryDmaBufWrapper(frame->pDmaBufWrapper);
 
   free(frame);
 

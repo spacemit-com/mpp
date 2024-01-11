@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2023-11-08 15:54:43
+ * @LastEditTime: 2024-01-11 09:51:45
  * @Description:
  */
 
@@ -13,11 +13,12 @@
 
 #include "dmabufwrapper.h"
 
-#define DEBUG_MEMORY
+//#define DEBUG_MEMORY
 
 #ifdef DEBUG_MEMORY
 S32 num_of_unfree_dmabuf = 0;
 S32 num_of_unfree_dmabufwrapper = 0;
+/AddressSanitizer:odr-violation:both libspacemit-mpp and libv4l2_linlonv5v7_codec
 #endif
 
 DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap) {

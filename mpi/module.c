@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 10:27:53
- * @LastEditTime: 2023-12-13 20:21:47
+ * @LastEditTime: 2024-01-11 09:40:19
  * @Description: dlopen the video codec library dynamicly
  */
 
@@ -211,6 +211,8 @@ void module_destory(MppModule *module)
         dlclose(module->load_so);
         module->load_so = NULL;
     }
+
+    free(module);
 }
 
 /**
