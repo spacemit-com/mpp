@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-09 16:17:10
+ * @LastEditTime: 2024-01-12 09:36:04
  * @Description:
  */
 
@@ -1442,6 +1442,9 @@ void handleResolutionChange(Port *port, BOOL eof) {
   streamoff(port);
   getPortFormat(port);
   allocateBuffers(port, 0);
+  getTrySetFormat(port, port->stFormat.fmt.pix_mp.width,
+                  port->stFormat.fmt.pix_mp.height,
+                  port->stFormat.fmt.pix_mp.pixelformat, MPP_FALSE);
   U32 count = getBufferCount(port);
   if (count < port->nNeededBufNum) count = port->nNeededBufNum;
   allocateBuffers(port, count);

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2024-01-11 09:51:45
+ * @LastEditTime: 2024-01-12 10:25:27
  * @Description:
  */
 
@@ -18,10 +18,12 @@
 #ifdef DEBUG_MEMORY
 S32 num_of_unfree_dmabuf = 0;
 S32 num_of_unfree_dmabufwrapper = 0;
-/AddressSanitizer:odr-violation:both libspacemit-mpp and libv4l2_linlonv5v7_codec
+/ AddressSanitizer : odr - violation : both libspacemit -
+                                       mpp and libv4l2_linlonv5v7_codec
 #endif
 
-DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap) {
+                                           DmaBufWrapper *
+                                           createDmaBufWrapper(DMAHEAP heap) {
   DmaBufWrapper *wrapper_tmp = (DmaBufWrapper *)malloc(sizeof(DmaBufWrapper));
   if (!wrapper_tmp) {
     error("can not malloc DmaBufWrapper, please check! (%s)", strerror(errno));

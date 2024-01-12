@@ -402,7 +402,7 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
       context->pVdecPara->nInputQueueLeftNum--;
     } else {
       // error("can not get input buffer");
-      //usleep(1000);
+      // usleep(1000);
       return MPP_POLL_FAILED;
     }
   }
@@ -450,7 +450,7 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
     }
   } else {
     // debug("============ no data, please try again!");
-    //usleep(1000);
+    // usleep(1000);
     // error("can not get output buffer");
     return MPP_CODER_NO_DATA;
   }
