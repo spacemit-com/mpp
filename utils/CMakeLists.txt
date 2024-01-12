@@ -5,7 +5,7 @@
 # @
 # @Author: David(qiang.fu@spacemit.com)
 # @Date: 2023-02-02 14:49:35
-# @LastEditTime: 2023-11-02 17:54:22
+# @LastEditTime: 2024-01-12 14:42:02
 # @Description: the cmake script of utils.
 #------------------------------------------------------------
 
@@ -23,5 +23,7 @@ set(SRC_LIST ./log.c
             ./utils.c
             ./resolution_utils.c
             ./dmabufwrapper.c
-            ./ringbuffer.c)
+            ./ringbuffer.c
+            ./env.c
+            ./os/linux/os_env.c)
 add_library(utils STATIC ${SRC_LIST})
