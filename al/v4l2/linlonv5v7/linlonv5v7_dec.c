@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-10 19:19:14
+ * @LastEditTime: 2024-01-13 09:33:06
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -39,7 +39,7 @@ static const ALLinlonv5v7DecCodingTypeMapping
         {CODING_H264_MVC, V4L2_PIX_FMT_H264_MVC},
         {CODING_H264_NO_SC, V4L2_PIX_FMT_H264_NO_SC},
         {CODING_H265, V4L2_PIX_FMT_HEVC},
-        {CODING_MJPEG, V4L2_PIX_FMT_MJPEG},
+        {CODING_MJPEG, V4L2_PIX_FMT_JPEG},
         {CODING_JPEG, V4L2_PIX_FMT_JPEG},
         {CODING_VP8, V4L2_PIX_FMT_VP8},
         {CODING_VP9, V4L2_PIX_FMT_VP9},
@@ -224,6 +224,7 @@ void *runpoll(void *private_data) {
     if (p.revents & POLLPRI) {
       handleEvent(context->stCodec);
     }
+    //usleep(20000);
   }
 }
 
