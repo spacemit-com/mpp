@@ -12,8 +12,8 @@
 #ifndef __TYPE_H__
 #define __TYPE_H__
 
-#include <stddef.h>
 #include <inttypes.h>
+#include <stddef.h>
 
 typedef unsigned char U8;
 typedef unsigned short U16;

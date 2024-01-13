@@ -1287,7 +1287,8 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
       FRAME_SetID(frame, b->index);
     }
 
-    FRAME_SetPts(frame, (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
+    FRAME_SetPts(frame,
+                 (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
   }
 
   /* EOS on capture port-> */
