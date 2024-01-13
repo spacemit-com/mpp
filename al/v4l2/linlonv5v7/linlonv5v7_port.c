@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-13 09:32:17
+ * @LastEditTime: 2024-01-13 09:51:35
  * @Description:
  */
 
@@ -376,7 +376,7 @@ void queueBuffer(Port *port, Buffer *buf) {
   gettimeofday(&time, NULL);
   // debug("queue buffer : %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
   ;
-  printBuffer(*b, "---->");
+  // printBuffer(*b, "---->");
 
   ret = ioctl(port->fd, VIDIOC_QBUF, b);
   if (ret) {
@@ -433,7 +433,7 @@ Buffer *dequeueBuffer(Port *port) {
   struct timeval time;
   gettimeofday(&time, NULL);
   // debug("dequeue buffer %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
-  printBuffer(buf, "<----");
+  // printBuffer(buf, "<----");
 
   Buffer *buffer = port->stBuf[buf.index];
   update(buffer, buf);
