@@ -13,6 +13,7 @@
 #define __TYPE_H__
 
 #include <stddef.h>
+#include <inttypes.h>
 
 typedef unsigned char U8;
 typedef unsigned short U16;
@@ -24,7 +25,7 @@ typedef signed char S8;
 typedef signed short S16;
 typedef signed int S32;
 typedef signed long LONG;
-typedef signed long long int S64;
+typedef int64_t S64;
 
 typedef signed int RETURN;
 

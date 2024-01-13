@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-12 09:36:04
+ * @LastEditTime: 2024-01-13 09:32:17
  * @Description:
  */
 
@@ -1286,7 +1286,8 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
 
       FRAME_SetID(frame, b->index);
     }
-    FRAME_SetPts(frame, b->timestamp.tv_sec * 1000000);
+
+    FRAME_SetPts(frame, (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
   }
 
   /* EOS on capture port-> */
