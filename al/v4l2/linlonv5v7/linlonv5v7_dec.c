@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-13 09:33:06
+ * @LastEditTime: 2024-01-13 09:35:48
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -224,7 +224,8 @@ void *runpoll(void *private_data) {
     if (p.revents & POLLPRI) {
       handleEvent(context->stCodec);
     }
-    //usleep(20000);
+
+    usleep(20000);
   }
 }
 
