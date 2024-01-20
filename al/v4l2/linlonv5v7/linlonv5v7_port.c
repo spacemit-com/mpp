@@ -1339,7 +1339,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
     }
   }
 
-  if(!getBytesUsed(b)) {
+  if (!getBytesUsed(b)) {
     return MPP_CODER_NO_DATA;
   }
 

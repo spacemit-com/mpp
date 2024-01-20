@@ -282,7 +282,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
       context->pVdecPara->nInputBufferNum,
       context->pVdecPara->nOutputBufferNum);
 
-  for(S32 i = 0; i < 64; i++)
+  for (S32 i = 0; i < 64; i++)
     context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
 
   context->nInputBufferNum = context->pVdecPara->nInputBufferNum;

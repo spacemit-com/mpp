@@ -184,7 +184,7 @@ S32 stream(Codec *codec) {
     memset(&control, 0, sizeof(control));
 
     control.id = V4L2_CID_MVE_VIDEO_VC1_PROFILE;
-    control.value = 2;//profile;
+    control.value = 2;  // profile;
 
     if (-1 == ioctl(codec->nVideoFd, VIDIOC_S_CTRL, &control)) {
       error("Failed to set profile=%u for fmt: %u .", profile,
