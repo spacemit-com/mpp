@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:28:42
- * @LastEditTime: 2024-01-09 16:43:45
+ * @LastEditTime: 2024-01-19 16:53:13
  * @Description:
  */
 
@@ -184,7 +184,7 @@ S32 stream(Codec *codec) {
     memset(&control, 0, sizeof(control));
 
     control.id = V4L2_CID_MVE_VIDEO_VC1_PROFILE;
-    control.value = profile;
+    control.value = 2;//profile;
 
     if (-1 == ioctl(codec->nVideoFd, VIDIOC_S_CTRL, &control)) {
       error("Failed to set profile=%u for fmt: %u .", profile,
