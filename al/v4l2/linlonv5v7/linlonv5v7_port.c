@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-13 09:51:35
+ * @LastEditTime: 2024-01-20 14:35:13
  * @Description:
  */
 
@@ -1337,6 +1337,10 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
       port->isSourceChange = MPP_FALSE;
       return MPP_RESOLUTION_CHANGED;
     }
+  }
+
+  if(!getBytesUsed(b)) {
+    return MPP_CODER_NO_DATA;
   }
 
   /* Remove vendor custom flags. */
