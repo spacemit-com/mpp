@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-13 09:35:48
+ * @LastEditTime: 2024-01-20 14:25:10
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -225,7 +225,7 @@ void *runpoll(void *private_data) {
       handleEvent(context->stCodec);
     }
 
-    usleep(20000);
+    usleep(10000);
   }
 }
 
@@ -281,6 +281,9 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
       context->pVdecPara->nInputBufferNum,
       context->pVdecPara->nOutputBufferNum);
+
+  for(S32 i = 0; i < 64; i++)
+    context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
 
   context->nInputBufferNum = context->pVdecPara->nInputBufferNum;
   context->nOutputBufferNum = context->pVdecPara->nOutputBufferNum;
