@@ -102,6 +102,7 @@ struct _ALLinlonv5v7EncContext {
   S32 nFrames;
 
   S32 naluFmt;
+  BOOL bInputEos;
 };
 
 static void changeSWEO(ALLinlonv5v7EncContext *context, U32 csweo) {
@@ -363,6 +364,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   context->nOutputMemType = V4L2_MEMORY_MMAP;
   context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
   context->nOutputType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  context->bInputEos = MPP_FALSE;
 
   context->nVideoFd =
       find_v4l2_encoder(context->sDevicePath,
@@ -483,64 +485,48 @@ S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
   }
 
   ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+  MppFrame *sink_frame = FRAME_GetFrame(sink_data);
   S32 ret = 0;
   static S32 i = 0;
 
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
-  debug("0000000000000000000000000000000000 i = %d", i);
+  debug("0000000000000000000000000000000000 i = %d eos=%d", i,
+        FRAME_GetEos(sink_frame));
+
+  if (FRAME_GetEos(sink_frame)) {
+    debug("enc ****************************************** eos 1");
+    context->bInputEos = MPP_TRUE;
+  }
 
   if (unlikely(i < getBufNum(getInputPort(context->stCodec)))) {
-    /*memcpy(context->stCodec->stInputPort->stBuf[i]->pUserPtr[0],
-           FRAME_GetDataPointer(sink_frame, 0), 1280 * 720);
-    context->stCodec->stInputPort->stBuf[i]->stBufArr.m.planes[0].bytesused =
-        1280 * 720;
+    Buffer *buf = getBuffer(getInputPort(context->stCodec), i);
+    struct v4l2_buffer *b = getV4l2Buffer(buf);
+    S32 y_size = context->pVencPara->nWidth * context->pVencPara->nHeight;
 
-    memcpy(context->stCodec->stInputPort->stBuf[i]->pUserPtr[1],
-           FRAME_GetDataPointer(sink_frame, 1), 1280 * 720 / 4);
-    context->stCodec->stInputPort->stBuf[i]->stBufArr.m.planes[1].bytesused =
-        1280 * 720 / 4;
+    memcpy(getUserPtr(buf, 0), FRAME_GetDataPointer(sink_frame, 0),
+           y_size * 3 / 2);
 
-    memcpy(context->stCodec->stInputPort->stBuf[i]->pUserPtr[2],
-           FRAME_GetDataPointer(sink_frame, 2), 1280 * 720 / 4);
-    context->stCodec->stInputPort->stBuf[i]->stBufArr.m.planes[2].bytesused =
-        1280 * 720 / 4;
-    ret = mpp_v4l2_queue_buffer(
-        context->nVideoFd, &context->stCodec->stInputPort->stBuf[i]->stBufArr);
-    if (ret) {
-      error("queue input buffer failed, please check!");
-      return MPP_IOCTL_FAILED;
-    }
-    debug(
-        "0000000000000000000000000000000000 length=%d %d %d",
-        context->stCodec->stInputPort->stBuf[i]->stBufArr.bytesused,
-        context->stCodec->stInputPort->stBuf[i]->stBufArr.m.planes[0].bytesused,
-        context->stCodec->stInputPort->stBuf[i]->stBufArr.m.planes[1].bytesused);*/
+    b->m.planes[0].bytesused = y_size;
+    b->m.planes[1].bytesused = y_size * 3 / 2;
+    b->m.planes[0].data_offset = 0;
+    b->m.planes[1].data_offset = y_size;
+    b->m.planes[0].length = y_size;
+    b->m.planes[1].length = y_size * 3 / 2;
+
+    queueBuffer(getInputPort(context->stCodec), buf);
     i++;
   } else {
-    debug("11111111111111111111111111111111");
-    // ret = runPoll(context->stCodec, &p);
-    // debug("11112 ret = %d event=%d", ret, p.revents);
+    ret = runPoll(context->stCodec, &p);
 
-    // if (MPP_OK == ret && p.revents & POLLOUT) {
-    debug("11113");
-    Buffer *buffer = NULL;
-    while (!buffer) {
-      debug("11113");
-      buffer = dequeueBuffer(getInputPort(context->stCodec));
-      usleep(100000);
+    if (/*context->bInputReady*/ MPP_OK == ret && p.revents & POLLOUT) {
+      handleInputBuffer(getInputPort(context->stCodec), context->bInputEos,
+                        sink_data);
+      i++;
+    } else {
+      // error("can not get input buffer");
+      usleep(2000);
+      return MPP_POLL_FAILED;
     }
-    debug("11114");
-    struct v4l2_buffer *b = getV4l2Buffer(buffer);
-
-    // eof
-    resetVendorFlags(buffer);
-    memcpy(getUserPtr(buffer, 0),
-           PACKET_GetDataPointer(PACKET_GetPacket(sink_data)),
-           PACKET_GetLength(PACKET_GetPacket(sink_data)));
-    b->bytesused = PACKET_GetLength(PACKET_GetPacket(sink_data));
-
-    queueBuffer(getInputPort(context->stCodec), buffer);
-    //}
   }
 
   return MPP_OK;
@@ -567,16 +553,18 @@ S32 al_enc_request_output_stream(ALBaseContext *ctx, MppData *src_data) {
   if (MPP_OK == ret && p.revents & POLLIN) {
     Buffer *buffer = dequeueBuffer(getOutputPort(context->stCodec));
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
+    if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
+      debug("Capture EOS.");
+      return MPP_CODER_EOS;
+    }
     // if (buffer == NULL) return MPP_CODER_NO_DATA;
-
     memcpy(PACKET_GetDataPointer(PACKET_GetPacket(src_data)),
            getUserPtr(buffer, 0), b->bytesused);
     PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused);
-
     resetVendorFlags(buffer);
     queueBuffer(getOutputPort(context->stCodec), buffer);
-
   } else {
+    usleep(2000);
     return MPP_CODER_NO_DATA;
   }
   return MPP_OK;
@@ -592,16 +580,16 @@ S32 al_enc_return_output_stream(ALBaseContext *ctx, MppData *src_data) {
     error("input para MppData is NULL, please check!");
     return MPP_NULL_POINTER;
   }
+  /*
+    ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+    S32 ret = 0;
+    S32 buf_idx = FRAME_GetID(FRAME_GetFrame(src_data));
+    debug("release output idx = %d", buf_idx);
+    Buffer *buf = getBuffer(getOutputPort(context->stCodec), buf_idx);
 
-  ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
-  S32 ret = 0;
-  S32 buf_idx = FRAME_GetID(FRAME_GetFrame(src_data));
-  debug("release output idx = %d", buf_idx);
-  Buffer *buf = getBuffer(getOutputPort(context->stCodec), buf_idx);
-
-  queueBuffer(getOutputPort(context->stCodec), buf);
-  debug("release output ret = %d", ret);
-
+    queueBuffer(getOutputPort(context->stCodec), buf);
+    debug("release output ret = %d", ret);
+  */
   return MPP_OK;
 }
 

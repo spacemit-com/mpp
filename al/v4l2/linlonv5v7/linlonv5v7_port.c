@@ -375,7 +375,6 @@ void queueBuffer(Port *port, Buffer *buf) {
   struct timeval time;
   gettimeofday(&time, NULL);
   // debug("queue buffer : %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
-  ;
   // printBuffer(*b, "---->");
 
   ret = ioctl(port->fd, VIDIOC_QBUF, b);
@@ -1210,13 +1209,17 @@ void setHRDBufferSize(Port *port, S32 size) {
   }
 }
 
+S32 getBufWidth(Port *port) { return port->stFormat.fmt.pix_mp.width; }
+
+S32 getBufHeight(Port *port) { return port->stFormat.fmt.pix_mp.height; }
+
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
   Buffer *buffer = dequeueBuffer(port);
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   if (eof) {
     debug("****************************************** eos2");
     if (port->tryDecStop) {
-      debug("****************************************** eos3");
+      debug("dec ****************************************** eos3");
       sendDecStopCommand(port);
     }
   }
@@ -1226,6 +1229,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
 
   if (V4L2_BUF_TYPE_VIDEO_OUTPUT == port->eBufType &&
       V4L2_MEMORY_MMAP == port->nMemType) {
+    // decode input
     MppPacket *packet = PACKET_GetPacket(data);
     memcpy(getUserPtr(buffer, 0), PACKET_GetDataPointer(packet),
            PACKET_GetLength(packet));
@@ -1238,13 +1242,29 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
     //       PACKET_GetPts(packet));
   } else if (V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE == port->eBufType &&
              V4L2_MEMORY_DMABUF == port->nMemType) {
-    // to do
+    // encode input
+    MppFrame *frame = FRAME_GetFrame(data);
+    S32 width = getBufWidth(port);
+    S32 height = getBufHeight(port);
+    S32 y_size = width * height;
+
+    // if(!eof)
+    memcpy(getUserPtr(buffer, 0), FRAME_GetDataPointer(frame, 0),
+           y_size * 3 / 2);
+
+    b->m.planes[0].bytesused = y_size;
+    b->m.planes[1].bytesused = y_size * 3 / 2;
+    b->m.planes[0].data_offset = 0;
+    b->m.planes[1].data_offset = y_size;
+    b->m.planes[0].length = y_size;
+    b->m.planes[1].length = y_size * 3 / 2;
   }
 
   setEndOfStream(buffer, eof);
   queueBuffer(port, buffer);
 
   if (eof) {
+    debug("enc ****************************************** eos");
     sendEncStopCommand(port);
   }
 
@@ -1474,10 +1494,6 @@ void handleFlush(Port *port, BOOL eof) {
 }
 
 S32 getBufNum(Port *port) { return port->nBufNum; }
-
-S32 getBufWidth(Port *port) { return port->stFormat.fmt.pix_mp.width; }
-
-S32 getBufHeight(Port *port) { return port->stFormat.fmt.pix_mp.height; }
 
 S32 getBufFd(Port *port, U32 index) {
   struct v4l2_buffer *b = getV4l2Buffer(port->stBuf[index]);
