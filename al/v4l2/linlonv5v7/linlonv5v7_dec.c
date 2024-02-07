@@ -517,6 +517,32 @@ S32 al_dec_reset(ALBaseContext *ctx) {
   return MPP_OK;
 }
 
+S32 al_dec_flush(ALBaseContext *ctx) {
+  if (!ctx) return MPP_NULL_POINTER;
+  ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
+  MppFrame *mppframe = FRAME_Create();
+  S32 ret = -1;
+  S32 counter = 0;
+
+  debug("Flush start ========================================");
+  while (counter < 50) {
+    ret = al_dec_request_output_frame(ctx, FRAME_GetBaseData(mppframe));
+    if (ret == MPP_OK) {
+      debug("Flush one frame");
+      al_dec_return_output_frame(ctx, FRAME_GetBaseData(mppframe));
+    } else {
+      usleep(5000);
+    }
+    counter++;
+  }
+  debug("Flush finish ========================================");
+
+  FRAME_Destory(mppframe);
+  mppframe = NULL;
+
+  return MPP_OK;
+}
+
 void al_dec_destory(ALBaseContext *ctx) {
   if (!ctx) return;
   debug("1111111111110");
