@@ -525,6 +525,7 @@ S32 al_dec_flush(ALBaseContext *ctx) {
   S32 counter = 0;
 
   debug("Flush start ========================================");
+  /*
   while (counter < 50) {
     ret = al_dec_request_output_frame(ctx, FRAME_GetBaseData(mppframe));
     if (ret == MPP_OK) {
@@ -535,6 +536,8 @@ S32 al_dec_flush(ALBaseContext *ctx) {
     }
     counter++;
   }
+  */
+  handleFlush(getOutputPort(context->stCodec), MPP_FALSE);
   debug("Flush finish ========================================");
 
   FRAME_Destory(mppframe);

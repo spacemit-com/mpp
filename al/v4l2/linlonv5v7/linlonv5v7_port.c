@@ -1320,9 +1320,9 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   /* Resolution change. we should only handle this on decode
    * output:V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE*/
   if (!V4L2_TYPE_IS_OUTPUT(b->type) && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
-      (getBytesUsed(b) == 0 ||
+      /*(getBytesUsed(b) == 0 ||
        (b->flags & V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) !=
-           V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) &&
+           V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) &&*/
       (b->flags & V4L2_BUF_FLAG_ERROR) == 0) {
     struct v4l2_format fmt = port->stFormat;
     getPortFormat(port);
@@ -1473,6 +1473,7 @@ void handleResolutionChange(Port *port, BOOL eof) {
                   port->stFormat.fmt.pix_mp.pixelformat, MPP_FALSE);
   U32 count = getBufferCount(port);
   if (count < port->nNeededBufNum) count = port->nNeededBufNum;
+  count += 4;
   allocateBuffers(port, count);
   port->nBufNum = count;
   streamon(port);
@@ -1482,12 +1483,6 @@ void handleResolutionChange(Port *port, BOOL eof) {
 
 void handleFlush(Port *port, BOOL eof) {
   streamoff(port);
-  getPortFormat(port);
-  allocateBuffers(port, 0);
-  U32 count = getBufferCount(port);
-  if (count < port->nNeededBufNum) count = port->nNeededBufNum;
-  allocateBuffers(port, count);
-  port->nBufNum = count;
   streamon(port);
   queueBuffers(port, MPP_FALSE);
   port->frames_processed = 0;
