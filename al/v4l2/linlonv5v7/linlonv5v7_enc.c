@@ -101,7 +101,7 @@ struct _ALLinlonv5v7EncContext {
   S32 nScale;
   S32 nFrames;
 
-  S32 naluFmt;
+  S32 nNaluFmt;
   BOOL bInputEos;
 };
 

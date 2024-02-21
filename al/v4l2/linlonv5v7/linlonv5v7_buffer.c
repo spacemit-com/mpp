@@ -23,7 +23,7 @@ struct _Buffer {
   struct v4l2_crop crop;
   BOOL isRoiCfg;
   struct v4l2_mvx_roi_regions roi_cfg;
-  S32 qp;
+  S32 nQp;
   DmaBufWrapper *pDmaBufWrapper;
   S32 nTotalLength;                    // for V4L2_MEMORY_DMABUF
   S32 nPlaneOffset[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
@@ -53,7 +53,7 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd,
   }
 
   buffer_tmp->isRoiCfg = MPP_FALSE;
-  buffer_tmp->qp = 0;
+  buffer_tmp->nQp = 0;
 
   if (V4L2_MEMORY_DMABUF == buffer_tmp->nMemType) {
     buffer_tmp->pDmaBufWrapper = createDmaBufWrapper(DMA_HEAP_CMA);
@@ -247,8 +247,8 @@ void setEPRflag(Buffer *buf) {
   buf->stBufArr.flags |= V4L2_BUF_FLAG_MVX_BUFFER_EPR;
 }
 
-void setQPofEPR(Buffer *buf, S32 data) { buf->qp = data; }
-S32 getQPofEPR(Buffer *buf) { return buf->qp; }
+void setQPofEPR(Buffer *buf, S32 data) { buf->nQp = data; }
+S32 getQPofEPR(Buffer *buf) { return buf->nQp; }
 
 BOOL isGeneralBuffer(Buffer *buf) {
   return (buf->stBufArr.flags & V4L2_BUF_FLAG_MVX_BUFFER_EPR) ==

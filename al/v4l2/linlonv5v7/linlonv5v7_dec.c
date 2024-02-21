@@ -104,7 +104,7 @@ struct _ALLinlonv5v7DecContext {
   S32 nScale;
   S32 nFrames;
 
-  S32 naluFmt;
+  S32 nNaluFmt;
   BOOL bInputEos;
 
   pthread_t pollthread;
@@ -138,7 +138,7 @@ static void tryStopCmd(ALLinlonv5v7DecContext *context, BOOL tryStop) {
 }
 
 static void setNaluFormat(ALLinlonv5v7DecContext *context, S32 nalu) {
-  context->naluFmt = nalu;
+  context->nNaluFmt = nalu;
 }
 
 static void setDecoderRotation(ALLinlonv5v7DecContext *context, S32 rotation) {

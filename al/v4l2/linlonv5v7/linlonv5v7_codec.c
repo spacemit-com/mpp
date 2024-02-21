@@ -46,12 +46,12 @@ struct _Codec {
 
   Port *stOutputPort;
 
-  BOOL csweo;
-  U32 fps;
-  U32 bps;
-  U32 minqp;
-  U32 maxqp;
-  U32 fixedqp;
+  BOOL bCsweo;
+  U32 nFps;
+  U32 nBps;
+  U32 nMinqp;
+  U32 nMaxqp;
+  U32 nFixedqp;
 };
 
 Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
@@ -87,12 +87,12 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
   codec_tmp->nWidth = width;
   codec_tmp->nHeight = height;
   codec_tmp->bIsInterlaced = isInterlaced;
-  codec_tmp->csweo = MPP_FALSE;
-  codec_tmp->fps = 0;
-  codec_tmp->bps = 0;
-  codec_tmp->minqp = 0;
-  codec_tmp->maxqp = 0;
-  codec_tmp->fixedqp = 0;
+  codec_tmp->bCsweo = MPP_FALSE;
+  codec_tmp->nFps = 0;
+  codec_tmp->nBps = 0;
+  codec_tmp->nMinqp = 0;
+  codec_tmp->nMaxqp = 0;
+  codec_tmp->nFixedqp = 0;
 
   return codec_tmp;
 }
@@ -110,29 +110,29 @@ Port *getInputPort(Codec *codec) { return codec->stInputPort; }
 
 Port *getOutputPort(Codec *codec) { return codec->stOutputPort; }
 
-BOOL getCsweo(Codec *codec) { return codec->csweo; }
+BOOL getCsweo(Codec *codec) { return codec->bCsweo; }
 
-U32 getFps(Codec *codec) { return codec->fps; }
+U32 getFps(Codec *codec) { return codec->nFps; }
 
-U32 getBps(Codec *codec) { return codec->bps; }
+U32 getBps(Codec *codec) { return codec->nBps; }
 
-U32 getMinqp(Codec *codec) { return codec->minqp; }
+U32 getMinqp(Codec *codec) { return codec->nMinqp; }
 
-U32 getMaxqp(Codec *codec) { return codec->maxqp; }
+U32 getMaxqp(Codec *codec) { return codec->nMaxqp; }
 
-U32 getFixedqp(Codec *codec) { return codec->fixedqp; }
+U32 getFixedqp(Codec *codec) { return codec->nFixedqp; }
 
-void setCsweo(Codec *codec, BOOL csweo) { codec->csweo = csweo; }
+void setCsweo(Codec *codec, BOOL csweo) { codec->bCsweo = csweo; }
 
-void setFps(Codec *codec, U32 fps) { codec->fps = fps; }
+void setFps(Codec *codec, U32 fps) { codec->nFps = fps; }
 
-void setBps(Codec *codec, U32 bps) { codec->bps = bps; }
+void setBps(Codec *codec, U32 bps) { codec->nBps = bps; }
 
-void setMinqp(Codec *codec, U32 minqp) { codec->minqp = minqp; }
+void setMinqp(Codec *codec, U32 minqp) { codec->nMinqp = minqp; }
 
-void setMaxqp(Codec *codec, U32 maxqp) { codec->maxqp = maxqp; }
+void setMaxqp(Codec *codec, U32 maxqp) { codec->nMaxqp = maxqp; }
 
-void setFixedqp(Codec *codec, U32 fixedqp) { codec->fixedqp = fixedqp; }
+void setFixedqp(Codec *codec, U32 fixedqp) { codec->nFixedqp = fixedqp; }
 
 S32 stream(Codec *codec) {
   /* Set NALU. */

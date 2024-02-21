@@ -28,22 +28,20 @@ struct _Port {
   S32 nBufNum;
   Buffer *stBuf[MAX_BUF_NUM];
 
-  S32 fd;
-  DIRECTION direction;
+  S32 nVideoFd;
+  DIRECTION ePortDirection;
 
-  S32 pending;
+  S32 nRotation;
+  BOOL bInterlaced;
+  BOOL bTryEncStop;
+  BOOL bTryDecStop;
+  S32 nMirror;
+  S32 nScale;
+  S32 nFramesProcessed;
+  S32 nFramesCount;
+  S32 nRcType;
 
-  S32 rotation;
-  BOOL interlaced;
-  BOOL tryEncStop;
-  BOOL tryDecStop;
-  S32 mirror;
-  S32 scale;
-  S32 frames_processed;
-  S32 frames_count;
-  S32 rc_type;
-
-  BOOL isSourceChange;
+  BOOL bIsSourceChange;
 
   S32 nQueueNumInput;
   S32 nQueueNumOutput;
@@ -62,28 +60,28 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
 
   debug("create a port, type=%d format_fourcc=%d", type, format_fourcc);
 
-  port_tmp->fd = fd;
+  port_tmp->nVideoFd = fd;
   port_tmp->eBufType = type;
   port_tmp->nFormatFourcc = format_fourcc;
   port_tmp->nMemType = memtype;
   port_tmp->nNeededBufNum = buffer_num;
-  port_tmp->interlaced = MPP_FALSE;
-  port_tmp->tryEncStop = MPP_FALSE;
-  port_tmp->tryDecStop = MPP_FALSE;
-  port_tmp->mirror = 0;
-  port_tmp->scale = 1;
-  port_tmp->frames_processed = 0;
-  port_tmp->frames_count = 0;
-  port_tmp->isSourceChange = MPP_FALSE;
+  port_tmp->bInterlaced = MPP_FALSE;
+  port_tmp->bTryEncStop = MPP_FALSE;
+  port_tmp->bTryDecStop = MPP_FALSE;
+  port_tmp->nMirror = 0;
+  port_tmp->nScale = 1;
+  port_tmp->nFramesProcessed = 0;
+  port_tmp->nFramesCount = 0;
+  port_tmp->bIsSourceChange = MPP_FALSE;
   port_tmp->nQueueNumInput = 0;
   port_tmp->nQueueNumOutput = 0;
 
   if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT ||
       type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-    port_tmp->direction = INPUT;
+    port_tmp->ePortDirection = INPUT;
   if (type == V4L2_BUF_TYPE_VIDEO_CAPTURE ||
       type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-    port_tmp->direction = OUTPUT;
+    port_tmp->ePortDirection = OUTPUT;
 
   mpp_env_get_u32("MPP_PRINT_BUFFER", &(port_tmp->bEnableBufferPrint), 0);
 
@@ -114,7 +112,7 @@ void enumerateFormats(Port *port) {
   fmtdesc.type = port->eBufType;
 
   while (1) {
-    ret = ioctl(port->fd, VIDIOC_ENUM_FMT, &fmtdesc);
+    ret = ioctl(port->nVideoFd, VIDIOC_ENUM_FMT, &fmtdesc);
     if (ret) {
       break;
     }
@@ -129,7 +127,7 @@ void enumerateFormats(Port *port) {
 struct v4l2_format getPortFormat(Port *port) {
   /* Get and print format. */
   port->stFormat.type = port->eBufType;
-  S32 ret = ioctl(port->fd, VIDIOC_G_FMT, &(port->stFormat));
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_G_FMT, &(port->stFormat));
   if (ret) {
     error("Failed to get format.");
   }
@@ -138,14 +136,14 @@ struct v4l2_format getPortFormat(Port *port) {
 }
 
 void tryFormat(Port *port, struct v4l2_format format) {
-  S32 ret = ioctl(port->fd, VIDIOC_TRY_FMT, &format);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_TRY_FMT, &format);
   if (ret) {
     error("Failed to try format.");
   }
 }
 
 void setFormat(Port *port, struct v4l2_format format) {
-  S32 ret = ioctl(port->fd, VIDIOC_S_FMT, &format);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_FMT, &format);
   if (ret) {
     error("Failed to set format.");
   }
@@ -236,7 +234,7 @@ void printFormat(const struct v4l2_format format) {
 struct v4l2_crop getPortCrop(Port *port) {
   struct v4l2_crop crop = {.type = port->eBufType};
 
-  S32 ret = ioctl(port->fd, VIDIOC_G_CROP, &crop);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_G_CROP, &crop);
   if (ret) {
     error("Failed to get crop.");
   }
@@ -245,12 +243,12 @@ struct v4l2_crop getPortCrop(Port *port) {
 }
 
 void setPortInterlaced(Port *port, BOOL interlaced) {
-  port->interlaced = interlaced;
+  port->bInterlaced = interlaced;
 }
 
-void tryEncStopCmd(Port *port, BOOL tryStop) { port->tryEncStop = tryStop; }
+void tryEncStopCmd(Port *port, BOOL tryStop) { port->bTryEncStop = tryStop; }
 
-void tryDecStopCmd(Port *port, BOOL tryStop) { port->tryDecStop = tryStop; }
+void tryDecStopCmd(Port *port, BOOL tryStop) { port->bTryDecStop = tryStop; }
 
 void allocateBuffers(Port *port, S32 count) {
   struct v4l2_requestbuffers reqbuf;
@@ -264,16 +262,13 @@ void allocateBuffers(Port *port, S32 count) {
   reqbuf.count = count;
   reqbuf.type = port->eBufType;
   reqbuf.memory = port->nMemType;
-  ret = ioctl(port->fd, VIDIOC_REQBUFS, &reqbuf);
+  ret = ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
   if (ret) {
     error("Failed to request buffers.");
   }
 
   debug("Request buffers. type:%d count:%d(%d) memory:%d", reqbuf.type,
         reqbuf.count, count, reqbuf.memory);
-
-  /* Reset number of buffers queued to driver. */
-  port->pending = 0;
 
   port->nBufNum = reqbuf.count;
 
@@ -288,14 +283,14 @@ void allocateBuffers(Port *port, S32 count) {
     buf.length = 3;
     buf.m.planes = planes;
 
-    ret = ioctl(port->fd, VIDIOC_QUERYBUF, &buf);
+    ret = ioctl(port->nVideoFd, VIDIOC_QUERYBUF, &buf);
     if (ret) {
       error("Failed to query buffer.");
     }
 
     printBuffer(port, buf, "Query");
 
-    port->stBuf[buf.index] = createBuffer(buf, port->fd, port->stFormat);
+    port->stBuf[buf.index] = createBuffer(buf, port->nVideoFd, port->stFormat);
   }
 }
 
@@ -311,7 +306,7 @@ U32 getBufferCount(Port *port) {
   control.id = V4L2_TYPE_IS_OUTPUT(port->eBufType)
                    ? V4L2_CID_MIN_BUFFERS_FOR_OUTPUT
                    : V4L2_CID_MIN_BUFFERS_FOR_CAPTURE;
-  if (-1 == ioctl(port->fd, VIDIOC_G_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_G_CTRL, &control)) {
     error("Failed to get minimum buffers.");
   }
 
@@ -336,14 +331,14 @@ void queueBuffer(Port *port, Buffer *buf) {
   struct v4l2_buffer *b = getV4l2Buffer(buf);
   S32 ret;
 
-  setInterlaced(buf, port->interlaced);
-  setRotation(buf, port->rotation);
-  setMirror(buf, port->mirror);
-  setDownScale(buf, port->scale);
+  setInterlaced(buf, port->bInterlaced);
+  setRotation(buf, port->nRotation);
+  setMirror(buf, port->nMirror);
+  setDownScale(buf, port->nScale);
 
   if (getRoiCfgflag(buf) && getBytesUsed(b) != 0) {
     struct v4l2_mvx_roi_regions roi = getRoiCfg(buf);
-    ret = ioctl(port->fd, VIDIOC_S_MVX_ROI_REGIONS, &roi);
+    ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_ROI_REGIONS, &roi);
     if (ret) {
       error("Failed to queue roi param.");
     }
@@ -351,7 +346,7 @@ void queueBuffer(Port *port, Buffer *buf) {
 
   if (getQPofEPR(buf) > 0) {
     S32 qp = getQPofEPR(buf);
-    ret = ioctl(port->fd, VIDIOC_S_MVX_QP_EPR, &qp);
+    ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_QP_EPR, &qp);
     if (ret) {
       error("Failed to queue roi param.");
     }
@@ -368,10 +363,10 @@ void queueBuffer(Port *port, Buffer *buf) {
     }
   }
   // encoder specfied frames count to be processed
-  if (port->direction == INPUT && port->frames_count > 0 &&
-      port->frames_processed >= port->frames_count - 1 &&
+  if (port->ePortDirection == INPUT && port->nFramesCount > 0 &&
+      port->nFramesProcessed >= port->nFramesCount - 1 &&
       !isGeneralBuffer(buf)) {
-    if (port->frames_processed >= port->frames_count) {
+    if (port->nFramesProcessed >= port->nFramesCount) {
       clearBytesUsed(buf);
       resetVendorFlags(buf);
     }
@@ -383,27 +378,25 @@ void queueBuffer(Port *port, Buffer *buf) {
   // debug("queue buffer : %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
   printBuffer(port, *b, "---->");
 
-  ret = ioctl(port->fd, VIDIOC_QBUF, b);
+  ret = ioctl(port->nVideoFd, VIDIOC_QBUF, b);
   if (ret) {
     error("Failed to queue buffer. (%s)", strerror(errno));
   }
-  if (port->direction == INPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
+  if (port->ePortDirection == INPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
       !isGeneralBuffer(buf)) {
-    port->frames_processed++;
+    port->nFramesProcessed++;
   }
 
   if (!ret) {
-    if (port->direction == INPUT) {
+    if (port->ePortDirection == INPUT) {
       port->nQueueNumInput++;
       // error("input queue:%d", port->nQueueNumInput);
     }
-    if (port->direction == OUTPUT) {
+    if (port->ePortDirection == OUTPUT) {
       port->nQueueNumOutput++;
       // error("output queue:%d", port->nQueueNumOutput);
     }
   }
-
-  ++port->pending;
 }
 
 Buffer *dequeueBuffer(Port *port) {
@@ -416,24 +409,22 @@ Buffer *dequeueBuffer(Port *port) {
   buf.memory = port->nMemType;
   buf.length = 3;
 
-  ret = ioctl(port->fd, VIDIOC_DQBUF, &buf);
+  ret = ioctl(port->nVideoFd, VIDIOC_DQBUF, &buf);
   if (ret) {
     error("Failed to dequeue buffer. type=%u, memory=%u", buf.type, buf.memory);
     return NULL;
   }
 
   if (!ret) {
-    if (port->direction == INPUT) {
+    if (port->ePortDirection == INPUT) {
       port->nQueueNumInput--;
       // error("input dequeue:%d", port->nQueueNumInput);
     }
-    if (port->direction == OUTPUT) {
+    if (port->ePortDirection == OUTPUT) {
       port->nQueueNumOutput--;
       // error("output dequeue:%d", port->nQueueNumOutput);
     }
   }
-
-  --port->pending;
 
   struct timeval time;
   gettimeofday(&time, NULL);
@@ -485,9 +476,10 @@ void streamon(Port *port) {
   gettimeofday(&time, NULL);
   debug("Stream on %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
 
-  S32 ret = ioctl(port->fd, VIDIOC_STREAMON, &(port->eBufType));
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_STREAMON, &(port->eBufType));
   if (ret) {
-    error("Failed to stream on.  fd = %d, (%s)", port->fd, strerror(errno));
+    error("Failed to stream on.  nVideoFd = %d, (%s)", port->nVideoFd,
+          strerror(errno));
   }
 }
 
@@ -497,7 +489,7 @@ void streamoff(Port *port) {
 
   debug("Stream off %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
 
-  S32 ret = ioctl(port->fd, VIDIOC_STREAMOFF, &(port->eBufType));
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_STREAMOFF, &(port->eBufType));
   if (ret) {
     error("Failed to stream off.");
   }
@@ -506,13 +498,13 @@ void streamoff(Port *port) {
 void sendEncStopCommand(Port *port) {
   struct v4l2_encoder_cmd cmd = {.cmd = V4L2_ENC_CMD_STOP};
 
-  if (port->tryEncStop) {
-    if (0 != ioctl(port->fd, VIDIOC_TRY_ENCODER_CMD, &cmd)) {
+  if (port->bTryEncStop) {
+    if (0 != ioctl(port->nVideoFd, VIDIOC_TRY_ENCODER_CMD, &cmd)) {
       error("Failed to send try encoder stop command.");
     }
   }
 
-  if (0 != ioctl(port->fd, VIDIOC_ENCODER_CMD, &cmd)) {
+  if (0 != ioctl(port->nVideoFd, VIDIOC_ENCODER_CMD, &cmd)) {
     error("Failed to send encoding stop command.");
   }
 }
@@ -520,13 +512,13 @@ void sendEncStopCommand(Port *port) {
 void sendDecStopCommand(Port *port) {
   struct v4l2_decoder_cmd cmd = {.cmd = V4L2_DEC_CMD_STOP};
 
-  if (port->tryDecStop) {
-    if (0 != ioctl(port->fd, VIDIOC_TRY_DECODER_CMD, &cmd)) {
+  if (port->bTryDecStop) {
+    if (0 != ioctl(port->nVideoFd, VIDIOC_TRY_DECODER_CMD, &cmd)) {
       error("Failed to send try decoder stop command.");
     }
   }
 
-  if (0 != ioctl(port->fd, VIDIOC_DECODER_CMD, &cmd)) {
+  if (0 != ioctl(port->nVideoFd, VIDIOC_DECODER_CMD, &cmd)) {
     error("Failed to send decoding stop command.");
   }
 }
@@ -540,7 +532,7 @@ void setH264DecIntBufSize(Port *port, U32 ibs) {
   control.id = V4L2_CID_MVE_VIDEO_INTBUF_SIZE;
   control.value = ibs;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 ibs=%u.", ibs);
   }
 }
@@ -554,7 +546,7 @@ void setDecFrameReOrdering(Port *port, U32 fro) {
   control.id = V4L2_CID_MVE_VIDEO_FRAME_REORDERING;
   control.value = fro;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set decoding fro=%u.", fro);
   }
 }
@@ -568,13 +560,13 @@ void setDecIgnoreStreamHeaders(Port *port, U32 ish) {
   control.id = V4L2_CID_MVE_VIDEO_IGNORE_STREAM_HEADERS;
   control.value = ish;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set decoding ish=%u.", ish);
   }
 }
 
 void setNALU(Port *port, enum v4l2_nalu_format nalu) {
-  mpp_v4l2_set_ctrl(port->fd, V4L2_CID_MVE_VIDEO_NALU_FORMAT, nalu);
+  mpp_v4l2_set_ctrl(port->nVideoFd, V4L2_CID_MVE_VIDEO_NALU_FORMAT, nalu);
 }
 
 void setEncFramerate(Port *port, U32 frame_rate) {
@@ -586,16 +578,16 @@ void setEncFramerate(Port *port, U32 frame_rate) {
   control.id = V4L2_CID_MVE_VIDEO_FRAME_RATE;
   control.value = frame_rate;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set frame_rate=%u.", frame_rate);
   }
 }
 
 void setEncBitrate(Port *port, U32 bit_rate) {
   debug("setEncBitrate(%u)", bit_rate);
-  debug("setRctype(%u)", port->rc_type);
+  debug("setRctype(%u)", port->nRcType);
 
-  if (bit_rate == 0 && port->rc_type == 0) {
+  if (bit_rate == 0 && port->nRcType == 0) {
     return;
   }
   struct v4l2_control control;
@@ -604,7 +596,7 @@ void setEncBitrate(Port *port, U32 bit_rate) {
   control.id = V4L2_CID_MPEG_VIDEO_BITRATE;
   control.value = bit_rate;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set bit_rate=%u.", bit_rate);
   }
 }
@@ -615,7 +607,7 @@ void setRateControl(Port *port, struct v4l2_rate_control *rc) {
       "rc->maximum_bitrate:%u)",
       rc->rc_type, rc->target_bitrate, rc->maximum_bitrate);
 
-  S32 ret = ioctl(port->fd, VIDIOC_S_MVX_RATE_CONTROL, rc);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_RATE_CONTROL, rc);
   if (ret) {
     error("Failed to set rate control.");
   }
@@ -632,7 +624,7 @@ void setEncPFrames(Port *port, U32 pframes) {
   control.id = V4L2_CID_MVE_VIDEO_P_FRAMES;
   control.value = pframes;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set pframes=%u.", pframes);
   }
 }
@@ -646,7 +638,7 @@ void setEncBFrames(Port *port, U32 bframes) {
   control.id = V4L2_CID_MPEG_VIDEO_B_FRAMES;
   control.value = bframes;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set bframes=%u.", bframes);
   }
 }
@@ -660,7 +652,7 @@ void setEncSliceSpacing(Port *port, U32 spacing) {
   control.id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB;
   control.value = spacing;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set slice spacing=%u.", spacing);
   }
 
@@ -668,7 +660,7 @@ void setEncSliceSpacing(Port *port, U32 spacing) {
   control.id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE;
   control.value = spacing != 0;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set slice mode.");
   }
 }
@@ -682,7 +674,7 @@ void setH264EncForceChroma(Port *port, U32 fmt) {
   control.id = V4L2_CID_MVE_VIDEO_FORCE_CHROMA_FORMAT;
   control.value = fmt;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 chroma fmt=%u.", fmt);
   }
 }
@@ -696,7 +688,7 @@ void setH264EncBitdepth(Port *port, U32 bd) {
   control.id = V4L2_CID_MVE_VIDEO_BITDEPTH_LUMA;
   control.value = bd;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 luma bd=%u.", bd);
   }
 
@@ -704,7 +696,7 @@ void setH264EncBitdepth(Port *port, U32 bd) {
   control.id = V4L2_CID_MVE_VIDEO_BITDEPTH_CHROMA;
   control.value = bd;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 chroma bd=%u.", bd);
   }
 }
@@ -718,7 +710,7 @@ void setH264EncIntraMBRefresh(Port *port, U32 period) {
   control.id = V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB;
   control.value = period;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 period=%u.", period);
   }
 }
@@ -742,7 +734,7 @@ void setEncProfile(Port *port, U32 profile) {
   }
 
   if (setProfile) {
-    if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+    if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
       error("Failed to set profile=%u for fmt: %u .", profile,
             port->nFormatFourcc);
     }
@@ -770,7 +762,7 @@ void setEncLevel(Port *port, U32 level) {
   }
 
   if (setLevel) {
-    if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+    if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
       error("Failed to set level=%u for fmt: %u .", level, port->nFormatFourcc);
     }
   } else {
@@ -787,7 +779,7 @@ void setEncConstrainedIntraPred(Port *port, U32 cip) {
   control.id = V4L2_CID_MVE_VIDEO_CONSTR_IPRED;
   control.value = cip;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set encoding cip=%u.", cip);
   }
 }
@@ -801,7 +793,7 @@ void setH264EncEntropyMode(Port *port, U32 ecm) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_ENTROPY_MODE;
   control.value = ecm;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 ecm=%u.", ecm);
   }
 }
@@ -815,7 +807,7 @@ void setH264EncGOPType(Port *port, U32 gop) {
   control.id = V4L2_CID_MVE_VIDEO_GOP_TYPE;
   control.value = gop;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 gop=%u.", gop);
   }
 }
@@ -829,7 +821,7 @@ void setH264EncMinQP(Port *port, U32 minqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_MIN_QP;
   control.value = minqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 minqp=%u.", minqp);
   }
 }
@@ -843,7 +835,7 @@ void setH264EncMaxQP(Port *port, U32 maxqp) {
   control.id = V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE;
   control.value = 1;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to enable/disable rate control.");
   }
 
@@ -851,7 +843,7 @@ void setH264EncMaxQP(Port *port, U32 maxqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_MAX_QP;
   control.value = maxqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 maxqp=%u.", maxqp);
   }
 }
@@ -865,7 +857,7 @@ void setH264EncFixedQP(Port *port, U32 fqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP;
   control.value = fqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 I frame fqp=%u.", fqp);
   }
 
@@ -873,7 +865,7 @@ void setH264EncFixedQP(Port *port, U32 fqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP;
   control.value = fqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 P frame fqp=%u.", fqp);
   }
 
@@ -881,7 +873,7 @@ void setH264EncFixedQP(Port *port, U32 fqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_B_FRAME_QP;
   control.value = fqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 B frame fqp=%u.", fqp);
   }
 
@@ -889,7 +881,7 @@ void setH264EncFixedQP(Port *port, U32 fqp) {
   control.id = V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE;
   control.value = 0;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to enable/disable rate control.");
   }
 }
@@ -903,7 +895,7 @@ void setH264EncFixedQPI(Port *port, U32 fqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP;
   control.value = fqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 I frame fqp=%u.", fqp);
   }
 }
@@ -917,7 +909,7 @@ void setH264EncFixedQPP(Port *port, U32 fqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP;
   control.value = fqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 P frame fqp=%u.", fqp);
   }
 }
@@ -931,7 +923,7 @@ void setH264EncFixedQPB(Port *port, U32 fqp) {
   control.id = V4L2_CID_MPEG_VIDEO_H264_B_FRAME_QP;
   control.value = fqp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 B frame fqp=%u.", fqp);
   }
 }
@@ -945,7 +937,7 @@ void setH264EncBandwidth(Port *port, U32 bw) {
   control.id = V4L2_CID_MVE_VIDEO_BANDWIDTH_LIMIT;
   control.value = bw;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 bw=%u.", bw);
   }
 }
@@ -959,7 +951,7 @@ void setHEVCEncEntropySync(Port *port, U32 es) {
   control.id = V4L2_CID_MVE_VIDEO_ENTROPY_SYNC;
   control.value = es;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set HEVC es=%u.", es);
   }
 }
@@ -973,7 +965,7 @@ void setHEVCEncTemporalMVP(Port *port, U32 tmvp) {
   control.id = V4L2_CID_MVE_VIDEO_TEMPORAL_MVP;
   control.value = tmvp;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set HEVC tmvp=%u.", tmvp);
   }
 }
@@ -987,7 +979,7 @@ void setEncStreamEscaping(Port *port, U32 sesc) {
   control.id = V4L2_CID_MVE_VIDEO_STREAM_ESCAPING;
   control.value = sesc;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set encoding sesc=%u.", sesc);
   }
 }
@@ -1001,7 +993,7 @@ void setEncHorizontalMVSearchRange(Port *port, U32 hmvsr) {
   control.id = V4L2_CID_MPEG_VIDEO_MV_H_SEARCH_RANGE;
   control.value = hmvsr;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set encoding hmvsr=%u.", hmvsr);
   }
 }
@@ -1015,7 +1007,7 @@ void setEncVerticalMVSearchRange(Port *port, U32 vmvsr) {
   control.id = V4L2_CID_MPEG_VIDEO_MV_V_SEARCH_RANGE;
   control.value = vmvsr;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set encoding vmvsr=%u.", vmvsr);
   }
 }
@@ -1029,7 +1021,7 @@ void setVP9EncTileCR(Port *port, U32 tcr) {
   control.id = V4L2_CID_MVE_VIDEO_TILE_COLS;
   control.value = tcr;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set VP9 tile cols=%u.", tcr);
   }
 
@@ -1037,7 +1029,7 @@ void setVP9EncTileCR(Port *port, U32 tcr) {
   control.id = V4L2_CID_MVE_VIDEO_TILE_ROWS;
   control.value = tcr;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set VP9 tile rows=%u.", tcr);
   }
 }
@@ -1051,7 +1043,7 @@ void setJPEGEncRefreshInterval(Port *port, U32 r) {
   control.id = V4L2_CID_JPEG_RESTART_INTERVAL;
   control.value = r;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set JPEG refresh interval=%u.", r);
   }
 }
@@ -1065,16 +1057,16 @@ void setJPEGEncQuality(Port *port, U32 q) {
   control.id = V4L2_CID_JPEG_COMPRESSION_QUALITY;
   control.value = q;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set JPEG compression quality=%u.", q);
   }
 }
 
-void setPortRotation(Port *port, S32 rotation) { port->rotation = rotation; }
+void setPortRotation(Port *port, S32 rotation) { port->nRotation = rotation; }
 
-void setPortMirror(Port *port, S32 mirror) { port->mirror = mirror; }
+void setPortMirror(Port *port, S32 mirror) { port->nMirror = mirror; }
 
-void setPortDownScale(Port *port, S32 scale) { port->scale = scale; }
+void setPortDownScale(Port *port, S32 scale) { port->nScale = scale; }
 
 void setDSLFrame(Port *port, S32 width, S32 height) {
   debug("setDSLFrame(%d x %d)", width, height);
@@ -1083,7 +1075,7 @@ void setDSLFrame(Port *port, S32 width, S32 height) {
   memset(&dsl_frame, 0, sizeof(dsl_frame));
   dsl_frame.width = width;
   dsl_frame.height = height;
-  S32 ret = ioctl(port->fd, VIDIOC_S_MVX_DSL_FRAME, &dsl_frame);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_DSL_FRAME, &dsl_frame);
   if (ret != 0) {
     error("Failed to set DSL frame width/height.");
   }
@@ -1098,7 +1090,7 @@ void setDSLRatio(Port *port, S32 hor, S32 ver) {
   memset(&dsl_ratio, 0, sizeof(dsl_ratio));
   dsl_ratio.hor = hor;
   dsl_ratio.ver = ver;
-  S32 ret = ioctl(port->fd, VIDIOC_S_MVX_DSL_RATIO, &dsl_ratio);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_DSL_RATIO, &dsl_ratio);
   if (ret != 0) {
     error("Failed to set DSL frame hor/ver.");
   }
@@ -1109,7 +1101,7 @@ void setDSLRatio(Port *port, S32 hor, S32 ver) {
 void setDSLMode(Port *port, S32 mode) {
   debug("setDSLMode(%d)", mode);
   S32 dsl_pos_mode = mode;
-  S32 ret = ioctl(port->fd, VIDIOC_S_MVX_DSL_MODE, &dsl_pos_mode);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_DSL_MODE, &dsl_pos_mode);
   if (ret != 0) {
     error("Failed to set dsl mode.");
   }
@@ -1121,13 +1113,13 @@ void setLongTermRef(Port *port, U32 mode, U32 period) {
   memset(&ltr, 0, sizeof(ltr));
   ltr.mode = mode;
   ltr.period = period;
-  S32 ret = ioctl(port->fd, VIDIOC_S_MVX_LONG_TERM_REF, &ltr);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_LONG_TERM_REF, &ltr);
   if (ret != 0) {
     error("Failed to set long term mode/period.");
   }
 }
 
-void setFrameCount(Port *port, S32 frames) { port->frames_count = frames; }
+void setFrameCount(Port *port, S32 frames) { port->nFramesCount = frames; }
 
 void setCropLeft(Port *port, S32 left) {
   debug("setCropLeft(%d)", left);
@@ -1138,7 +1130,7 @@ void setCropLeft(Port *port, S32 left) {
   control.id = V4L2_CID_MVE_VIDEO_CROP_LEFT;
   control.value = left;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set crop left=%u.", left);
   }
 }
@@ -1152,7 +1144,7 @@ void setCropRight(Port *port, S32 right) {
   control.id = V4L2_CID_MVE_VIDEO_CROP_RIGHT;
   control.value = right;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set crop right=%u.", right);
   }
 }
@@ -1166,7 +1158,7 @@ void setCropTop(Port *port, S32 top) {
   control.id = V4L2_CID_MVE_VIDEO_CROP_TOP;
   control.value = top;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set crop top=%u.", top);
   }
 }
@@ -1180,13 +1172,13 @@ void setCropBottom(Port *port, S32 bottom) {
   control.id = V4L2_CID_MVE_VIDEO_CROP_BOTTOM;
   control.value = bottom;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set crop bottom=%u.", bottom);
   }
 }
 
 void setVuiColourDesc(Port *port, struct v4l2_mvx_color_desc *color) {
-  S32 ret = ioctl(port->fd, VIDIOC_S_MVX_COLORDESC, color);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_COLORDESC, color);
   if (ret != 0) {
     error("Failed to set color description.");
   }
@@ -1195,7 +1187,7 @@ void setVuiColourDesc(Port *port, struct v4l2_mvx_color_desc *color) {
 }
 
 void setSeiUserData(Port *port, struct v4l2_sei_user_data *sei_user_data) {
-  S32 ret = ioctl(port->fd, VIDIOC_S_MVX_SEI_USERDATA, sei_user_data);
+  S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_SEI_USERDATA, sei_user_data);
   if (ret != 0) {
     error("Failed to set sei user data.");
   }
@@ -1212,7 +1204,7 @@ void setHRDBufferSize(Port *port, S32 size) {
   control.id = V4L2_CID_MVE_VIDEO_HRD_BUFFER_SIZE;
   control.value = size;
 
-  if (-1 == ioctl(port->fd, VIDIOC_S_CTRL, &control)) {
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set crop bottom=%u.", size);
   }
 }
@@ -1226,7 +1218,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   if (eof) {
     debug("****************************************** eos2");
-    if (port->tryDecStop) {
+    if (port->bTryDecStop) {
       debug("dec ****************************************** eos3");
       sendDecStopCommand(port);
     }
@@ -1358,11 +1350,11 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
           //return MPP_FALSE;
         }
     */
-    if (port->isSourceChange) {
+    if (port->bIsSourceChange) {
       debug("Resolution changed:%d new size: %d x %d", isResChange,
             port->stFormat.fmt.pix_mp.width, port->stFormat.fmt.pix_mp.height);
       handleResolutionChange(port, eof);
-      port->isSourceChange = MPP_FALSE;
+      port->bIsSourceChange = MPP_FALSE;
       return MPP_RESOLUTION_CHANGED;
     }
   }
@@ -1373,14 +1365,14 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
 
   /* Remove vendor custom flags. */
   // decoder specfied frames count to be processed
-  if (port->direction == OUTPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
+  if (port->ePortDirection == OUTPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
       (b->flags & V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) ==
           V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) {
-    port->frames_processed++;
+    port->nFramesProcessed++;
   }
   resetVendorFlags(buffer);
-  if (port->direction == OUTPUT && port->frames_count > 0 &&
-      port->frames_processed >= port->frames_count) {
+  if (port->ePortDirection == OUTPUT && port->nFramesCount > 0 &&
+      port->nFramesProcessed >= port->nFramesCount) {
     clearBytesUsed(buffer);
     setEndOfStream(buffer, MPP_TRUE);
     queueBuffer(port, buffer);
@@ -1402,7 +1394,7 @@ BOOL handleBuffer(Port *port, BOOL eof, MppData *data) {
   Buffer *buffer = dequeueBuffer(port);
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   if (eof) {
-    if (port->tryDecStop) {
+    if (port->bTryDecStop) {
       sendDecStopCommand(port);
     }
     return MPP_TRUE;
@@ -1447,14 +1439,14 @@ BOOL handleBuffer(Port *port, BOOL eof, MppData *data) {
 
   /* Remove vendor custom flags. */
   // decoder specfied frames count to be processed
-  if (port->direction == OUTPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
+  if (port->ePortDirection == OUTPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
       (b->flags & V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) ==
           V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) {
-    port->frames_processed++;
+    port->nFramesProcessed++;
   }
   resetVendorFlags(buffer);
-  if (port->direction == OUTPUT && port->frames_count > 0 &&
-      port->frames_processed >= port->frames_count) {
+  if (port->ePortDirection == OUTPUT && port->nFramesCount > 0 &&
+      port->nFramesProcessed >= port->nFramesCount) {
     clearBytesUsed(buffer);
     setEndOfStream(buffer, MPP_TRUE);
     queueBuffer(port, buffer);
@@ -1486,14 +1478,14 @@ void handleResolutionChange(Port *port, BOOL eof) {
   port->nBufNum = count;
   streamon(port);
   queueBuffers(port, eof);
-  port->frames_processed = 0;
+  port->nFramesProcessed = 0;
 }
 
 void handleFlush(Port *port, BOOL eof) {
   streamoff(port);
   streamon(port);
   queueBuffers(port, MPP_FALSE);
-  port->frames_processed = 0;
+  port->nFramesProcessed = 0;
 }
 
 S32 getBufNum(Port *port) { return port->nBufNum; }
@@ -1503,4 +1495,4 @@ S32 getBufFd(Port *port, U32 index) {
   return b->m.planes[0].m.fd;
 }
 
-void notifySourceChange(Port *port) { port->isSourceChange = MPP_TRUE; }
+void notifySourceChange(Port *port) { port->bIsSourceChange = MPP_TRUE; }
