@@ -60,7 +60,7 @@ U32 getBufferCount(Port *port);
 void queueBuffers(Port *port, BOOL eof);
 void queueBuffer(Port *port, Buffer *buf);
 Buffer *dequeueBuffer(Port *port);
-void printBuffer(struct v4l2_buffer buf, const U8 *prefix);
+void printBuffer(Port *port, struct v4l2_buffer buf, const U8 *prefix);
 
 BOOL handleBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data);

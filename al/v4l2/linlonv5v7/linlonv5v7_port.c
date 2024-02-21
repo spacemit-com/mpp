@@ -15,6 +15,8 @@
 
 #include <errno.h>
 
+#include "env.h"
+
 struct _Port {
   U32 nFormatFourcc;
   U32 nMemType;
@@ -45,6 +47,8 @@ struct _Port {
 
   S32 nQueueNumInput;
   S32 nQueueNumOutput;
+
+  BOOL bEnableBufferPrint;
 };
 
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
@@ -80,6 +84,8 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
   if (type == V4L2_BUF_TYPE_VIDEO_CAPTURE ||
       type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
     port_tmp->direction = OUTPUT;
+
+  mpp_env_get_u32("MPP_PRINT_BUFFER", &(port_tmp->bEnableBufferPrint), 0);
 
   return port_tmp;
 }
@@ -287,7 +293,7 @@ void allocateBuffers(Port *port, S32 count) {
       error("Failed to query buffer.");
     }
 
-    printBuffer(buf, "Query");
+    printBuffer(port, buf, "Query");
 
     port->stBuf[buf.index] = createBuffer(buf, port->fd, port->stFormat);
   }
@@ -375,7 +381,7 @@ void queueBuffer(Port *port, Buffer *buf) {
   struct timeval time;
   gettimeofday(&time, NULL);
   // debug("queue buffer : %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
-  // printBuffer(*b, "---->");
+  printBuffer(port, *b, "---->");
 
   ret = ioctl(port->fd, VIDIOC_QBUF, b);
   if (ret) {
@@ -432,7 +438,7 @@ Buffer *dequeueBuffer(Port *port) {
   struct timeval time;
   gettimeofday(&time, NULL);
   // debug("dequeue buffer %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
-  // printBuffer(buf, "<----");
+  printBuffer(port, buf, "<----");
 
   Buffer *buffer = port->stBuf[buf.index];
   update(buffer, buf);
@@ -441,34 +447,36 @@ Buffer *dequeueBuffer(Port *port) {
   return buffer;
 }
 
-void printBuffer(struct v4l2_buffer buf, const U8 *prefix) {
-  debug_pre(
-      "%s type:%u, index:%u, sequence:%d, timestamp:[%ld, "
-      "%ld], flags:%x ",
-      prefix, buf.type, buf.index, buf.sequence, buf.timestamp.tv_sec,
-      buf.timestamp.tv_usec, buf.flags);
+void printBuffer(Port *port, struct v4l2_buffer buf, const U8 *prefix) {
+  if (port->bEnableBufferPrint) {
+    debug_pre(
+        "%s type:%u, index:%u, sequence:%d, timestamp:[%ld, "
+        "%ld], flags:%x ",
+        prefix, buf.type, buf.index, buf.sequence, buf.timestamp.tv_sec,
+        buf.timestamp.tv_usec, buf.flags);
 
-  if (V4L2_TYPE_IS_MULTIPLANAR(buf.type)) {
-    debug_mid("num_planes:%d ", buf.length);
-    if (buf.length == 2) {
-      debug_after(
-          "bytesused:[%u %u], length:[%u %u], offset:[%u "
-          "%u]",
-          buf.m.planes[0].bytesused, buf.m.planes[1].bytesused,
-          buf.m.planes[0].length, buf.m.planes[1].length,
-          buf.m.planes[0].data_offset, buf.m.planes[1].data_offset);
-    } else if (buf.length == 3) {
-      debug_after(
-          "bytesused:[%u %u %u], length:[%u %u %u], offset:[%u "
-          "%u %u]",
-          buf.m.planes[0].bytesused, buf.m.planes[1].bytesused,
-          buf.m.planes[2].bytesused, buf.m.planes[0].length,
-          buf.m.planes[1].length, buf.m.planes[2].length,
-          buf.m.planes[0].data_offset, buf.m.planes[1].data_offset,
-          buf.m.planes[2].data_offset);
+    if (V4L2_TYPE_IS_MULTIPLANAR(buf.type)) {
+      debug_mid("num_planes:%d ", buf.length);
+      if (buf.length == 2) {
+        debug_after(
+            "bytesused:[%u %u], length:[%u %u], offset:[%u "
+            "%u]",
+            buf.m.planes[0].bytesused, buf.m.planes[1].bytesused,
+            buf.m.planes[0].length, buf.m.planes[1].length,
+            buf.m.planes[0].data_offset, buf.m.planes[1].data_offset);
+      } else if (buf.length == 3) {
+        debug_after(
+            "bytesused:[%u %u %u], length:[%u %u %u], offset:[%u "
+            "%u %u]",
+            buf.m.planes[0].bytesused, buf.m.planes[1].bytesused,
+            buf.m.planes[2].bytesused, buf.m.planes[0].length,
+            buf.m.planes[1].length, buf.m.planes[2].length,
+            buf.m.planes[0].data_offset, buf.m.planes[1].data_offset,
+            buf.m.planes[2].data_offset);
+      }
+    } else {
+      debug_after("bytesused:%u, length:%u", buf.bytesused, buf.length);
     }
-  } else {
-    debug_after("bytesused:%u, length:%u", buf.bytesused, buf.length);
   }
 }
 
