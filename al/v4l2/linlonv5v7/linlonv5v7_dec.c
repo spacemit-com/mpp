@@ -240,6 +240,11 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     return MPP_NULL_POINTER;
   }
 
+  if (para->eCodingType == CODING_MPEG2 && para->nProfile == PROFILE_MPEG2_HIGH) {
+    error("not support this format or profile, please check!");
+    return MPP_NOT_SUPPORTED_FORMAT;
+  }
+
   S32 ret = 0;
 
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
