@@ -26,7 +26,7 @@
 #define MODULE_TAG "mpp_vdec"
 
 ALBaseContext *(*dec_create)();
-void (*dec_init)(ALBaseContext *ctx, MppVdecPara *para);
+S32 (*dec_init)(ALBaseContext *ctx, MppVdecPara *para);
 S32 (*dec_getparam)(ALBaseContext *ctx, MppVdecPara **para);
 S32 (*dec_request_input_stream)(ALBaseContext *ctx, MppData *sink_data);
 S32 (*dec_return_input_stream)(ALBaseContext *ctx, MppData *sink_data);
@@ -58,11 +58,13 @@ MppVdecCtx *VDEC_CreateChannel() {
 }
 
 S32 VDEC_Init(MppVdecCtx *ctx) {
+  S32 ret = 0;
+
   ctx->pModule = module_init(ctx->eCodecType);
 
   dec_create = (ALBaseContext * (*)())
       dlsym(module_get_so_path(ctx->pModule), "al_dec_create");
-  dec_init = (void (*)(ALBaseContext * ctx, MppVdecPara * para))
+  dec_init = (S32(*)(ALBaseContext * ctx, MppVdecPara * para))
       dlsym(module_get_so_path(ctx->pModule), "al_dec_init");
   dec_getparam = (S32(*)(ALBaseContext * ctx, MppVdecPara * *para))
       dlsym(module_get_so_path(ctx->pModule), "al_dec_getparam");
@@ -93,8 +95,8 @@ S32 VDEC_Init(MppVdecCtx *ctx) {
 
   ctx->pNode.pAlBaseContext = dec_create();
 
-  dec_init(ctx->pNode.pAlBaseContext, &(ctx->stVdecPara));
-  return MPP_OK;
+  ret = dec_init(ctx->pNode.pAlBaseContext, &(ctx->stVdecPara));
+  return ret;
 }
 
 S32 VDEC_SetParam(MppVdecCtx *ctx) { return MPP_OK; }

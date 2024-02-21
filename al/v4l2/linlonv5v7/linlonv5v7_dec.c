@@ -240,7 +240,8 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     return MPP_NULL_POINTER;
   }
 
-  if (para->eCodingType == CODING_MPEG2 && para->nProfile == PROFILE_MPEG2_HIGH) {
+  if (para->eCodingType == CODING_MPEG2 &&
+      para->nProfile == PROFILE_MPEG2_HIGH) {
     error("not support this format or profile, please check!");
     return MPP_NOT_SUPPORTED_FORMAT;
   }
@@ -560,17 +561,19 @@ void al_dec_destory(ALBaseContext *ctx) {
   debug("111111111111");
   pthread_join(context->pollthread, NULL);
   debug("111111111112");
-  enum v4l2_buf_type input_type =
-      getV4l2BufType(getInputPort(context->stCodec));
-  enum v4l2_buf_type output_type =
-      getV4l2BufType(getOutputPort(context->stCodec));
-  mpp_v4l2_stream_off(context->nVideoFd, &input_type);
-  mpp_v4l2_stream_off(context->nVideoFd, &output_type);
-  debug("111111111113");
-  usleep(50000);
-  destoryCodec(context->stCodec);
-  debug("111111111114");
-  close(context->nVideoFd);
+  if (context->nVideoFd && context->stCodec) {
+    enum v4l2_buf_type input_type =
+        getV4l2BufType(getInputPort(context->stCodec));
+    enum v4l2_buf_type output_type =
+        getV4l2BufType(getOutputPort(context->stCodec));
+    mpp_v4l2_stream_off(context->nVideoFd, &input_type);
+    mpp_v4l2_stream_off(context->nVideoFd, &output_type);
+    debug("111111111113");
+    usleep(50000);
+    destoryCodec(context->stCodec);
+    debug("111111111114");
+    close(context->nVideoFd);
+  }
   free(context);
   context = NULL;
 }
