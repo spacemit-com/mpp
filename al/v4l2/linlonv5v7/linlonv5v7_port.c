@@ -1363,7 +1363,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
     return MPP_CODER_NO_DATA;
   }
 
-  if ((b->flags & V4L2_BUF_FLAG_ERROR) == 1) {
+  if (b->flags & V4L2_BUF_FLAG_ERROR) {
     error("this is a error frame, app decide what to do!");
     return MPP_ERROR_FRAME;
   }

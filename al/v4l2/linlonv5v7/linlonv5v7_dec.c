@@ -544,7 +544,6 @@ S32 al_dec_flush(ALBaseContext *ctx) {
   }
   */
   handleFlush(context->stCodec, MPP_FALSE);
-  context->nInputQueuedNum = 0;
   debug("Flush finish ========================================");
 
   FRAME_Destory(mppframe);
