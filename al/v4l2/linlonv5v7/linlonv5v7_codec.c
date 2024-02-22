@@ -405,6 +405,15 @@ BOOL handleEvent(Codec *codec) {
   return MPP_FALSE;
 }
 
+void handleFlush(Codec *codec, BOOL eof) {
+  // streamoff(codec->stInputPort);
+  streamoff(codec->stOutputPort);
+  // streamon(codec->stInputPort);
+  streamon(codec->stOutputPort);
+  queueBuffers(codec->stOutputPort, MPP_FALSE);
+  // port->nFramesProcessed = 0;
+}
+
 S32 runPoll(Codec *codec, struct pollfd *p) {
   // debug("input:%d output:%d", codec->stInputPort->pending,
   //       codec->stOutputPort->pending);

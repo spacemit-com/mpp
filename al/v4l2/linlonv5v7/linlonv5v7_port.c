@@ -1481,13 +1481,6 @@ void handleResolutionChange(Port *port, BOOL eof) {
   port->nFramesProcessed = 0;
 }
 
-void handleFlush(Port *port, BOOL eof) {
-  streamoff(port);
-  streamon(port);
-  queueBuffers(port, MPP_FALSE);
-  port->nFramesProcessed = 0;
-}
-
 S32 getBufNum(Port *port) { return port->nBufNum; }
 
 S32 getBufFd(Port *port, U32 index) {

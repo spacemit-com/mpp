@@ -94,6 +94,7 @@ void streamoffCodec(Codec *codec);
 // static void *runThreadOutput(void *arg);
 
 BOOL handleEvent(Codec *codec);
+void handleFlush(Codec *codec, BOOL eof);
 
 S32 runPoll(Codec *codec, struct pollfd *p);
 

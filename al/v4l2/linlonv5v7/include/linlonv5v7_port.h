@@ -66,7 +66,6 @@ BOOL handleBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data);
 void handleResolutionChange(Port *port, BOOL eof);
-void handleFlush(Port *port, BOOL eof);
 
 void streamon(Port *port);
 void streamoff(Port *port);
