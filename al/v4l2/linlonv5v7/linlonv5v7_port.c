@@ -1363,6 +1363,11 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
     return MPP_CODER_NO_DATA;
   }
 
+  if ((b->flags & V4L2_BUF_FLAG_ERROR) == 1) {
+    error("this is a error frame, app decide what to do!");
+    return MPP_ERROR_FRAME;
+  }
+
   /* Remove vendor custom flags. */
   // decoder specfied frames count to be processed
   if (port->ePortDirection == OUTPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
