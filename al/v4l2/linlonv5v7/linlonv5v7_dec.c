@@ -526,9 +526,9 @@ S32 al_dec_reset(ALBaseContext *ctx) {
 S32 al_dec_flush(ALBaseContext *ctx) {
   if (!ctx) return MPP_NULL_POINTER;
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
-  MppFrame *mppframe = FRAME_Create();
-  S32 ret = -1;
-  S32 counter = 0;
+  // MppFrame *mppframe = FRAME_Create();
+  // S32 ret = -1;
+  // S32 counter = 0;
 
   debug("Flush start ========================================");
   /*
@@ -544,10 +544,15 @@ S32 al_dec_flush(ALBaseContext *ctx) {
   }
   */
   handleFlush(context->stCodec, MPP_FALSE);
+
+  context->nInputQueuedNum = 0;
+  context->pVdecPara->nInputQueueLeftNum =
+      getBufNum(getInputPort(context->stCodec));
+
   debug("Flush finish ========================================");
 
-  FRAME_Destory(mppframe);
-  mppframe = NULL;
+  // FRAME_Destory(mppframe);
+  // mppframe = NULL;
 
   return MPP_OK;
 }

@@ -406,11 +406,11 @@ BOOL handleEvent(Codec *codec) {
 }
 
 void handleFlush(Codec *codec, BOOL eof) {
-  // streamoff(codec->stInputPort);
+  streamoff(codec->stInputPort);
   streamoff(codec->stOutputPort);
-  // streamon(codec->stInputPort);
+  streamon(codec->stInputPort);
   streamon(codec->stOutputPort);
-  queueBuffers(codec->stOutputPort, MPP_FALSE);
+  queueUnusedBuffers(codec->stOutputPort, MPP_FALSE);
   // port->nFramesProcessed = 0;
 }
 

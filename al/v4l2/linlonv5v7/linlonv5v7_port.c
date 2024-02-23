@@ -327,6 +327,23 @@ void queueBuffers(Port *port, BOOL eof) {
   }
 }
 
+void queueUnusedBuffers(Port *port, BOOL eof) {
+  S32 ret = 0;
+
+  for (S32 i = 0; i < port->nBufNum; i++) {
+    if (!eof) {
+      /* Remove vendor custom flags. */
+      struct v4l2_buffer *b = getV4l2Buffer(port->stBuf[i]);
+      if (b->m.planes[0].bytesused == 0) {
+        resetVendorFlags(port->stBuf[i]);
+
+        setEndOfStream(port->stBuf[i], eof);
+        queueBuffer(port, port->stBuf[i]);
+      }
+    }
+  }
+}
+
 void queueBuffer(Port *port, Buffer *buf) {
   struct v4l2_buffer *b = getV4l2Buffer(buf);
   S32 ret;

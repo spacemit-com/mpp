@@ -216,7 +216,10 @@ S32 VDEC_ReturnOutputFrame(MppVdecCtx *ctx, MppData *src_data) {
 }
 S32 VDEC_Flush(MppVdecCtx *ctx) {
   S32 ret = 0;
+
+  debug("vdec begin flush");
   ret = dec_flush(ctx->pNode.pAlBaseContext);
+  debug("vdec finish flush ret = %d", ret);
 
   return ret;
 }
@@ -226,9 +229,11 @@ S32 VDEC_DestoryChannel(MppVdecCtx *ctx) {
     error("input para ctx is NULL, please check!");
     return MPP_NULL_POINTER;
   }
-  error("destory decoder");
+
+  debug("destory decoder");
   dec_destory(ctx->pNode.pAlBaseContext);
-  error("destory module");
+
+  debug("destory module");
   module_destory(ctx->pModule);
   free(ctx);
   // ctx = NULL;
