@@ -186,6 +186,7 @@ void *runpoll(void *private_data) {
   S32 ret = 0;
 
   while (1) {
+    static S32 tmp = 0;
     if (context->bIsDestoryed) pthread_exit(NULL);
 
     struct pollfd p = {.fd = context->nVideoFd, .events = POLLPRI};
@@ -226,6 +227,11 @@ void *runpoll(void *private_data) {
     }
 
     usleep(10000);
+    tmp++;
+    if (200 == tmp) {
+      tmp = 0;
+      error("Now k1 hardware decoding ...");
+    }
   }
 }
 
