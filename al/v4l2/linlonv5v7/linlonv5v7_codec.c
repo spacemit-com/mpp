@@ -410,7 +410,7 @@ void handleFlush(Codec *codec, BOOL eof) {
   streamoff(codec->stOutputPort);
   streamon(codec->stInputPort);
   streamon(codec->stOutputPort);
-  queueUnusedBuffers(codec->stOutputPort, MPP_FALSE);
+  queueBuffers(codec->stOutputPort, MPP_FALSE);
   // port->nFramesProcessed = 0;
 }
 
