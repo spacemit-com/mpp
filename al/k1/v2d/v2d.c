@@ -25,9 +25,9 @@
 #define ALIGN_UP(size, shift) (((size + shift - 1) / shift) * shift)
 #define PAGESIZE (4096)
 
-typedef struct _ALK1xV2dContext ALK1xV2dContext;
+typedef struct _ALK1V2dContext ALK1V2dContext;
 
-struct _ALK1xV2dContext {
+struct _ALK1V2dContext {
   /**
    * parent class
    */
@@ -68,8 +68,8 @@ struct _ALK1xV2dContext {
   MppPixelFormat eOutputPixelFormat;
 };
 
-PIXEL_FORMAT_MAPPING_DEFINE(K1xV2d, V2D_COLOR_FORMAT_E)
-static const ALK1xV2dPixelFormatMapping stALK1xV2dPixelFormatMapping[] = {
+PIXEL_FORMAT_MAPPING_DEFINE(K1V2d, V2D_COLOR_FORMAT_E)
+static const ALK1V2dPixelFormatMapping stALK1V2dPixelFormatMapping[] = {
     {PIXEL_FORMAT_RGB_888, V2D_COLOR_FORMAT_RGB888},
     {PIXEL_FORMAT_RGBA, V2D_COLOR_FORMAT_RGBA8888},
     {PIXEL_FORMAT_ARGB, V2D_COLOR_FORMAT_ARGB8888},
@@ -82,16 +82,16 @@ static const ALK1xV2dPixelFormatMapping stALK1xV2dPixelFormatMapping[] = {
     {PIXEL_FORMAT_NV21, V2D_COLOR_FORMAT_NV21},
     {PIXEL_FORMAT_UNKNOWN, V2D_COLOR_FORMAT_BUTT},
 };
-PIXEL_FORMAT_MAPPING_CONVERT(K1xV2d, k1xv2d, V2D_COLOR_FORMAT_E)
+PIXEL_FORMAT_MAPPING_CONVERT(K1V2d, k1v2d, V2D_COLOR_FORMAT_E)
 
 ALBaseContext *al_g2d_create() {
-  ALK1xV2dContext *context = (ALK1xV2dContext *)malloc(sizeof(ALK1xV2dContext));
+  ALK1V2dContext *context = (ALK1V2dContext *)malloc(sizeof(ALK1V2dContext));
   if (!context) {
-    error("can not malloc ALK1xV2dContext, please check!");
+    error("can not malloc ALK1V2dContext, please check!");
     return NULL;
   }
 
-  memset(context, 0, sizeof(ALK1xV2dContext));
+  memset(context, 0, sizeof(ALK1V2dContext));
 
   return &(context->stAlG2dBaseContext.stAlBaseContext);
 }
@@ -107,7 +107,7 @@ RETURN al_g2d_init(ALBaseContext *ctx, MppG2dPara *para) {
     return MPP_NULL_POINTER;
   }
 
-  ALK1xV2dContext *context = (ALK1xV2dContext *)ctx;
+  ALK1V2dContext *context = (ALK1V2dContext *)ctx;
   S32 ret = 0;
 
   // context->nInputBufFd = para->nInputBufFd;
@@ -150,7 +150,7 @@ RETURN al_g2d_init(ALBaseContext *ctx, MppG2dPara *para) {
   return MPP_OK;
 
 exit:
-  error("k1x v2d init fail");
+  error("k1 v2d init fail");
   free(context);
   return MPP_INIT_FAILED;
 }
@@ -173,7 +173,7 @@ S32 al_g2d_process(ALBaseContext *ctx, MppData *sink_data, MppData *src_data) {
     return MPP_NULL_POINTER;
   }
 
-  ALK1xV2dContext *context = (ALK1xV2dContext *)ctx;
+  ALK1V2dContext *context = (ALK1V2dContext *)ctx;
   MppFrame *sink_frame = FRAME_GetFrame(sink_data);
   MppFrame *src_frame = FRAME_GetFrame(src_data);
   S32 ret = 0;
@@ -189,7 +189,7 @@ S32 al_g2d_process(ALBaseContext *ctx, MppData *sink_data, MppData *src_data) {
   context->stBackGround.h = context->nInputHeight;
   context->stBackGround.stride = context->nInputWidth;
   context->stBackGround.format =
-      get_k1xv2d_codec_pixel_format(PIXEL_FORMAT_NV12);
+      get_k1v2d_codec_pixel_format(PIXEL_FORMAT_NV12);
   context->stBackGroundRect.x = 0;
   context->stBackGroundRect.y = 0;
   context->stBackGroundRect.w = context->nInputWidth;
@@ -209,7 +209,7 @@ S32 al_g2d_process(ALBaseContext *ctx, MppData *sink_data, MppData *src_data) {
   context->stDst.w = context->nOutputWidth;
   context->stDst.h = context->nOutputHeight;
   context->stDst.stride = context->nOutputWidth;
-  context->stDst.format = get_k1xv2d_codec_pixel_format(PIXEL_FORMAT_NV12);
+  context->stDst.format = get_k1v2d_codec_pixel_format(PIXEL_FORMAT_NV12);
   context->stDstRect.x = 0;
   context->stDstRect.y = 0;
   context->stDstRect.w = context->nOutputWidth;
@@ -247,7 +247,7 @@ S32 al_g2d_process(ALBaseContext *ctx, MppData *sink_data, MppData *src_data) {
 }
 
 void al_g2d_destory(ALBaseContext *ctx) {
-  ALK1xV2dContext *context = (ALK1xV2dContext *)ctx;
+  ALK1V2dContext *context = (ALK1V2dContext *)ctx;
   S32 ret = 0;
 
   // munmap(context->pInputBufMapAddr, context->nInputBufMapSize);

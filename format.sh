@@ -20,9 +20,8 @@
 ###
 
 find . -name "*.cc" -o -name "*.c" ! -name "module.c" -o -name "*.h" -o -name "*.hh" -o -name "*.cpp" | xargs clang-format -style=Google -i
-git checkout al/ffmpeg/include/*
 git checkout al/openh264/include/*
-git checkout al/k1x/v2d/include/*
+git checkout al/k1/v2d/include/*
 git checkout al/v4l2/linlonv5v7/include/mvx-v4l2-controls.h
 git checkout al/openmax/include/sfomxil_find_dec_library.h
 git checkout al/openmax/include/sfomxil_find_enc_library.h

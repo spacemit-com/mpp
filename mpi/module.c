@@ -61,8 +61,8 @@ FIND_PLUGIN(FFMPEG, ffmpeg, ffmpegcodec)
 FIND_PLUGIN(V4L2, v4l2, v4l2_standard_codec)
 FIND_PLUGIN(FAKEDEC, fakedec, fake_dec_plugin)
 FIND_PLUGIN(V4L2_LINLONV5V7, v4l2_linlonv5v7, v4l2_linlonv5v7_codec)
-FIND_PLUGIN(K1X_V2D, k1x_v2d, v2d_plugin)
-FIND_PLUGIN(K1X_JPU, k1x_jpu, jpu_plugin)
+FIND_PLUGIN(K1_V2D, k1_v2d, v2d_plugin)
+FIND_PLUGIN(K1_JPU, k1_jpu, jpu_plugin)
 
 #define CHECK_LIBRARY(TYPE, type, name, path1, path2) \
 S32 check_##type() \
@@ -87,8 +87,8 @@ CHECK_LIBRARY(SFDEC, sfdec, sfdec, /, /)
 CHECK_LIBRARY(FFMPEG, ffmpeg, avcodec, /usr/lib/ffmpeg, /usr/local/lib/ffmpeg)
 CHECK_LIBRARY(OPENH264, openh264, openh264, /usr/lib/x86_64-linux-gnu, /usr/local/lib/x86_64-linux-gnu)
 CHECK_LIBRARY(FAKEDEC, fakedec, c, /, /)
-CHECK_LIBRARY(K1X_V2D, k1x_v2d, v2d, /, /)
-CHECK_LIBRARY(K1X_JPU, k1x_jpu, jpu, /, /)
+CHECK_LIBRARY(K1_V2D, k1_v2d, v2d, /, /)
+CHECK_LIBRARY(K1_JPU, k1_jpu, jpu, /, /)
 
 #define CHECKCODEC_BY_TYPE(TYPE, type) \
 { \
@@ -164,13 +164,13 @@ MppModule*  module_init(MppCodecType codec_type)
     {
         CHECKCODEC_BY_TYPE(V4L2_LINLONV5V7, v4l2_linlonv5v7);
     }
-    else if(CODEC_K1X_V2D == codec_type)
+    else if(CODEC_K1_V2D == codec_type)
     {
-        CHECKCODEC_BY_TYPE(K1X_V2D, k1x_v2d);
+        CHECKCODEC_BY_TYPE(K1_V2D, k1_v2d);
     }
-    else if(CODEC_K1X_JPU == codec_type)
+    else if(CODEC_K1_JPU == codec_type)
     {
-        CHECKCODEC_BY_TYPE(K1X_JPU, k1x_v2d);
+        CHECKCODEC_BY_TYPE(K1_JPU, k1_v2d);
     }
     else
     {

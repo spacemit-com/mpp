@@ -41,9 +41,9 @@
 +-----------------------+---------+---------+-----------+
 | CODEC_V4L2_LINLONV5V7 | √       | √       | x         |
 +-----------------------+---------+---------+-----------+
-| CODEC_K1X_V2D         | x       | x       | √         |
+| CODEC_K1 _V2D         | x       | x       | √         |
 +-----------------------+---------+---------+-----------+
-| CODEC_K1X_JPU         | √       | √       | x         |
+| CODEC_K1 _JPU         | √       | √       | x         |
 +-----------------------+---------+---------+-----------+
 
 */
@@ -95,20 +95,19 @@ typedef enum _MppCodecType {
   CODEC_FAKEDEC,
 
   /***
-   * use ARM LINLON VPU codec interface for video decoder and encoder.(K1X and
-   * K1PRO)
+   * use ARM LINLON VPU codec interface for video decoder and encoder.(K1)
    */
   CODEC_V4L2_LINLONV5V7,
 
   /***
-   * use v2d for graphic 2D convert (K1X).
+   * use v2d for graphic 2D convert (K1).
    */
-  CODEC_K1X_V2D,
+  CODEC_K1_V2D,
 
   /***
-   * use jpu for jpeg decoder and encoder (K1X).
+   * use jpu for jpeg decoder and encoder (K1).
    */
-  CODEC_K1X_JPU,
+  CODEC_K1_JPU,
 
   CODEC_MAX,
 } MppCodecType;
@@ -129,8 +128,8 @@ static inline const char* mpp_codectype2str(int cmd) {
     MPP_CODECTYPE2STR(CODEC_V4L2);
     MPP_CODECTYPE2STR(CODEC_FAKEDEC);
     MPP_CODECTYPE2STR(CODEC_V4L2_LINLONV5V7);
-    MPP_CODECTYPE2STR(CODEC_K1X_V2D);
-    MPP_CODECTYPE2STR(CODEC_K1X_JPU);
+    MPP_CODECTYPE2STR(CODEC_K1_V2D);
+    MPP_CODECTYPE2STR(CODEC_K1_JPU);
     default:
       return "UNKNOWN";
   }

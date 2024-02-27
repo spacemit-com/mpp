@@ -21,7 +21,7 @@
 #include "type.h"
 
 /***
- * MPP_SYNC (always used, k1x v2d,etc.)
+ * MPP_SYNC (always used, k1 v2d,etc.)
  *
  *            +--------------------------+
  *            |    G2D_CreateChannel     |

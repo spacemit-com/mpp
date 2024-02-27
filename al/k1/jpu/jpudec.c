@@ -6,7 +6,7 @@
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
  * @LastEditTime: 2023-12-13 20:13:38
- * @Description: video decode plugin for k1x JPU
+ * @Description: video decode plugin for K1 JPU
  */
 
 #define ENABLE_DEBUG 1
@@ -29,17 +29,17 @@
 
 #define MODULE_TAG "jpu"
 
-typedef struct _ALK1xJpuDecContext ALK1xJpuDecContext;
+typedef struct _ALK1JpuDecContext ALK1JpuDecContext;
 
-struct _ALK1xJpuDecContext {
+struct _ALK1JpuDecContext {
   ALDecBaseContext stAlDecBaseContext;
   MppVdecPara *pVdecPara;
   MppCodingType eCodingType;
 };
 
 ALBaseContext *al_dec_create() {
-  ALK1xJpuDecContext *context =
-      (ALK1xJpuDecContext *)malloc(sizeof(ALK1xJpuDecContext));
+  ALK1JpuDecContext *context =
+      (ALK1JpuDecContext *)malloc(sizeof(ALK1JpuDecContext));
   if (!context) return NULL;
 
   return &(context->stAlDecBaseContext.stAlBaseContext);
@@ -48,7 +48,7 @@ ALBaseContext *al_dec_create() {
 RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   if (!ctx || !para) return MPP_NULL_POINTER;
 
-  ALK1xJpuDecContext *context = (ALK1xJpuDecContext *)ctx;
+  ALK1JpuDecContext *context = (ALK1JpuDecContext *)ctx;
   S32 ret = 0;
 
   context->pVdecPara = para;
@@ -59,13 +59,13 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 }
 
 S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
-  ALK1xJpuDecContext *context;
+  ALK1JpuDecContext *context;
 
   return 0;
 }
 
 S32 al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
-  ALK1xJpuDecContext *context;
+  ALK1JpuDecContext *context;
   MppDataQueueNode *node;
   static U32 count = 0;
 
@@ -77,11 +77,11 @@ S32 al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
 S32 al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
   if (!ctx) return MPP_NULL_POINTER;
 
-  ALK1xJpuDecContext *context = (ALK1xJpuDecContext *)ctx;
+  ALK1JpuDecContext *context = (ALK1JpuDecContext *)ctx;
 
   return MPP_OK;
 }
 
 void al_dec_destory(ALBaseContext *ctx) {
-  ALK1xJpuDecContext *context = (ALK1xJpuDecContext *)ctx;
+  ALK1JpuDecContext *context = (ALK1JpuDecContext *)ctx;
 }
