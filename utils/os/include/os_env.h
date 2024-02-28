@@ -9,8 +9,8 @@
  * @Description:
  */
 
-#ifndef __OS_ENV_H__
-#define __OS_ENV_H__
+#ifndef __MPP_OS_ENV_H__
+#define __MPP_OS_ENV_H__
 
 #include "type.h"
 
@@ -28,4 +28,4 @@ S32 os_set_env_str(const U8 *name, U8 *value);
 }
 #endif
 
-#endif /*__OS_ENV_H__*/
+#endif /*__MPP_OS_ENV_H__*/

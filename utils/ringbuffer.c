@@ -277,8 +277,6 @@ void RingBufferPrint(MppRingBuffer *rBuf, BOOL hex) {
       else
         c = b[i];
     } else if (rBuf->headOffset < rBuf->tailOffset) {
-      //      debug("zrong ------------ jjjjj (%u, %u, %u)",
-      //            rBuf->headOffset, rBuf->tailOffset, i);
       if (i >= rBuf->headOffset && i < rBuf->tailOffset)
         c = b[i];
       else
