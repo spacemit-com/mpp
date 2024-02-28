@@ -23,4 +23,6 @@
 
 #define SIZE_IMAGE (1024 * 1024)
 
+#define LINLON_FILE_NAME_LEN (512)
+
 #endif /*_LINLONV5V7_CONSTANT_H_*/

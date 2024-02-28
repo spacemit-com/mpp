@@ -14,6 +14,11 @@
 #include "linlonv5v7_port.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "env.h"
 
@@ -46,7 +51,11 @@ struct _Port {
   S32 nQueueNumInput;
   S32 nQueueNumOutput;
 
+  // environment variable
   BOOL bEnableBufferPrint;
+  BOOL bEnableOutputBufferSave;
+  U8 *nOutputBufferSavePath;
+  FILE *pOutputFile;
 };
 
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
@@ -83,7 +92,24 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
       type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
     port_tmp->ePortDirection = OUTPUT;
 
+  // init environment variable
   mpp_env_get_u32("MPP_PRINT_BUFFER", &(port_tmp->bEnableBufferPrint), 0);
+  mpp_env_get_u32("MPP_SAVE_OUTPUT_BUFFER",
+                  &(port_tmp->bEnableOutputBufferSave), 0);
+
+  if (port_tmp->bEnableOutputBufferSave && OUTPUT == port_tmp->ePortDirection) {
+    mpp_env_get_str("MPP_SAVE_OUTPUT_BUFFER_PATH",
+                    &(port_tmp->nOutputBufferSavePath),
+                    "/home/bianbu/output.yuv");
+    debug("save output buffer to (%s)", port_tmp->nOutputBufferSavePath);
+    port_tmp->pOutputFile = fopen(port_tmp->nOutputBufferSavePath, "w+");
+    if (!port_tmp->pOutputFile) {
+      error("can not open port_tmp->pOutputFile, please check! (%s)",
+            strerror(errno));
+      free(port_tmp);
+      return NULL;
+    }
+  }
 
   return port_tmp;
 }
@@ -94,6 +120,12 @@ void destoryPort(Port *port) {
     destoryBuffer(port->stBuf[i]);
   }*/
   allocateBuffers(port, 0);
+  if (port->bEnableOutputBufferSave && OUTPUT == port->ePortDirection &&
+      port->pOutputFile) {
+    fflush(port->pOutputFile);
+    fclose(port->pOutputFile);
+    port->pOutputFile = NULL;
+  }
   debug("--- free port");
   free(port);
 }
@@ -1366,6 +1398,18 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   if (b->flags & V4L2_BUF_FLAG_ERROR) {
     error("this is a error frame, app decide what to do!");
     return MPP_ERROR_FRAME;
+  }
+
+  if (port->bEnableOutputBufferSave && OUTPUT == port->ePortDirection &&
+      port->pOutputFile) {
+    if (V4L2_BUF_TYPE_VIDEO_CAPTURE == port->eBufType) {
+      // to do
+    } else if (V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE == port->eBufType) {
+      for (S32 i = 0; i < b->length; i++) {
+        fwrite(FRAME_GetDataPointer(frame, i), b->m.planes[i].length, 1,
+               port->pOutputFile);
+      }
+    }
   }
 
   /* Remove vendor custom flags. */

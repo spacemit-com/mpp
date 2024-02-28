@@ -21,12 +21,11 @@
 extern "C" {
 #endif
 
-S32 mpp_env_get_u32(const char *name, U32 *value, U32 default_value);
-S32 mpp_env_get_str(const char *name, const char **value,
-                    const char *default_value);
+S32 mpp_env_get_u32(const U8 *name, U32 *value, U32 default_value);
+S32 mpp_env_get_str(const U8 *name, U8 **value, U8 *default_value);
 
-S32 mpp_env_set_u32(const char *name, U32 value);
-S32 mpp_env_set_str(const char *name, char *value);
+S32 mpp_env_set_u32(const U8 *name, U32 value);
+S32 mpp_env_set_str(const U8 *name, U8 *value);
 
 #ifdef __cplusplus
 }

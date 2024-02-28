@@ -21,7 +21,7 @@
 
 #define ENV_BUF_SIZE_LINUX 1024
 
-S32 os_get_env_u32(const char *name, U32 *value, U32 default_value) {
+S32 os_get_env_u32(const U8 *name, U32 *value, U32 default_value) {
   char *ptr = getenv(name);
   if (NULL == ptr) {
     *value = default_value;
@@ -38,8 +38,7 @@ S32 os_get_env_u32(const char *name, U32 *value, U32 default_value) {
   return 0;
 }
 
-S32 os_get_env_str(const char *name, const char **value,
-                   const char *default_value) {
+S32 os_get_env_str(const U8 *name, U8 **value, U8 *default_value) {
   *value = getenv(name);
   if (NULL == *value) {
     *value = default_value;
@@ -47,12 +46,10 @@ S32 os_get_env_str(const char *name, const char **value,
   return 0;
 }
 
-S32 os_set_env_u32(const char *name, U32 value) {
+S32 os_set_env_u32(const U8 *name, U32 value) {
   char buf[ENV_BUF_SIZE_LINUX];
   snprintf(buf, sizeof(buf) - 1, "%u", value);
   return setenv(name, buf, 1);
 }
 
-S32 os_set_env_str(const char *name, char *value) {
-  return setenv(name, value, 1);
-}
+S32 os_set_env_str(const U8 *name, U8 *value) { return setenv(name, value, 1); }
