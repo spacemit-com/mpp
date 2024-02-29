@@ -350,6 +350,7 @@ S32 memoryUnmap(Buffer *buf) {
               buf->nTotalLength, buf->pUserPtr[0], strerror(errno));
         return MPP_MUNMAP_FAILED;
       }
+      freeDmaBuf(buf->pDmaBufWrapper);
       close(buf->stBufArr.m.planes[0].m.fd);
     }
   } else {

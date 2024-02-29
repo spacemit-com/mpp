@@ -13,17 +13,10 @@
 
 #include "dmabufwrapper.h"
 
-//#define DEBUG_MEMORY
-
-#ifdef DEBUG_MEMORY
 S32 num_of_unfree_dmabuf = 0;
 S32 num_of_unfree_dmabufwrapper = 0;
-/ AddressSanitizer : odr - violation : both libspacemit -
-                                       mpp and libv4l2_linlonv5v7_codec
-#endif
 
-                                           DmaBufWrapper *
-                                           createDmaBufWrapper(DMAHEAP heap) {
+DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap) {
   DmaBufWrapper *wrapper_tmp = (DmaBufWrapper *)malloc(sizeof(DmaBufWrapper));
   if (!wrapper_tmp) {
     error("can not malloc DmaBufWrapper, please check! (%s)", strerror(errno));
@@ -43,9 +36,14 @@ S32 num_of_unfree_dmabufwrapper = 0;
     return NULL;
   }
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_dmabufwrapper++;
-#endif
+  mpp_env_get_u32("MPP_PRINT_UNFREE_DMABUF",
+                  &(wrapper_tmp->bEnableUnfreeDmaBufDebug), 0);
+
+  if (wrapper_tmp->bEnableUnfreeDmaBufDebug) {
+    num_of_unfree_dmabufwrapper++;
+    info("++++++++++ debug dmabufwrapper memory: num of unfree wrapper: %d",
+         num_of_unfree_dmabufwrapper);
+  }
 
   return wrapper_tmp;
 }
@@ -80,9 +78,11 @@ S32 allocDmaBuf(DmaBufWrapper *context, S32 size) {
 
   debug("alloc dma buf success! fd = %d", heap_data.fd);
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_dmabuf++;
-#endif
+  if (context->bEnableUnfreeDmaBufDebug) {
+    num_of_unfree_dmabuf++;
+    info("++++++++++ debug dmabufwrapper memory: num of unfree dmabuf: %d",
+         num_of_unfree_dmabuf);
+  }
 
   context->sDmaBuf.nFd = heap_data.fd;
   context->sDmaBuf.nSize = size;
@@ -134,11 +134,11 @@ RETURN freeDmaBuf(DmaBufWrapper *context) {
     }
   }
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_dmabuf--;
-  debug("debug dmabufwrapper memory: num of unfree dmabuf: %d",
-        num_of_unfree_dmabuf);
-#endif
+  if (context->bEnableUnfreeDmaBufDebug) {
+    num_of_unfree_dmabuf--;
+    info("---------- debug dmabufwrapper memory: num of unfree dmabuf: %d",
+         num_of_unfree_dmabuf);
+  }
 
   context->sDmaBuf.nFd = 0;
   context->sDmaBuf.nSize = 0;
@@ -152,12 +152,11 @@ S32 getDmaHeapFd(DmaBufWrapper *context) { return context->nDmaHeapFd; }
 void destoryDmaBufWrapper(DmaBufWrapper *context) {
   if (context) {
     close(context->nDmaHeapFd);
+    if (context->bEnableUnfreeDmaBufDebug) {
+      num_of_unfree_dmabufwrapper--;
+      info("---------- debug dmabufwrapper memory: num of unfree wrapper: %d",
+           num_of_unfree_dmabufwrapper);
+    }
     free(context);
   }
-
-#ifdef DEBUG_MEMORY
-  num_of_unfree_dmabufwrapper--;
-  debug("debug dmabufwrapper memory: num of unfree wrapper: %d",
-        num_of_unfree_dmabufwrapper);
-#endif
 }

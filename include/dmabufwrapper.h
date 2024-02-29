@@ -23,6 +23,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include "env.h"
 #include "log.h"
 #include "type.h"
 #include "v4l2_utils.h"
@@ -100,6 +101,9 @@ typedef struct _DmaBuf {
 typedef struct _DmaBufWrapper {
   S32 nDmaHeapFd;
   DmaBuf sDmaBuf;
+
+  // environment variable
+  BOOL bEnableUnfreeDmaBufDebug;
 } DmaBufWrapper;
 
 /***
