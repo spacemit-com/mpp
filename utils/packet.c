@@ -18,14 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "env.h"
 #include "log.h"
 
-//#define DEBUG_MEMORY
-
-#ifdef DEBUG_MEMORY
 S32 num_of_unfree_packet = 0;
-S32 num_of_unfree_data = 0;
-#endif
+S32 num_of_unfree_packet_data = 0;
 
 struct _MppPacket {
   /**
@@ -53,6 +50,9 @@ struct _MppPacket {
   S64 nPts;
   S64 nDts;
   BOOL bEos;
+
+  // environment variable
+  BOOL bEnableUnfreePacketDebug;
   // S64    nPcr;
   // S32    bIsFirstPart;
   // S32    bIsLastPart;
@@ -65,11 +65,16 @@ MppPacket *PACKET_Create() {
     return NULL;
   }
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_packet++;
-#endif
-
   memset(packet, 0, sizeof(MppPacket));
+
+  mpp_env_get_u32("MPP_PRINT_UNFREE_PACKET",
+                  &(packet->bEnableUnfreePacketDebug), 0);
+
+  if (packet->bEnableUnfreePacketDebug) {
+    num_of_unfree_packet++;
+    info("++++++++++ debug packet memory: num of unfree packet: %d",
+         num_of_unfree_packet);
+  }
 
   return packet;
 }
@@ -88,9 +93,11 @@ MppPacket *PACKET_Copy(MppPacket *src_packet) {
     return NULL;
   }
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_packet++;
-#endif
+  if (src_packet->bEnableUnfreePacketDebug) {
+    num_of_unfree_packet++;
+    info("++++++++++ debug packet memory: num of unfree packet: %d",
+         num_of_unfree_packet);
+  }
 
   memset(dst_packet, 0, sizeof(MppPacket));
   memcpy(dst_packet, src_packet, sizeof(MppPacket));
@@ -105,11 +112,11 @@ MppPacket *PACKET_Copy(MppPacket *src_packet) {
     error("alloc packet, but can not alloc data, please check!");
     free(dst_packet);
 
-#ifdef DEBUG_MEMORY
-    num_of_unfree_packet--;
-    debug("debug packet memory: num of unfree packet: %d",
-          num_of_unfree_packet);
-#endif
+    if (src_packet->bEnableUnfreePacketDebug) {
+      num_of_unfree_packet--;
+      info("---------- debug packet memory: num of unfree packet: %d",
+           num_of_unfree_packet);
+    }
 
     return NULL;
   }
@@ -142,9 +149,11 @@ RETURN PACKET_Alloc(MppPacket *packet, S32 size) {
   packet->nTotalSize = size;
   packet->nLength = 0;
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_data++;
-#endif
+  if (packet->bEnableUnfreePacketDebug) {
+    num_of_unfree_packet_data++;
+    info("++++++++++ debug packet memory: num of unfree packet data: %d",
+         num_of_unfree_packet_data);
+  }
 
   return MPP_OK;
 }
@@ -163,10 +172,11 @@ RETURN PACKET_Free(MppPacket *packet) {
   packet->nLength = 0;
   packet->nTotalSize = 0;
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_data--;
-  debug("debug packet memory: num of unfree data: %d", num_of_unfree_data);
-#endif
+  if (packet->bEnableUnfreePacketDebug) {
+    num_of_unfree_packet_data--;
+    info("---------- debug packet memory: num of unfree packet data: %d",
+         num_of_unfree_packet_data);
+  }
 
   return MPP_OK;
 }
@@ -465,11 +475,12 @@ void PACKET_Destory(MppPacket *packet) {
     return;
   }
 
+  if (packet->bEnableUnfreePacketDebug) {
+    num_of_unfree_packet--;
+    info("---------- debug packet memory: num of unfree packet: %d",
+         num_of_unfree_packet);
+  }
+
   free(packet);
   // packet = NULL;
-
-#ifdef DEBUG_MEMORY
-  num_of_unfree_packet--;
-  debug("debug packet memory: num of unfree packet: %d", num_of_unfree_packet);
-#endif
 }

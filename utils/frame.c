@@ -9,7 +9,7 @@
  * @Description:
  */
 
-#define ENABLE_DEBUG 0
+#define ENABLE_DEBUG 1
 
 #include "frame.h"
 
@@ -27,14 +27,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "env.h"
 #include "log.h"
 
-//#define DEBUG_MEMORY
-
-#ifdef DEBUG_MEMORY
 S32 num_of_unfree_frame = 0;
 S32 num_of_unfree_data = 0;
-#endif
 
 struct _MppFrame {
   /**
@@ -67,6 +64,10 @@ struct _MppFrame {
   S32 nFd[MPP_MAX_PLANES];
   U32 refCount;
   DmaBufWrapper *pDmaBufWrapper;
+
+  // environment variable
+  BOOL bEnableUnfreeFrameDebug;
+
   // S32     nStreamIndex;
   // S32     nTopOffset;
   // S32     nLeftOffset;
@@ -102,12 +103,16 @@ MppFrame *FRAME_Create() {
     error("can not malloc MppFrame! please check! (%s)", strerror(errno));
     return NULL;
   }
-
-#ifdef DEBUG_MEMORY
-  num_of_unfree_frame++;
-#endif
-
   memset(frame, 0, sizeof(MppFrame));
+
+  mpp_env_get_u32("MPP_PRINT_UNFREE_FRAME", &(frame->bEnableUnfreeFrameDebug),
+                  0);
+
+  if (frame->bEnableUnfreeFrameDebug) {
+    num_of_unfree_frame++;
+    info("++++++++++ debug frame memory: num of unfree frame: %d",
+         num_of_unfree_frame);
+  }
 
   frame->nDataUsedNum = 1;
   frame->eBufferType = MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL;
@@ -215,9 +220,7 @@ RETURN FRAME_Alloc(MppFrame *frame, MppPixelFormat pixelformat, S32 width,
     frame->pData0 = (U8 *)mmapDmaBuf(frame->pDmaBufWrapper);
     debug("dma buf mmap success! pData0 = %p", frame->pData0);
 
-#ifdef DEBUG_MEMORY
-    num_of_unfree_data++;
-#endif
+    if (frame->bEnableUnfreeFrameDebug) num_of_unfree_data++;
 
     frame->nWidth = width;
     frame->nHeight = height;
@@ -260,10 +263,11 @@ RETURN FRAME_Free(MppFrame *frame) {
 
     destoryDmaBufWrapper(frame->pDmaBufWrapper);
 
-#ifdef DEBUG_MEMORY
-    num_of_unfree_data--;
-    debug("debug frame memory: num of unfree data: %d", num_of_unfree_data);
-#endif
+    if (frame->bEnableUnfreeFrameDebug) {
+      num_of_unfree_data--;
+      info("debug frame memory: num of unfree frame data: %d",
+           num_of_unfree_data);
+    }
   } else {
     error("unsupported buffertype, please check!!");
     return MPP_NOT_SUPPORTED_FORMAT;
@@ -678,10 +682,11 @@ void FRAME_Destory(MppFrame *frame) {
     return;
   }
 
-  free(frame);
+  if (frame->bEnableUnfreeFrameDebug) {
+    num_of_unfree_frame--;
+    info("---------- debug frame memory: num of unfree frame: %d",
+         num_of_unfree_frame);
+  }
 
-#ifdef DEBUG_MEMORY
-  num_of_unfree_frame--;
-  debug("debug frame memory: num of unfree frame: %d", num_of_unfree_frame);
-#endif
+  free(frame);
 }

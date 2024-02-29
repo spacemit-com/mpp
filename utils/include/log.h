@@ -27,6 +27,11 @@
          ##__VA_ARGS__)
 // fprintf(stderr, "%ld:%s:%d " fmt "\n", gettid(), __FUNCTION__, __LINE__,
 // ##__VA_ARGS__)
+#define info(fmt, ...)                                                       \
+  printf("[MPP-INFO] %ld:%s:%d " fmt "\n", gettid(), __FUNCTION__, __LINE__, \
+         ##__VA_ARGS__)
+// fprintf(stderr, "%ld:%s:%d " fmt "\n", gettid(), __FUNCTION__, __LINE__,
+// ##__VA_ARGS__)
 #if ENABLE_DEBUG
 #define debug(fmt, ...)                                                       \
   printf("[MPP-DEBUG] %ld:%s:%d " fmt "\n", gettid(), __FUNCTION__, __LINE__, \
@@ -49,6 +54,7 @@
 #endif
 #else
 #define error(fmt, ...) mpp_loge(fmt, ##__VA_ARGS__)
+#define info(fmt, ...) mpp_logi(fmt, ##__VA_ARGS__)
 #if ENABLE_DEBUG
 #define debug(fmt, ...) mpp_logw(fmt, ##__VA_ARGS__)
 #else
