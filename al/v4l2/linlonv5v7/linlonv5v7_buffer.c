@@ -194,7 +194,7 @@ S32 setRotation(Buffer *buf, S32 rotation) {
 }
 
 S32 setDownScale(Buffer *buf, S32 scale) {
-  if (scale == 1) {
+  if (1 == scale) {
     // debug("no need to set scale");
     return MPP_OK;
   }
@@ -217,14 +217,14 @@ S32 setDownScale(Buffer *buf, S32 scale) {
 }
 
 S32 setMirror(Buffer *buf, S32 mirror) {
-  if (mirror == 0) {
+  if (0 == mirror) {
     // debug("no need to set mirror");
     return MPP_OK;
   } else {
-    if (mirror == 1) {
+    if (1 == mirror) {
       buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_MIRROR_MASK;
       buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_MIRROR_HORI;
-    } else if (mirror == 2) {
+    } else if (2 == mirror) {
       buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_MIRROR_MASK;
       buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_MIRROR_VERT;
     }

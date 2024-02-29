@@ -269,8 +269,8 @@ void queryCapabilities(Codec *codec) {
     error("Failed to query for capabilities");
   }
 
-  if ((cap.capabilities & (V4L2_CAP_VIDEO_M2M | V4L2_CAP_VIDEO_M2M_MPLANE)) ==
-      0) {
+  if (0 ==
+      (cap.capabilities & (V4L2_CAP_VIDEO_M2M | V4L2_CAP_VIDEO_M2M_MPLANE))) {
     error("Device is missing m2m support.");
   }
 }
@@ -440,7 +440,7 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
     return MPP_POLL_FAILED;
   }
 
-  if (ret == 0) {
+  if (0 == ret) {
     // error("Queue and dequeue poll timed out.");
     return MPP_POLL_FAILED;
   }

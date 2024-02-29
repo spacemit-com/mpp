@@ -186,7 +186,7 @@ void *encode_thread(void *private_data) {
       ret = VENC_Encode(context->pVencCtx, FRAME_GetBaseData(context->pFrame));
     } else {
       // Continue sending empty buffers after encoding
-      if (leaveSize == 0 && need_drain < 4) {
+      if (0 == leaveSize && need_drain < 4) {
         FRAME_SetEos(context->pFrame, 1);
         debug("set need drain, %d", need_drain);
         ret =

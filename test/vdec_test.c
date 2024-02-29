@@ -34,13 +34,26 @@ typedef struct _TestVdecContext {
    * path of output file, write frame to it
    */
   U8 *pOutputFileName;
+
   FILE *pInputFile;
   FILE *pOutputFile;
+
+  /**
+   * used for demuxer
+   */
   S32 nFileOffset;
   MppParseContext *pParseCtx;
+
+  /**
+   * used for save para from cmd
+   */
   MppCodingType eCodingType;
   S32 eOutputPixelFormat;
   MppCodecType eCodecType;
+
+  /**
+   * used for decoder
+   */
   MppVdecCtx *pVdecCtx;
   MppVdecPara *pVdecPara;
   MppPacket *pPacket;
@@ -162,14 +175,8 @@ void *do_parse(void *private_data) {
   S32 need_drain = 0;
   S32 length = 0;
   S32 fileSize;
-  S32 region_size;
 
-  if (context->nHeight * context->nWidth <= 1920 * 1080)
-    region_size = MPP_PACKET_MALLOC_SIZE;
-  else
-    region_size = MPP_PACKET_MALLOC_SIZE * 2;
-
-  stream_data = (U8 *)malloc(region_size);
+  stream_data = (U8 *)malloc(MPP_PACKET_PARSE_REGION_SIZE);
   tmp_stream_data = stream_data;
 
   fseek(context->pInputFile, 0, SEEK_END);
@@ -179,7 +186,8 @@ void *do_parse(void *private_data) {
 
   while (1) {
     stream_data = tmp_stream_data;
-    stream_length = fread(stream_data, 1, region_size, context->pInputFile);
+    stream_length = fread(stream_data, 1, MPP_PACKET_PARSE_REGION_SIZE,
+                          context->pInputFile);
     debug("stream_length = %d length = %d, offset = %d", stream_length, length,
           context->nFileOffset);
     if (length == stream_length &&
@@ -188,20 +196,7 @@ void *do_parse(void *private_data) {
       need_drain = 1;
     }
 
-    if (stream_length == 0) {
-#if 0
-
-      S32 flaggg = 1;
-      while (flaggg > 0) {
-        PACKET_SetEos(context->pPacket, MPP_TRUE);
-        PACKET_SetLength(context->pPacket, 0);
-
-        ret = VDEC_Decode(context->pVdecCtx,
-                          PACKET_GetBaseData(context->pPacket));
-        debug("last decode");
-        flaggg--;
-      }
-#endif
+    if (0 == stream_length) {
       debug("There is no data, quit!");
       if (stream_data) {
         free(stream_data);
@@ -215,19 +210,19 @@ void *do_parse(void *private_data) {
           context->pParseCtx, (U8 *)stream_data, stream_length,
           (U8 *)PACKET_GetDataPointer(context->pPacket), &length, 0,
           need_drain);
-      if (ret == 0 || need_drain) {
+      if (0 == ret || need_drain) {
         if (need_drain) {
           PACKET_SetEos(context->pPacket, MPP_TRUE);
           debug("length = %d here, ret: %d", length, ret);
         }
         stream_data += length;
         stream_length -= length;
-
         context->nFileOffset += length;
-        PACKET_SetLength(context->pPacket, length);
 
+        PACKET_SetLength(context->pPacket, length);
         PACKET_SetPts(context->pPacket, context->nTimeStamp);
         context->nTimeStamp += 1000000;
+
         debug("we get a packet, length = %d, ret = %d %p %x %x %x %x", length,
               ret, PACKET_GetDataPointer(context->pPacket),
               *(S32 *)PACKET_GetDataPointer(context->pPacket),
@@ -255,6 +250,7 @@ void *do_parse(void *private_data) {
 
   debug("do_parse thread exit=============================");
 }
+
 void save_one_plane_image(TestVdecContext *context, S32 width, S32 height,
                           S32 stride, U8 *ptr) {
   FILE *fd = context->pOutputFile;
@@ -299,10 +295,10 @@ S32 save_yuv_to_file(TestVdecContext *context, S32 *stride) {
   S32 y_size = width * height;
   S32 uv_size = y_size / 4;
 
-  if (FRAME_GetDataUsedNum(context->pFrame) == 1) {
+  if (1 == FRAME_GetDataUsedNum(context->pFrame)) {
     fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size + uv_size * 2, 1,
            context->pOutputFile);
-  } else if (FRAME_GetDataUsedNum(context->pFrame) == 2) {
+  } else if (2 == FRAME_GetDataUsedNum(context->pFrame)) {
     fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size, 1,
            context->pOutputFile);
     fwrite(FRAME_GetDataPointer(context->pFrame, 1), uv_size * 2, 1,
@@ -319,6 +315,7 @@ S32 save_yuv_to_file(TestVdecContext *context, S32 *stride) {
 
   return ret;
 }
+
 S32 main(S32 argc, char **argv) {
   TestVdecContext *context = NULL;
   S32 argument_num = 0;
@@ -341,7 +338,6 @@ S32 main(S32 argc, char **argv) {
   } else {
     error("There is no arguments, We need more arguments!");
     print_demo_usage(ArgumentMapping, argument_num);
-    free(context);
     goto finish_after;
   }
 
@@ -365,10 +361,20 @@ S32 main(S32 argc, char **argv) {
   context->pVdecCtx->stVdecPara.eCodingType = context->eCodingType;
   context->pVdecCtx->stVdecPara.nWidth = context->nWidth;
   context->pVdecCtx->stVdecPara.nHeight = context->nHeight;
-  context->pVdecCtx->stVdecPara.nScale = 1;
+  if (context->nWidth >= 3840 || context->nHeight >= 2160) {
+    debug("4K video, downscale!\n");
+    context->pVdecCtx->stVdecPara.nScale = 2;
+  } else {
+    context->pVdecCtx->stVdecPara.nScale = 1;
+  }
   context->pVdecCtx->stVdecPara.eOutputPixelFormat =
       context->eOutputPixelFormat;
   context->pVdecCtx->eCodecType = context->eCodecType;
+  context->pVdecCtx->stVdecPara.nHorizonScaleDownRatio = 1;
+  context->pVdecCtx->stVdecPara.nVerticalScaleDownRatio = 1;
+  context->pVdecCtx->stVdecPara.nRotateDegree = 0;
+  context->pVdecCtx->stVdecPara.bThumbnailMode = 0;
+  context->pVdecCtx->stVdecPara.bIsInterlaced = MPP_FALSE;
 
   ret = VDEC_Init(context->pVdecCtx);
   if (ret) {
@@ -439,7 +445,18 @@ S32 main(S32 argc, char **argv) {
                                FRAME_GetBaseData(context->pFrame));
         debug("get eos msg, go out of the main while!");
         goto finish_pre;
-      } else if (ret == MPP_CODER_NO_DATA || ret == MPP_RESOLUTION_CHANGED) {
+      } else if (ret == MPP_CODER_NO_DATA) {
+        if (FRAME_GetFD(context->pFrame, 0) > 0) {
+          error("no data but have fd, return");
+          VDEC_ReturnOutputFrame(context->pVdecCtx,
+                                 FRAME_GetBaseData(context->pFrame));
+        }
+        continue;
+      } else if (ret == MPP_RESOLUTION_CHANGED) {
+        debug("resolution changed");
+        continue;
+      } else if (ret == MPP_ERROR_FRAME) {
+        debug("error frame");
         continue;
       } else {
         error("get something wrong(%d), go out of the main while!", ret);

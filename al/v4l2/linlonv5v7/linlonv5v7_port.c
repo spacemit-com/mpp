@@ -480,14 +480,14 @@ void printBuffer(Port *port, struct v4l2_buffer buf, const U8 *prefix) {
 
     if (V4L2_TYPE_IS_MULTIPLANAR(buf.type)) {
       debug_mid("num_planes:%d ", buf.length);
-      if (buf.length == 2) {
+      if (2 == buf.length) {
         debug_after(
             "bytesused:[%u %u], length:[%u %u], offset:[%u "
             "%u]",
             buf.m.planes[0].bytesused, buf.m.planes[1].bytesused,
             buf.m.planes[0].length, buf.m.planes[1].length,
             buf.m.planes[0].data_offset, buf.m.planes[1].data_offset);
-      } else if (buf.length == 3) {
+      } else if (3 == buf.length) {
         debug_after(
             "bytesused:[%u %u %u], length:[%u %u %u], offset:[%u "
             "%u %u]",
@@ -619,7 +619,7 @@ void setEncBitrate(Port *port, U32 bit_rate) {
   debug("setEncBitrate(%u)", bit_rate);
   debug("setRctype(%u)", port->nRcType);
 
-  if (bit_rate == 0 && port->nRcType == 0) {
+  if (0 == bit_rate && 0 == port->nRcType) {
     return;
   }
   struct v4l2_control control;
@@ -1355,7 +1355,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
       /*(getBytesUsed(b) == 0 ||
        (b->flags & V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) !=
            V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) &&*/
-      (b->flags & V4L2_BUF_FLAG_ERROR) == 0) {
+      0 == (b->flags & V4L2_BUF_FLAG_ERROR)) {
     struct v4l2_format fmt = port->stFormat;
     getPortFormat(port);
     BOOL isResChange = MPP_TRUE;
@@ -1458,10 +1458,10 @@ BOOL handleBuffer(Port *port, BOOL eof, MppData *data) {
   /* Resolution change. we should only handle this on decode
    * output:V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE*/
   if (!V4L2_TYPE_IS_OUTPUT(b->type) && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
-      (getBytesUsed(b) == 0 ||
+      (0 == getBytesUsed(b) ||
        (b->flags & V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) !=
            V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) &&
-      (b->flags & V4L2_BUF_FLAG_ERROR) == 0) {
+      0 == (b->flags & V4L2_BUF_FLAG_ERROR)) {
     struct v4l2_format fmt = port->stFormat;
     getPortFormat(port);
     BOOL isResChange = MPP_TRUE;

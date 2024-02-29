@@ -211,7 +211,7 @@ void *runpoll(void *private_data) {
       error("Poll returned error event.");
     }
 
-    if (ret == 0) {
+    if (0 == ret) {
       // error("Event poll timed out.");
     }
 
@@ -219,7 +219,6 @@ void *runpoll(void *private_data) {
     //   context->bInputReady = MPP_TRUE;
     // }
     // if (p.revents & POLLIN) {
-    //  debug("goodddddd get outputttttttttttttttttttttttttttttt");
     //  context->bOutputReady = MPP_TRUE;
     //}
     if (p.revents & POLLPRI) {
@@ -356,7 +355,7 @@ RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
     error("Poll returned error event.");
   }
 
-  if (ret == 0) {
+  if (0 == ret) {
     // error("Getpara poll timed out.");
   }
 
