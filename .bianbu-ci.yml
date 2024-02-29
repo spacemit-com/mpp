@@ -21,12 +21,12 @@ pack-job:
     - export PATH=$CI_PROJECT_DIR/../bianbu-devscripts:$PATH
     # 准备打包所需的源码，从detach切换到分支
     - cd $CI_PROJECT_DIR
-    - git checkout bianbu-23.04  
+    - git checkout ${CI_COMMIT_TAG%%/*}  
     - bianbu-pkg -u local -w . -t $CI_COMMIT_TAG
     - changes_file=$(find ../ -maxdepth 1 -type f -name "*.changes" | head -n 1)
     # 上传结果
     - ssh-keyscan reprepro-headless-service.buildsystem.svc.cluster.local >> ~/.ssh/known_hosts
-    - bianbu-dev upload --repo bianbu-ci $changes_file
+    - bianbu-dev upload $changes_file
     # 修改为ssh协议
     - git remote set-url origin git@gitlab.dc.com:$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME.git
     - git push origin --all
