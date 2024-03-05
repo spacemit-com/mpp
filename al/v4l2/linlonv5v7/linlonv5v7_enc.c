@@ -27,7 +27,7 @@
 #include "mvx-v4l2-controls.h"
 #include "v4l2_utils.h"
 
-#define MODULE_TAG "v4l2enc"
+#define MODULE_TAG "linlonv5v7_enc"
 
 #define BS_BUF_SIZE (1 << 20)
 
@@ -109,6 +109,13 @@ static void changeSWEO(ALLinlonv5v7EncContext *context, U32 csweo) {
   setCsweo(context->stCodec, (csweo == 1));
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_FRAME_RATE
+ *
+ * Sets the frame rate in frames per second (FPS), represented in Q16 format,
+ * that is, signed 15.16 fixed-point format. Frame rate values are limited to
+ * between 1 and 256 frames per second.
+ */
 static void setEncoderFramerate(ALLinlonv5v7EncContext *context, U32 fps) {
   if (!getCsweo(context->stCodec)) {
     setEncFramerate(getOutputPort(context->stCodec), fps << 16);
@@ -117,6 +124,9 @@ static void setEncoderFramerate(ALLinlonv5v7EncContext *context, U32 fps) {
   }
 }
 
+/***
+ * V4L2_CID_MPEG_VIDEO_BITRATE
+ */
 static void setBitrate(ALLinlonv5v7EncContext *context, U32 bps) {
   if (!getCsweo(context->stCodec)) {
     setEncBitrate(getOutputPort(context->stCodec), bps);
@@ -126,40 +136,107 @@ static void setBitrate(ALLinlonv5v7EncContext *context, U32 bps) {
   }
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_P_FRAMES
+ *
+ * Options related to the group-of-pictures (GOP) and Long Term Reference (LTR)
+ * structure, see below.
+ *
+ * The three options ENC_P_FRAMES, ENC_B_FRAMES, GOP_TYPE can be used to
+ * configure the GOP structure. Each GOP begins with an I frame, typically
+ * followed by some P, and possibly B frames: ENC_P_FRAMES sets the number of P
+ * frames between two I frames. ENC_B_FRAMES sets the number of B frames that
+ * comes with each P frame.
+ */
 static void setPFrames(ALLinlonv5v7EncContext *context, U32 pframes) {
   setEncPFrames(getOutputPort(context->stCodec), pframes);
 }
 
+/***
+ * V4L2_CID_MPEG_VIDEO_B_FRAMES
+ */
 static void setBFrames(ALLinlonv5v7EncContext *context, U32 bframes) {
   setEncBFrames(getOutputPort(context->stCodec), bframes);
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_GOP_TYPE
+ *
+ * GOP_TYPE can be one of the following variants:
+ * MVE_OPT_GOP_TYPE_BIDIRECTIONAL For example, with this GOP type, setting
+ * ENC_P_FRAMES = 3 and ENC_B_FRAMES = 2 gives the following GOP structure, in
+ * display order, so that there is frame re-ordering in the bitstream: IBBPBBP
+ *
+ * MVE_OPT_GOP_TYPE_LOW_DELAY Conversely, setting ENC_P_FRAMES = 3 and
+ * ENC_B_FRAMES = 2 and GOP_TYPE = LOW_DELAY gives the following GOP structure,
+ * in display order, with no frame re-ordering: IPBBPBB
+ *
+ * MVE_OPT_GOP_TYPE_PYRAMID Setting this GOP type, forces the ENC_B_FRAMES
+ * parameter to 3. The following image shows some of the B frames used as
+ * reference frames: IBBBPBBBP
+ */
+static void setH264GOPType(ALLinlonv5v7EncContext *context, U32 gop) {
+  setH264EncGOPType(getOutputPort(context->stCodec), gop);
+}
+
+/***
+ * V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB
+ * V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE
+ *
+ * Suggested number of macroblocks, CTUs in one slice.
+ */
 static void setSliceSpacing(ALLinlonv5v7EncContext *context, U32 spacing) {
   setEncSliceSpacing(getOutputPort(context->stCodec), spacing);
 }
 
+/***
+ * V4L2_CID_MPEG_VIDEO_MV_H_SEARCH_RANGE
+ *
+ * For testing and debugging, the search range for motion vectors can be
+ * restricted. By default, the largest possible values are used.
+ */
 static void setHorizontalMVSearchRange(ALLinlonv5v7EncContext *context,
                                        U32 hmvsr) {
   setEncHorizontalMVSearchRange(getOutputPort(context->stCodec), hmvsr);
 }
 
+/***
+ * V4L2_CID_MPEG_VIDEO_MV_V_SEARCH_RANGE
+ *
+ * For testing and debugging, the search range for motion vectors can be
+ * restricted. By default, the largest possible values are used.
+ */
 static void setVerticalMVSearchRange(ALLinlonv5v7EncContext *context,
                                      U32 vmvsr) {
   setEncVerticalMVSearchRange(getOutputPort(context->stCodec), vmvsr);
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_FORCE_CHROMA_FORMAT
+ */
 static void setH264ForceChroma(ALLinlonv5v7EncContext *context, U32 fmt) {
   setH264EncForceChroma(getOutputPort(context->stCodec), fmt);
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_BITDEPTH_LUMA
+ * V4L2_CID_MVE_VIDEO_BITDEPTH_CHROMA
+ */
 static void setH264Bitdepth(ALLinlonv5v7EncContext *context, U32 bd) {
   setH264EncBitdepth(getOutputPort(context->stCodec), bd);
 }
 
+/***
+ * V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB
+ */
 static void setH264IntraMBRefresh(ALLinlonv5v7EncContext *context, U32 period) {
   setH264EncIntraMBRefresh(getOutputPort(context->stCodec), period);
 }
 
+/***
+ * V4L2_CID_MPEG_VIDEO_H264_PROFILE
+ * V4L2_CID_MVE_VIDEO_H265_PROFILE
+ */
 static void setProfile(ALLinlonv5v7EncContext *context, U32 profile) {
   setEncProfile(getOutputPort(context->stCodec), profile);
 }
@@ -174,10 +251,6 @@ static void setConstrainedIntraPred(ALLinlonv5v7EncContext *context, U32 cip) {
 
 static void setH264EntropyCodingMode(ALLinlonv5v7EncContext *context, U32 ecm) {
   setH264EncEntropyMode(getOutputPort(context->stCodec), ecm);
-}
-
-static void setH264GOPType(ALLinlonv5v7EncContext *context, U32 gop) {
-  setH264EncGOPType(getOutputPort(context->stCodec), gop);
 }
 
 static void setH264MinQP(ALLinlonv5v7EncContext *context, U32 minqp) {
@@ -241,6 +314,13 @@ static void setHEVCTemporalMVP(ALLinlonv5v7EncContext *context, U32 tmvp) {
   setHEVCEncTemporalMVP(getOutputPort(context->stCodec), tmvp);
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_STREAM_ESCAPING
+ *
+ * This configures whether the input byte stream contains escape codes or
+ * whether it is a raw byte stream without escape codes. The default value is
+ * escape codes enabled.
+ */
 static void setStreamEscaping(ALLinlonv5v7EncContext *context, U32 sesc) {
   setEncStreamEscaping(getOutputPort(context->stCodec), sesc);
 }

@@ -121,17 +121,6 @@ extern "C" {
  *            +--------------------------+
  */
 
-typedef enum _MppVideoDecodeResult {
-  VDECODE_RESULT_UNSUPPORTED = -1,
-  VDECODE_RESULT_OK = 0,
-  VDECODE_RESULT_FRAME_DECODED = 1,
-  VDECODE_RESULT_CONTINUE = 2,
-  VDECODE_RESULT_KEYFRAME_DECODED = 3,
-  VDECODE_RESULT_NO_FRAME_BUFFER = 4,
-  VDECODE_RESULT_NO_BITSTREAM = 5,
-  VDECODE_RESULT_RESOLUTION_CHANGE = 6,
-} MppVideoDecodeResult;
-
 typedef struct _MppVdecCtx {
   MppProcessNode pNode;
   MppCodecType eCodecType;
@@ -142,105 +131,115 @@ typedef struct _MppVdecCtx {
 /******************* standard API ******************/
 
 /**
- * @description:
- * @return {*}
+ * @description: create a channel for video decoding, multi-channels can be
+ * created simultaneously.
+ * @return {*} : context for this channel.
  */
 MppVdecCtx *VDEC_CreateChannel();
 
 /**
- * @description:
- * @param {MppVdecCtx} *ctx
- * @return {*}
+ * @description: init channel.
+ * @param {MppVdecCtx} *ctx: channel context, parameters are set by this
+ * context.
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
  */
 S32 VDEC_Init(MppVdecCtx *ctx);
 
 /**
- * @description:
- * @param {MppVdecCtx} *ctx
- * @return {*}
+ * @description: set parameters, not always used now, parameters are set by
+ * VDEC_Init, maybe useful later.
+ * @param {MppVdecCtx} *ctx： channel context
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
  */
 S32 VDEC_SetParam(MppVdecCtx *ctx);
 
 /**
- * @description:
- * @param {MppVdecCtx} *ctx
- * @return {*}
+ * @description: get parameters, app get newest parameters, always used for get
+ * number of buffer freeslots.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
  */
 S32 VDEC_GetParam(MppVdecCtx *ctx, MppVdecPara **stVdecPara);
 
 /**
- * @description:
- * @param {MppVdecCtx} *ctx
- * @return {*}
+ * @description: get default parameters, not always used.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
  */
 S32 VDEC_GetDefaultParam(MppVdecCtx *ctx);
 
 /**
- * @description: send stream data to MPP, input sync mode
- * @param {MppVdecCtx} *ctx
- * @param {MppData} *sink_data
- * @return {*}
+ * @description: send stream data to MPP, input sync mode, meaning that input
+ * stream data can be released after calling this interface.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @param {MppData} *sink_data: input stream data
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
  */
 S32 VDEC_Decode(MppVdecCtx *ctx, MppData *sink_data);
 
 /**
- * @description: send stream data to MPP, and get frame data from MPP, sync mode
- * @param {MppVdecCtx} *ctx
- * @param {MppData} *sink_data
- * @return {*}
+ * @description: send stream data to MPP, and at the same times, get frame data
+ * from MPP, sync mode, not always used.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @param {MppData} *sink_data: input stream data
+ * @param {MppData} *src_data: output frame data
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
  */
 S32 VDEC_Process(MppVdecCtx *ctx, MppData *sink_data, MppData *src_data);
 
 /**
- * @description: get frame data from MPP, no need return, output sync mode
- * @param {MppVdecCtx} *ctx
- * @param {MppData} *src_data
- * @return {*}
+ * @description: get frame data from MPP, no need return, output sync mode, not
+ * always used.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @param {MppData} *src_data: output frame data
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
  */
 S32 VDEC_GetOutputFrame(MppVdecCtx *ctx, MppData *src_data);
 
 /**
- * @description: get frame data from MPP, output async mode
- * @param {MppVdecCtx} *ctx
- * @param {MppData} *src_data
- * @return {*}
+ * @description: get frame data from MPP, output async mode, APP should pair
+ * with VDEC_ReturnOutputFrame for use.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @param {MppData} *src_data: output frame data
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
  */
 S32 VDEC_RequestOutputFrame(MppVdecCtx *ctx, MppData *src_data);
 
 /**
- * @description: get frame data from MPP, output async mode
- * @param {MppVdecCtx} *ctx
- * @param {MppData} **src_data
- * @return {*}
+ * @description: get frame data from MPP, output async mode, not always used.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @param {MppData} **src_data: output frame data
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
  */
 S32 VDEC_RequestOutputFrame_2(MppVdecCtx *ctx, MppData **src_data);
 
 /**
  * @description: return frame data to MPP, output async mode
- * @param {MppVdecCtx} *ctx
- * @param {MppData} *src_data
- * @return {*}
+ * @param {MppVdecCtx} *ctx: channel context
+ * @param {MppData} *src_data: output frame data
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
  */
 S32 VDEC_ReturnOutputFrame(MppVdecCtx *ctx, MppData *src_data);
 
 /**
- * @description:
- * @param {MppVdecCtx} *ctx
- * @return {*}
+ * @description: flush data in MPP(include hardware decoder), must flush output
+ * frame, maybe flush input stream.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
  */
 S32 VDEC_Flush(MppVdecCtx *ctx);
 
 /**
- * @description:
- * @param {MppVdecCtx} *ctx
- * @return {*}
+ * @description: destory the channel for decoding.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
  */
 S32 VDEC_DestoryChannel(MppVdecCtx *ctx);
 
 /**
- * @description:
- * @param {MppVdecCtx} *ctx
- * @return {*}
+ * @description: reset the channel for decoding, not always used.
+ * @param {MppVdecCtx} *ctx: channel context
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
  */
 S32 VDEC_ResetChannel(MppVdecCtx *ctx);
 

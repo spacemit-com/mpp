@@ -27,9 +27,7 @@
 #include "mvx-v4l2-controls.h"
 #include "v4l2_utils.h"
 
-#define MODULE_TAG "v4l2dec"
-
-//#define BS_BUF_SIZE (1 << 20)
+#define MODULE_TAG "linlonv5v7_dec"
 
 CODING_TYPE_MAPPING_DEFINE(Linlonv5v7Dec, S32)
 static const ALLinlonv5v7DecCodingTypeMapping
@@ -75,21 +73,38 @@ typedef struct _ALLinlonv5v7DecContext ALLinlonv5v7DecContext;
 
 struct _ALLinlonv5v7DecContext {
   ALDecBaseContext stAlDecBaseContext;
-  MppVdecPara *pVdecPara;
-  MppCodingType eCodingType;    // input format
-  MppPixelFormat ePixelFormat;  // output format
+  MppVdecPara *pVdecPara;       // parameters
+  MppCodingType eCodingType;    // input stream format
+  MppPixelFormat ePixelFormat;  // output frame format
 
   Codec *stCodec;
 
+  /***
+   * for open video device, such as /dev/video0
+   */
   U8 sDevicePath[20];
   S32 nVideoFd;
 
+  /***
+   * enum v4l2_buf_type
+   * nInputType: always V4L2_BUF_TYPE_VIDEO_OUTPUT
+   * nOutputType: always V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE
+   */
   U32 nInputType;
   U32 nOutputType;
 
+  /***
+   * nInputFormatFourcc: V4L2_PIX_FMT_H264, etc.
+   * nOutputFormatFourcc: V4L2_PIX_FMT_NV12, etc.
+   */
   U32 nInputFormatFourcc;
   U32 nOutputFormatFourcc;
 
+  /***
+   * enum v4l2_memory
+   * nInputMemType: always V4L2_MEMORY_MMAP
+   * nOutputMemType: always V4L2_MEMORY_DMABUF
+   */
   U32 nInputMemType;
   U32 nOutputMemType;
 
@@ -116,6 +131,15 @@ struct _ALLinlonv5v7DecContext {
   BOOL bIsFlushed;
 };
 
+/***
+ * V4L2_CID_MVE_VIDEO_INTBUF_SIZE
+ *
+ * This message configures the size of internal memory used for intermediate
+ * stream buffering by the firmware. For memory constrained systems this could
+ * be used to reduce memory size but with a performance penalty. Most systems
+ * should not use this parameter – the firmware will by default configure the
+ * size based on the stream resolution.
+ */
 static void setH264IntBufSize(ALLinlonv5v7DecContext *context, U32 ibs) {
   setH264DecIntBufSize(getOutputPort(context->stCodec), ibs);
 }
@@ -125,10 +149,32 @@ static void setDecoderInterlaced(ALLinlonv5v7DecContext *context,
   setPortInterlaced(getOutputPort(context->stCodec), interlaced);
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_FRAME_REORDERING
+ *
+ * In general, frames in a video stream are not decoded in the same order they
+ * should be displayed. By default, MVE outputs frames in display order, but
+ * this option instead causes MVE to output frames in decoded order, as soon as
+ * they are completed.
+ */
 static void setFrameReOrdering(ALLinlonv5v7DecContext *context, U32 fro) {
   setDecFrameReOrdering(getOutputPort(context->stCodec), fro);
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_IGNORE_STREAM_HEADERS
+ *
+ * Specifies if the decoder shall ignore new parameter updates contained in the
+ * bitstream. This makes the decoding more robust in error prone environments
+ * where it is known that new parameter updates are not allowed. If the stream
+ * appears to contain such updates, they are introduced as a result of
+ * bit-errors.
+ *
+ * In H.264 this feature translates to ignoring all except the first SPS/PPS
+ * NALs.
+ *
+ * By default this option is off.
+ */
 static void setIgnoreStreamHeaders(ALLinlonv5v7DecContext *context, U32 ish) {
   setDecIgnoreStreamHeaders(getOutputPort(context->stCodec), ish);
 }
@@ -153,16 +199,37 @@ static void setDecoderFrameCount(ALLinlonv5v7DecContext *context, S32 frames) {
   setFrameCount(getOutputPort(context->stCodec), frames);
 }
 
+/***
+ * VIDIOC_S_MVX_DSL_FRAME
+ *
+ * struct v4l2_mvx_dsl_frame
+ * {
+ *   uint32_t width;
+ *   uint32_t height;
+ * };
+ */
 static void setDecoderDSLFrame(ALLinlonv5v7DecContext *context, S32 width,
                                S32 height) {
   setDSLFrame(getOutputPort(context->stCodec), width, height);
 }
 
+/***
+ * VIDIOC_S_MVX_DSL_RATIO
+ *
+ * struct v4l2_mvx_dsl_ratio
+ * {
+ *   uint32_t hor;
+ *   uint32_t ver;
+ * };
+ */
 static void setDecoderDSLRatio(ALLinlonv5v7DecContext *context, S32 hor,
                                S32 ver) {
   setDSLRatio(getOutputPort(context->stCodec), hor, ver);
 }
 
+/***
+ * VIDIOC_S_MVX_DSL_MODE
+ */
 static void setDecoderDSLMode(ALLinlonv5v7DecContext *context, S32 mode) {
   setDSLMode(getOutputPort(context->stCodec), mode);
 }

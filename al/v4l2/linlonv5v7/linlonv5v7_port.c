@@ -597,6 +597,32 @@ void setDecIgnoreStreamHeaders(Port *port, U32 ish) {
   }
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_NALU_FORMAT
+ *
+ * NALU format of input bitstream buffers for decode.
+ *
+ * START_CODES:
+ * The data stream contains start codes to format the data into packets.
+ * Firmware ignores boundaries between data buffers except when one of the flags
+ * is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_EOS
+ *
+ * ONE_NALU_PER_BUFFER:
+ * There is at most one logical packet (subframe) per buffer. A packet may
+ * consist of multiple buffers. The end of the subframe is signaled by setting
+ * one of the flags: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_EOS
+ *
+ * ONE_BYTE_LENGTH_FIELD/TWO_BYTE_LENGTH_FIELD/FOUR_BYTE_LENGTH_FIELD:
+ * Each logical packet (subframe) is preceded by a length field of the indicated
+ * size. Firmware ignores boundaries between data buffers except when one of the
+ * flags is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_EOS
+ */
 void setNALU(Port *port, enum v4l2_nalu_format nalu) {
   mpp_v4l2_set_ctrl(port->nVideoFd, V4L2_CID_MVE_VIDEO_NALU_FORMAT, nalu);
 }
@@ -1002,6 +1028,13 @@ void setHEVCEncTemporalMVP(Port *port, U32 tmvp) {
   }
 }
 
+/***
+ * V4L2_CID_MVE_VIDEO_STREAM_ESCAPING
+ *
+ * This configures whether the input byte stream contains escape codes or
+ * whether it is a raw byte stream without escape codes. The default value is
+ * escape codes enabled.
+ */
 void setEncStreamEscaping(Port *port, U32 sesc) {
   debug("setEncStreamEscaping(%u)", sesc);
 

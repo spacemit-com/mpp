@@ -40,10 +40,6 @@ S32 (*dec_flush)(ALBaseContext *ctx);
 S32 (*dec_reset)(ALBaseContext *ctx);
 void (*dec_destory)(ALBaseContext *ctx);
 
-/**
- * @description: create the video decoder channel, you can get a vdec context
- * @return {MppVdecCtx*} : a vdec context
- */
 MppVdecCtx *VDEC_CreateChannel() {
   MppVdecCtx *ctx = (MppVdecCtx *)malloc(sizeof(MppVdecCtx));
   if (!ctx) {
@@ -54,6 +50,7 @@ MppVdecCtx *VDEC_CreateChannel() {
   memset(ctx, 0, sizeof(MppVdecCtx));
   VDEC_GetDefaultParam(ctx);
 
+  debug("create VDEC Channel success!");
   return ctx;
 }
 
@@ -96,14 +93,20 @@ S32 VDEC_Init(MppVdecCtx *ctx) {
   ctx->pNode.pAlBaseContext = dec_create();
 
   ret = dec_init(ctx->pNode.pAlBaseContext, &(ctx->stVdecPara));
+  debug("init VDEC Channel, ret = %d", ret);
+
   return ret;
 }
 
-S32 VDEC_SetParam(MppVdecCtx *ctx) { return MPP_OK; }
+S32 VDEC_SetParam(MppVdecCtx *ctx) {
+  error("VDEC_SetParam is not supported yet, return MPP_OK directly!");
+  return MPP_OK;
+}
 
 S32 VDEC_GetParam(MppVdecCtx *ctx, MppVdecPara **stVdecPara) {
   S32 ret = 0;
   ret = dec_getparam(ctx->pNode.pAlBaseContext, stVdecPara);
+  debug("get VDEC parameters, ret = %d", ret);
 
   return ret;
 }
@@ -140,6 +143,7 @@ S32 handle_vdec_data(ALBaseContext *base_context, MppData *sink_data) {
 S32 VDEC_Decode(MppVdecCtx *ctx, MppData *sink_data) {
   S32 ret = 0;
   ret = handle_vdec_data(ctx->pNode.pAlBaseContext, sink_data);
+  debug("decode one packet, ret = %d", ret);
 
   return ret;
 }
@@ -217,9 +221,9 @@ S32 VDEC_ReturnOutputFrame(MppVdecCtx *ctx, MppData *src_data) {
 S32 VDEC_Flush(MppVdecCtx *ctx) {
   S32 ret = 0;
 
-  debug("vdec begin flush");
+  debug("begin flush!");
   ret = dec_flush(ctx->pNode.pAlBaseContext);
-  debug("vdec finish flush ret = %d", ret);
+  debug("finish flush ret = %d", ret);
 
   return ret;
 }
@@ -230,11 +234,12 @@ S32 VDEC_DestoryChannel(MppVdecCtx *ctx) {
     return MPP_NULL_POINTER;
   }
 
-  debug("destory decoder");
   dec_destory(ctx->pNode.pAlBaseContext);
+  debug("finish destory decoder");
 
-  debug("destory module");
   module_destory(ctx->pModule);
+  debug("finish destory module");
+
   free(ctx);
   // ctx = NULL;
 
