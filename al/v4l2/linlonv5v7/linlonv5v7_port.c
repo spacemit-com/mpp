@@ -359,10 +359,11 @@ void queueBuffers(Port *port, BOOL eof) {
   }
 }
 
-void queueBuffer(Port *port, Buffer *buf) {
+S32 queueBuffer(Port *port, Buffer *buf) {
   struct v4l2_buffer *b = getV4l2Buffer(buf);
   S32 ret;
 
+  // set some buffer parameters
   setInterlaced(buf, port->bInterlaced);
   setRotation(buf, port->nRotation);
   setMirror(buf, port->nMirror);
@@ -372,7 +373,7 @@ void queueBuffer(Port *port, Buffer *buf) {
     struct v4l2_mvx_roi_regions roi = getRoiCfg(buf);
     ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_ROI_REGIONS, &roi);
     if (ret) {
-      error("Failed to queue roi param.");
+      error("Failed to queue roi param, please check!");
     }
   }
 
@@ -380,7 +381,7 @@ void queueBuffer(Port *port, Buffer *buf) {
     S32 qp = getQPofEPR(buf);
     ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_QP_EPR, &qp);
     if (ret) {
-      error("Failed to queue roi param.");
+      error("Failed to queue qp param, please check!");
     }
     setQPofEPR(buf, 0);
   }
@@ -413,6 +414,7 @@ void queueBuffer(Port *port, Buffer *buf) {
   ret = ioctl(port->nVideoFd, VIDIOC_QBUF, b);
   if (ret) {
     error("Failed to queue buffer. (%s)", strerror(errno));
+    return MPP_IOCTL_FAILED;
   }
   if (port->ePortDirection == INPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
       !isGeneralBuffer(buf)) {
@@ -1279,7 +1281,13 @@ S32 getBufWidth(Port *port) { return port->stFormat.fmt.pix_mp.width; }
 S32 getBufHeight(Port *port) { return port->stFormat.fmt.pix_mp.height; }
 
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
+  S32 ret = MPP_OK;
   Buffer *buffer = dequeueBuffer(port);
+  if (!buffer) {
+    error(
+        "dequeueBuffer failed, this dequeueBuffer must successed, because it "
+        "is after Poll, please check!");
+  }
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   if (eof) {
     debug("****************************************** eos2");
@@ -1300,6 +1308,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
            PACKET_GetLength(packet));
     b->bytesused = PACKET_GetLength(packet);
     setTimeStamp(port->stBuf[b->index], PACKET_GetPts(packet));
+    setEndOfFrame(buffer, MPP_TRUE);
     // debug("xxx %x %x %x timestamp: %lld",
     //       *(S32 *)port->stBuf[b->index]->pUserPtr[0],
     //       *(S32 *)(port->stBuf[b->index]->pUserPtr[0] + 4),
@@ -1326,7 +1335,12 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
   }
 
   setEndOfStream(buffer, eof);
-  queueBuffer(port, buffer);
+  ret = queueBuffer(port, buffer);
+  if (ret) {
+    error(
+        "queueBuffer failed, this queueBuffer must successed, because it is "
+        "after Poll and dequeueBuffer, please check!");
+  }
 
   if (eof) {
     debug("enc ****************************************** eos");

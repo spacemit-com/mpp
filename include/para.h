@@ -861,16 +861,23 @@ typedef struct _MppVdecPara {
   /***
    * read from MPP
    */
+  /***
+   * input buffer num that APP can use
+   */
   S32 nInputQueueLeftNum;
   S32 nOutputQueueLeftNum;
   S32 nInputBufferNum;
   S32 nOutputBufferNum;
-  S32 nOutputBufferFd[64];
   void* pFrame[64];
   S32 nOldWidth;
   S32 nOldHeight;
   BOOL bIsResolutionChanged;
+
+  /***
+   * used for chromium
+   */
   BOOL bIsBufferInDecoder[64];
+  S32 nOutputBufferFd[64];
 } MppVdecPara;
 
 /***

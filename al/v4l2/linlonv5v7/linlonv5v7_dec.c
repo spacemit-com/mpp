@@ -111,24 +111,48 @@ struct _ALLinlonv5v7DecContext {
   U32 nInputBufferNum;
   U32 nOutputBufferNum;
 
+  /***
+   * MPP_FALSE, meaning that open device node with O_NONBLOCK
+   */
   BOOL bIsBlockMode;
   BOOL bIsInterlaced;
+
+  /***
+   * video width and height
+   * 0x0 is supported, driver can parse real width and height and return by
+   * V4L2_EVENT_SOURCE_CHANGE.
+   */
   S32 nWidth;
   S32 nHeight;
+
   S32 nRotation;
   S32 nScale;
   S32 nFrames;
 
   S32 nNaluFmt;
+
+  /***
+   * EOS flag, default MPP_FALSE
+   * when a packet with length=0 or with eos=1 comes, bInputEos is set to
+   * MPP_TRUE.
+   */
   BOOL bInputEos;
 
   pthread_t pollthread;
-  BOOL bInputReady;
-  BOOL bOutputReady;
 
+  /***
+   * default MPP_FLASE
+   *
+   * when al_dec_destory is called, bIsDestoryed will be set to MPP_TRUE, some
+   * threads stop and some resources recycle.
+   */
   BOOL bIsDestoryed;
+
+  /***
+   * num of input buffer in driver
+   * default 0, also 0 after flush
+   */
   U32 nInputQueuedNum;
-  BOOL bIsFlushed;
 };
 
 /***
@@ -234,20 +258,18 @@ static void setDecoderDSLMode(ALLinlonv5v7DecContext *context, S32 mode) {
   setDSLMode(getOutputPort(context->stCodec), mode);
 }
 
-ALBaseContext *al_dec_create() {
-  ALLinlonv5v7DecContext *context =
-      (ALLinlonv5v7DecContext *)malloc(sizeof(ALLinlonv5v7DecContext));
-  if (!context) {
-    error("can not malloc ALLinlonv5v7DecContext, please check! (%s)",
-          strerror(errno));
-    return NULL;
+static S32 checkCodingTypeAndProfile(MppCodingType type, S32 profile) {
+  if (type == CODING_MPEG2 && profile == PROFILE_MPEG2_HIGH) {
+    error("not support CODING_MPEG2->PROFILE_MPEG2_HIGH!");
+    return MPP_NOT_SUPPORTED_FORMAT;
   }
 
-  memset(context, 0, sizeof(ALLinlonv5v7DecContext));
-
-  return &(context->stAlDecBaseContext.stAlBaseContext);
+  return MPP_OK;
 }
 
+/***
+ * pthread for poll event, need usleep, or CPU usage will soar, biubiu.
+ */
 void *runpoll(void *private_data) {
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)private_data;
   S32 ret = 0;
@@ -257,18 +279,7 @@ void *runpoll(void *private_data) {
     if (context->bIsDestoryed) pthread_exit(NULL);
 
     struct pollfd p = {.fd = context->nVideoFd, .events = POLLPRI};
-
-    // if (context->stCodec->stInputPort->pending > 0)
-    //{ p.events |= POLLOUT; }
-
-    // if (context->stCodec->stOutputPort->pending > 0)
-    //{ p.events |= POLLIN; }
-
     S32 ret = poll(&p, 1, POLL_TIMEOUT);
-
-    // debug("pending %d %d ret = %d revents=%x",
-    // context->stCodec->stInputPort->pending,
-    // context->stCodec->stOutputPort->pending, ret, p.revents);
 
     if (ret < 0) {
       error("Poll returned error code.");
@@ -279,15 +290,10 @@ void *runpoll(void *private_data) {
     }
 
     if (0 == ret) {
+      // this log is boring, disable
       // error("Event poll timed out.");
     }
 
-    // if (p.revents & POLLOUT) {
-    //   context->bInputReady = MPP_TRUE;
-    // }
-    // if (p.revents & POLLIN) {
-    //  context->bOutputReady = MPP_TRUE;
-    //}
     if (p.revents & POLLPRI) {
       handleEvent(context->stCodec);
     }
@@ -301,6 +307,22 @@ void *runpoll(void *private_data) {
   }
 }
 
+ALBaseContext *al_dec_create() {
+  ALLinlonv5v7DecContext *context =
+      (ALLinlonv5v7DecContext *)malloc(sizeof(ALLinlonv5v7DecContext));
+  if (!context) {
+    error("can not malloc ALLinlonv5v7DecContext, please check! (%s)",
+          strerror(errno));
+    return NULL;
+  }
+
+  memset(context, 0, sizeof(ALLinlonv5v7DecContext));
+
+  debug("init create");
+
+  return &(context->stAlDecBaseContext.stAlBaseContext);
+}
+
 RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   if (!ctx) {
     error("input para ALBaseContext is NULL, please check!");
@@ -312,13 +334,13 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     return MPP_NULL_POINTER;
   }
 
-  if (para->eCodingType == CODING_MPEG2 &&
-      para->nProfile == PROFILE_MPEG2_HIGH) {
+  S32 ret = 0;
+
+  ret = checkCodingTypeAndProfile(para->eCodingType, para->nProfile);
+  if (ret) {
     error("not support this format or profile, please check!");
     return MPP_NOT_SUPPORTED_FORMAT;
   }
-
-  S32 ret = 0;
 
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
 
@@ -340,14 +362,11 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT;
   context->nOutputType = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
   context->bInputEos = MPP_FALSE;
-  context->bInputReady = MPP_FALSE;
-  context->bOutputReady = MPP_FALSE;
   context->bIsDestoryed = MPP_FALSE;
   context->nInputQueuedNum = 0;
-  context->bIsFlushed = MPP_FALSE;
 
-  context->pVdecPara->nInputQueueLeftNum = 1;
-
+  // if APP do not set nInputBufferNum and nOutputBufferNum, use default value,
+  // and sync MPP this default value to APP.
   if (!context->pVdecPara->nInputBufferNum)
     context->pVdecPara->nInputBufferNum = INPUT_BUF_NUM;
   if (!context->pVdecPara->nOutputBufferNum)
@@ -360,7 +379,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
       context->pVdecPara->nInputBufferNum,
       context->pVdecPara->nOutputBufferNum);
 
-  for (S32 i = 0; i < 64; i++)
+  for (S32 i = 0; i < MAX_OUTPUT_BUF_NUM; i++)
     context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
 
   context->nInputBufferNum = context->pVdecPara->nInputBufferNum;
@@ -426,6 +445,8 @@ RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
     // error("Getpara poll timed out.");
   }
 
+  // used for update nInputQueueLeftNum, APP use it to decide whether send
+  // packet to MPP, now FFmpeg do like this.
   if (p.revents & POLLOUT && !context->pVdecPara->nInputQueueLeftNum) {
     context->pVdecPara->nInputQueueLeftNum = 1;
   }
@@ -451,12 +472,12 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
   if ((!PACKET_GetLength(packet))) {
-    debug("****************************************** eos");
+    debug("length of input packet is 0, EOS is coming");
     context->bInputEos = MPP_TRUE;
   }
 
   if (PACKET_GetEos(packet)) {
-    debug("****************************************** eos 1");
+    debug("eos flag of input packet is set, EOS is coming");
     context->bInputEos = MPP_TRUE;
   }
 
@@ -469,19 +490,23 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
     struct v4l2_buffer *b = getV4l2Buffer(buf);
     b->bytesused = PACKET_GetLength(packet);
     setEndOfFrame(buf, MPP_TRUE);
-
     setTimeStamp(buf, PACKET_GetPts(packet));
-
-    queueBuffer(getInputPort(context->stCodec), buf);
+    ret = queueBuffer(getInputPort(context->stCodec), buf);
+    if (ret) {
+      error("queueBuffer failed, should not failed, please check!");
+      return ret;
+    }
     context->nInputQueuedNum++;
     context->pVdecPara->nInputQueueLeftNum--;
   } else {
     ret = runPoll(context->stCodec, &p);
-
-    if (/*context->bInputReady*/ MPP_OK == ret && p.revents & POLLOUT) {
-      handleInputBuffer(getInputPort(context->stCodec), context->bInputEos,
-                        sink_data);
-      context->bInputReady = MPP_FALSE;
+    if (MPP_OK == ret && p.revents & POLLOUT) {
+      ret = handleInputBuffer(getInputPort(context->stCodec),
+                              context->bInputEos, sink_data);
+      if (ret) {
+        error("handleInputBuffer failed, should not failed, please check!");
+        return ret;
+      }
       context->pVdecPara->nInputQueueLeftNum--;
     } else {
       // error("can not get input buffer");
@@ -500,13 +525,12 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
 
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
   S32 ret = 0;
-  context->bIsFlushed = MPP_FALSE;
 
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLIN};
 
   ret = runPoll(context->stCodec, &p);
 
-  if (/*context->bOutputReady*/ MPP_OK == ret && p.revents & POLLIN) {
+  if (MPP_OK == ret && p.revents & POLLIN) {
     // debug(
     //     "============================= ok, a frame is ready, "
     //     "get it!");
@@ -516,7 +540,6 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
       ret = handleOutputBuffer(getOutputPort(context->stCodec), MPP_FALSE,
                                src_data);
       // debug("============ ok, a frame is handled, get it! ret = %d", ret);
-      context->bOutputReady = MPP_FALSE;
       if (ret == MPP_RESOLUTION_CHANGED) {
         context->pVdecPara->nWidth =
             getBufWidth(getOutputPort(context->stCodec));
@@ -524,6 +547,9 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
             getBufHeight(getOutputPort(context->stCodec));
         context->pVdecPara->nOutputBufferNum =
             getBufNum(getOutputPort(context->stCodec));
+
+        // when resolution changed, output buffers should be realloced, so set
+        // bIsBufferInDecoder to MPP_TRUE.
         for (U32 i = 0; i < context->pVdecPara->nOutputBufferNum; i++) {
           context->pVdecPara->nOutputBufferFd[i] =
               getBufFd(getOutputPort(context->stCodec), i);
@@ -579,18 +605,13 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
 S32 al_dec_reset(ALBaseContext *ctx) {
   if (!ctx) return MPP_NULL_POINTER;
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
-  if (!context->bIsFlushed) {
-    debug("al_Dec_reset0");
-    usleep(100000);
-    debug("al_Dec_reset1");
-    context->bInputEos = MPP_FALSE;
-    debug("al_Dec_reset2");
-    handleFlush(context->stCodec, MPP_FALSE);
-    context->bIsFlushed = MPP_TRUE;
-    debug("al_Dec_reset3");
-  } else {
-    error("already flushed, please check!");
-  }
+  debug("al_Dec_reset0");
+  usleep(100000);
+  debug("al_Dec_reset1");
+  context->bInputEos = MPP_FALSE;
+  debug("al_Dec_reset2");
+  handleFlush(context->stCodec, MPP_FALSE);
+  debug("al_Dec_reset3");
 
   return MPP_OK;
 }

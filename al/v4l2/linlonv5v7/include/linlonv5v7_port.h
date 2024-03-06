@@ -58,7 +58,7 @@ void allocateBuffers(Port *port, S32 count);
 void freeBuffers(Port *port);
 U32 getBufferCount(Port *port);
 void queueBuffers(Port *port, BOOL eof);
-void queueBuffer(Port *port, Buffer *buf);
+S32 queueBuffer(Port *port, Buffer *buf);
 Buffer *dequeueBuffer(Port *port);
 void printBuffer(Port *port, struct v4l2_buffer buf, const U8 *prefix);
 

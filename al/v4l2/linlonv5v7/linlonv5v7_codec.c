@@ -379,30 +379,33 @@ void streamoffCodec(Codec *codec) {
   streamoff(codec->stOutputPort);
 }
 
-BOOL handleEvent(Codec *codec) {
+S32 handleEvent(Codec *codec) {
   struct v4l2_event event;
   S32 ret;
 
   ret = ioctl(codec->nVideoFd, VIDIOC_DQEVENT, &event);
   if (ret != 0) {
-    error("Failed to dequeue event.");
+    error("Failed to dequeue event, please check!");
+    return MPP_IOCTL_FAILED;
   }
 
   if (event.type == V4L2_EVENT_MVX_COLOR_DESC) {
     struct v4l2_mvx_color_desc color = getColorDesc(codec);
     // printColorDesc(color);
+    error("V4L2_EVENT_MVX_COLOR_DESC event is not support yet, please check!");
   }
 
   if (event.type == V4L2_EVENT_SOURCE_CHANGE &&
       (event.u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION)) {
+    debug("get V4L2_EVENT_SOURCE_CHANGE event, do notify!");
     notifySourceChange(codec->stOutputPort);
   }
 
   if (event.type == V4L2_EVENT_EOS) {
-    return MPP_TRUE;
+    error("V4L2_EVENT_EOS event is not support yet, please check!");
   }
 
-  return MPP_FALSE;
+  return MPP_OK;
 }
 
 void handleFlush(Codec *codec, BOOL eof) {

@@ -248,6 +248,7 @@ void setEPRflag(Buffer *buf) {
 }
 
 void setQPofEPR(Buffer *buf, S32 data) { buf->nQp = data; }
+
 S32 getQPofEPR(Buffer *buf) { return buf->nQp; }
 
 BOOL isGeneralBuffer(Buffer *buf) {
@@ -399,6 +400,26 @@ void setRoiCfg(Buffer *buf, struct v4l2_mvx_roi_regions roi) {
 
 BOOL getRoiCfgflag(Buffer *buf) { return buf->isRoiCfg; }
 
+/***
+ * struct v4l2_buffer_param_region
+ * {
+ *   uint16_t mbx_left;
+ *   uint16_t mbx_right;
+ *   uint16_t mby_top;
+ *   uint16_t mby_bottom;
+ *   int16_t qp_delta;
+ * };
+ *
+ * struct v4l2_mvx_roi_regions
+ * {
+ *   unsigned int pic_index;
+ *   unsigned char qp_present;
+ *   unsigned char qp;
+ *   unsigned char roi_present;
+ *   unsigned char num_roi;
+ *   struct v4l2_buffer_param_region roi[V4L2_MVX_MAX_FRAME_REGIONS];
+ * };
+ */
 struct v4l2_mvx_roi_regions getRoiCfg(Buffer *buf) {
   return buf->roi_cfg;
 }
