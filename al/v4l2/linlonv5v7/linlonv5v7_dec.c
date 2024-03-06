@@ -529,32 +529,23 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLIN};
 
   ret = runPoll(context->stCodec, &p);
-
   if (MPP_OK == ret && p.revents & POLLIN) {
-    // debug(
-    //     "============================= ok, a frame is ready, "
-    //     "get it!");
-    if (!context->stCodec) {
-      error("aoaoaoao\n");
-    } else {
-      ret = handleOutputBuffer(getOutputPort(context->stCodec), MPP_FALSE,
-                               src_data);
-      // debug("============ ok, a frame is handled, get it! ret = %d", ret);
-      if (ret == MPP_RESOLUTION_CHANGED) {
-        context->pVdecPara->nWidth =
-            getBufWidth(getOutputPort(context->stCodec));
-        context->pVdecPara->nHeight =
-            getBufHeight(getOutputPort(context->stCodec));
-        context->pVdecPara->nOutputBufferNum =
-            getBufNum(getOutputPort(context->stCodec));
+    ret = handleOutputBuffer(getOutputPort(context->stCodec), MPP_FALSE,
+                             src_data);
+    // debug("ok, a frame is handled, get it! ret = %d", ret);
+    if (ret == MPP_RESOLUTION_CHANGED) {
+      context->pVdecPara->nWidth = getBufWidth(getOutputPort(context->stCodec));
+      context->pVdecPara->nHeight =
+          getBufHeight(getOutputPort(context->stCodec));
+      context->pVdecPara->nOutputBufferNum =
+          getBufNum(getOutputPort(context->stCodec));
 
-        // when resolution changed, output buffers should be realloced, so set
-        // bIsBufferInDecoder to MPP_TRUE.
-        for (U32 i = 0; i < context->pVdecPara->nOutputBufferNum; i++) {
-          context->pVdecPara->nOutputBufferFd[i] =
-              getBufFd(getOutputPort(context->stCodec), i);
-          context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
-        }
+      // when resolution changed, output buffers should be realloced, so set
+      // bIsBufferInDecoder to MPP_TRUE.
+      for (U32 i = 0; i < context->pVdecPara->nOutputBufferNum; i++) {
+        context->pVdecPara->nOutputBufferFd[i] =
+            getBufFd(getOutputPort(context->stCodec), i);
+        context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
       }
     }
   } else {
@@ -589,11 +580,14 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
   // debug("release output idx = %d", buf_idx);
   Buffer *buf = getBuffer(getOutputPort(context->stCodec), buf_idx);
   if (!buf) {
-    error("buf is NULL, please check!");
+    error("buf is NULL, this should not happen, please check!");
   } else {
     clearBytesUsed(buf);
 
-    queueBuffer(getOutputPort(context->stCodec), buf);
+    ret = queueBuffer(getOutputPort(context->stCodec), buf);
+    if (ret) {
+      error("queueBuffer failed, this should not happen, please check!");
+    }
     // debug("release output ret = %d", ret);
 
     context->pVdecPara->bIsBufferInDecoder[buf_idx] = MPP_TRUE;
@@ -652,13 +646,12 @@ S32 al_dec_flush(ALBaseContext *ctx) {
 
 void al_dec_destory(ALBaseContext *ctx) {
   if (!ctx) return;
-  debug("1111111111110");
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
-
   context->bIsDestoryed = MPP_TRUE;
-  debug("111111111111");
+  debug("destory start");
   pthread_join(context->pollthread, NULL);
-  debug("111111111112");
+  debug("pthread join finish");
+
   if (context->nVideoFd && context->stCodec) {
     enum v4l2_buf_type input_type =
         getV4l2BufType(getInputPort(context->stCodec));
@@ -666,10 +659,10 @@ void al_dec_destory(ALBaseContext *ctx) {
         getV4l2BufType(getOutputPort(context->stCodec));
     mpp_v4l2_stream_off(context->nVideoFd, &input_type);
     mpp_v4l2_stream_off(context->nVideoFd, &output_type);
-    debug("111111111113");
-    usleep(50000);
+    debug("stream off finish");
+
     destoryCodec(context->stCodec);
-    debug("111111111114");
+    debug("destory codec finish");
     close(context->nVideoFd);
   }
   free(context);

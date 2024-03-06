@@ -1351,11 +1351,11 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
 }
 
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
-  // debug("handle output frame!!!");
   Buffer *buffer = dequeueBuffer(port);
   if (!buffer) {
-    error("buf is NULL, please check!");
-    return MPP_OK;
+    error(
+        "dequeueBuffer failed, this dequeueBuffer must successed, because it "
+        "is after Poll, please check!");
   }
 
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
@@ -1439,6 +1439,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   }
 
   if (!getBytesUsed(b)) {
+    error("no data, app decide what to do!");
     return MPP_CODER_NO_DATA;
   }
 
