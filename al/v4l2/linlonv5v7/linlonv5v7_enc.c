@@ -612,6 +612,7 @@ S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
 
     setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
                       (U8 *)FRAME_GetDataPointer(sink_frame, 0));
+    setTimeStamp(buf, FRAME_GetPts(sink_frame));
 
     queueBuffer(getInputPort(context->stCodec), buf);
     context->nInputQueuedNum++;

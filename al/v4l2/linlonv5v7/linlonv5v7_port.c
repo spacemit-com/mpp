@@ -1336,6 +1336,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
 
     setExternalDmaBuf(buffer, FRAME_GetFD(frame, 0),
                       (U8 *)FRAME_GetDataPointer(frame, 0));
+    setTimeStamp(port->stBuf[b->index], FRAME_GetPts(frame));
   }
 
   setEndOfStream(buffer, eof);

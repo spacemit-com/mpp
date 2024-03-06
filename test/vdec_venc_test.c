@@ -414,7 +414,6 @@ S32 main(S32 argc, char **argv) {
         do {
           ret1 = VENC_GetOutputStreamBuffer(
               context->pVencCtx, PACKET_GetBaseData(context->pOutputPacket));
-          error("------------------------------ ret1 = %d", ret1);
           if (ret1 == MPP_OK) {
             debug(
                 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
