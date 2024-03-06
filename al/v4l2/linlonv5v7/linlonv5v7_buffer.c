@@ -28,10 +28,15 @@ struct _Buffer {
   S32 nTotalLength;                    // for V4L2_MEMORY_DMABUF
   S32 nPlaneOffset[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
   S32 nPlaneLength[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
+
+  /***
+   * only for frame, not used for packet
+   */
+  MppFrameBufferType eBufferType;
 };
 
-Buffer *createBuffer(struct v4l2_buffer buf, S32 fd,
-                     struct v4l2_format format) {
+Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format,
+                     MppFrameBufferType buffer_type) {
   Buffer *buffer_tmp = (Buffer *)malloc(sizeof(Buffer));
   if (!buffer_tmp) {
     error("can not malloc Buffer, please check! (%s)", strerror(errno));
@@ -43,6 +48,7 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd,
   buffer_tmp->format = format;
   buffer_tmp->nMemType = buf.memory;
   buffer_tmp->nIndex = buf.index;
+  buffer_tmp->eBufferType = buffer_type;
 
   memset(buffer_tmp->pUserPtr, 0, sizeof(buffer_tmp->pUserPtr));
 
@@ -78,6 +84,36 @@ struct v4l2_buffer *getV4l2Buffer(Buffer *buf) {
 U8 *getUserPtr(Buffer *buf, S32 index) { return buf->pUserPtr[index]; }
 
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr) { buf->pUserPtr[index] = ptr; }
+
+S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr) {
+  buf->stBufArr.m.planes[0].m.fd = fd;
+  buf->pUserPtr[0] = ptr;
+  buf->nPlaneOffset[0] = 0;
+  buf->stBufArr.m.planes[0].bytesused = buf->nPlaneLength[0];
+  buf->stBufArr.m.planes[0].data_offset = 0;
+  buf->stBufArr.m.planes[0].length = buf->nPlaneLength[0];
+
+  for (S32 j = 1; j < buf->stBufArr.length; j++) {
+    struct v4l2_plane *p = &(buf->stBufArr.m.planes[j]);
+    S32 k;
+    S32 offset = 0;
+    for (k = j; k > 0; k--) {
+      offset += buf->nPlaneLength[j - k];
+    }
+    buf->nPlaneOffset[j] = offset;
+    if (p->length > 0) {
+      buf->pUserPtr[j] = buf->pUserPtr[0] + offset;
+      buf->stBufArr.m.planes[j].m.fd = buf->stBufArr.m.planes[0].m.fd;
+      buf->stBufArr.m.planes[j].bytesused =
+          buf->nPlaneLength[j] + buf->nPlaneOffset[j];
+      buf->stBufArr.m.planes[j].data_offset = buf->nPlaneOffset[j];
+      buf->stBufArr.m.planes[j].length =
+          buf->nPlaneLength[j] + buf->nPlaneOffset[j];
+    }
+  }
+
+  return MPP_OK;
+}
 
 struct v4l2_format *getFormat(Buffer *buf) {
   return &(buf->format);
@@ -168,6 +204,10 @@ void setEndOfSubFrame(Buffer *buf, BOOL eosf) {
   buf->stBufArr.flags |= eosf ? V4L2_BUF_FLAG_END_OF_SUB_FRAME : 0;
 }
 
+/***
+ * 2 bits. This value multiplied by 90 gives the rotation of the buffer, 0, 90,
+ * 180 or 270, anti-clockwise. Not supported for AFBC.
+ */
 S32 setRotation(Buffer *buf, S32 rotation) {
   if (rotation % 90) {
     error("input para rotation is not valid");
@@ -193,6 +233,10 @@ S32 setRotation(Buffer *buf, S32 rotation) {
   return MPP_OK;
 }
 
+/***
+ * 2 bits. For decode only. Value can be 0, 1 or 2, indicating downscaling by
+ * 1/1,1/2 or 1/4, horizontally and vertically.
+ */
 S32 setDownScale(Buffer *buf, S32 scale) {
   if (1 == scale) {
     // debug("no need to set scale");
@@ -288,7 +332,8 @@ void memoryMap(Buffer *buf, S32 fd) {
 
     debug("nTotalLength = %d", buf->nTotalLength);
 
-    if (V4L2_MEMORY_DMABUF == buf->nMemType) {
+    if (V4L2_MEMORY_DMABUF == buf->nMemType &&
+        MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
       buf->stBufArr.m.planes[0].m.fd =
           allocDmaBuf(buf->pDmaBufWrapper, buf->nTotalLength);
       buf->pUserPtr[0] = mmap(NULL, buf->nTotalLength, PROT_READ | PROT_WRITE,
@@ -311,6 +356,10 @@ void memoryMap(Buffer *buf, S32 fd) {
           buf->stBufArr.m.planes[j].m.fd = buf->stBufArr.m.planes[0].m.fd;
         }
       }
+    } else {
+      error(
+          "maybe dmabuf external, not alloc dmabuf here, always used for video "
+          "encode!");
     }
 
   } else {
@@ -345,7 +394,8 @@ S32 memoryUnmap(Buffer *buf) {
         }
       }
     }*/
-    if (buf->pUserPtr[0]) {
+    if (buf->pUserPtr[0] &&
+        MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
       if (munmap(buf->pUserPtr[0], buf->nTotalLength)) {
         error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)",
               buf->nTotalLength, buf->pUserPtr[0], strerror(errno));
@@ -353,6 +403,10 @@ S32 memoryUnmap(Buffer *buf) {
       }
       freeDmaBuf(buf->pDmaBufWrapper);
       close(buf->stBufArr.m.planes[0].m.fd);
+    } else {
+      error(
+          "maybe dmabuf external, not free dmabuf here, always used for video "
+          "encode!");
     }
   } else {
     if (buf->pUserPtr[0]) {

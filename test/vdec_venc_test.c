@@ -9,7 +9,7 @@
  * @Description:
  */
 
-#define ENABLE_DEBUG 0
+#define ENABLE_DEBUG 1
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -24,79 +24,105 @@
 #include "vdec.h"
 #include "venc.h"
 
-typedef struct _FrameInfo {
-  U32 nOffset;
-  S32 nLength;
-} FrameInfo;
-
 typedef struct _TestVdecContext {
+  /**
+   * path of input file with stream
+   */
   U8 *pInputFileName;
+
+  /**
+   * path of output file, write stream to it
+   */
   U8 *pOutputFileName;
+
+  /**
+   * path of middle file, write frame to it, for debug
+   */
   U8 *pMidFileName;
+
   FILE *pInputFile;
   FILE *pMidFile;
   FILE *pOutputFile;
+
+  /**
+   * used for demuxer
+   */
   S32 nFileOffset;
-  S32 nFrameNum;
-  FrameInfo *pInfo;
   MppParseContext *pParseCtx;
+
+  /**
+   * used for save para from cmd
+   */
   MppCodingType eCodingType;
+  S32 eOutputPixelFormat;
   MppCodecType eCodecType;
+
+  /**
+   * used for decoder and encoder
+   */
   MppVdecCtx *pVdecCtx;
+  MppVdecPara *pVdecPara;
   MppVencCtx *pVencCtx;
-  MppPacket *pPacket;
+  MppPacket *pInputPacket;
   MppPacket *pOutputPacket;
-  MppFrame *pInputFrame;
-  MppFrame *pOutputFrame;
+  MppFrame *pFrame;
   S32 nWidth;
   S32 nHeight;
-  S32 eOutputPixelFormat;
   S64 nTimeStamp;
   BOOL bIsDestoryed;
+  pthread_t parse_thread;
+  pthread_t decode_thread;
 } TestVdecContext;
 
 static const MppArgument ArgumentMapping[] = {
-    {"-H", "--help", HELP, "Print this help"},
-    {"-i", "--input", INPUT, "Input file"},
+    {"-H", "--help", HELP, "Print help"},
+    {"-i", "--input", INPUT, "Input file path"},
     {"-c", "--codingtype", CODING_TYPE, "Coding type"},
     {"-ct", "--codectype", CODEC_TYPE, "Codec type"},
-    {"-o", "--save_frame_file", SAVE_FRAME_FILE, "Saving picture file"},
+    {"-o", "--save_frame_file", SAVE_FRAME_FILE, "Saving picture file path"},
     {"-w", "--width", WIDTH, "Video width"},
     {"-h", "--height", HEIGHT, "Video height"},
-    {"-f", "--format", FORMAT, "Video yuv formatt"},
+    {"-f", "--format", FORMAT, "Video PixelFormat"},
 };
 
-static void parse_argument(TestVdecContext *context, char *argument,
-                           char *value, S32 num) {
+static S32 parse_argument(TestVdecContext *context, char *argument, char *value,
+                          S32 num) {
   ARGUMENT arg;
   S32 len = value == NULL ? 0 : strlen(value);
   if (len > DEMO_FILE_NAME_LEN) {
-    error("value is too long, fix it !");
-    return;
+    error("value is too long, please check!");
+    return -1;
   }
+
+  if (!len && get_argument(ArgumentMapping, argument, num) != HELP) {
+    error("argument need a value, please check!");
+    return -1;
+  }
+
   arg = get_argument(ArgumentMapping, argument, num);
   switch (arg) {
     case HELP:
       print_demo_usage(ArgumentMapping, num);
-      exit(-1);
+      print_para_enum();
+      return -1;
     case INPUT:
       sscanf(value, "%2048s", context->pInputFileName);
-      debug(" get input file: %s", context->pInputFileName);
+      debug(" get input file : %s", context->pInputFileName);
       break;
     case CODING_TYPE:
       sscanf(value, "%d", (S32 *)&(context->eCodingType));
-      debug(" coding type is : %d", context->eCodingType);
+      debug(" coding type is : %s", mpp_codingtype2str(context->eCodingType));
       break;
     case CODEC_TYPE:
       sscanf(value, "%d", (S32 *)&(context->eCodecType));
-      debug(" codec type is : %d", context->eCodecType);
+      debug(" codec type is : %s", mpp_codectype2str(context->eCodecType));
       break;
     case SAVE_FRAME_FILE:
       sscanf(value, "%2048s", context->pOutputFileName);
       debug(" get output file: %s", context->pOutputFileName);
       sscanf(value, "%2048s", context->pMidFileName);
       strcat(context->pMidFileName, ".yuv");
-      debug(" get output file: %s", context->pMidFileName);
+      debug(" get middle file: %s", context->pMidFileName);
       break;
     case WIDTH:
       sscanf(value, "%d", &(context->nWidth));
@@ -108,13 +134,16 @@ static void parse_argument(TestVdecContext *context, char *argument,
       break;
     case FORMAT:
       sscanf(value, "%d", &(context->eOutputPixelFormat));
-      debug(" video yuv format is : %d", context->eOutputPixelFormat);
+      debug(" video pixel format is : %s",
+            mpp_pixelformat2str(context->eOutputPixelFormat));
       break;
     case INVALID:
     default:
-      error("Unknowed argument :  %s", argument);
-      break;
+      error("Unknowed argument : %s, please check!", argument);
+      return -1;
   }
+
+  return 0;
 }
 
 static TestVdecContext *TestVdecContextCreate() {
@@ -154,16 +183,7 @@ static TestVdecContext *TestVdecContextCreate() {
   memset(context->pMidFileName, 0, DEMO_FILE_NAME_LEN);
 
   context->nFileOffset = 0;
-  context->nFrameNum = 0;
-  context->pInfo = (FrameInfo *)malloc(sizeof(FrameInfo) * MAX_FRAME_NUM);
-  if (!context->pInfo) {
-    error("Can not malloc context->pInfo, please check !");
-    free(context->pOutputFileName);
-    free(context->pInputFileName);
-    free(context);
-    return NULL;
-  }
-  memset(context->pInfo, 0, sizeof(FrameInfo) * MAX_FRAME_NUM);
+  context->nTimeStamp = 0;
 
   return context;
 }
@@ -178,14 +198,8 @@ void *do_parse(void *private_data) {
   S32 need_drain = 0;
   S32 length = 0;
   S32 fileSize;
-  S32 region_size;
 
-  if (context->nHeight * context->nWidth <= 1920 * 1080)
-    region_size = MPP_PACKET_MALLOC_SIZE;
-  else
-    region_size = MPP_PACKET_MALLOC_SIZE * 2;
-
-  stream_data = (U8 *)malloc(region_size);
+  stream_data = (U8 *)malloc(MPP_PACKET_PARSE_REGION_SIZE);
   tmp_stream_data = stream_data;
 
   fseek(context->pInputFile, 0, SEEK_END);
@@ -195,7 +209,8 @@ void *do_parse(void *private_data) {
 
   while (1) {
     stream_data = tmp_stream_data;
-    stream_length = fread(stream_data, 1, region_size, context->pInputFile);
+    stream_length = fread(stream_data, 1, MPP_PACKET_PARSE_REGION_SIZE,
+                          context->pInputFile);
     debug("stream_length = %d length = %d, offset = %d", stream_length, length,
           context->nFileOffset);
     if (length == stream_length &&
@@ -204,20 +219,7 @@ void *do_parse(void *private_data) {
       need_drain = 1;
     }
 
-    if (stream_length == 0) {
-#if 0
-
-      S32 flaggg = 1;
-      while (flaggg > 0) {
-        PACKET_SetEos(context->pPacket, MPP_TRUE);
-        PACKET_SetLength(context->pPacket, 0);
-
-        ret = VDEC_Decode(context->pVdecCtx,
-                          PACKET_GetBaseData(context->pPacket));
-        debug("last decode");
-        flaggg--;
-      }
-#endif
+    if (0 == stream_length) {
       debug("There is no data, quit!");
       if (stream_data) {
         free(stream_data);
@@ -229,110 +231,67 @@ void *do_parse(void *private_data) {
     while (1) {
       ret = context->pParseCtx->ops->parse(
           context->pParseCtx, (U8 *)stream_data, stream_length,
-          (U8 *)PACKET_GetDataPointer(context->pPacket), &length, 0,
+          (U8 *)PACKET_GetDataPointer(context->pInputPacket), &length, 0,
           need_drain);
-      if (ret == 0 || need_drain) {
+      if (0 == ret || need_drain) {
         if (need_drain) {
-          PACKET_SetEos(context->pPacket, MPP_TRUE);
+          PACKET_SetEos(context->pInputPacket, MPP_TRUE);
           debug("length = %d here, ret: %d", length, ret);
         }
         stream_data += length;
         stream_length -= length;
 
-        context->pInfo[context->nFrameNum].nLength = length;
-        context->pInfo[context->nFrameNum].nOffset = context->nFileOffset;
-        context->nFrameNum++;
         context->nFileOffset += length;
-        PACKET_SetLength(context->pPacket, length);
-        PACKET_SetPts(context->pPacket, context->nTimeStamp);
+        PACKET_SetLength(context->pInputPacket, length);
+        PACKET_SetPts(context->pInputPacket, context->nTimeStamp);
         context->nTimeStamp += 1000000;
-        /*debug("we get a packet, length = %d, ret = %d %p %x %x %x %x",
-               length, ret, PACKET_GetDataPointer(context->pPacket),
-               *(S32 *)PACKET_GetDataPointer(context->pPacket),
-               *(S32 *)(PACKET_GetDataPointer(context->pPacket) + 4),
-               *(S32 *)(PACKET_GetDataPointer(context->pPacket) + 8),
-               *(S32 *)(PACKET_GetDataPointer(context->pPacket) + 12));*/
 
-        // start decode
-        ret = -1;
+        debug("we get a packet, length = %d, ret = %d %p %x %x %x %x", length,
+              ret, PACKET_GetDataPointer(context->pInputPacket),
+              *(S32 *)PACKET_GetDataPointer(context->pInputPacket),
+              *(S32 *)(PACKET_GetDataPointer(context->pInputPacket) + 4),
+              *(S32 *)(PACKET_GetDataPointer(context->pInputPacket) + 8),
+              *(S32 *)(PACKET_GetDataPointer(context->pInputPacket) + 12));
 
-#if 0
-                MppData * tmp = PACKET_GetBaseData(context->pPacket);
-                tmp->bEos = need_drain;
-#endif
-
-        while (ret != 0) {
+        do {
+          ret = -1;
+          VDEC_GetParam(context->pVdecCtx, &(context->pVdecPara));
+          if (!context->pVdecPara->nInputQueueLeftNum) continue;
           ret = VDEC_Decode(context->pVdecCtx,
-                            PACKET_GetBaseData(context->pPacket));
-        }
-        // get decode frame
+                            PACKET_GetBaseData(context->pInputPacket));
+        } while (ret != 0);
 
         need_drain = 0;
       } else {
         length = stream_length;
         fseek(context->pInputFile, context->nFileOffset, SEEK_SET);
         debug("fileoffset = %d", context->nFileOffset);
-
         break;
-
-        // stream_length = fread(stream_data, 1, MPP_PACKET_MALLOC_SIZE,
-        // pInputFile);
       }
     }
-#if 0
-        debug("start to sleep");
-        for(S32 ppp=0;ppp<100;ppp++)
-        {
-            usleep(30000);
-            usleep(30000);
-            usleep(30000);
-            usleep(30000);
-        }
-        debug("finish to sleep");
-#endif
   }
 
   debug("do_parse thread exit=============================");
-}
-
-void *do_decode(void *private_data) {
-  TestVdecContext *context = (TestVdecContext *)private_data;
-  S32 ret = 0;
-
-  while (1) {
-    if (context->bIsDestoryed) pthread_exit(NULL);
-    ret = VENC_RequestOutputStreamBuffer(
-        context->pVencCtx, PACKET_GetBaseData(context->pOutputPacket));
-    if (ret == MPP_OK) {
-      debug(
-          "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX %d",
-          PACKET_GetLength(context->pOutputPacket));
-      fwrite(PACKET_GetDataPointer(context->pOutputPacket),
-             PACKET_GetLength(context->pOutputPacket), 1, context->pOutputFile);
-    } else {
-      error("mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm ret = %d", ret);
-      usleep(50000);
-    }
-  }
 }
 
 S32 main(S32 argc, char **argv) {
   TestVdecContext *context = NULL;
   S32 argument_num = 0;
   S32 ret = 0;
-  pthread_t parse_thread;
-  pthread_t decode_thread;
 
   context = TestVdecContextCreate();
   if (!context) {
     error("can not create TestVdecContext, please check!");
-    goto finish;
+    return -1;
   }
 
   argument_num = sizeof(ArgumentMapping) / sizeof(MppArgument);
   if (argc >= 2) {
     for (S32 i = 1; i < (int)argc; i += 2) {
-      parse_argument(context, argv[i], argv[i + 1], argument_num);
+      ret = parse_argument(context, argv[i], argv[i + 1], argument_num);
+      if (ret < 0) {
+        goto finish;
+      }
     }
   } else {
     error("There is no arguments, We need more arguments!");
@@ -341,78 +300,86 @@ S32 main(S32 argc, char **argv) {
   }
 
   // create parser
-  debug("coding type is : %d", context->eCodingType);
   context->pParseCtx = PARSE_Create(context->eCodingType);
+  if (!context->pParseCtx) {
+    error("create context->pParseCtx failed, please check!");
+    goto finish;
+  }
   context->pParseCtx->ops->init(context->pParseCtx);
 
   // create vdec channel
   context->pVdecCtx = VDEC_CreateChannel();
   if (!context->pVdecCtx) {
-    error("Can not create MppVdecCtx, please check !");
+    error("Can not create MppVdecCtx, please check!");
     goto finish;
   }
 
-  // set para
-  context->pVdecCtx->stVdecPara.eCodingType = context->eCodingType;  // 264
+  // set vdec para
+  context->pVdecCtx->stVdecPara.eCodingType = context->eCodingType;
   context->pVdecCtx->stVdecPara.nWidth = context->nWidth;
   context->pVdecCtx->stVdecPara.nHeight = context->nHeight;
-  context->pVdecCtx->stVdecPara.nScale = 1;
-  context->pVdecCtx->stVdecPara.eOutputPixelFormat =
-      context->eOutputPixelFormat;  // NV21
-  context->pVdecCtx->eCodecType = context->eCodecType;
-  context->nTimeStamp = 0;
-
-  if (context->nWidth * context->nHeight >= 1920 * 1080) {
-    context->pVdecCtx->stVdecPara.bInputBlockModeEnable = MPP_TRUE;
+  if (context->nWidth >= 3840 || context->nHeight >= 2160) {
+    debug("4K video, downscale!\n");
+    context->pVdecCtx->stVdecPara.nScale = 2;
+  } else {
+    context->pVdecCtx->stVdecPara.nScale = 1;
   }
-
+  context->pVdecCtx->stVdecPara.eOutputPixelFormat =
+      context->eOutputPixelFormat;
+  context->pVdecCtx->eCodecType = context->eCodecType;
+  context->pVdecCtx->stVdecPara.nHorizonScaleDownRatio = 1;
+  context->pVdecCtx->stVdecPara.nVerticalScaleDownRatio = 1;
+  context->pVdecCtx->stVdecPara.nRotateDegree = 0;
+  context->pVdecCtx->stVdecPara.bThumbnailMode = 0;
+  context->pVdecCtx->stVdecPara.bIsInterlaced = MPP_FALSE;
   context->bIsDestoryed = MPP_FALSE;
 
   // vdec init
-  VDEC_Init(context->pVdecCtx);
+  ret = VDEC_Init(context->pVdecCtx);
+  if (ret) {
+    error("VDEC_init failed, please check!");
+    goto finish;
+  }
 
-  // create vdec channel
+  // create venc channel
   context->pVencCtx = VENC_CreateChannel();
   if (!context->pVencCtx) {
     error("Can not create MppVencCtx, please check !");
     goto finish;
   }
 
-  context->pVencCtx->stVencPara.eCodingType = context->eCodingType;  // 264
+  context->pVencCtx->stVencPara.eCodingType = context->eCodingType;
   context->pVencCtx->stVencPara.nWidth = context->nWidth;
   context->pVencCtx->stVencPara.nHeight = context->nHeight;
   context->pVencCtx->stVencPara.PixelFormat = context->eOutputPixelFormat;
-  context->pVencCtx->eCodecType = context->eCodecType;  // NV21
+  context->pVencCtx->eCodecType = context->eCodecType;
 
   // venc init
-  VENC_Init(context->pVencCtx);
-
-  // mpp packet init
-  context->pPacket = PACKET_Create();
-  if (!context->pPacket) {
-    error("Can not malloc MppPacket, please check !");
+  ret = VENC_Init(context->pVencCtx);
+  if (ret) {
+    error("VENC_init failed, please check!");
     goto finish;
   }
-  if (context->nWidth * context->nHeight > 1920 * 1080)
-    PACKET_Alloc(context->pPacket, MPP_PACKET_MALLOC_SIZE * 2);
-  else
-    PACKET_Alloc(context->pPacket, MPP_PACKET_MALLOC_SIZE);
 
-  // mpp packet init
+  // mpp input packet init
+  context->pInputPacket = PACKET_Create();
+  if (!context->pInputPacket) {
+    error("Can not malloc input MppInputPacket, please check !");
+    goto finish;
+  }
+
+  PACKET_Alloc(context->pInputPacket, MPP_PACKET_MALLOC_SIZE * 2);
+
+  // mpp output packet init
   context->pOutputPacket = PACKET_Create();
-  if (!context->pPacket) {
-    error("Can not malloc MppPacket, please check !");
+  if (!context->pOutputPacket) {
+    error("Can not malloc output MppPacket, please check !");
     goto finish;
   }
-  if (context->nWidth * context->nHeight > 1920 * 1080)
-    PACKET_Alloc(context->pOutputPacket, MPP_PACKET_MALLOC_SIZE * 2);
-  else
-    PACKET_Alloc(context->pOutputPacket, MPP_PACKET_MALLOC_SIZE);
+  PACKET_Alloc(context->pOutputPacket, MPP_PACKET_MALLOC_SIZE * 2);
 
   // mpp frame init
-  context->pInputFrame = FRAME_Create();
-  // mpp frame init
-  context->pOutputFrame = FRAME_Create();
+  context->pFrame = FRAME_Create();
 
   context->pInputFile = fopen(context->pInputFileName, "r");
   if (!context->pInputFile) {
@@ -432,97 +399,63 @@ S32 main(S32 argc, char **argv) {
     goto finish;
   }
 
-  ret = pthread_create(&parse_thread, NULL, do_parse, (void *)context);
-  ret = pthread_create(&decode_thread, NULL, do_decode, (void *)context);
-
-  // usleep(200000);
+  ret =
+      pthread_create(&(context->parse_thread), NULL, do_parse, (void *)context);
 
   S32 count111 = 0;
   while (1) {
-    // get decode frame
+    if (context->pVdecCtx->stVdecPara.eDataTransmissinMode ==
+        MPP_INPUT_SYNC_OUTPUT_ASYNC) {
+      ret = VDEC_RequestOutputFrame(context->pVdecCtx,
+                                    FRAME_GetBaseData(context->pFrame));
+      if (ret == MPP_OK) {
+        VENC_Encode(context->pVencCtx, FRAME_GetBaseData(context->pFrame));
+        S32 ret1 = 0;
+        do {
+          ret1 = VENC_GetOutputStreamBuffer(
+              context->pVencCtx, PACKET_GetBaseData(context->pOutputPacket));
+          error("------------------------------ ret1 = %d", ret1);
+          if (ret1 == MPP_OK) {
+            debug(
+                "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                "XX %d",
+                PACKET_GetLength(context->pOutputPacket));
+            fwrite(PACKET_GetDataPointer(context->pOutputPacket),
+                   PACKET_GetLength(context->pOutputPacket), 1,
+                   context->pOutputFile);
+          }
+        } while (ret1);
 
-    ret = VDEC_RequestOutputFrame(context->pVdecCtx,
-                                  FRAME_GetBaseData(context->pInputFrame));
-    S32 y_size = 1280 * 720;  // context->nWidth * context->nHeight;
-    S32 uv_size = y_size / 4;
-    if (context->pVdecCtx->stVdecPara.nScale == 2) y_size /= 4;
+        VDEC_ReturnOutputFrame(context->pVdecCtx,
+                               FRAME_GetBaseData(context->pFrame));
+      } else if (ret == MPP_CODER_EOS) {
+        // if (context->eCodecType == CODEC_OPENH264)
+        //   save_yuv_to_file(context, (S32
+        //   *)FRAME_GetMetaData(context->pFrame));
+        // else
+        //   save_yuv_to_file(context, NULL);
 
-    // save decode frame to file
-    if (ret == MPP_OK || ret == MPP_CODER_EOS) {
-      /*            if (FRAME_GetDataUsedNum(context->pFrame) == 1) {
-                    fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size +
-         uv_size
-               * 2, 1, context->pOutputFile); } else if
-               (FRAME_GetDataUsedNum(context->pFrame) == 2) {
-                    fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size, 1,
-                           context->pOutputFile);
-                    fwrite(FRAME_GetDataPointer(context->pFrame, 1), uv_size *
-         2, 1,p context->pOutputFile); } else {
-                    fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size, 1,
-                           context->pOutputFile);
-                    fwrite(FRAME_GetDataPointer(context->pFrame, 1), uv_size, 1,
-                           context->pOutputFile);
-                    fwrite(FRAME_GetDataPointer(context->pFrame, 2), uv_size, 1,
-                           context->pOutputFile);
-                  }
-                  fflush(context->pOutputFile);
-      */
-      debug("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO %d %d %d %p %p %d",
-            FRAME_GetFD(context->pInputFrame, 0),
-            FRAME_GetFD(context->pInputFrame, 1),
-            FRAME_GetFD(context->pInputFrame, 2),
-            FRAME_GetDataPointer(context->pInputFrame, 0),
-            FRAME_GetDataPointer(context->pInputFrame, 1), y_size);
-      debug(
-          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA frame "
-          "decoder->encoder");
-
-      // fwrite(FRAME_GetDataPointer(context->pInputFrame, 0), y_size, 1,
-      //        context->pMidFile);
-      // fwrite(FRAME_GetDataPointer(context->pInputFrame, 1), uv_size * 2, 1,
-      //        context->pMidFile);
-      // fflush(context->pMidFile);
-
-      VENC_SendInputFrame(context->pVencCtx,
-                          FRAME_GetBaseData(context->pInputFrame));
-
-      // fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size, 1,
-      //        context->pOutputFile);
-      // fwrite(FRAME_GetDataPointer(context->pFrame, 1), uv_size * 2, 1,
-      //        context->pOutputFile);
-      //  fwrite(FRAME_GetDataPointer(context->pFrame, 2), uv_size, 1,
-      //          context->pOutputFile);
-      // fflush(context->pOutputFile);
-
-      // VDEC_ReturnOutputFrame(context->pVdecCtx,
-      //                        FRAME_GetBaseData(context->pFrame));
-      if (ret == MPP_CODER_EOS) {
+        VDEC_ReturnOutputFrame(context->pVdecCtx,
+                               FRAME_GetBaseData(context->pFrame));
         debug("get eos msg, go out of the main while!");
-        // goto finish;
-        //#if 0
-        usleep(20000000);
         goto finish;
-        //#endif
+      } else if (ret == MPP_CODER_NO_DATA) {
+        if (FRAME_GetFD(context->pFrame, 0) > 0) {
+          error("no data but have fd, return");
+          VDEC_ReturnOutputFrame(context->pVdecCtx,
+                                 FRAME_GetBaseData(context->pFrame));
+        }
+        continue;
+      } else if (ret == MPP_RESOLUTION_CHANGED) {
+        debug("resolution changed");
+        continue;
+      } else if (ret == MPP_ERROR_FRAME) {
+        debug("error frame");
+        continue;
+      } else {
+        error("get something wrong(%d), go out of the main while!", ret);
+        goto finish;
       }
-    } else if (ret == MPP_CODER_NO_DATA || ret == MPP_RESOLUTION_CHANGED) {
-      continue;
-    } else {
-      error("get something wronggg(%d), go out of the main while!", ret);
-      goto finish;
-    }
-
-    ret = VENC_ReturnInputFrame(context->pVencCtx,
-                                FRAME_GetBaseData(context->pOutputFrame));
-    if (ret == MPP_OK) {
-      debug(
-          "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB frame "
-          "encoder->decoder");
-      VDEC_ReturnOutputFrame(context->pVdecCtx,
-                             FRAME_GetBaseData(context->pOutputFrame));
-    } else {
-      error("mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm ret = %d", ret);
-      usleep(50000);
-      continue;
     }
   }
 
@@ -530,8 +463,6 @@ finish:
   debug("Here we finish the main!");
 
   context->bIsDestoryed = MPP_TRUE;
-
-  pthread_join(decode_thread, NULL);
 
   if (context->pOutputFile) {
     fflush(context->pOutputFile);
@@ -550,19 +481,36 @@ finish:
     context->pInputFile = NULL;
   }
 
-  FRAME_Destory(context->pInputFrame);
-  FRAME_Destory(context->pOutputFrame);
+  if (context->pFrame) {
+    FRAME_Destory(context->pFrame);
+    context->pFrame = NULL;
+  }
 
-  PACKET_Destory(context->pPacket);
-  debug("Here we finish the main 4!");
-  VDEC_DestoryChannel(context->pVdecCtx);
-  VENC_DestoryChannel(context->pVencCtx);
-  debug("Here we finish the main 5!");
-  PARSE_Destory(context->pParseCtx);
+  if (context->pInputPacket) {
+    PACKET_Free(context->pInputPacket);
+    PACKET_Destory(context->pInputPacket);
+    context->pInputPacket = NULL;
+  }
 
-  if (context->pInfo) {
-    free(context->pInfo);
-    context->pInfo = NULL;
+  if (context->pOutputPacket) {
+    PACKET_Free(context->pOutputPacket);
+    PACKET_Destory(context->pOutputPacket);
+    context->pOutputPacket = NULL;
+  }
+
+  if (context->pVdecCtx) {
+    VDEC_DestoryChannel(context->pVdecCtx);
+    context->pVdecCtx = NULL;
+  }
+
+  if (context->pVencCtx) {
+    VENC_DestoryChannel(context->pVencCtx);
+    context->pVencCtx = NULL;
+  }
+
+  if (context->pParseCtx) {
+    PARSE_Destory(context->pParseCtx);
+    context->pParseCtx = NULL;
   }
 
   if (context->pInputFileName) {

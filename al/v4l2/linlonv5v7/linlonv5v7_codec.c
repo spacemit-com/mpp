@@ -52,13 +52,19 @@ struct _Codec {
   U32 nMinqp;
   U32 nMaxqp;
   U32 nFixedqp;
+
+  /***
+   * only for frame, not used for packet
+   */
+  MppFrameBufferType eBufferType;
 };
 
 Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
                    enum v4l2_buf_type inputType, enum v4l2_buf_type outputType,
                    U32 input_format_fourcc, U32 output_format_fourcc,
                    U32 input_memtype, U32 output_memtype, U32 input_buffer_num,
-                   U32 output_buffer_num, BOOL block) {
+                   U32 output_buffer_num, BOOL block,
+                   MppFrameBufferType buffer_type) {
   Codec *codec_tmp = (Codec *)malloc(sizeof(Codec));
   if (!codec_tmp) {
     error("can not malloc Codec, please check! (%s)", strerror(errno));
@@ -80,10 +86,25 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
   codec_tmp->nOutputMemtype = output_memtype;
   codec_tmp->nInputBufferNum = input_buffer_num;
   codec_tmp->nOutputBufferNum = output_buffer_num;
-  codec_tmp->stInputPort = createPort(fd, inputType, input_format_fourcc,
-                                      input_memtype, input_buffer_num);
-  codec_tmp->stOutputPort = createPort(fd, outputType, output_format_fourcc,
-                                       output_memtype, output_buffer_num);
+  codec_tmp->eBufferType = buffer_type;
+  codec_tmp->stInputPort =
+      createPort(fd, inputType, input_format_fourcc, input_memtype,
+                 input_buffer_num, buffer_type);
+  if (!codec_tmp->stInputPort) {
+    error("create input port failed, please check!");
+    free(codec_tmp);
+    return NULL;
+  }
+  codec_tmp->stOutputPort =
+      createPort(fd, outputType, output_format_fourcc, output_memtype,
+                 output_buffer_num, buffer_type);
+  if (!codec_tmp->stOutputPort) {
+    error("create output port failed, please check!");
+    free(codec_tmp->stInputPort);
+    free(codec_tmp);
+    return NULL;
+  }
+
   codec_tmp->nWidth = width;
   codec_tmp->nHeight = height;
   codec_tmp->bIsInterlaced = isInterlaced;

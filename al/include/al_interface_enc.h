@@ -102,6 +102,13 @@ S32 al_enc_return_output_stream(ALBaseContext *ctx, MppData *src_Data);
  * @param {ALBaseContext} *ctx
  * @return {*}
  */
+S32 al_enc_flush(ALBaseContext *ctx);
+
+/**
+ * @description:
+ * @param {ALBaseContext} *ctx
+ * @return {*}
+ */
 void al_enc_destory(ALBaseContext *ctx);
 
 #ifdef __cplusplus

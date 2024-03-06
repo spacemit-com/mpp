@@ -888,6 +888,7 @@ typedef struct _MppVencPara {
    * set to MPP
    */
   MppCodingType eCodingType;
+  S32 nProfile;
   MppPixelFormat PixelFormat;
 
   /***

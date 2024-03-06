@@ -38,7 +38,7 @@ typedef enum _DIRECTION {
 typedef struct _Port Port;
 
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
-                 U32 memtype, U32 buffer_num);
+                 U32 memtype, U32 buffer_num, MppFrameBufferType buffer_type);
 void destoryPort(Port *port);
 
 Buffer *getBuffer(Port *port, S32 index);
@@ -54,7 +54,7 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
 void printFormat(const struct v4l2_format format);
 struct v4l2_crop getPortCrop(Port *port);
 
-void allocateBuffers(Port *port, S32 count);
+S32 allocateBuffers(Port *port, S32 count);
 void freeBuffers(Port *port);
 U32 getBufferCount(Port *port);
 void queueBuffers(Port *port, BOOL eof);

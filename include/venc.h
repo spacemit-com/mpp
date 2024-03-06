@@ -211,6 +211,14 @@ S32 VENC_RequestOutputStreamBuffer(MppVencCtx *ctx, MppData *src_data);
 S32 VENC_ReturnOutputStreamBuffer(MppVencCtx *ctx, MppData *src_data);
 
 /**
+ * @description: flush data in MPP(include hardware decoder), must flush output
+ * frame, maybe flush input stream.
+ * @param {MppVencCtx} *ctx: channel context
+ * @return {*}: MPP_OK:successful, !MPP_OK:failed
+ */
+S32 VENC_Flush(MppVencCtx *ctx);
+
+/**
  * @description:
  * @param {MppVencCtx} *ctx
  * @return {*}

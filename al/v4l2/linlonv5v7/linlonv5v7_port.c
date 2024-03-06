@@ -51,6 +51,11 @@ struct _Port {
   S32 nQueueNumInput;
   S32 nQueueNumOutput;
 
+  /***
+   * only for frame, not used for packet
+   */
+  MppFrameBufferType eBufferType;
+
   // environment variable
   BOOL bEnableBufferPrint;
   BOOL bEnableOutputBufferSave;
@@ -59,7 +64,7 @@ struct _Port {
 };
 
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
-                 U32 memtype, U32 buffer_num) {
+                 U32 memtype, U32 buffer_num, MppFrameBufferType buffer_type) {
   Port *port_tmp = (Port *)malloc(sizeof(Port));
   if (!port_tmp) {
     error("can not malloc Port, please check! (%s)", strerror(errno));
@@ -84,6 +89,7 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
   port_tmp->bIsSourceChange = MPP_FALSE;
   port_tmp->nQueueNumInput = 0;
   port_tmp->nQueueNumOutput = 0;
+  port_tmp->eBufferType = buffer_type;
 
   if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT ||
       type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
@@ -282,7 +288,7 @@ void tryEncStopCmd(Port *port, BOOL tryStop) { port->bTryEncStop = tryStop; }
 
 void tryDecStopCmd(Port *port, BOOL tryStop) { port->bTryDecStop = tryStop; }
 
-void allocateBuffers(Port *port, S32 count) {
+S32 allocateBuffers(Port *port, S32 count) {
   struct v4l2_requestbuffers reqbuf;
   S32 i;
   S32 ret;
@@ -297,6 +303,7 @@ void allocateBuffers(Port *port, S32 count) {
   ret = ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
   if (ret) {
     error("Failed to request buffers.");
+    return MPP_IOCTL_FAILED;
   }
 
   debug("Request buffers. type:%d count:%d(%d) memory:%d", reqbuf.type,
@@ -318,11 +325,18 @@ void allocateBuffers(Port *port, S32 count) {
     ret = ioctl(port->nVideoFd, VIDIOC_QUERYBUF, &buf);
     if (ret) {
       error("Failed to query buffer.");
+      return MPP_IOCTL_FAILED;
     }
 
     printBuffer(port, buf, "Query");
 
-    port->stBuf[buf.index] = createBuffer(buf, port->nVideoFd, port->stFormat);
+    port->stBuf[buf.index] =
+        createBuffer(buf, port->nVideoFd, port->stFormat, port->eBufferType);
+    if (!port->stBuf[buf.index]) {
+      error("create buffer(index=%d) failed, please check!", buf.index);
+      // to do: some buffer not released
+      return MPP_INIT_FAILED;
+    }
   }
 }
 
@@ -413,7 +427,7 @@ S32 queueBuffer(Port *port, Buffer *buf) {
 
   ret = ioctl(port->nVideoFd, VIDIOC_QBUF, b);
   if (ret) {
-    error("Failed to queue buffer. (%s)", strerror(errno));
+    error("Failed to queue buffer. type = %d (%s)", b->type, strerror(errno));
     return MPP_IOCTL_FAILED;
   }
   if (port->ePortDirection == INPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
@@ -1318,20 +1332,10 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
              V4L2_MEMORY_DMABUF == port->nMemType) {
     // encode input
     MppFrame *frame = FRAME_GetFrame(data);
-    S32 width = getBufWidth(port);
-    S32 height = getBufHeight(port);
-    S32 y_size = width * height;
+    struct v4l2_buffer *b = getV4l2Buffer(buffer);
 
-    // if(!eof)
-    memcpy(getUserPtr(buffer, 0), FRAME_GetDataPointer(frame, 0),
-           y_size * 3 / 2);
-
-    b->m.planes[0].bytesused = y_size;
-    b->m.planes[1].bytesused = y_size * 3 / 2;
-    b->m.planes[0].data_offset = 0;
-    b->m.planes[1].data_offset = y_size;
-    b->m.planes[0].length = y_size;
-    b->m.planes[1].length = y_size * 3 / 2;
+    setExternalDmaBuf(buffer, FRAME_GetFD(frame, 0),
+                      (U8 *)FRAME_GetDataPointer(frame, 0));
   }
 
   setEndOfStream(buffer, eof);

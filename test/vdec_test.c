@@ -332,20 +332,20 @@ S32 main(S32 argc, char **argv) {
     for (S32 i = 1; i < (int)argc; i += 2) {
       ret = parse_argument(context, argv[i], argv[i + 1], argument_num);
       if (ret < 0) {
-        goto finish_after;
+        goto finish;
       }
     }
   } else {
     error("There is no arguments, We need more arguments!");
     print_demo_usage(ArgumentMapping, argument_num);
-    goto finish_after;
+    goto finish;
   }
 
   // create parser
   context->pParseCtx = PARSE_Create(context->eCodingType);
   if (!context->pParseCtx) {
     error("create context->pParseCtx failed, please check!");
-    goto finish_after;
+    goto finish;
   }
   context->pParseCtx->ops->init(context->pParseCtx);
 
@@ -353,8 +353,7 @@ S32 main(S32 argc, char **argv) {
   context->pVdecCtx = VDEC_CreateChannel();
   if (!context->pVdecCtx) {
     error("Can not create MppVdecCtx, please check!");
-    PARSE_Destory(context->pParseCtx);
-    goto finish_after;
+    goto finish;
   }
 
   // set para
@@ -379,17 +378,13 @@ S32 main(S32 argc, char **argv) {
   ret = VDEC_Init(context->pVdecCtx);
   if (ret) {
     error("VDEC_init failed, please check!");
-    VDEC_DestoryChannel(context->pVdecCtx);
-    PARSE_Destory(context->pParseCtx);
-    goto finish_after;
+    goto finish;
   }
 
   context->pPacket = PACKET_Create();
   if (!context->pPacket) {
     error("Can not malloc MppPacket, please check !");
-    VDEC_DestoryChannel(context->pVdecCtx);
-    PARSE_Destory(context->pParseCtx);
-    goto finish_after;
+    goto finish;
   }
 
   PACKET_Alloc(context->pPacket, MPP_PACKET_MALLOC_SIZE * 2);
@@ -397,11 +392,7 @@ S32 main(S32 argc, char **argv) {
   context->pFrame = FRAME_Create();
   if (!context->pFrame) {
     error("Can not malloc MppFrame, please check !");
-    PACKET_Free(context->pPacket);
-    PACKET_Destory(context->pPacket);
-    VDEC_DestoryChannel(context->pVdecCtx);
-    PARSE_Destory(context->pParseCtx);
-    goto finish_after;
+    goto finish;
   }
 
   context->pInputFile = fopen(context->pInputFileName, "r");
@@ -413,9 +404,6 @@ S32 main(S32 argc, char **argv) {
   context->pOutputFile = fopen(context->pOutputFileName, "w+");
   if (!context->pOutputFile) {
     error("can not open context->pOutputFileName, please check !");
-    fflush(context->pInputFile);
-    fclose(context->pInputFile);
-    context->pInputFile = NULL;
     goto finish;
   }
 
@@ -444,7 +432,7 @@ S32 main(S32 argc, char **argv) {
         VDEC_ReturnOutputFrame(context->pVdecCtx,
                                FRAME_GetBaseData(context->pFrame));
         debug("get eos msg, go out of the main while!");
-        goto finish_pre;
+        goto finish;
       } else if (ret == MPP_CODER_NO_DATA) {
         if (FRAME_GetFD(context->pFrame, 0) > 0) {
           error("no data but have fd, return");
@@ -460,12 +448,12 @@ S32 main(S32 argc, char **argv) {
         continue;
       } else {
         error("get something wrong(%d), go out of the main while!", ret);
-        goto finish_pre;
+        goto finish;
       }
     }
   }
 
-finish_pre:
+finish:
   if (context->pOutputFile) {
     fflush(context->pOutputFile);
     fclose(context->pOutputFile);
@@ -478,16 +466,27 @@ finish_pre:
     context->pInputFile = NULL;
   }
 
-finish:
-  // FRAME_Free(context->pFrame);
-  // FRAME_Destory(context->pFrame);
-  PACKET_Free(context->pPacket);
-  PACKET_Destory(context->pPacket);
+  if (context->pFrame) {
+    FRAME_Destory(context->pFrame);
+    context->pFrame = NULL;
+  }
 
-  VDEC_DestoryChannel(context->pVdecCtx);
-  PARSE_Destory(context->pParseCtx);
+  if (context->pPacket) {
+    PACKET_Free(context->pPacket);
+    PACKET_Destory(context->pPacket);
+    context->pPacket = NULL;
+  }
 
-finish_after:
+  if (context->pVdecCtx) {
+    VDEC_DestoryChannel(context->pVdecCtx);
+    context->pVdecCtx = NULL;
+  }
+
+  if (context->pParseCtx) {
+    PARSE_Destory(context->pParseCtx);
+    context->pParseCtx = NULL;
+  }
+
   if (context->pInputFileName) {
     free(context->pInputFileName);
     context->pInputFileName = NULL;

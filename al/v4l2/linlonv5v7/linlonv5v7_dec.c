@@ -404,14 +404,21 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
       context->bIsInterlaced, context->nInputType, context->nOutputType,
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
       context->nInputMemType, context->nOutputMemType, context->nInputBufferNum,
-      context->nOutputBufferNum, context->bIsBlockMode);
+      context->nOutputBufferNum, context->bIsBlockMode, para->eFrameBufferType);
+  if (!context->stCodec) {
+    error("create Codec failed, please check!");
+    return MPP_INIT_FAILED;
+  }
 
+  // set some parameters on the stream level
   setDecoderInterlaced(context, context->bIsInterlaced);
   setDecoderRotation(context, context->nRotation);
   setDecoderDownScale(context, context->nScale);
 
+  // setformat, allocate buffer, stream on
   stream(context->stCodec);
 
+  // pthread for handle event or something
   ret = pthread_create(&context->pollthread, NULL, runpoll, (void *)context);
 
   context->pVdecPara->nInputQueueLeftNum =

@@ -32,6 +32,7 @@ S32 (*enc_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
 S32 (*enc_get_output_stream)(ALBaseContext *ctx, MppData *src_Data);
 S32 (*enc_request_output_stream)(ALBaseContext *ctx, MppData *src_Data);
 S32 (*enc_return_output_stream)(ALBaseContext *ctx, MppData *src_Data);
+S32 (*enc_flush)(ALBaseContext *ctx);
 void (*enc_destory)(ALBaseContext *ctx);
 
 MppVencCtx *VENC_CreateChannel() {
@@ -68,6 +69,8 @@ S32 VENC_Init(MppVencCtx *ctx) {
       dlsym(module_get_so_path(ctx->pModule), "al_enc_request_output_stream");
   enc_return_output_stream = (S32(*)(ALBaseContext * ctx, MppData * src_Data))
       dlsym(module_get_so_path(ctx->pModule), "al_enc_return_output_stream");
+  enc_flush = (S32(*)(ALBaseContext * ctx))
+      dlsym(module_get_so_path(ctx->pModule), "al_enc_flush");
   enc_destory = (void (*)(ALBaseContext * ctx))
       dlsym(module_get_so_path(ctx->pModule), "al_enc_destory");
 
@@ -164,6 +167,13 @@ S32 return_venc_result(ALBaseContext *base_context, MppData *src_data) {
 S32 VENC_ReturnOutputStreamBuffer(MppVencCtx *ctx, MppData *src_data) {
   S32 ret = 0;
   ret = return_venc_result(ctx->pNode.pAlBaseContext, src_data);
+
+  return ret;
+}
+
+S32 VENC_Flush(MppVencCtx *ctx) {
+  S32 ret = 0;
+  ret = enc_flush(ctx->pNode.pAlBaseContext);
 
   return ret;
 }

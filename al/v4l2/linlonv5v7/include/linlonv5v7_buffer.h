@@ -35,12 +35,14 @@ typedef struct _Buffer Buffer;
  * @param {v4l2_format} format
  * @return {*}
  */
-Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format);
+Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format,
+                     MppFrameBufferType buffer_type);
 void destoryBuffer(Buffer *buf);
 
 struct v4l2_buffer *getV4l2Buffer(Buffer *buf);
 U8 *getUserPtr(Buffer *buf, S32 index);
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr);
+S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr);
 struct v4l2_format *getFormat(Buffer *buf);
 void setCrop(Buffer *buf, struct v4l2_crop crop);
 struct v4l2_crop getCrop(Buffer *buf);
