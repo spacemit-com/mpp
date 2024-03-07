@@ -497,6 +497,7 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
     struct v4l2_buffer *b = getV4l2Buffer(buf);
     b->bytesused = PACKET_GetLength(packet);
     setEndOfFrame(buf, MPP_TRUE);
+    setEndOfStream(buf, MPP_FALSE);
     setTimeStamp(buf, PACKET_GetPts(packet));
     ret = queueBuffer(getInputPort(context->stCodec), buf);
     if (ret) {
