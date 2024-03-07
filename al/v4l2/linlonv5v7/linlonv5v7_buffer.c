@@ -30,6 +30,11 @@ struct _Buffer {
   S32 nPlaneLength[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
 
   /***
+   * used for encoder, save extra dmabuf id
+   */
+  S32 nExtraId;
+
+  /***
    * only for frame, not used for packet
    */
   MppFrameBufferType eBufferType;
@@ -85,7 +90,7 @@ U8 *getUserPtr(Buffer *buf, S32 index) { return buf->pUserPtr[index]; }
 
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr) { buf->pUserPtr[index] = ptr; }
 
-S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr) {
+S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id) {
   buf->stBufArr.m.planes[0].m.fd = fd;
   buf->pUserPtr[0] = ptr;
   buf->nPlaneOffset[0] = 0;
@@ -111,6 +116,8 @@ S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr) {
           buf->nPlaneLength[j] + buf->nPlaneOffset[j];
     }
   }
+
+  buf->nExtraId = extra_id;
 
   return MPP_OK;
 }
@@ -484,3 +491,5 @@ void setSuperblock(Buffer *buf, BOOL superblock) {
     buf->stBufArr.flags |= V4L2_BUF_FLAG_MVX_AFBC_32X8_SUPERBLOCK;
   }
 }
+
+S32 getExtraId(Buffer *buf) { return buf->nExtraId; }

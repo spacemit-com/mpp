@@ -512,6 +512,7 @@ typedef enum _MppReturnValue {
   MPP_CODER_NO_DATA = -206,
   MPP_RESOLUTION_CHANGED = -207,
   MPP_ERROR_FRAME = -208,
+  MPP_CODER_NULL_DATA = -209,
 
   /***
    * error about dataqueue

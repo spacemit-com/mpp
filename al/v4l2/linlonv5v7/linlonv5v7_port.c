@@ -1295,13 +1295,15 @@ S32 getBufWidth(Port *port) { return port->stFormat.fmt.pix_mp.width; }
 S32 getBufHeight(Port *port) { return port->stFormat.fmt.pix_mp.height; }
 
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
-  S32 ret = MPP_OK;
+  S32 index;
+  S32 ret;
   Buffer *buffer = dequeueBuffer(port);
   if (!buffer) {
     error(
         "dequeueBuffer failed, this dequeueBuffer must successed, because it "
         "is after Poll, please check!");
   }
+  index = getExtraId(buffer);
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   if (eof) {
     debug("****************************************** eos2");
@@ -1335,7 +1337,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
 
     setExternalDmaBuf(buffer, FRAME_GetFD(frame, 0),
-                      (U8 *)FRAME_GetDataPointer(frame, 0));
+                      (U8 *)FRAME_GetDataPointer(frame, 0), FRAME_GetID(frame));
     setTimeStamp(port->stBuf[b->index], FRAME_GetPts(frame));
   }
 
@@ -1352,7 +1354,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
     sendEncStopCommand(port);
   }
 
-  return MPP_OK;
+  return index;
 }
 
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
@@ -1397,7 +1399,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
 
   /* EOS on capture port-> */
   if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
-    debug("Capture EOS.");
+    debug("Capture EOS");
     return MPP_CODER_EOS;
   }
 
@@ -1444,8 +1446,8 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   }
 
   if (!getBytesUsed(b)) {
-    error("no data, app decide what to do!");
-    return MPP_CODER_NO_DATA;
+    error("null data, app decide what to do!");
+    return MPP_CODER_NULL_DATA;
   }
 
   if (b->flags & V4L2_BUF_FLAG_ERROR) {

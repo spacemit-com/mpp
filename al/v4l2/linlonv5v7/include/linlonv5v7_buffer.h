@@ -42,7 +42,7 @@ void destoryBuffer(Buffer *buf);
 struct v4l2_buffer *getV4l2Buffer(Buffer *buf);
 U8 *getUserPtr(Buffer *buf, S32 index);
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr);
-S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr);
+S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id);
 struct v4l2_format *getFormat(Buffer *buf);
 void setCrop(Buffer *buf, struct v4l2_crop crop);
 struct v4l2_crop getCrop(Buffer *buf);
@@ -74,5 +74,6 @@ BOOL isGeneralBuffer(Buffer *buf);
 void memoryMap(Buffer *buf, S32 fd);
 S32 memoryUnmap(Buffer *buf);
 S32 getLength(Buffer *buf, U32 plane);
+S32 getExtraId(Buffer *buf);
 
 #endif /*_LINLONV5V7_BUFFER_H_*/

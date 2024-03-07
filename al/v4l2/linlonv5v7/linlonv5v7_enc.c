@@ -132,12 +132,14 @@ struct _ALLinlonv5v7EncContext {
    * when a packet with eos=1 comes, bInputEos is set to MPP_TRUE.
    */
   BOOL bInputEos;
+  BOOL bOutputEos;
 
   /***
    * num of input buffer in driver
    * default 0, also 0 after flush
    */
   U32 nInputQueuedNum;
+  BOOL bBufferNeedReturned[MAX_INPUT_BUF_NUM];
 };
 
 static void changeSWEO(ALLinlonv5v7EncContext *context, U32 csweo) {
@@ -537,7 +539,11 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
   context->nOutputType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   context->bInputEos = MPP_FALSE;
+  context->bOutputEos = MPP_FALSE;
   context->nInputQueuedNum = 0;
+  for (S32 i = 0; i < MAX_INPUT_BUF_NUM; i++) {
+    context->bBufferNeedReturned[i] = 0;
+  }
 
   para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
   para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_SYNC;
@@ -558,8 +564,8 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
       context->nVideoFd, context->nWidth, context->nHeight,
       context->bIsInterlaced, context->nInputType, context->nOutputType,
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
-      context->nInputMemType, context->nOutputMemType, INPUT_BUF_NUM,
-      OUTPUT_BUF_NUM, context->bIsBlockMode, para->eFrameBufferType);
+      context->nInputMemType, context->nOutputMemType, ENCODER_INPUT_BUF_NUM,
+      ENCODER_OUTPUT_BUF_NUM, context->bIsBlockMode, para->eFrameBufferType);
   if (!context->stCodec) {
     error("create Codec failed, please check!");
     return MPP_INIT_FAILED;
@@ -579,7 +585,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
 
 S32 al_enc_set_para(ALBaseContext *ctx, MppVencPara *para) { return MPP_OK; }
 
-S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
+S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   if (!ctx) {
     error("input para ALBaseContext is NULL, please check!");
     return MPP_NULL_POINTER;
@@ -594,10 +600,8 @@ S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
   MppFrame *sink_frame = FRAME_GetFrame(sink_data);
   S32 ret = 0;
   static S32 i = 0;
+  S32 index;
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
-
-  debug("0000000000000000000000000000000000 i = %d eos=%d", i,
-        FRAME_GetEos(sink_frame));
 
   if (FRAME_GetEos(sink_frame)) {
     debug("eos flag of input frame is set, EOS is coming");
@@ -611,7 +615,8 @@ S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
     struct v4l2_buffer *b = getV4l2Buffer(buf);
 
     setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
-                      (U8 *)FRAME_GetDataPointer(sink_frame, 0));
+                      (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                      FRAME_GetID(sink_frame));
     setTimeStamp(buf, FRAME_GetPts(sink_frame));
 
     queueBuffer(getInputPort(context->stCodec), buf);
@@ -620,8 +625,9 @@ S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
     ret = runPoll(context->stCodec, &p);
 
     if (MPP_OK == ret && p.revents & POLLOUT) {
-      handleInputBuffer(getInputPort(context->stCodec), context->bInputEos,
-                        sink_data);
+      index = handleInputBuffer(getInputPort(context->stCodec),
+                                context->bInputEos, sink_data);
+      context->bBufferNeedReturned[index] = 1;
       i++;
     } else {
       // error("can not get input buffer");
@@ -631,6 +637,19 @@ S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
   }
 
   return MPP_OK;
+}
+
+S32 al_enc_return_input_frame(ALBaseContext *ctx, MppData *sink_data) {
+  ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+
+  for (S32 index = 0; index < MAX_INPUT_BUF_NUM; index++) {
+    if (1 == context->bBufferNeedReturned[index]) {
+      context->bBufferNeedReturned[index] = 0;
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
@@ -654,7 +673,7 @@ S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
     if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
       debug("Capture EOS.");
-      return MPP_CODER_EOS;
+      context->bOutputEos = MPP_TRUE;
     }
     // if (buffer == NULL) return MPP_CODER_NO_DATA;
     memcpy(PACKET_GetDataPointer(PACKET_GetPacket(src_data)),
@@ -662,6 +681,8 @@ S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
     PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused);
     resetVendorFlags(buffer);
     queueBuffer(getOutputPort(context->stCodec), buffer);
+
+    if (context->bOutputEos) return MPP_CODER_EOS;
   } else {
     // usleep(2000);
     return MPP_CODER_NO_DATA;

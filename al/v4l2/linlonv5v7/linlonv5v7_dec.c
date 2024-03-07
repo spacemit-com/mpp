@@ -368,9 +368,9 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   // if APP do not set nInputBufferNum and nOutputBufferNum, use default value,
   // and sync MPP this default value to APP.
   if (!context->pVdecPara->nInputBufferNum)
-    context->pVdecPara->nInputBufferNum = INPUT_BUF_NUM;
+    context->pVdecPara->nInputBufferNum = DECODER_INPUT_BUF_NUM;
   if (!context->pVdecPara->nOutputBufferNum)
-    context->pVdecPara->nOutputBufferNum = OUTPUT_BUF_NUM;
+    context->pVdecPara->nOutputBufferNum = DECODER_OUTPUT_BUF_NUM;
 
   debug(
       "input para check: foramt:0x%x output format:0x%x input buffer num:%d "
@@ -642,6 +642,7 @@ S32 al_dec_flush(ALBaseContext *ctx) {
   context->nInputQueuedNum = 0;
   context->pVdecPara->nInputQueueLeftNum =
       getBufNum(getInputPort(context->stCodec));
+  context->bInputEos = MPP_FALSE;
 
   debug("Flush finish ========================================");
 

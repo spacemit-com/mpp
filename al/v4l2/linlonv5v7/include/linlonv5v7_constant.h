@@ -16,8 +16,11 @@
 #define MAX_INPUT_BUF_NUM (32)
 #define MAX_OUTPUT_BUF_NUM (32)
 
-#define INPUT_BUF_NUM (12)
-#define OUTPUT_BUF_NUM (8)
+#define DECODER_INPUT_BUF_NUM (12)
+#define DECODER_OUTPUT_BUF_NUM (8)
+
+#define ENCODER_INPUT_BUF_NUM (6)
+#define ENCODER_OUTPUT_BUF_NUM (6)
 
 #define POLL_TIMEOUT (0)
 
