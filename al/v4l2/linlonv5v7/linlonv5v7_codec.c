@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:28:42
- * @LastEditTime: 2024-01-19 16:53:13
+ * @LastEditTime: 2024-03-08 09:32:54
  * @Description:
  */
 
@@ -24,28 +24,67 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define MODULE_TAG "linlonv5v7_codec"
+
+/***
+ *
+ * When we create a decode or encode channel, a codec session will be created in
+ * the init function, a codec include two ports(input port and output port),
+ * port is responsible for managing buffer.
+ *
+ *
+ *                +--------------------------+
+ *                |                          |
+ *                |        CODEC             |
+ *                |                          |
+ *                +---+-----------------+----+
+ *                    |                 |
+ *                    |                 |
+ *                    |                 |
+ *   +----------------v-----+       +---v------------------+
+ *   |                      |       |                      |
+ *   |      INPUT PORT      |       |     OUTPUT PORT      |
+ *   |                      |       |                      |
+ *   +----------+-----------+       +-----------+----------+
+ *              |                               |
+ *              |                               |
+ *              |                               |
+ * +--------+---v----+--------+   +--------+----v---+--------+
+ * | BUFFER | BUFFER | BUFFER |   | BUFFER | BUFFER | BUFFER |
+ * +--------+--------+--------+   +--------+--------+--------+
+ *
+ */
+
 struct _Codec {
+  /***
+   * parameters copyed from dec or enc
+   */
   U8 sDevicePath[20];
   S32 nVideoFd;
   BOOL bIsBlockMode;
-
   S32 nWidth;
   S32 nHeight;
   BOOL bIsInterlaced;
-
   U32 nInputFormatFourcc;
   U32 nOutputFormatFourcc;
-
   U32 nInputMemtype;  // V4L2_MEMORY_MMAP/V4L2_MEMORY_USERPTR/V4L2_MEMORY_DMABUF
   U32 nOutputMemtype;  // V4L2_MEMORY_MMAP/V4L2_MEMORY_USERPTR/V4L2_MEMORY_DMABUF
-
   U32 nInputBufferNum;
   U32 nOutputBufferNum;
 
+  /***
+   * context of input port(managing input buffers)
+   */
   Port *stInputPort;
 
+  /***
+   * context of output port(managing output buffers)
+   */
   Port *stOutputPort;
 
+  /***
+   * parameters always used for encoder
+   */
   BOOL bCsweo;
   U32 nFps;
   U32 nBps;

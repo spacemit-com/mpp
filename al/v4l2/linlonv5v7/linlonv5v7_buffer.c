@@ -13,6 +13,8 @@
 
 #include "linlonv5v7_buffer.h"
 
+#define MODULE_TAG "linlonv5v7_buffer"
+
 struct _Buffer {
   struct v4l2_buffer stBufArr;
   struct v4l2_plane stBufPlanes[VIDEO_MAX_PLANES];

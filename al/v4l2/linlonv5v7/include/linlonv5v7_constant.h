@@ -1,11 +1,12 @@
-/***
- * @Copyright 2022-2023 SPACEMIT. All rights reserved.
- * @Use of this source code is governed by a BSD-style license
- * @that can be found in the LICENSE file.
- * @
+/*
+ * Copyright 2022-2023 SPACEMIT. All rights reserved.
+ * Use of this source code is governed by a BSD-style license
+ * that can be found in the LICENSE file.
+ *
  * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-12-30 10:48:27
- * @LastEditTime: 2023-12-30 11:02:47
+ * @Date: 2024-03-07 14:18:00
+ * @LastEditTime: 2024-03-08 09:02:47
+ * @FilePath: \mpp\al\v4l2\linlonv5v7\include\linlonv5v7_constant.h
  * @Description:
  */
 
@@ -18,6 +19,7 @@
 
 #define DECODER_INPUT_BUF_NUM (12)
 #define DECODER_OUTPUT_BUF_NUM (8)
+#define DECODER_OUTPUT_BUF_EXTRA (4)
 
 #define ENCODER_INPUT_BUF_NUM (6)
 #define ENCODER_OUTPUT_BUF_NUM (6)

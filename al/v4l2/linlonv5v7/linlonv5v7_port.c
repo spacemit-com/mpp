@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-01-20 14:35:13
+ * @LastEditTime: 2024-03-08 09:03:26
  * @Description:
  */
 
@@ -21,6 +21,8 @@
 #include <unistd.h>
 
 #include "env.h"
+
+#define MODULE_TAG "linlonv5v7_port"
 
 struct _Port {
   U32 nFormatFourcc;
@@ -1577,7 +1579,7 @@ void handleResolutionChange(Port *port, BOOL eof) {
                   port->stFormat.fmt.pix_mp.pixelformat, MPP_FALSE);
   U32 count = getBufferCount(port);
   if (count < port->nNeededBufNum) count = port->nNeededBufNum;
-  count += 4;
+  count += DECODER_OUTPUT_BUF_EXTRA;
   allocateBuffers(port, count);
   port->nBufNum = count;
   streamon(port);

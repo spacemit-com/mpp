@@ -1,11 +1,12 @@
-/***
- * @Copyright 2022-2023 SPACEMIT. All rights reserved.
- * @Use of this source code is governed by a BSD-style license
- * @that can be found in the LICENSE file.
- * @
+/*
+ * Copyright 2022-2023 SPACEMIT. All rights reserved.
+ * Use of this source code is governed by a BSD-style license
+ * that can be found in the LICENSE file.
+ *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:29:22
- * @LastEditTime: 2023-09-26 19:34:41
+ * @LastEditTime: 2024-03-08 09:41:21
+ * @FilePath: \mpp\al\v4l2\linlonv5v7\include\linlonv5v7_codec.h
  * @Description:
  */
 
@@ -28,6 +29,32 @@
 #include "mvx-v4l2-controls.h"
 #include "v4l2_utils.h"
 
+/***
+ * V4L2_CID_MVE_VIDEO_NALU_FORMAT
+ *
+ * NALU format of input bitstream buffers for decode.
+ *
+ * START_CODES:
+ * The data stream contains start codes to format the data into packets.
+ * Firmware ignores boundaries between data buffers except when one of the flags
+ * is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_EOS
+ *
+ * ONE_NALU_PER_BUFFER:
+ * There is at most one logical packet (subframe) per buffer. A packet may
+ * consist of multiple buffers. The end of the subframe is signaled by setting
+ * one of the flags: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_EOS
+ *
+ * ONE_BYTE_LENGTH_FIELD/TWO_BYTE_LENGTH_FIELD/FOUR_BYTE_LENGTH_FIELD:
+ * Each logical packet (subframe) is preceded by a length field of the indicated
+ * size. Firmware ignores boundaries between data buffers except when one of the
+ * flags is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+ * MVE_BUFFER_BITSTREAM_FLAG_EOS
+ */
 enum NaluFormat {
   NALU_FORMAT_START_CODES,
   NALU_FORMAT_ONE_NALU_PER_BUFFER,
