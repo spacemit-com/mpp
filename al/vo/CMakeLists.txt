@@ -9,11 +9,3 @@
 # @Description: the cmake script of al layer.
 #------------------------------------------------------------
 
-include_directories(include)
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/utils/include)
-
-add_subdirectory(vcodec)
-add_subdirectory(vps)
-add_subdirectory(vi)
-add_subdirectory(vo)

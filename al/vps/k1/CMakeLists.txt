@@ -5,15 +5,13 @@
 # @
 # @Author: David(qiang.fu@spacemit.com)
 # @Date: 2022-12-28 11:13:50
-# @LastEditTime: 2023-08-03 20:10:39
+# @LastEditTime: 2023-11-13 10:10:00
 # @Description: the cmake script of al layer.
 #------------------------------------------------------------
 
-include_directories(include)
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/utils/include)
-
-add_subdirectory(vcodec)
-add_subdirectory(vps)
-add_subdirectory(vi)
-add_subdirectory(vo)
+include_directories(v2d/include)
+set(SRC_LIST ./v2d/v2d.c)
+add_library(v2d_plugin SHARED ${SRC_LIST})
+target_link_libraries(v2d_plugin utils)
+install(TARGETS v2d_plugin LIBRARY
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
