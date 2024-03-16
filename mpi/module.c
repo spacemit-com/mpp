@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 10:27:53
- * @LastEditTime: 2024-03-15 15:36:55
+ * @LastEditTime: 2024-03-16 10:54:05
  * @Description: dlopen the video codec library dynamicly
  */
 
@@ -69,6 +69,7 @@ FIND_PLUGIN(VO_SDL2, vo_sdl2, vo_sdl2_plugin)
 S32 check_##type() \
 { \
     if ((0 == access("/usr/lib/lib"#name".so", F_OK)) || \
+            (0 == access("/usr/lib/lib"#name".so.0", F_OK)) || \
             (0 == access("/usr/local/lib/lib"#name".so", F_OK)) || \
             (0 == access("/usr/lib/riscv64-linux-gnu/lib"#name".so", F_OK)) || \
             (0 == access("/usr/lib/riscv64-linux-gnu/lib"#name".so.7", F_OK)) || \
