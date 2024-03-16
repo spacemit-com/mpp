@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2023-11-14 10:19:25
+ * @LastEditTime: 2024-03-15 14:55:19
  * @Description:
  */
 
@@ -55,7 +55,7 @@ typedef struct _TestVdecContext {
    */
   MppCodingType eCodingType;
   S32 eOutputPixelFormat;
-  MppCodecType eCodecType;
+  MppModuleType eCodecType;
 
   /**
    * used for decoder and encoder

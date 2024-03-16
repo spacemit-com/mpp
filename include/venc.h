@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 10:28:37
- * @LastEditTime: 2023-02-03 10:04:17
+ * @LastEditTime: 2024-03-15 14:53:57
  * @Description: MPP VENC API, use these API to do video encode
  *               from frame(YUV420) to stream(H.264 etc.)
  */
@@ -117,7 +117,7 @@
 
 typedef struct _MppVencCtx {
   MppProcessNode pNode;
-  MppCodecType eCodecType;
+  MppModuleType eCodecType;
   MppVencPara stVencPara;
   MppModule *pModule;
 } MppVencCtx;

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2023-02-01 15:27:08
+ * @LastEditTime: 2024-03-15 14:57:31
  * @Description:
  */
 
@@ -41,14 +41,16 @@
 +-----------------------+---------+---------+-----------+
 | CODEC_V4L2_LINLONV5V7 | √       | √       | x         |
 +-----------------------+---------+---------+-----------+
-| CODEC_K1 _V2D         | x       | x       | √         |
+| CODEC_K1_V2D          | x       | x       | √         |
 +-----------------------+---------+---------+-----------+
-| CODEC_K1 _JPU         | √       | √       | x         |
+| CODEC_K1_JPU          | √       | √       | x         |
++-----------------------+---------+---------+-----------+
+| VO_SDL2               | x       | x       | x         |
 +-----------------------+---------+---------+-----------+
 
 */
 
-typedef enum _MppCodecType {
+typedef enum _MppModuleType {
   /***
    * auto mode, mpp select suitable codec.
    */
@@ -110,7 +112,19 @@ typedef enum _MppCodecType {
   CODEC_K1_JPU,
 
   CODEC_MAX,
-} MppCodecType;
+
+  /***
+   * auto mode, mpp select suitable vo.
+   */
+  VO_AUTO = 100,
+
+  /***
+   * use sdl2 for output
+   */
+  VO_SDL2,
+
+  VO_MAX,
+} MppModuleType;
 
 static inline const char* mpp_codectype2str(int cmd) {
 #define MPP_CODECTYPE2STR(cmd) \
@@ -1015,5 +1029,26 @@ typedef struct _MppG2dPara {
     MppG2dDrawPara sDrawPara;
   };
 } MppG2dPara;
+
+/***
+ * @description: para sent and get between application and decoder.
+ */
+typedef struct _MppVoPara {
+  /***
+   * read from MPP
+   */
+  MppModuleType eVoType;
+  MppFrameBufferType eFrameBufferType;
+  MppDataTransmissinMode eDataTransmissinMode;
+
+  /***
+   * set to MPP
+   */
+  S32 nWidth;
+  S32 nHeight;
+  S32 nStride;
+  S32 nScale;
+
+} MppVoPara;
 
 #endif /*_MPP_PARA_H_*/

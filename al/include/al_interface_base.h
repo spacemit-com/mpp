@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 09:34:01
- * @LastEditTime: 2023-02-03 08:58:54
+ * @LastEditTime: 2024-03-15 13:45:57
  * @Description: base class of the abstract layer interface
  */
 
@@ -109,6 +109,7 @@ typedef struct _ALBaseContext ALBaseContext;
 typedef struct _ALDecBaseContext ALDecBaseContext;
 typedef struct _ALEncBaseContext ALEncBaseContext;
 typedef struct _ALG2dBaseContext ALG2dBaseContext;
+typedef struct _ALVoBaseContext ALVoBaseContext;
 
 struct _ALBaseContext {};
 
@@ -121,6 +122,10 @@ struct _ALEncBaseContext {
 };
 
 struct _ALG2dBaseContext {
+  ALBaseContext stAlBaseContext;
+};
+
+struct _ALVoBaseContext {
   ALBaseContext stAlBaseContext;
 };
 

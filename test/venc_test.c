@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2023-11-14 17:27:03
+ * @LastEditTime: 2024-03-15 14:55:10
  * @Description:
  */
 
@@ -42,7 +42,7 @@ typedef struct _TestVencContext {
   FILE *pOutputFile;
   MppVencCtx *pVencCtx;
   MppCodingType eCodingType;
-  MppCodecType eCodecType;
+  MppModuleType eCodecType;
   MppPacket *pPacket;
   MppFrame *pFrame;
   S32 nWidth;

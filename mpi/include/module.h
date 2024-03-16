@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:11:03
- * @LastEditTime: 2023-02-01 15:24:32
+ * @LastEditTime: 2024-03-15 14:54:33
  * @Description:
  */
 
@@ -23,10 +23,10 @@ typedef struct _MppModule MppModule;
 
 /**
  * @description:
- * @param {MppCodecType} codec_type
+ * @param {MppModuleType} codec_type
  * @return {*}
  */
-MppModule* module_init(MppCodecType codec_type);
+MppModule* module_init(MppModuleType codec_type);
 
 /***
  * @description:

@@ -9,3 +9,10 @@
 # @Description: the cmake script of al layer.
 #------------------------------------------------------------
 
+include_directories(sdl2/include)
+set(SRC_LIST ./sdl2/vo_sdl2.c)
+add_library(vo_sdl2_plugin SHARED ${SRC_LIST})
+target_link_libraries(vo_sdl2_plugin utils)
+target_link_libraries(vo_sdl2_plugin SDL2-2.0)
+install(TARGETS vo_sdl2_plugin LIBRARY
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")

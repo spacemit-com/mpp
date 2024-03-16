@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 17:24:41
- * @LastEditTime: 2023-02-03 10:26:25
+ * @LastEditTime: 2024-03-15 14:53:30
  * @Description: MPP VDEC API, use these API to do video decode
  *               from stream(H.264 etc.) to frame(YUV420)
  */
@@ -123,7 +123,7 @@ extern "C" {
 
 typedef struct _MppVdecCtx {
   MppProcessNode pNode;
-  MppCodecType eCodecType;
+  MppModuleType eCodecType;
   MppModule *pModule;
   MppVdecPara stVdecPara;
 } MppVdecCtx;

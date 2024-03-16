@@ -25,3 +25,4 @@ git checkout al/vps/k1/v2d/include/*
 git checkout al/vcodec/v4l2/linlonv5v7/include/mvx-v4l2-controls.h
 git checkout al/vcodec/openmax/include/sfomxil_find_dec_library.h
 git checkout al/vcodec/openmax/include/sfomxil_find_enc_library.h
+git checkout al/vo/sdl2/include/*

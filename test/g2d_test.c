@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2023-11-15 11:47:08
+ * @LastEditTime: 2024-03-15 14:54:52
  * @Description:
  */
 
@@ -40,7 +40,7 @@ typedef struct _TestG2dContext {
   MppCodingType eCodingType;
   S32 eInputPixelFormat;
   S32 eOutputPixelFormat;
-  MppCodecType eCodecType;
+  MppModuleType eCodecType;
   MppG2dCtx *pG2dCtx;
   MppG2dPara *pG2dPara;
   MppFrame *pSinkFrame;
