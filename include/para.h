@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-03-15 14:57:31
+ * @LastEditTime: 2024-03-16 10:26:11
  * @Description:
  */
 
@@ -1034,16 +1034,11 @@ typedef struct _MppG2dPara {
  * @description: para sent and get between application and decoder.
  */
 typedef struct _MppVoPara {
-  /***
-   * read from MPP
-   */
   MppModuleType eVoType;
   MppFrameBufferType eFrameBufferType;
   MppDataTransmissinMode eDataTransmissinMode;
 
-  /***
-   * set to MPP
-   */
+  MppCodingType ePixelFormat;
   S32 nWidth;
   S32 nHeight;
   S32 nStride;

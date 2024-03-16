@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-03-15 18:08:34
+ * @LastEditTime: 2024-03-16 10:26:23
  * @Description:
  */
 
@@ -331,8 +331,9 @@ S32 main(S32 argc, char **argv) {
   }
 
   // set para
-  context->pVoCtx->eVoType = 101;
-  context->pVoCtx->stVoPara.eVoType = 101;
+  context->pVoCtx->eVoType = VO_SDL2;
+  context->pVoCtx->stVoPara.eVoType = VO_SDL2;
+  context->pVoCtx->stVoPara.ePixelFormat = context->eOutputPixelFormat;
   context->pVoCtx->stVoPara.nWidth = context->nWidth;
   context->pVoCtx->stVoPara.nHeight = context->nHeight;
 

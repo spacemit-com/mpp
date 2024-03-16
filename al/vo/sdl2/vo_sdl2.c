@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-15 13:41:24
- * @LastEditTime: 2024-03-15 17:34:12
+ * @LastEditTime: 2024-03-16 10:31:45
  * @FilePath: \mpp\al\vo\sdl2\vo_sdl2.c
  * @Description:
  */
@@ -22,6 +22,20 @@
 #include "log.h"
 
 #define MODULE_TAG "vo_sdl2"
+
+PIXEL_FORMAT_MAPPING_DEFINE(VoSdl2, SDL_PixelFormatEnum)
+static const ALVoSdl2PixelFormatMapping stALVoSdl2PixelFormatMapping[] = {
+    {PIXEL_FORMAT_I420, SDL_PIXELFORMAT_IYUV},
+    {PIXEL_FORMAT_NV12, SDL_PIXELFORMAT_NV12},
+    {PIXEL_FORMAT_YVYU, SDL_PIXELFORMAT_YVYU},
+    {PIXEL_FORMAT_UYVY, SDL_PIXELFORMAT_UYVY},
+    {PIXEL_FORMAT_YUYV, SDL_PIXELFORMAT_YUY2},
+    {PIXEL_FORMAT_RGBA, SDL_PIXELFORMAT_RGBA32},
+    {PIXEL_FORMAT_BGRA, SDL_PIXELFORMAT_BGRA32},
+    {PIXEL_FORMAT_ARGB, SDL_PIXELFORMAT_ARGB32},
+    {PIXEL_FORMAT_ABGR, SDL_PIXELFORMAT_ABGR32},
+};
+PIXEL_FORMAT_MAPPING_CONVERT(VoSdl2, vosdl2, SDL_PixelFormatEnum)
 
 typedef struct _ALVoSdl2Context ALVoSdl2Context;
 
@@ -71,6 +85,7 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
 
   context->nOutputWidth = para->nWidth;
   context->nOutputHeight = para->nHeight;
+  context->eOutputPixelFormat = para->ePixelFormat;
 
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     error("SDL could not initialize! SDL_Error: %s", SDL_GetError());
@@ -94,8 +109,11 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   }
 
   context->texture = SDL_CreateTexture(
-      context->renderer, SDL_PIXELFORMAT_NV12, SDL_TEXTUREACCESS_STREAMING,
-      context->nOutputWidth, context->nOutputHeight);
+      context->renderer,
+      get_vosdl2_codec_pixel_format(
+          context->eOutputPixelFormat) /*SDL_PIXELFORMAT_NV12*/,
+      SDL_TEXTUREACCESS_STREAMING, context->nOutputWidth,
+      context->nOutputHeight);
   if (!context->texture) {
     error("Texture could not be created! SDL_Error: %s", SDL_GetError());
     goto exit;
