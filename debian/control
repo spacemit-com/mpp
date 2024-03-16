@@ -2,7 +2,7 @@ Source: mpp
 Section: unknown
 Priority: optional
 Maintainer: 付强 <>
-Build-Depends: cmake, debhelper (>=11~), libsdl2-2.0-0
+Build-Depends: cmake, debhelper (>=11~), libsdl2-dev
 Standards-Version: 4.1.4
 Homepage: <insert the upstream URL, if relevant>
 
