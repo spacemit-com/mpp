@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-15 13:41:24
- * @LastEditTime: 2024-03-16 10:31:45
+ * @LastEditTime: 2024-03-16 15:40:27
  * @FilePath: \mpp\al\vo\sdl2\vo_sdl2.c
  * @Description:
  */
@@ -27,6 +27,7 @@ PIXEL_FORMAT_MAPPING_DEFINE(VoSdl2, SDL_PixelFormatEnum)
 static const ALVoSdl2PixelFormatMapping stALVoSdl2PixelFormatMapping[] = {
     {PIXEL_FORMAT_I420, SDL_PIXELFORMAT_IYUV},
     {PIXEL_FORMAT_NV12, SDL_PIXELFORMAT_NV12},
+    {PIXEL_FORMAT_NV21, SDL_PIXELFORMAT_NV21},
     {PIXEL_FORMAT_YVYU, SDL_PIXELFORMAT_YVYU},
     {PIXEL_FORMAT_UYVY, SDL_PIXELFORMAT_UYVY},
     {PIXEL_FORMAT_YUYV, SDL_PIXELFORMAT_YUY2},
@@ -148,10 +149,19 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
 
   SDL_SetRenderDrawColor(context->renderer, 0, 0, 0, 255);
   SDL_RenderClear(context->renderer);
-  SDL_UpdateNVTexture(
-      context->texture, NULL, FRAME_GetDataPointer(sink_frame, 0),
-      context->nOutputWidth, FRAME_GetDataPointer(sink_frame, 1),
-      context->nOutputWidth);
+  if (context->eOutputPixelFormat == PIXEL_FORMAT_I420) {
+    SDL_UpdateYUVTexture(
+        context->texture, NULL, FRAME_GetDataPointer(sink_frame, 0),
+        context->nOutputWidth, FRAME_GetDataPointer(sink_frame, 1),
+        context->nOutputWidth, FRAME_GetDataPointer(sink_frame, 2),
+        context->nOutputWidth);
+  } else if (context->eOutputPixelFormat == PIXEL_FORMAT_NV12 ||
+             context->eOutputPixelFormat == PIXEL_FORMAT_NV21) {
+    SDL_UpdateNVTexture(
+        context->texture, NULL, FRAME_GetDataPointer(sink_frame, 0),
+        context->nOutputWidth, FRAME_GetDataPointer(sink_frame, 1),
+        context->nOutputWidth);
+  }
 
   context->rect.x = 0;
   context->rect.y = 0;
