@@ -2,12 +2,12 @@
  * Copyright 2022-2023 SPACEMIT. All rights reserved.
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
- * 
+ *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-16 11:17:51
  * @LastEditTime: 2024-03-16 11:37:57
  * @FilePath: \mpp\al\vo\file\vo_file.c
- * @Description: 
+ * @Description:
  */
 
 #define ENABLE_DEBUG 1
@@ -34,7 +34,6 @@ struct _ALVoFileContext {
   S32 nOutputHeight;
   MppPixelFormat eOutputPixelFormat;
   U8 *pOutputFileName;
-
 };
 
 ALBaseContext *al_vo_create() {
@@ -69,8 +68,6 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   context->eOutputPixelFormat = para->ePixelFormat;
   context->pOutputFileName = para->pOutputFileName;
 
-
-
   debug("init finish");
 
   return MPP_OK;
@@ -97,7 +94,7 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
   ALVoFileContext *context = (ALVoFileContext *)ctx;
   S32 ret = 0;
 
-  if(context->bIsFrame) {
+  if (context->bIsFrame) {
     MppFrame *sink_frame = FRAME_GetFrame(sink_data);
   } else {
     MppPacket *sink_packet = PACKET_GetPacket(sink_data);
@@ -109,7 +106,6 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
 void al_vo_destory(ALBaseContext *ctx) {
   ALVoFileContext *context = (ALVoFileContext *)ctx;
   S32 ret = 0;
-
 
   free(context);
 }

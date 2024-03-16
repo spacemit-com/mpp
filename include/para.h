@@ -1051,7 +1051,7 @@ typedef struct _MppVoPara {
   /***
    * for vo file
    */
-  U8 *pOutputFileName;
+  U8* pOutputFileName;
 } MppVoPara;
 
 #endif /*_MPP_PARA_H_*/
