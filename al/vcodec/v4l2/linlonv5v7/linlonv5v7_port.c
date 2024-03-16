@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-03-08 09:03:26
+ * @LastEditTime: 2024-03-16 13:51:26
  * @Description:
  */
 
@@ -1364,7 +1364,8 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   if (!buffer) {
     error(
         "dequeueBuffer failed, this dequeueBuffer must successed, because it "
-        "is after Poll, please check!");
+        "is after Poll, please check! maybe after EOS?");
+    return MPP_CODER_NO_DATA;
   }
 
   struct v4l2_buffer *b = getV4l2Buffer(buffer);

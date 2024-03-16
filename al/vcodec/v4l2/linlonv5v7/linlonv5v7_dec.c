@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-01-20 14:25:10
+ * @LastEditTime: 2024-03-16 13:52:09
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -555,6 +555,8 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
             getBufFd(getOutputPort(context->stCodec), i);
         context->pVdecPara->bIsBufferInDecoder[i] = MPP_TRUE;
       }
+    } else if (ret == MPP_CODER_NO_DATA) {
+      return MPP_CODER_NO_DATA;
     }
   } else {
     // debug("============ no data, please try again!");
