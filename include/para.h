@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-03-16 10:26:11
+ * @LastEditTime: 2024-03-16 11:27:36
  * @Description:
  */
 
@@ -1037,13 +1037,21 @@ typedef struct _MppVoPara {
   MppModuleType eVoType;
   MppFrameBufferType eFrameBufferType;
   MppDataTransmissinMode eDataTransmissinMode;
+  BOOL bIsFrame;
 
-  MppCodingType ePixelFormat;
+  /***
+   * for frame
+   */
+  MppPixelFormat ePixelFormat;
   S32 nWidth;
   S32 nHeight;
   S32 nStride;
   S32 nScale;
 
+  /***
+   * for vo file
+   */
+  U8 *pOutputFileName;
 } MppVoPara;
 
 #endif /*_MPP_PARA_H_*/
