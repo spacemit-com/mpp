@@ -5,8 +5,8 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:29:22
- * @LastEditTime: 2024-03-08 09:41:21
- * @FilePath: \mpp\al\v4l2\linlonv5v7\include\linlonv5v7_codec.h
+ * @LastEditTime: 2024-03-21 17:11:24
+ * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_codec.h
  * @Description:
  */
 
@@ -65,15 +65,36 @@ enum NaluFormat {
 
 typedef struct _Codec Codec;
 
+/**
+ * @description: create a Codec instance, for decode or encode
+ * @return {*}: context of the Codec
+ */
 Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
                    enum v4l2_buf_type inputType, enum v4l2_buf_type outputType,
                    U32 input_format_fourcc, U32 output_format_fourcc,
                    U32 input_memtype, U32 output_memtype, U32 input_buffer_num,
                    U32 output_buffer_num, BOOL block,
                    MppFrameBufferType buffer_type);
+
+/**
+ * @description: destory the Codec, when destory decoder or encoder
+ * @param {Codec} *codec: context of the Codec
+ * @return {*}
+ */
 void destoryCodec(Codec *codec);
 
+/**
+ * @description: get the input port of the codec
+ * @param {Codec} *codec: context of the Codec
+ * @return {*}: context of input port
+ */
 Port *getInputPort(Codec *codec);
+
+/**
+ * @description: get the output port of the codec
+ * @param {Codec} *codec: context of the Codec
+ * @return {*}: context of the output port
+ */
 Port *getOutputPort(Codec *codec);
 BOOL getCsweo(Codec *codec);
 U32 getFps(Codec *codec);
@@ -88,9 +109,26 @@ void setMinqp(Codec *codec, U32 minqp);
 void setMaxqp(Codec *codec, U32 maxqp);
 void setFixedqp(Codec *codec, U32 fixedqp);
 
+/**
+ * @description: allocate buffers, queue buffers and stream on input port and
+ * output port
+ * @param {Codec} *codec: context of the Codec
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
+ */
 S32 stream(Codec *codec);
 
+/**
+ * @description: format(fourcc) is vpx(vp8 or vp9)?
+ * @param {U32} format: fourcc
+ * @return {*}: MPP_TRUE or MPP_FALSE
+ */
 BOOL isVPx(U32 format);
+
+/**
+ * @description: format(fourcc) is AFBC?
+ * @param {U32} format: fourcc
+ * @return {*}: MPP_TRUE or MPP_FALSE
+ */
 BOOL isAFBC(U32 format);
 
 void enumerateCodecFormats(Codec *codec);
