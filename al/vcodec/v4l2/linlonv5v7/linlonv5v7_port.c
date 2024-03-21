@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-03-16 13:51:26
+ * @LastEditTime: 2024-03-21 16:03:50
  * @Description:
  */
 
@@ -340,6 +340,8 @@ S32 allocateBuffers(Port *port, S32 count) {
       return MPP_INIT_FAILED;
     }
   }
+
+  return MPP_OK;
 }
 
 void freeBuffers(Port *port) {

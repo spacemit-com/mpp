@@ -1,11 +1,12 @@
-/***
- * @Copyright 2022-2023 SPACEMIT. All rights reserved.
- * @Use of this source code is governed by a BSD-style license
- * @that can be found in the LICENSE file.
- * @
+/*
+ * Copyright 2022-2023 SPACEMIT. All rights reserved.
+ * Use of this source code is governed by a BSD-style license
+ * that can be found in the LICENSE file.
+ *
  * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-10-07 17:36:59
- * @LastEditTime: 2023-10-08 10:57:54
+ * @Date: 2024-03-20 19:29:29
+ * @LastEditTime: 2024-03-21 16:22:23
+ * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_port.h
  * @Description:
  */
 
@@ -37,34 +38,163 @@ typedef enum _DIRECTION {
 
 typedef struct _Port Port;
 
+/**
+ * @description: create a port for decode or encode
+ * @return {*}: context of port
+ */
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
                  U32 memtype, U32 buffer_num, MppFrameBufferType buffer_type);
+
+/**
+ * @description: destory the port after using
+ * @param {Port} *port: context of the port
+ * @return {*}
+ */
 void destoryPort(Port *port);
 
+/**
+ * @description: get Buffer by index, linlonv5v7_dec and linlonv5v7_enc use it,
+ * in fact, dec and enc should not operate Buffer directly, optimize later
+ * @param {Port} *port: context of the port
+ * @param {S32} index: index of the Buffer you want
+ * @return {*}: context of the Buffer
+ */
 Buffer *getBuffer(Port *port, S32 index);
+
+/**
+ * @description: get the buf type of the port
+ * @param {Port} *port: context of the port
+ * @return {*}: buf type of the port
+ */
 enum v4l2_buf_type getV4l2BufType(Port *port);
+
+/**
+ * @description: get fourcc of the port
+ * @param {Port} *port: context of the port
+ * @return {*}: fourcc of the port
+ */
 U32 getFormatFourcc(Port *port);
 
+/**
+ * @description: enumerate formats the port supports
+ * @param {Port} *port: context of the port
+ * @return {*}
+ */
 void enumerateFormats(Port *port);
+
+/**
+ * @description: get format of the port
+ * @param {Port} *port: context of the port
+ * @return {*}: v4l2_format
+ */
 struct v4l2_format getPortFormat(Port *port);
+
+/**
+ * @description: try format on the port
+ * @param {Port} *port: context of the port
+ * @param {v4l2_format} format: v4l2_format that will be tryed
+ * @return {*}
+ */
 void tryFormat(Port *port, struct v4l2_format format);
+
+/**
+ * @description: set format for the port
+ * @param {Port} *port: context of the port
+ * @param {v4l2_format} format: v4l2_format that will be set
+ * @return {*}
+ */
 void setFormat(Port *port, struct v4l2_format format);
+
+/**
+ * @description: get/try/set format together for the port
+ * @param {Port} *port: context of the port
+ * @param {S32} width: width set to driver
+ * @param {S32} height: height set to driver
+ * @param {U32} pixel_format: pixel format set to driver
+ * @param {BOOL} interlaced: whether interlaced
+ * @return {*}
+ */
 void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
                      BOOL interlaced);
+
+/**
+ * @description: use for debug
+ * @param {v4l2_format} format: v4l2_format to be printed
+ * @return {*}
+ */
 void printFormat(const struct v4l2_format format);
+
+/**
+ * @description: get crop info of the port
+ * @param {Port} *port: context of the port
+ * @return {*}: v4l2_crop
+ */
 struct v4l2_crop getPortCrop(Port *port);
 
+/**
+ * @description: allocate buffers for the port
+ * @param {Port} *port: context of the port
+ * @param {S32} count: num of buffers need to be allocated
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
+ */
 S32 allocateBuffers(Port *port, S32 count);
+
+/**
+ * @description: free buffers of the port
+ * @param {Port} *port: context of the port
+ * @return {*}
+ */
 void freeBuffers(Port *port);
+
+/**
+ * @description: get buffer num of the port
+ * @param {Port} *port: context of the port
+ * @return {*}: num of buffer num
+ */
 U32 getBufferCount(Port *port);
+
+/**
+ * @description: queue all buffers to driver
+ * @param {Port} *port: context of the port
+ * @param {BOOL} eof: end of file
+ * @return {*}
+ */
 void queueBuffers(Port *port, BOOL eof);
+
+/**
+ * @description: queue one buffer of the port to driver
+ * @param {Port} *port: context of the port
+ * @param {Buffer} *buf: buffer need to be queued
+ * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
+ */
 S32 queueBuffer(Port *port, Buffer *buf);
+
+/**
+ * @description: dequeue one buffer from driver
+ * @param {Port} *port: context of the port
+ * @return {*}: context of the buffer
+ */
 Buffer *dequeueBuffer(Port *port);
+
+/**
+ * @description: use for debug, printf the buffer status
+ * @param {Port} *port: context of the port
+ * @param {v4l2_buffer} buf: buffer need to be printed
+ * @param {U8} *prefix
+ * @return {*}
+ */
 void printBuffer(Port *port, struct v4l2_buffer buf, const U8 *prefix);
 
 BOOL handleBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data);
+
+/**
+ * @description: handle resolution changed info
+ * @param {Port} *port: context of the port
+ * @param {BOOL} eof: end of file
+ * @return {*}
+ */
 void handleResolutionChange(Port *port, BOOL eof);
 
 void streamon(Port *port);
