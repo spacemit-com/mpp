@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-03-16 13:52:09
+ * @LastEditTime: 2024-03-23 16:38:59
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -153,6 +153,8 @@ struct _ALLinlonv5v7DecContext {
    * default 0, also 0 after flush
    */
   U32 nInputQueuedNum;
+
+  S64 nEosPts;
 };
 
 /***
@@ -364,6 +366,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->bInputEos = MPP_FALSE;
   context->bIsDestoryed = MPP_FALSE;
   context->nInputQueuedNum = 0;
+  context->nEosPts = -1;
 
   // if APP do not set nInputBufferNum and nOutputBufferNum, use default value,
   // and sync MPP this default value to APP.
@@ -479,13 +482,17 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
   if ((!PACKET_GetLength(packet))) {
-    debug("length of input packet is 0, EOS is coming");
+    debug("aha! length of input packet is 0, EOS is coming, pts(%ld)",
+          PACKET_GetPts(packet));
     context->bInputEos = MPP_TRUE;
+    context->nEosPts = PACKET_GetPts(packet);
   }
 
   if (PACKET_GetEos(packet)) {
-    debug("eos flag of input packet is set, EOS is coming");
+    debug("aha! eos flag of input packet is set, EOS is coming(%ld)",
+          PACKET_GetPts(packet));
     context->bInputEos = MPP_TRUE;
+    context->nEosPts = PACKET_GetPts(packet);
   }
 
   if (unlikely(context->nInputQueuedNum <
@@ -557,6 +564,13 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
       }
     } else if (ret == MPP_CODER_NO_DATA) {
       return MPP_CODER_NO_DATA;
+    } else if (ret == MPP_ERROR_FRAME) {
+      // check if it is the last frame
+      if (context->nEosPts > 0 &&
+          FRAME_GetPts(FRAME_GetFrame(src_data)) == context->nEosPts) {
+        error("aha! it is a EOS frame eos pts:(%ld)", context->nEosPts);
+        return MPP_CODER_EOS;
+      }
     }
   } else {
     // debug("============ no data, please try again!");
