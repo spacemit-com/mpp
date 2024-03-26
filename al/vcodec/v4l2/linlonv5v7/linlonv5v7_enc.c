@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-01-09 16:21:31
+ * @LastEditTime: 2024-03-26 14:10:58
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -345,6 +345,22 @@ static void setH264Bandwidth(ALLinlonv5v7EncContext *context, U32 bw) {
   setH264EncBandwidth(getOutputPort(context->stCodec), bw);
 }
 
+static void setHEVCMinQP(ALLinlonv5v7EncContext *context, U32 minqp) {
+  if (!getCsweo(context->stCodec)) {
+    setHEVCEncMinQP(getOutputPort(context->stCodec), minqp);
+  } else {
+    setMinqp(context->stCodec, minqp);
+  }
+}
+
+static void setHEVCMaxQP(ALLinlonv5v7EncContext *context, U32 maxqp) {
+  if (!getCsweo(context->stCodec)) {
+    setHEVCEncMaxQP(getOutputPort(context->stCodec), maxqp);
+  } else {
+    setMaxqp(context->stCodec, maxqp);
+  }
+}
+
 static void setVP9TileCR(ALLinlonv5v7EncContext *context, U32 tcr) {
   setVP9EncTileCR(getOutputPort(context->stCodec), tcr);
 }
@@ -548,6 +564,9 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
   para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_SYNC;
 
+  debug("input para check: foramt:0x%x output format:0x%x",
+        context->nInputFormatFourcc, context->nOutputFormatFourcc);
+
   context->nVideoFd =
       find_v4l2_encoder(context->sDevicePath,
                         get_linlonv5v7enc_codec_coding_type(para->eCodingType));
@@ -572,8 +591,13 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   }
 
   // set some parameters on the stream level
-  setH264MinQP(context, 1);
-  setH264MaxQP(context, 20);
+  // setH264MinQP(context, 1);
+  // setH264MaxQP(context, 20);
+
+  // setHEVCMinQP(context, 1);
+  // setHEVCMaxQP(context, 20);
+
+  setEncoderRateControl(context, "off", 0, 0);
 
   // setformat, allocate buffer, stream on
   stream(context->stCodec);
@@ -622,16 +646,23 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
     queueBuffer(getInputPort(context->stCodec), buf);
     context->nInputQueuedNum++;
   } else {
-    ret = runPoll(context->stCodec, &p);
+    Buffer *buf =
+        getBuffer(getInputPort(context->stCodec), FRAME_GetID(sink_frame));
 
-    if (MPP_OK == ret && p.revents & POLLOUT) {
-      index = handleInputBuffer(getInputPort(context->stCodec),
-                                context->bInputEos, sink_data);
-      context->bBufferNeedReturned[index] = 1;
-      i++;
+    if (!getIsQueued(buf)) {
+      setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
+                        (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                        FRAME_GetID(sink_frame));
+      setTimeStamp(buf, FRAME_GetPts(sink_frame));
+      setEndOfStream(buf, context->bInputEos);
+      ret = queueBuffer(getInputPort(context->stCodec), buf);
+      if (ret) {
+        error("should not queue fail, please check!");
+        return MPP_POLL_FAILED;
+      }
+      setIsQueued(buf, MPP_TRUE);
     } else {
-      // error("can not get input buffer");
-      usleep(2000);
+      error("wait a moment!");
       return MPP_POLL_FAILED;
     }
   }
@@ -641,12 +672,23 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
 
 S32 al_enc_return_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+  S32 ret = 0;
+  struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
-  for (S32 index = 0; index < MAX_INPUT_BUF_NUM; index++) {
-    if (1 == context->bBufferNeedReturned[index]) {
-      context->bBufferNeedReturned[index] = 0;
-      return index;
+  ret = runPoll(context->stCodec, &p);
+  if (MPP_OK == ret && p.revents & POLLOUT) {
+    Buffer *buffer = dequeueBuffer(getInputPort(context->stCodec));
+    if (!buffer) {
+      error(
+          "dequeueBuffer failed, this dequeueBuffer must successed, because it "
+          "is after Poll, please check!");
     }
+    setIsQueued(buffer, MPP_FALSE);
+    return getExtraId(buffer);
+  } else {
+    // error("can not get input buffer");
+    // usleep(2000);
+    return -1;
   }
 
   return -1;
@@ -676,8 +718,14 @@ S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
       context->bOutputEos = MPP_TRUE;
     }
     // if (buffer == NULL) return MPP_CODER_NO_DATA;
-    memcpy(PACKET_GetDataPointer(PACKET_GetPacket(src_data)),
-           getUserPtr(buffer, 0), b->bytesused);
+    if (context->eCodingType == CODING_H265 ||
+        context->eCodingType == CODING_VP9) {
+      memcpy(PACKET_GetDataPointer(PACKET_GetPacket(src_data)),
+             getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
+    } else {
+      memcpy(PACKET_GetDataPointer(PACKET_GetPacket(src_data)),
+             getUserPtr(buffer, 0), b->bytesused);
+    }
     PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused);
     resetVendorFlags(buffer);
     queueBuffer(getOutputPort(context->stCodec), buffer);

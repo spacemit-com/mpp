@@ -1,3 +1,14 @@
+/*
+ * Copyright 2022-2023 SPACEMIT. All rights reserved.
+ * Use of this source code is governed by a BSD-style license
+ * that can be found in the LICENSE file.
+ *
+ * @Author: David(qiang.fu@spacemit.com)
+ * @Date: 2024-03-25 09:26:08
+ * @LastEditTime: 2024-03-26 11:46:39
+ * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_buffer.h
+ * @Description:
+ */
 /***
  * @Copyright 2022-2023 SPACEMIT. All rights reserved.
  * @Use of this source code is governed by a BSD-style license
@@ -41,6 +52,7 @@ void destoryBuffer(Buffer *buf);
 
 struct v4l2_buffer *getV4l2Buffer(Buffer *buf);
 U8 *getUserPtr(Buffer *buf, S32 index);
+U8 *getUserPtrForHevcAndVp9Encode(Buffer *buf, S32 index);
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr);
 S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id);
 struct v4l2_format *getFormat(Buffer *buf);
@@ -75,5 +87,8 @@ void memoryMap(Buffer *buf, S32 fd);
 S32 memoryUnmap(Buffer *buf);
 S32 getLength(Buffer *buf, U32 plane);
 S32 getExtraId(Buffer *buf);
+S32 getExtraFd(Buffer *buf);
+BOOL getIsQueued(Buffer *buf);
+S32 setIsQueued(Buffer *buf, BOOL queued);
 
 #endif /*_LINLONV5V7_BUFFER_H_*/

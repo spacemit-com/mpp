@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-20 19:29:29
- * @LastEditTime: 2024-03-21 16:22:23
+ * @LastEditTime: 2024-03-26 09:46:18
  * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_port.h
  * @Description:
  */
@@ -225,6 +225,8 @@ void setH264EncFixedQPI(Port *port, U32 fqp);
 void setH264EncFixedQPP(Port *port, U32 fqp);
 void setH264EncFixedQPB(Port *port, U32 fqp);
 void setH264EncBandwidth(Port *port, U32 bw);
+void setHEVCEncMinQP(Port *port, U32 minqp);
+void setHEVCEncMaxQP(Port *port, U32 maxqp);
 void setHEVCEncEntropySync(Port *port, U32 es);
 void setHEVCEncTemporalMVP(Port *port, U32 tmvp);
 void setEncStreamEscaping(Port *port, U32 sesc);

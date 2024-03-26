@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-07 14:18:00
- * @LastEditTime: 2024-03-21 15:43:06
+ * @LastEditTime: 2024-03-26 13:50:27
  * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_constant.h
  * @Description:
  */
@@ -21,7 +21,7 @@
 #define DECODER_OUTPUT_BUF_NUM (8)
 #define DECODER_OUTPUT_BUF_EXTRA (4)
 
-#define ENCODER_INPUT_BUF_NUM (6)
+#define ENCODER_INPUT_BUF_NUM (12)
 #define ENCODER_OUTPUT_BUF_NUM (6)
 
 #define POLL_TIMEOUT (0)

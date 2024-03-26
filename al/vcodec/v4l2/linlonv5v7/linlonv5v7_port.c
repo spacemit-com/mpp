@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-03-21 16:03:50
+ * @LastEditTime: 2024-03-26 09:45:03
  * @Description:
  */
 
@@ -1017,6 +1017,42 @@ void setH264EncBandwidth(Port *port, U32 bw) {
 
   if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
     error("Failed to set H264 bw=%u.", bw);
+  }
+}
+
+void setHEVCEncMinQP(Port *port, U32 minqp) {
+  debug("setH264EncMinQP(%u)", minqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_MIN_QP;
+  control.value = minqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC minqp=%u.", minqp);
+  }
+}
+
+void setHEVCEncMaxQP(Port *port, U32 maxqp) {
+  debug("setH264EncMaxQP(%u)", maxqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE;
+  control.value = 1;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to enable/disable rate control.");
+  }
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_MAX_QP;
+  control.value = maxqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC maxqp=%u.", maxqp);
   }
 }
 

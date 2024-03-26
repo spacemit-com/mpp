@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-03-15 18:12:33
+ * @LastEditTime: 2024-03-26 14:27:56
  * @Description:
  */
 
@@ -434,11 +434,12 @@ S32 main(S32 argc, char **argv) {
         debug("get eos msg, go out of the main while!");
         goto finish;
       } else if (ret == MPP_CODER_NO_DATA) {
-        if (FRAME_GetFD(context->pFrame, 0) > 0) {
-          error("no data but have fd, return");
-          VDEC_ReturnOutputFrame(context->pVdecCtx,
-                                 FRAME_GetBaseData(context->pFrame));
-        }
+        error("no data, return");
+        continue;
+      } else if (ret == MPP_CODER_NULL_DATA) {
+        error("null data, return");
+        VDEC_ReturnOutputFrame(context->pVdecCtx,
+                               FRAME_GetBaseData(context->pFrame));
         continue;
       } else if (ret == MPP_RESOLUTION_CHANGED) {
         debug("resolution changed");

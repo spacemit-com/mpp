@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-03-15 14:55:19
+ * @LastEditTime: 2024-03-26 13:51:42
  * @Description:
  */
 
@@ -244,7 +244,7 @@ void *do_parse(void *private_data) {
         context->nFileOffset += length;
         PACKET_SetLength(context->pInputPacket, length);
         PACKET_SetPts(context->pInputPacket, context->nTimeStamp);
-        // context->nTimeStamp += 1000000;
+        context->nTimeStamp += 1000000;
 
         debug("we get a packet, length = %d, ret = %d %p %x %x %x %x", length,
               ret, PACKET_GetDataPointer(context->pInputPacket),
@@ -447,15 +447,31 @@ S32 main(S32 argc, char **argv) {
       ret = VDEC_RequestOutputFrame(context->pVdecCtx,
                                     FRAME_GetBaseData(context->pFrame));
       if (ret == MPP_OK) {
-        FRAME_SetPts(context->pFrame, context->nTimeStamp);
-        context->nTimeStamp += 1000000;
-        VENC_SendInputFrame(context->pVencCtx,
-                            FRAME_GetBaseData(context->pFrame));
+        // FRAME_SetPts(context->pFrame, context->nTimeStamp);
+        // context->nTimeStamp += 1000000;
+        /*
+                fwrite(FRAME_GetDataPointer(context->pFrame, 0), 1920*1080, 1,
+                      context->pMidFile);
+                fwrite(FRAME_GetDataPointer(context->pFrame, 1), 1920*1080 / 2,
+           1, context->pMidFile); fflush(context->pMidFile);
+        */
+        do {
+          ret = VENC_SendInputFrame(context->pVencCtx,
+                                    FRAME_GetBaseData(context->pFrame));
+        } while (ret);
       } else if (ret == MPP_CODER_EOS) {
-        FRAME_SetPts(context->pFrame, context->nTimeStamp);
+        /*
+                fwrite(FRAME_GetDataPointer(context->pFrame, 0), 1920*1080, 1,
+                      context->pMidFile);
+                fwrite(FRAME_GetDataPointer(context->pFrame, 1), 1920*1080 / 2,
+           1, context->pMidFile); fflush(context->pMidFile);
+        */
+        // FRAME_SetPts(context->pFrame, context->nTimeStamp);
         FRAME_SetEos(context->pFrame, MPP_TRUE);
-        VENC_SendInputFrame(context->pVencCtx,
-                            FRAME_GetBaseData(context->pFrame));
+        do {
+          ret = VENC_SendInputFrame(context->pVencCtx,
+                                    FRAME_GetBaseData(context->pFrame));
+        } while (ret);
         debug("get eos msg, go to flush!");
         goto flush;
       } else if (ret == MPP_CODER_NO_DATA) {

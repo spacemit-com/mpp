@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2024-01-09 14:06:31
+ * @LastEditTime: 2024-03-26 11:49:34
  * @Description:
  */
 
@@ -35,6 +35,8 @@ struct _Buffer {
    * used for encoder, save extra dmabuf id
    */
   S32 nExtraId;
+  S32 nExtraFd;
+  BOOL bIsQueued;
 
   /***
    * only for frame, not used for packet
@@ -90,6 +92,23 @@ struct v4l2_buffer *getV4l2Buffer(Buffer *buf) {
 
 U8 *getUserPtr(Buffer *buf, S32 index) { return buf->pUserPtr[index]; }
 
+/*
+ * Single planar buffers has no support for offset, but for HEVC and VP9
+ * encode we must find a way to relay the offset from the code.
+ *
+ * For MMAP we use the lower 12 bits (assuming 4k page size) to relay
+ * the offset.
+ *
+ * For userptr the actual pointer is updated to point at the first byte
+ * of the data.
+ *
+ * Because there is no offset 'bytesused' does not have to be adjusted
+ * similar to multi planar buffers.
+ */
+U8 *getUserPtrForHevcAndVp9Encode(Buffer *buf, S32 index) {
+  return buf->pUserPtr[index] + (buf->stBufArr.m.offset & ((1 << 12) - 1));
+}
+
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr) { buf->pUserPtr[index] = ptr; }
 
 S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id) {
@@ -120,6 +139,7 @@ S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id) {
   }
 
   buf->nExtraId = extra_id;
+  buf->nExtraFd = fd;
 
   return MPP_OK;
 }
@@ -495,3 +515,9 @@ void setSuperblock(Buffer *buf, BOOL superblock) {
 }
 
 S32 getExtraId(Buffer *buf) { return buf->nExtraId; }
+
+S32 getExtraFd(Buffer *buf) { return buf->nExtraFd; }
+
+BOOL getIsQueued(Buffer *buf) { return buf->bIsQueued; }
+
+S32 setIsQueued(Buffer *buf, BOOL queued) { buf->bIsQueued = queued; }
