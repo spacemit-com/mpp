@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-03-23 16:38:59
+ * @LastEditTime: 2024-03-27 10:43:25
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -501,6 +501,18 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
         getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
     memcpy(getUserPtr(buf, 0), PACKET_GetDataPointer(packet),
            PACKET_GetLength(packet));
+#if 0
+    debug("input check:%x %x %x %x %x %x %x %x %x",
+          *(S32 *)PACKET_GetDataPointer(packet),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 4),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 8),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 12),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 16),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 20),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 24),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 28),
+          *(S32 *)(PACKET_GetDataPointer(packet) + 32));
+#endif
     struct v4l2_buffer *b = getV4l2Buffer(buf);
     b->bytesused = PACKET_GetLength(packet);
     setEndOfFrame(buf, MPP_TRUE);
