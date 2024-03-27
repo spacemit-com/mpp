@@ -630,6 +630,10 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   if (FRAME_GetEos(sink_frame)) {
     debug("eos flag of input frame is set, EOS is coming");
     context->bInputEos = MPP_TRUE;
+
+    //gstreamer last sink_data only had eos flag, no memory
+    sendEncStopCommand(getInputPort(context->stCodec));
+    return MPP_OK;
   }
 
   if (unlikely(context->nInputQueuedNum <
