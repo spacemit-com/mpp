@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-03-26 09:45:03
+ * @LastEditTime: 2024-03-30 11:52:32
  * @Description:
  */
 
@@ -449,6 +449,8 @@ S32 queueBuffer(Port *port, Buffer *buf) {
       // error("output queue:%d", port->nQueueNumOutput);
     }
   }
+
+  return MPP_OK;
 }
 
 Buffer *dequeueBuffer(Port *port) {
