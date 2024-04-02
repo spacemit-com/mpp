@@ -55,6 +55,7 @@ U8 *getUserPtr(Buffer *buf, S32 index);
 U8 *getUserPtrForHevcAndVp9Encode(Buffer *buf, S32 index);
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr);
 S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id);
+S32 setExternalUserPtr(Buffer *buf, U8 *ptr0, S32 extra_id);
 struct v4l2_format *getFormat(Buffer *buf);
 void setCrop(Buffer *buf, struct v4l2_crop crop);
 struct v4l2_crop getCrop(Buffer *buf);

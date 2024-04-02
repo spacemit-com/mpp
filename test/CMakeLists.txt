@@ -39,6 +39,14 @@ set(SRC_LIST ./vdec_venc_test.c ./parse/h264parse.c ./parse/h265parse.c ./parse/
 add_executable(vdec_venc_test ${SRC_LIST})
 target_link_libraries(vdec_venc_test spacemit_mpp)
 
+set(SRC_LIST ./vdec_venc_sync_test.c ./parse/h264parse.c ./parse/h265parse.c ./parse/mjpegparse.c ./parse/defaultparse.c ./parse/parse.c)
+add_executable(vdec_venc_sync_test ${SRC_LIST})
+target_link_libraries(vdec_venc_sync_test spacemit_mpp)
+
+set(SRC_LIST ./vdec_venc_sync_userptr_test.c ./parse/h264parse.c ./parse/h265parse.c ./parse/mjpegparse.c ./parse/defaultparse.c ./parse/parse.c)
+add_executable(vdec_venc_sync_userptr_test ${SRC_LIST})
+target_link_libraries(vdec_venc_sync_userptr_test spacemit_mpp)
+
 set(SRC_LIST ./venc_test.c)
 add_executable(venc_test ${SRC_LIST})
 target_link_libraries(venc_test spacemit_mpp)
@@ -54,6 +62,10 @@ install(TARGETS vdec_vo_test RUNTIME
 install(TARGETS venc_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 install(TARGETS vdec_venc_test RUNTIME
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+install(TARGETS vdec_venc_sync_test RUNTIME
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+install(TARGETS vdec_venc_sync_userptr_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 install(TARGETS g2d_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")

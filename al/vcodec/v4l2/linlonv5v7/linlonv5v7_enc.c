@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-03-26 14:10:58
+ * @LastEditTime: 2024-03-30 13:41:49
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -561,7 +561,9 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
     context->bBufferNeedReturned[i] = 0;
   }
 
-  para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
+  if (para->eFrameBufferType == MPP_FRAME_BUFFERTYPE_NORMAL_EXTERNAL) {
+    context->nInputMemType = V4L2_MEMORY_USERPTR;
+  }
   para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_SYNC;
 
   debug("input para check: foramt:0x%x output format:0x%x",
@@ -631,9 +633,9 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
     debug("eos flag of input frame is set, EOS is coming");
     context->bInputEos = MPP_TRUE;
 
-    //gstreamer last sink_data only had eos flag, no memory
-    sendEncStopCommand(getInputPort(context->stCodec));
-    return MPP_OK;
+    // gstreamer last sink_data only had eos flag, no memory
+    // sendEncStopCommand(getInputPort(context->stCodec));
+    // return MPP_OK;
   }
 
   if (unlikely(context->nInputQueuedNum <
@@ -641,22 +643,38 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
     Buffer *buf =
         getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
     struct v4l2_buffer *b = getV4l2Buffer(buf);
-
-    setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
-                      (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                      FRAME_GetID(sink_frame));
+    if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
+      setExternalUserPtr(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                         FRAME_GetID(sink_frame));
+    } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
+      setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
+                        (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                        FRAME_GetID(sink_frame));
+    }
     setTimeStamp(buf, FRAME_GetPts(sink_frame));
-
+    error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx222 %d %d %ld %ld", b->memory,
+          b->length, b->m.planes[0].m.userptr, b->m.planes[1].m.userptr);
     queueBuffer(getInputPort(context->stCodec), buf);
+    if (ret) {
+      error("Failed to queue buffer. type = %d (%s)", b->type, strerror(errno));
+      return MPP_IOCTL_FAILED;
+    }
+    error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3");
     context->nInputQueuedNum++;
   } else {
     Buffer *buf =
         getBuffer(getInputPort(context->stCodec), FRAME_GetID(sink_frame));
 
     if (!getIsQueued(buf)) {
-      setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                        FRAME_GetID(sink_frame));
+      if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
+        error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2");
+        setExternalUserPtr(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                           FRAME_GetID(sink_frame));
+      } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
+        setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
+                          (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                          FRAME_GetID(sink_frame));
+      }
       setTimeStamp(buf, FRAME_GetPts(sink_frame));
       setEndOfStream(buf, context->bInputEos);
       ret = queueBuffer(getInputPort(context->stCodec), buf);
