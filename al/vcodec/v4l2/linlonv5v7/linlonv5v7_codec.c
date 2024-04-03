@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:28:42
- * @LastEditTime: 2024-03-08 09:32:54
+ * @LastEditTime: 2024-04-03 17:29:31
  * @Description:
  */
 
@@ -472,6 +472,9 @@ void handleFlush(Codec *codec, BOOL eof) {
   streamoff(codec->stInputPort);
   streamoff(codec->stOutputPort);
   streamon(codec->stInputPort);
+  // this sleep is used to fix a bug, ffplay on linux sometimes get a streamon
+  // failed(Operation now in progress) error
+  usleep(5000);
   streamon(codec->stOutputPort);
   queueBuffers(codec->stOutputPort, MPP_FALSE);
   // port->nFramesProcessed = 0;
