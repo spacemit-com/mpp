@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-03-16 11:27:36
+ * @LastEditTime: 2024-04-03 15:12:32
  * @Description:
  */
 
@@ -643,6 +643,12 @@ typedef enum _MppDataTransmissinMode {
    */
   MPP_INPUT_ASYNC_OUTPUT_ASYNC = 4,
 } MppDataTransmissinMode;
+
+typedef enum _MppFrameEos {
+  FRAME_NO_EOS = 0,
+  FRAME_EOS_WITH_DATA = 1,
+  FRAME_EOS_WITHOUT_DATA = 2,
+} MppFrameEos;
 
 /***
  * (nXmin,nYmin)

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:11:03
- * @LastEditTime: 2023-02-03 10:56:26
+ * @LastEditTime: 2024-04-03 15:06:54
  * @Description: MppFrame is the carrier the frame(data before encode or after
  * decode)
  */
@@ -244,7 +244,7 @@ RETURN FRAME_SetPts(MppFrame *frame, S64 pts);
  * @param {MppFrame} *frame
  * @return {*}
  */
-BOOL FRAME_GetEos(MppFrame *frame);
+MppFrameEos FRAME_GetEos(MppFrame *frame);
 
 /**
  * @description:
@@ -252,7 +252,7 @@ BOOL FRAME_GetEos(MppFrame *frame);
  * @param {BOOL} eos
  * @return {*}
  */
-S32 FRAME_SetEos(MppFrame *frame, BOOL eos);
+S32 FRAME_SetEos(MppFrame *frame, MppFrameEos eos);
 
 /***
  * @description:

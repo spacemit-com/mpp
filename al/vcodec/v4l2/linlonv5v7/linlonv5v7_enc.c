@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-03-30 13:41:49
+ * @LastEditTime: 2024-04-03 15:09:52
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -629,13 +629,18 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   S32 index;
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
-  if (FRAME_GetEos(sink_frame)) {
-    debug("eos flag of input frame is set, EOS is coming");
+  if (FRAME_GetEos(sink_frame) == FRAME_EOS_WITH_DATA) {
+    debug("eos flag of input frame with data is set, EOS is coming");
+    context->bInputEos = MPP_TRUE;
+  }
+
+  if (FRAME_GetEos(sink_frame) == FRAME_EOS_WITHOUT_DATA) {
+    debug("eos flag of input frame without data is set, EOS is coming");
     context->bInputEos = MPP_TRUE;
 
     // gstreamer last sink_data only had eos flag, no memory
-    // sendEncStopCommand(getInputPort(context->stCodec));
-    // return MPP_OK;
+    sendEncStopCommand(getInputPort(context->stCodec));
+    return MPP_OK;
   }
 
   if (unlikely(context->nInputQueuedNum <
@@ -644,8 +649,11 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
         getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
     struct v4l2_buffer *b = getV4l2Buffer(buf);
     if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-      setExternalUserPtr(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                         FRAME_GetID(sink_frame));
+      error("xxxxxxx %p %p", FRAME_GetDataPointer(sink_frame, 0),
+            FRAME_GetDataPointer(sink_frame, 1));
+      setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                              (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL,
+                              FRAME_GetID(sink_frame));
     } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
       setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
                         (U8 *)FRAME_GetDataPointer(sink_frame, 0),
@@ -668,8 +676,9 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
     if (!getIsQueued(buf)) {
       if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
         error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2");
-        setExternalUserPtr(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                           FRAME_GetID(sink_frame));
+        setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                                (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL,
+                                FRAME_GetID(sink_frame));
       } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
         setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
                           (U8 *)FRAME_GetDataPointer(sink_frame, 0),

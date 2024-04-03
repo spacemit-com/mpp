@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2024-03-29 18:08:09
+ * @LastEditTime: 2024-04-03 14:10:28
  * @Description:
  */
 
@@ -144,17 +144,11 @@ S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id) {
   return MPP_OK;
 }
 
-S32 setExternalUserPtr(Buffer *buf, U8 *ptr0, S32 extra_id) {
-  error("1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx %d %p %p %ld %ld",
-        buf->stBufArr.length, buf->pUserPtr[0], buf->pUserPtr[1],
-        buf->stBufArr.m.planes[0].m.userptr,
-        buf->stBufArr.m.planes[1].m.userptr);
-  buf->pUserPtr[0] = ptr0;
+S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2,
+                            S32 extra_id) {
   buf->nPlaneOffset[0] = 0;
   buf->stBufArr.m.planes[0].m.userptr = (unsigned long)ptr0;
   buf->stBufArr.m.planes[0].bytesused = buf->nPlaneLength[0];
-  // buf->stBufArr.m.planes[0].data_offset = 0;
-  // buf->stBufArr.m.planes[0].length = buf->nPlaneLength[0];
 
   for (S32 j = 1; j < buf->stBufArr.length; j++) {
     struct v4l2_plane *p = &(buf->stBufArr.m.planes[j]);
@@ -165,18 +159,14 @@ S32 setExternalUserPtr(Buffer *buf, U8 *ptr0, S32 extra_id) {
     }
     buf->nPlaneOffset[j] = offset;
     if (p->length > 0) {
-      buf->pUserPtr[j] = buf->pUserPtr[0] + offset;
-      buf->stBufArr.m.planes[j].m.userptr = (unsigned long)(ptr0 + offset);
+      if (1 == j)
+        buf->stBufArr.m.planes[j].m.userptr = (unsigned long)(ptr1);
+      else if (2 == j)
+        buf->stBufArr.m.planes[j].m.userptr = (unsigned long)(ptr2);
       buf->stBufArr.m.planes[j].bytesused = buf->nPlaneLength[j];
-      // buf->stBufArr.m.planes[j].data_offset = buf->nPlaneOffset[j];
-      // buf->stBufArr.m.planes[j].length =
-      //     buf->nPlaneLength[j] + buf->nPlaneOffset[j];
     }
   }
-  error("2 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx %d %p %p %ld %ld",
-        buf->stBufArr.length, buf->pUserPtr[0], buf->pUserPtr[1],
-        buf->stBufArr.m.planes[0].m.userptr,
-        buf->stBufArr.m.planes[1].m.userptr);
+
   buf->nExtraId = extra_id;
 
   return MPP_OK;
@@ -389,8 +379,8 @@ void memoryMap(Buffer *buf, S32 fd) {
                                   MAP_SHARED, fd, p->m.mem_offset);
         } else if (buf->nMemType == V4L2_MEMORY_USERPTR) {
           error("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-          buf->pUserPtr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE,
-                                  MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+          // buf->pUserPtr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE,
+          //                         MAP_SHARED | MAP_ANONYMOUS, -1, 0);
         }
 
         if (buf->pUserPtr[i] == MAP_FAILED) {
@@ -448,9 +438,9 @@ void memoryMap(Buffer *buf, S32 fd) {
             mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED,
                  buf->stBufArr.m.fd, 0);
       } else if (V4L2_MEMORY_USERPTR == buf->nMemType) {
-        buf->pUserPtr[0] =
-            mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE,
-                 MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+        // buf->pUserPtr[0] =
+        //     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE,
+        //          MAP_SHARED | MAP_ANONYMOUS, -1, 0);
       }
       if (buf->pUserPtr[0] == MAP_FAILED) {
         error("Failed to mmap single plane memory (%s)", strerror(errno));
@@ -490,7 +480,7 @@ S32 memoryUnmap(Buffer *buf) {
                buf->nMemType == V4L2_MEMORY_USERPTR) {
       for (S32 i = 0; i < buf->stBufArr.length; i++) {
         if (buf->pUserPtr[i] != 0) {
-          munmap(buf->pUserPtr[i], buf->stBufArr.m.planes[i].length);
+          // munmap(buf->pUserPtr[i], buf->stBufArr.m.planes[i].length);
         }
       }
     }

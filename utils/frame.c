@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-01-11 09:35:31
+ * @LastEditTime: 2024-04-03 15:07:21
  * @Description:
  */
 
@@ -52,7 +52,7 @@ struct _MppFrame {
    * frame parameter
    */
   S64 nPts;
-  BOOL bEos;
+  MppFrameEos bEos;
   MppFrameBufferType eBufferType;
   S32 nDataUsedNum;
   S32 nID;
@@ -498,7 +498,7 @@ RETURN FRAME_SetPts(MppFrame *frame, S64 pts) {
   return MPP_OK;
 }
 
-BOOL FRAME_GetEos(MppFrame *frame) {
+MppFrameEos FRAME_GetEos(MppFrame *frame) {
   if (!frame) {
     error("input para MppFrame is NULL, please check!");
     return MPP_NULL_POINTER;
@@ -507,7 +507,7 @@ BOOL FRAME_GetEos(MppFrame *frame) {
   return frame->bEos;
 }
 
-RETURN FRAME_SetEos(MppFrame *frame, BOOL eos) {
+RETURN FRAME_SetEos(MppFrame *frame, MppFrameEos eos) {
   if (!frame) {
     error("input para MppFrame is NULL, please check!");
     return MPP_NULL_POINTER;

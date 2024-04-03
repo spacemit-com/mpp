@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-25 09:26:08
- * @LastEditTime: 2024-03-26 11:46:39
+ * @LastEditTime: 2024-04-03 09:22:59
  * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_buffer.h
  * @Description:
  */
@@ -55,7 +55,8 @@ U8 *getUserPtr(Buffer *buf, S32 index);
 U8 *getUserPtrForHevcAndVp9Encode(Buffer *buf, S32 index);
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr);
 S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id);
-S32 setExternalUserPtr(Buffer *buf, U8 *ptr0, S32 extra_id);
+S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2,
+                            S32 extra_id);
 struct v4l2_format *getFormat(Buffer *buf);
 void setCrop(Buffer *buf, struct v4l2_crop crop);
 struct v4l2_crop getCrop(Buffer *buf);
