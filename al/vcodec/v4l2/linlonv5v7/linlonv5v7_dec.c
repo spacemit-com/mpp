@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-03-27 10:43:25
+ * @LastEditTime: 2024-04-07 19:24:14
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -360,7 +360,11 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->nRotation = para->nRotateDegree;
   context->nScale = para->nScale;
   context->nInputMemType = V4L2_MEMORY_MMAP;
-  context->nOutputMemType = V4L2_MEMORY_DMABUF;
+  if (para->eFrameBufferType == MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL) {
+    context->nOutputMemType = V4L2_MEMORY_DMABUF;
+  } else if (para->eFrameBufferType == MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL) {
+    context->nOutputMemType = V4L2_MEMORY_MMAP;
+  }
   context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT;
   context->nOutputType = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
   context->bInputEos = MPP_FALSE;
@@ -388,7 +392,6 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->nInputBufferNum = context->pVdecPara->nInputBufferNum;
   context->nOutputBufferNum = context->pVdecPara->nOutputBufferNum;
 
-  para->eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
   para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_ASYNC;
 
   context->nVideoFd =
