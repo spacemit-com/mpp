@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-04-03 15:09:52
+ * @LastEditTime: 2024-04-08 11:38:26
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -649,11 +649,16 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
         getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
     struct v4l2_buffer *b = getV4l2Buffer(buf);
     if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-      error("xxxxxxx %p %p", FRAME_GetDataPointer(sink_frame, 0),
-            FRAME_GetDataPointer(sink_frame, 1));
-      setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                              (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL,
-                              FRAME_GetID(sink_frame));
+      if (context->ePixelFormat == PIXEL_FORMAT_NV12) {
+        setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                                (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL,
+                                FRAME_GetID(sink_frame));
+      } else if (context->ePixelFormat == PIXEL_FORMAT_I420) {
+        setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                                (U8 *)FRAME_GetDataPointer(sink_frame, 1),
+                                (U8 *)FRAME_GetDataPointer(sink_frame, 2),
+                                FRAME_GetID(sink_frame));
+      }
     } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
       setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
                         (U8 *)FRAME_GetDataPointer(sink_frame, 0),
@@ -675,10 +680,18 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
 
     if (!getIsQueued(buf)) {
       if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-        error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2");
-        setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                                (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL,
-                                FRAME_GetID(sink_frame));
+        if (context->ePixelFormat == PIXEL_FORMAT_NV12) {
+          setExternalUserPtrFrame(buf,
+                                  (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                                  (U8 *)FRAME_GetDataPointer(sink_frame, 1),
+                                  NULL, FRAME_GetID(sink_frame));
+        } else if (context->ePixelFormat == PIXEL_FORMAT_I420) {
+          setExternalUserPtrFrame(buf,
+                                  (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                                  (U8 *)FRAME_GetDataPointer(sink_frame, 1),
+                                  (U8 *)FRAME_GetDataPointer(sink_frame, 2),
+                                  FRAME_GetID(sink_frame));
+        }
       } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
         setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
                           (U8 *)FRAME_GetDataPointer(sink_frame, 0),
