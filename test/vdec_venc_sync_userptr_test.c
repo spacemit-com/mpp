@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-03-29 19:50:01
+ * @LastEditTime: 2024-04-09 14:06:35
  * @Description:
  */
 
@@ -411,21 +411,12 @@ S32 main(S32 argc, char **argv) {
       if (ret == MPP_OK) {
         FRAME_SetPts(context->pFrame, context->nTimeStamp);
         context->nTimeStamp += 1000000;
-        /*
-                fwrite(FRAME_GetDataPointer(context->pFrame, 0), 1920*1080, 1,
-                      context->pMidFile);
-                fwrite(FRAME_GetDataPointer(context->pFrame, 1), 1920*1080 / 2,
-           1, context->pMidFile); fflush(context->pMidFile);
-        */
-        error("...........................");
+
         ret = VENC_SendInputFrame(context->pVencCtx,
                                   FRAME_GetBaseData(context->pFrame));
-        error("...........................1");
         do {
-          error("...........................2");
           ret = VENC_GetOutputStreamBuffer(
               context->pVencCtx, PACKET_GetBaseData(context->pOutputPacket));
-          error("........................... ret = %d", ret);
           if (ret == MPP_OK) {
             fwrite(PACKET_GetDataPointer(context->pOutputPacket),
                    PACKET_GetLength(context->pOutputPacket), 1,
@@ -445,12 +436,6 @@ S32 main(S32 argc, char **argv) {
           }
         } while (index == -1);
       } else if (ret == MPP_CODER_EOS) {
-        /*
-                fwrite(FRAME_GetDataPointer(context->pFrame, 0), 1920*1080, 1,
-                      context->pMidFile);
-                fwrite(FRAME_GetDataPointer(context->pFrame, 1), 1920*1080 / 2,
-           1, context->pMidFile); fflush(context->pMidFile);
-        */
         FRAME_SetPts(context->pFrame, context->nTimeStamp);
         FRAME_SetEos(context->pFrame, MPP_TRUE);
         ret = VENC_SendInputFrame(context->pVencCtx,

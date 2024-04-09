@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-03 15:11:02
+ * @LastEditTime: 2024-04-09 14:07:08
  * @Description:
  */
 
@@ -149,7 +149,6 @@ S32 read_frame_from_file(TestVencContext *context) {
     read_byte += FRAME_FREAD(FRAME_GetDataPointer(context->pFrame, i), 1,
                              size[i], context->pInputFile);
 
-  debug("------------ %d, %d, %d, %d", size[0], size[1], size[2], read_byte);
   return read_byte;
 }
 
@@ -268,15 +267,11 @@ S32 main(S32 argc, char **argv) {
     tmpSize = leaveSize;
 
     if (ret > 0) {
-      debug("start encode");
       ret = VENC_SendInputFrame(context->pVencCtx,
                                 FRAME_GetBaseData(context->pFrame));
-      error("...........................1");
       do {
-        error("...........................2");
         ret = VENC_GetOutputStreamBuffer(context->pVencCtx,
                                          PACKET_GetBaseData(context->pPacket));
-        error("........................... ret = %d", ret);
         if (ret == MPP_OK) {
           fwrite(PACKET_GetDataPointer(context->pPacket),
                  PACKET_GetLength(context->pPacket), 1, context->pOutputFile);
@@ -292,15 +287,12 @@ S32 main(S32 argc, char **argv) {
           // FRAME_SetID(frame, index);
           // VDEC_ReturnOutputFrame(context->pVdecCtx,
           // FRAME_GetBaseData(frame)); FRAME_Destory(frame);
-          error("okkkk! a frame return!xxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+          error("okkkk! a frame return!");
         }
       } while (index == -1);
     } else {
       // Continue sending empty buffers after encoding
       if (0 == leaveSize && need_drain < 4) {
-        error(
-            "zahui............................................................."
-            "....");
         FRAME_SetEos(context->pFrame, FRAME_EOS_WITHOUT_DATA);
         ret = VENC_SendInputFrame(context->pVencCtx,
                                   FRAME_GetBaseData(context->pFrame));
@@ -308,9 +300,6 @@ S32 main(S32 argc, char **argv) {
           ret = VENC_GetOutputStreamBuffer(
               context->pVencCtx, PACKET_GetBaseData(context->pPacket));
           if (ret == MPP_OK) {
-            error(
-                "zahui........................................................."
-                "........111");
             fwrite(PACKET_GetDataPointer(context->pPacket),
                    PACKET_GetLength(context->pPacket), 1, context->pOutputFile);
             fflush(context->pOutputFile);
@@ -333,7 +322,7 @@ S32 main(S32 argc, char **argv) {
             // FRAME_SetID(frame, index);
             // VDEC_ReturnOutputFrame(context->pVdecCtx,
             // FRAME_GetBaseData(frame)); FRAME_Destory(frame);
-            error("okkkk! a frame return! yyyyyyyyyyyyyyyyyyyyyyyyy");
+            error("okkkk! a frame return!");
           }
         } while (index != -1);
         need_drain++;

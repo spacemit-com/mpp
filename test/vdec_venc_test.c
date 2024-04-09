@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-03-26 13:51:42
+ * @LastEditTime: 2024-04-09 14:06:50
  * @Description:
  */
 
@@ -447,26 +447,11 @@ S32 main(S32 argc, char **argv) {
       ret = VDEC_RequestOutputFrame(context->pVdecCtx,
                                     FRAME_GetBaseData(context->pFrame));
       if (ret == MPP_OK) {
-        // FRAME_SetPts(context->pFrame, context->nTimeStamp);
-        // context->nTimeStamp += 1000000;
-        /*
-                fwrite(FRAME_GetDataPointer(context->pFrame, 0), 1920*1080, 1,
-                      context->pMidFile);
-                fwrite(FRAME_GetDataPointer(context->pFrame, 1), 1920*1080 / 2,
-           1, context->pMidFile); fflush(context->pMidFile);
-        */
         do {
           ret = VENC_SendInputFrame(context->pVencCtx,
                                     FRAME_GetBaseData(context->pFrame));
         } while (ret);
       } else if (ret == MPP_CODER_EOS) {
-        /*
-                fwrite(FRAME_GetDataPointer(context->pFrame, 0), 1920*1080, 1,
-                      context->pMidFile);
-                fwrite(FRAME_GetDataPointer(context->pFrame, 1), 1920*1080 / 2,
-           1, context->pMidFile); fflush(context->pMidFile);
-        */
-        // FRAME_SetPts(context->pFrame, context->nTimeStamp);
         FRAME_SetEos(context->pFrame, MPP_TRUE);
         do {
           ret = VENC_SendInputFrame(context->pVencCtx,
