@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-04-08 11:38:26
+ * @LastEditTime: 2024-04-09 09:07:41
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -665,14 +665,13 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
                         FRAME_GetID(sink_frame));
     }
     setTimeStamp(buf, FRAME_GetPts(sink_frame));
-    error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx222 %d %d %ld %ld", b->memory,
-          b->length, b->m.planes[0].m.userptr, b->m.planes[1].m.userptr);
+
     queueBuffer(getInputPort(context->stCodec), buf);
     if (ret) {
       error("Failed to queue buffer. type = %d (%s)", b->type, strerror(errno));
       return MPP_IOCTL_FAILED;
     }
-    error("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3");
+
     context->nInputQueuedNum++;
   } else {
     Buffer *buf =
