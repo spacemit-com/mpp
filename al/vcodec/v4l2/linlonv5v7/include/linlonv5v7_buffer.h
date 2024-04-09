@@ -5,18 +5,8 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-25 09:26:08
- * @LastEditTime: 2024-04-03 09:22:59
+ * @LastEditTime: 2024-04-09 15:54:00
  * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_buffer.h
- * @Description:
- */
-/***
- * @Copyright 2022-2023 SPACEMIT. All rights reserved.
- * @Use of this source code is governed by a BSD-style license
- * @that can be found in the LICENSE file.
- * @
- * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-10-07 14:08:18
- * @LastEditTime: 2023-10-07 16:08:51
  * @Description:
  */
 
@@ -48,25 +38,150 @@ typedef struct _Buffer Buffer;
  */
 Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format,
                      MppFrameBufferType buffer_type);
+
+/***
+ * @description: destory a Buffer struct
+ * @param {v4l2_buffer} buf
+ * @return {*}
+ */
 void destoryBuffer(Buffer *buf);
 
+/**
+ * @description: get the v4l2_buffer of Buffer
+ * @param {Buffer} *buf
+ * @return {*}
+ */
 struct v4l2_buffer *getV4l2Buffer(Buffer *buf);
+
+/**
+ * @description: get pUserPtr[index] of Buffer
+ * @param {Buffer} *buf
+ * @param {S32} index
+ * @return {*}
+ */
 U8 *getUserPtr(Buffer *buf, S32 index);
+
+/**
+ * @description: get pUserPtr[index] of Buffer, only for Hevc and VP9
+ * @param {Buffer} *buf
+ * @param {S32} index
+ * @return {*}
+ */
 U8 *getUserPtrForHevcAndVp9Encode(Buffer *buf, S32 index);
+
+/**
+ * @description: set pUserPtr[index] with ptr
+ * @param {Buffer} *buf
+ * @param {S32} index
+ * @param {U8} *ptr
+ * @return {*}
+ */
 void setUserPtr(Buffer *buf, S32 index, U8 *ptr);
+
+/**
+ * @description: set external dmabuf info to Buffer
+ * @param {Buffer} *buf
+ * @param {S32} fd
+ * @param {U8} *ptr
+ * @param {S32} extra_id
+ * @return {*}
+ */
 S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id);
+
+/**
+ * @description: set external userptr info to Buffer
+ * @param {Buffer} *buf
+ * @param {U8} *ptr0
+ * @param {U8} *ptr1
+ * @param {U8} *ptr2
+ * @param {S32} extra_id
+ * @return {*}
+ */
 S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2,
                             S32 extra_id);
+
+/**
+ * @description: get the v4l2_format of Buffer
+ * @param {Buffer} *buf
+ * @return {*}
+ */
 struct v4l2_format *getFormat(Buffer *buf);
+
+/**
+ * @description: set crop info to Buffer
+ * @param {Buffer} *buf
+ * @param {v4l2_crop} crop
+ * @return {*}
+ */
 void setCrop(Buffer *buf, struct v4l2_crop crop);
+
+/**
+ * @description: get crop info from Buffer
+ * @param {Buffer} *buf
+ * @return {*}
+ */
 struct v4l2_crop getCrop(Buffer *buf);
+
+/**
+ * @description: set bytesused info to Buffer
+ * @param {Buffer} *buf
+ * @param {S32} iov_size
+ * @param {S32} iov
+ * @return {*}
+ */
 void setBytesUsed(Buffer *buf, S32 iov_size, S32 iov[VIDEO_MAX_PLANES]);
+
+/**
+ * @description: get bytesused info from v4l2_buffer
+ * @param {v4l2_buffer} *buf
+ * @return {*}
+ */
 S32 getBytesUsed(struct v4l2_buffer *buf);
+
+/**
+ * @description: clear bytesused info of Buffer
+ * @param {Buffer} *buf
+ * @return {*}
+ */
 void clearBytesUsed(Buffer *buf);
+
+/**
+ * @description: clear vendor flags ofr Buffer
+ * @param {Buffer} *buf
+ * @return {*}
+ */
 void resetVendorFlags(Buffer *buf);
+
+/**
+ * @description: set codec config flag, SPS/PPS/VPS, etc
+ * @param {Buffer} *buf
+ * @param {BOOL} codecConfig
+ * @return {*}
+ */
 void setCodecConfig(Buffer *buf, BOOL codecConfig);
+
+/**
+ * @description: set timestamp to Buffer
+ * @param {Buffer} *buf
+ * @param {S64} timeUs
+ * @return {*}
+ */
 void setTimeStamp(Buffer *buf, S64 timeUs);
+
+/**
+ * @description: set end of frame flag
+ * @param {Buffer} *buf
+ * @param {BOOL} eof
+ * @return {*}
+ */
 void setEndOfFrame(Buffer *buf, BOOL eof);
+
+/**
+ * @description: set end of stream flag
+ * @param {Buffer} *buf
+ * @param {BOOL} eos
+ * @return {*}
+ */
 void setEndOfStream(Buffer *buf, BOOL eos);
 void update(Buffer *buf, struct v4l2_buffer b);
 void setInterlaced(Buffer *buf, BOOL interlaced);
