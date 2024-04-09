@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-04-07 19:24:14
+ * @LastEditTime: 2024-04-09 17:43:20
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -485,14 +485,14 @@ S32 al_dec_decode(ALBaseContext *ctx, MppData *sink_data) {
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
   if ((!PACKET_GetLength(packet))) {
-    debug("aha! length of input packet is 0, EOS is coming, pts(%ld)",
+    debug("length of input packet is 0, EOS is coming, pts(%ld)",
           PACKET_GetPts(packet));
     context->bInputEos = MPP_TRUE;
     context->nEosPts = PACKET_GetPts(packet);
   }
 
   if (PACKET_GetEos(packet)) {
-    debug("aha! eos flag of input packet is set, EOS is coming(%ld)",
+    debug("eos flag of input packet is set, EOS is coming(%ld)",
           PACKET_GetPts(packet));
     context->bInputEos = MPP_TRUE;
     context->nEosPts = PACKET_GetPts(packet);
@@ -583,12 +583,12 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
       // check if it is the last frame
       if (context->nEosPts > 0 &&
           FRAME_GetPts(FRAME_GetFrame(src_data)) == context->nEosPts) {
-        error("aha! it is a EOS frame eos pts:(%ld)", context->nEosPts);
+        error("it is a EOS frame eos pts:(%ld)", context->nEosPts);
         return MPP_CODER_EOS;
       }
     }
   } else {
-    // debug("============ no data, please try again!");
+    // debug("no data, please try again!");
     // usleep(1000);
     // error("can not get output buffer");
     return MPP_CODER_NO_DATA;
@@ -638,13 +638,16 @@ RETURN al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
 S32 al_dec_reset(ALBaseContext *ctx) {
   if (!ctx) return MPP_NULL_POINTER;
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
-  debug("al_Dec_reset0");
-  usleep(100000);
-  debug("al_Dec_reset1");
-  context->bInputEos = MPP_FALSE;
-  debug("al_Dec_reset2");
+
+  debug("Reset start ========================================");
+
   handleFlush(context->stCodec, MPP_FALSE);
-  debug("al_Dec_reset3");
+  context->nInputQueuedNum = 0;
+  context->pVdecPara->nInputQueueLeftNum =
+      getBufNum(getInputPort(context->stCodec));
+  context->bInputEos = MPP_FALSE;
+
+  debug("Reset finish ========================================");
 
   return MPP_OK;
 }
@@ -652,34 +655,16 @@ S32 al_dec_reset(ALBaseContext *ctx) {
 S32 al_dec_flush(ALBaseContext *ctx) {
   if (!ctx) return MPP_NULL_POINTER;
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
-  // MppFrame *mppframe = FRAME_Create();
-  // S32 ret = -1;
-  // S32 counter = 0;
 
   debug("Flush start ========================================");
-  /*
-  while (counter < 50) {
-    ret = al_dec_request_output_frame(ctx, FRAME_GetBaseData(mppframe));
-    if (ret == MPP_OK) {
-      debug("Flush one frame");
-      al_dec_return_output_frame(ctx, FRAME_GetBaseData(mppframe));
-    } else {
-      usleep(5000);
-    }
-    counter++;
-  }
-  */
-  handleFlush(context->stCodec, MPP_FALSE);
 
+  handleFlush(context->stCodec, MPP_FALSE);
   context->nInputQueuedNum = 0;
   context->pVdecPara->nInputQueueLeftNum =
       getBufNum(getInputPort(context->stCodec));
   context->bInputEos = MPP_FALSE;
 
   debug("Flush finish ========================================");
-
-  // FRAME_Destory(mppframe);
-  // mppframe = NULL;
 
   return MPP_OK;
 }

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-03-30 11:52:32
+ * @LastEditTime: 2024-04-09 19:37:11
  * @Description:
  */
 
@@ -123,10 +123,6 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
 }
 
 void destoryPort(Port *port) {
-  /*for (S32 i = 0; i < port->nBufNum; i++) {
-    debug("--- destory buffer[%d]", i);
-    destoryBuffer(port->stBuf[i]);
-  }*/
   allocateBuffers(port, 0);
   if (port->bEnableOutputBufferSave && OUTPUT == port->ePortDirection &&
       port->pOutputFile) {
@@ -134,7 +130,7 @@ void destoryPort(Port *port) {
     fclose(port->pOutputFile);
     port->pOutputFile = NULL;
   }
-  debug("--- free port");
+  debug("free port");
   free(port);
 }
 
@@ -1348,9 +1344,8 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
   index = getExtraId(buffer);
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   if (eof) {
-    debug("****************************************** eos2");
     if (port->bTryDecStop) {
-      debug("dec ****************************************** eos3");
+      debug("bTryDecStop id true, sendDecStopCommand");
       sendDecStopCommand(port);
     }
   }
@@ -1392,7 +1387,7 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
   }
 
   if (eof) {
-    debug("enc ****************************************** eos");
+    debug("sendEncStopCommand");
     sendEncStopCommand(port);
   }
 

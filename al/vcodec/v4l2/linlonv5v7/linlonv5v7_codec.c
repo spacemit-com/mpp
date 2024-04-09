@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-09-26 19:28:42
- * @LastEditTime: 2024-04-03 17:29:31
+ * @LastEditTime: 2024-04-09 17:57:06
  * @Description:
  */
 
@@ -158,11 +158,11 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
 }
 
 void destoryCodec(Codec *codec) {
-  debug("----- destory input port");
+  debug("destory input port");
   destoryPort(codec->stInputPort);
-  debug("----- destory output port");
+  debug("destory output port");
   destoryPort(codec->stOutputPort);
-  debug("----- free codec");
+  debug("free codec");
   free(codec);
 }
 
@@ -265,17 +265,7 @@ S32 stream(Codec *codec) {
   allocateCodecBuffers(codec);
   queueCodecBuffers(codec, MPP_FALSE);
   streamonCodec(codec);
-  /*
-          if (codec->bIsBlockMode)
-          {
-              runThreads();
-          }
-          else
-          {
-              runPoll();
-          }
-          streamoff();
-  */
+
   return MPP_OK;
 }
 
@@ -425,6 +415,7 @@ void freeCodecBuffers(Codec *codec) {
 }
 
 void queueCodecBuffers(Codec *codec, BOOL eof) {
+  // only queue output buffer, input buffer is not filled yet
   queueBuffers(codec->stOutputPort, eof);
   // queueBuffers(codec->stInputPort, eof);
 }
