@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-25 09:26:08
- * @LastEditTime: 2024-04-09 15:54:00
+ * @LastEditTime: 2024-04-09 16:38:37
  * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_buffer.h
  * @Description:
  */
@@ -120,7 +120,7 @@ void setCrop(Buffer *buf, struct v4l2_crop crop);
  * @param {Buffer} *buf
  * @return {*}
  */
-struct v4l2_crop getCrop(Buffer *buf);
+struct v4l2_crop *getCrop(Buffer *buf);
 
 /**
  * @description: set bytesused info to Buffer
@@ -183,6 +183,13 @@ void setEndOfFrame(Buffer *buf, BOOL eof);
  * @return {*}
  */
 void setEndOfStream(Buffer *buf, BOOL eos);
+
+/**
+ * @description: update the v4l2_buffer info of Buffer
+ * @param {Buffer} *buf
+ * @param {v4l2_buffer} b
+ * @return {*}
+ */
 void update(Buffer *buf, struct v4l2_buffer b);
 void setInterlaced(Buffer *buf, BOOL interlaced);
 void setTiled(Buffer *buf, BOOL tiled);
