@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-09 14:07:08
+ * @LastEditTime: 2024-04-15 16:00:16
  * @Description:
  */
 
@@ -278,6 +278,19 @@ S32 main(S32 argc, char **argv) {
           fflush(context->pOutputFile);
         }
       } while (ret != MPP_OK);
+
+      if (context->eCodingType == CODING_VP8 ||
+          context->eCodingType == CODING_VP9) {
+        do {
+          ret = VENC_GetOutputStreamBuffer(
+              context->pVencCtx, PACKET_GetBaseData(context->pPacket));
+          if (ret == MPP_OK) {
+            fwrite(PACKET_GetDataPointer(context->pPacket),
+                   PACKET_GetLength(context->pPacket), 1, context->pOutputFile);
+            fflush(context->pOutputFile);
+          }
+        } while (ret != MPP_OK);
+      }
 
       S32 index = -1;
       do {
