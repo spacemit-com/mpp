@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:11:03
- * @LastEditTime: 2023-02-02 14:43:22
+ * @LastEditTime: 2024-04-16 19:53:00
  * @Description:
  */
 
@@ -69,6 +69,9 @@ static void print_para_enum() {
 
   printf("--format:\n");
   for (i = 0; i < PIXEL_FORMAT_YUV_MAX; i++) {
+    printf("%-8d %-24s\n", i, mpp_pixelformat2str(i));
+  }
+  for (i = PIXEL_FORMAT_RGB_MIN; i < PIXEL_FORMAT_RGB_MAX; i++) {
     printf("%-8d %-24s\n", i, mpp_pixelformat2str(i));
   }
 }

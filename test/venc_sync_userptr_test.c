@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-15 16:00:16
+ * @LastEditTime: 2024-04-16 20:09:49
  * @Description:
  */
 
@@ -139,6 +139,13 @@ S32 read_frame_from_file(TestVencContext *context) {
       size[0] = context->nWidth * context->nHeight;
       size[1] = (context->nWidth / 2) * (context->nHeight);
       pnum = 2;
+      break;
+    case PIXEL_FORMAT_RGBA:
+    case PIXEL_FORMAT_ARGB:
+    case PIXEL_FORMAT_BGRA:
+    case PIXEL_FORMAT_ABGR:
+      size[0] = context->nWidth * context->nHeight * 4;
+      pnum = 1;
       break;
     default:
       error("Unsupported picture format (%d)", context->ePixelFormat);

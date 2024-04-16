@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-04-09 09:07:41
+ * @LastEditTime: 2024-04-16 20:08:31
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -66,6 +66,10 @@ static const ALLinlonv5v7EncPixelFormatMapping
         {PIXEL_FORMAT_AFBC_YUV420_10, V4L2_PIX_FMT_YUV420_AFBC_10},
         {PIXEL_FORMAT_AFBC_YUV422_8, V4L2_PIX_FMT_YUV422_AFBC_8},
         {PIXEL_FORMAT_AFBC_YUV422_10, V4L2_PIX_FMT_YUV422_AFBC_10},
+        {PIXEL_FORMAT_RGBA, V4L2_PIX_FMT_RGBA32},
+        {PIXEL_FORMAT_ARGB, V4L2_PIX_FMT_ARGB32},
+        {PIXEL_FORMAT_ABGR, V4L2_PIX_FMT_ABGR32},
+        {PIXEL_FORMAT_BGRA, V4L2_PIX_FMT_BGRA32},
 };
 PIXEL_FORMAT_MAPPING_CONVERT(Linlonv5v7Enc, linlonv5v7enc, S32)
 
@@ -658,6 +662,12 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
                                 (U8 *)FRAME_GetDataPointer(sink_frame, 1),
                                 (U8 *)FRAME_GetDataPointer(sink_frame, 2),
                                 FRAME_GetID(sink_frame));
+      } else if (context->ePixelFormat == PIXEL_FORMAT_RGBA ||
+                 context->ePixelFormat == PIXEL_FORMAT_ARGB ||
+                 context->ePixelFormat == PIXEL_FORMAT_BGRA ||
+                 context->ePixelFormat == PIXEL_FORMAT_ABGR) {
+        setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                                NULL, NULL, FRAME_GetID(sink_frame));
       }
     } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
       setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
@@ -690,6 +700,13 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
                                   (U8 *)FRAME_GetDataPointer(sink_frame, 1),
                                   (U8 *)FRAME_GetDataPointer(sink_frame, 2),
                                   FRAME_GetID(sink_frame));
+        } else if (context->ePixelFormat == PIXEL_FORMAT_RGBA ||
+                   context->ePixelFormat == PIXEL_FORMAT_ARGB ||
+                   context->ePixelFormat == PIXEL_FORMAT_BGRA ||
+                   context->ePixelFormat == PIXEL_FORMAT_ABGR) {
+          setExternalUserPtrFrame(buf,
+                                  (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                                  NULL, NULL, FRAME_GetID(sink_frame));
         }
       } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
         setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0),
