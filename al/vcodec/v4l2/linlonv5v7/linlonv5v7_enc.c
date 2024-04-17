@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-04-17 13:46:08
+ * @LastEditTime: 2024-04-17 13:59:22
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -653,7 +653,8 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
         getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
     struct v4l2_buffer *b = getV4l2Buffer(buf);
     if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-      if (context->ePixelFormat == PIXEL_FORMAT_NV12) {
+      if (context->ePixelFormat == PIXEL_FORMAT_NV12 ||
+          context->ePixelFormat == PIXEL_FORMAT_NV21) {
         setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
                                 (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL,
                                 FRAME_GetID(sink_frame));
@@ -691,7 +692,8 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
 
     if (!getIsQueued(buf)) {
       if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-        if (context->ePixelFormat == PIXEL_FORMAT_NV12) {
+        if (context->ePixelFormat == PIXEL_FORMAT_NV12 ||
+            context->ePixelFormat == PIXEL_FORMAT_NV21) {
           setExternalUserPtrFrame(buf,
                                   (U8 *)FRAME_GetDataPointer(sink_frame, 0),
                                   (U8 *)FRAME_GetDataPointer(sink_frame, 1),
