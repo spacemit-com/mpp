@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-16 20:09:49
+ * @LastEditTime: 2024-04-17 13:47:02
  * @Description:
  */
 
@@ -145,6 +145,11 @@ S32 read_frame_from_file(TestVencContext *context) {
     case PIXEL_FORMAT_BGRA:
     case PIXEL_FORMAT_ABGR:
       size[0] = context->nWidth * context->nHeight * 4;
+      pnum = 1;
+      break;
+    case PIXEL_FORMAT_YUYV:
+    case PIXEL_FORMAT_UYVY:
+      size[0] = context->nWidth * context->nHeight * 2;
       pnum = 1;
       break;
     default:

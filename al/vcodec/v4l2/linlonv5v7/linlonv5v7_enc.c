@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-04-16 20:08:31
+ * @LastEditTime: 2024-04-17 13:46:08
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -665,7 +665,9 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
       } else if (context->ePixelFormat == PIXEL_FORMAT_RGBA ||
                  context->ePixelFormat == PIXEL_FORMAT_ARGB ||
                  context->ePixelFormat == PIXEL_FORMAT_BGRA ||
-                 context->ePixelFormat == PIXEL_FORMAT_ABGR) {
+                 context->ePixelFormat == PIXEL_FORMAT_ABGR ||
+                 context->ePixelFormat == PIXEL_FORMAT_YUYV ||
+                 context->ePixelFormat == PIXEL_FORMAT_UYVY) {
         setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
                                 NULL, NULL, FRAME_GetID(sink_frame));
       }
@@ -703,7 +705,9 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
         } else if (context->ePixelFormat == PIXEL_FORMAT_RGBA ||
                    context->ePixelFormat == PIXEL_FORMAT_ARGB ||
                    context->ePixelFormat == PIXEL_FORMAT_BGRA ||
-                   context->ePixelFormat == PIXEL_FORMAT_ABGR) {
+                   context->ePixelFormat == PIXEL_FORMAT_ABGR ||
+                   context->ePixelFormat == PIXEL_FORMAT_YUYV ||
+                   context->ePixelFormat == PIXEL_FORMAT_UYVY) {
           setExternalUserPtrFrame(buf,
                                   (U8 *)FRAME_GetDataPointer(sink_frame, 0),
                                   NULL, NULL, FRAME_GetID(sink_frame));

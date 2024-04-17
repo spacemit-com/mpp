@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-16 20:16:22
+ * @LastEditTime: 2024-04-17 13:48:01
  * @Description:
  */
 
@@ -171,6 +171,11 @@ RETURN FRAME_Alloc(MppFrame *frame, MppPixelFormat pixelformat, S32 width,
       case PIXEL_FORMAT_BGRA:
       case PIXEL_FORMAT_ABGR:
         size[0] = width * height * 4;
+        frame->nDataUsedNum = 1;
+        break;
+      case PIXEL_FORMAT_YUYV:
+      case PIXEL_FORMAT_UYVY:
+        size[0] = width * height * 2;
         frame->nDataUsedNum = 1;
         break;
       default:
