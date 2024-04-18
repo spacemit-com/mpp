@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-04-09 17:43:20
+ * @LastEditTime: 2024-04-18 09:30:42
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -564,9 +564,18 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
                              src_data);
     // debug("ok, a frame is handled, get it! ret = %d", ret);
     if (ret == MPP_RESOLUTION_CHANGED) {
-      context->pVdecPara->nWidth = getBufWidth(getOutputPort(context->stCodec));
-      context->pVdecPara->nHeight =
-          getBufHeight(getOutputPort(context->stCodec));
+      if (context->nRotation == 90 || context->nRotation == 270) {
+        context->pVdecPara->nWidth =
+            getBufHeight(getOutputPort(context->stCodec));
+        ;
+        context->pVdecPara->nHeight =
+            getBufWidth(getOutputPort(context->stCodec));
+      } else {
+        context->pVdecPara->nWidth =
+            getBufWidth(getOutputPort(context->stCodec));
+        context->pVdecPara->nHeight =
+            getBufHeight(getOutputPort(context->stCodec));
+      }
       context->pVdecPara->nOutputBufferNum =
           getBufNum(getOutputPort(context->stCodec));
 
