@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-04-18 09:30:42
+ * @LastEditTime: 2024-04-18 09:44:17
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -567,7 +567,6 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
       if (context->nRotation == 90 || context->nRotation == 270) {
         context->pVdecPara->nWidth =
             getBufHeight(getOutputPort(context->stCodec));
-        ;
         context->pVdecPara->nHeight =
             getBufWidth(getOutputPort(context->stCodec));
       } else {
