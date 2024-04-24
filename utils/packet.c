@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2023-11-09 16:29:14
+ * @LastEditTime: 2024-04-24 16:43:56
  * @Description:
  */
 
@@ -21,8 +21,8 @@
 #include "env.h"
 #include "log.h"
 
-S32 num_of_unfree_packet = 0;
-S32 num_of_unfree_packet_data = 0;
+static S32 num_of_unfree_packet = 0;
+static S32 num_of_unfree_packet_data = 0;
 
 struct _MppPacket {
   /**

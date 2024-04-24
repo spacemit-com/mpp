@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-17 13:48:01
+ * @LastEditTime: 2024-04-24 16:43:46
  * @Description:
  */
 
@@ -30,8 +30,8 @@
 #include "env.h"
 #include "log.h"
 
-S32 num_of_unfree_frame = 0;
-S32 num_of_unfree_data = 0;
+static S32 num_of_unfree_frame = 0;
+static S32 num_of_unfree_data = 0;
 
 struct _MppFrame {
   /**

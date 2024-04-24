@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2024-01-12 10:25:27
+ * @LastEditTime: 2024-04-24 16:44:07
  * @Description:
  */
 
@@ -13,8 +13,8 @@
 
 #include "dmabufwrapper.h"
 
-S32 num_of_unfree_dmabuf = 0;
-S32 num_of_unfree_dmabufwrapper = 0;
+static S32 num_of_unfree_dmabuf = 0;
+static S32 num_of_unfree_dmabufwrapper = 0;
 
 DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap) {
   DmaBufWrapper *wrapper_tmp = (DmaBufWrapper *)malloc(sizeof(DmaBufWrapper));
