@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-17 13:47:02
+ * @LastEditTime: 2024-04-19 17:21:33
  * @Description:
  */
 
@@ -206,6 +206,7 @@ S32 main(S32 argc, char **argv) {
   MppData *tmp;
   BOOL stop = MPP_FALSE;
   BOOL eos = MPP_FALSE;
+  S32 id = 0;
 
   context = TestVencContextCreate();
   if (!context) {
@@ -279,6 +280,9 @@ S32 main(S32 argc, char **argv) {
     tmpSize = leaveSize;
 
     if (ret > 0) {
+      FRAME_SetID(context->pFrame, id);
+      id++;
+      if (id == 12) id = 0;
       ret = VENC_SendInputFrame(context->pVencCtx,
                                 FRAME_GetBaseData(context->pFrame));
       do {
@@ -319,6 +323,9 @@ S32 main(S32 argc, char **argv) {
       // Continue sending empty buffers after encoding
       if (0 == leaveSize && need_drain < 4) {
         FRAME_SetEos(context->pFrame, FRAME_EOS_WITHOUT_DATA);
+        FRAME_SetID(context->pFrame, id);
+        id++;
+        if (id == 12) id = 0;
         ret = VENC_SendInputFrame(context->pVencCtx,
                                   FRAME_GetBaseData(context->pFrame));
         do {
