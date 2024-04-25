@@ -20,7 +20,8 @@ set(SRC_LIST ./sys.c
 	     ./venc.c
 	     ./g2d.c
 	     ./module.c
-		 ./vo.c)
+		 ./vo.c
+		 ./vi.c)
 add_library(spacemit_mpp SHARED ${SRC_LIST})
 target_link_libraries(spacemit_mpp  utils)
 target_link_libraries(spacemit_mpp  dl)
