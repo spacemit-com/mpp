@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:31:08
- * @LastEditTime: 2024-04-18 09:44:17
+ * @LastEditTime: 2024-04-25 11:36:16
  * @Description: video decode plugin for V4L2 codec interface
  */
 
@@ -260,7 +260,21 @@ static void setDecoderDSLMode(ALLinlonv5v7DecContext *context, S32 mode) {
   setDSLMode(getOutputPort(context->stCodec), mode);
 }
 
-static S32 checkCodingTypeAndProfile(MppCodingType type, S32 profile) {
+static S32 checkInputParameters(MppCodingType type, S32 profile,
+                                MppPixelFormat format) {
+  if (type != CODING_H264 && type != CODING_H265 && type != CODING_MJPEG &&
+      type != CODING_VP8 && type != CODING_VP9 && type != CODING_MPEG2 &&
+      type != CODING_MPEG4) {
+    error("not support this coding type (%d)!", type);
+    return MPP_NOT_SUPPORTED_FORMAT;
+  }
+
+  if (format != PIXEL_FORMAT_I420 && format != PIXEL_FORMAT_NV12 &&
+      format != PIXEL_FORMAT_NV21) {
+    error("not support this format (%d)!", format);
+    return MPP_NOT_SUPPORTED_FORMAT;
+  }
+
   if (type == CODING_MPEG2 && profile == PROFILE_MPEG2_HIGH) {
     error("not support CODING_MPEG2->PROFILE_MPEG2_HIGH!");
     return MPP_NOT_SUPPORTED_FORMAT;
@@ -338,7 +352,8 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
   S32 ret = 0;
 
-  ret = checkCodingTypeAndProfile(para->eCodingType, para->nProfile);
+  ret = checkInputParameters(para->eCodingType, para->nProfile,
+                             para->eOutputPixelFormat);
   if (ret) {
     error("not support this format or profile, please check!");
     return MPP_NOT_SUPPORTED_FORMAT;
