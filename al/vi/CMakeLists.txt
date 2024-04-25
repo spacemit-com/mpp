@@ -9,3 +9,16 @@
 # @Description: the cmake script of al layer.
 #------------------------------------------------------------
 
+include_directories(v4l2/include)
+set(SRC_LIST ./v4l2/vi_v4l2.c)
+add_library(vi_v4l2_plugin SHARED ${SRC_LIST})
+target_link_libraries(vi_v4l2_plugin utils)
+install(TARGETS vi_v4l2_plugin LIBRARY
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
+
+include_directories(k1/cam/include)
+set(SRC_LIST ./k1/cam/vi_k1_cam.c)
+add_library(vi_k1_cam_plugin SHARED ${SRC_LIST})
+target_link_libraries(vi_k1_cam_plugin utils)
+install(TARGETS vi_k1_cam_plugin LIBRARY
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")

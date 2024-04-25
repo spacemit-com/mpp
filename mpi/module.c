@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 10:27:53
- * @LastEditTime: 2024-03-16 10:54:05
+ * @LastEditTime: 2024-04-25 20:13:25
  * @Description: dlopen the video codec library dynamicly
  */
 
@@ -64,6 +64,8 @@ FIND_PLUGIN(V4L2_LINLONV5V7, v4l2_linlonv5v7, v4l2_linlonv5v7_codec)
 FIND_PLUGIN(K1_V2D, k1_v2d, v2d_plugin)
 FIND_PLUGIN(K1_JPU, k1_jpu, jpu_plugin)
 FIND_PLUGIN(VO_SDL2, vo_sdl2, vo_sdl2_plugin)
+FIND_PLUGIN(VI_V4L2, vi_v4l2, vi_v4l2_plugin)
+FIND_PLUGIN(VI_K1_CAM, vi_k1_cam, vi_k1_cam_plugin)
 
 #define CHECK_LIBRARY(TYPE, type, name, path1, path2) \
 S32 check_##type() \
@@ -93,6 +95,8 @@ CHECK_LIBRARY(FAKEDEC, fakedec, c, /, /)
 CHECK_LIBRARY(K1_V2D, k1_v2d, v2d, /, /)
 CHECK_LIBRARY(K1_JPU, k1_jpu, jpu, /, /)
 CHECK_LIBRARY(VO_SDL2, vo_sdl2, SDL2-2.0, /, /)
+CHECK_LIBRARY(VI_V4L2, vi_v4l2, c, /, /)
+CHECK_LIBRARY(VI_K1_CAM, vi_k1_cam, c, /, /)
 
 #define CHECKCODEC_BY_TYPE(TYPE, type) \
 { \
@@ -179,6 +183,14 @@ MppModule*  module_init(MppModuleType module_type)
     else if(VO_SDL2 == module_type)
     {
         CHECKCODEC_BY_TYPE(VO_SDL2, vo_sdl2);
+    }
+    else if(VI_V4L2 == module_type)
+    {
+        CHECKCODEC_BY_TYPE(VI_V4L2, vi_v4l2);
+    }
+    else if(VI_K1_CAM == module_type)
+    {
+        CHECKCODEC_BY_TYPE(VI_K1_CAM, vi_k1_cam);
     }
     else
     {

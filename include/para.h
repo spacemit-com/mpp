@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-25 19:35:55
+ * @LastEditTime: 2024-04-25 20:11:18
  * @Description:
  */
 
@@ -46,6 +46,10 @@
 | CODEC_K1_JPU          | √       | √       | x         |
 +-----------------------+---------+---------+-----------+
 | VO_SDL2               | x       | x       | x         |
++-----------------------+---------+---------+-----------+
+| VI_V4L2               | x       | x       | x         |
++-----------------------+---------+---------+-----------+
+| VI_K1_CAM             | x       | x       | x         |
 +-----------------------+---------+---------+-----------+
 
 */
@@ -124,6 +128,23 @@ typedef enum _MppModuleType {
   VO_SDL2,
 
   VO_MAX,
+
+  /***
+   * auto mode, mpp select suitable vi.
+   */
+  VI_AUTO = 200,
+
+  /***
+   * use standard v4l2 framework for input
+   */
+  VI_V4L2,
+
+  /***
+   * use K1 ISP for input
+   */
+  VI_K1_CAM,
+
+  VI_MAX,
 } MppModuleType;
 
 static inline const char* mpp_codectype2str(int cmd) {
