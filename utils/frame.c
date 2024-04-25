@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-24 16:43:46
+ * @LastEditTime: 2024-04-24 17:16:59
  * @Description:
  */
 
@@ -67,33 +67,6 @@ struct _MppFrame {
 
   // environment variable
   BOOL bEnableUnfreeFrameDebug;
-
-  // S32     nStreamIndex;
-  // S32     nTopOffset;
-  // S32     nLeftOffset;
-  // S32     nBottomOffset;
-  // S32     nRightOffset;
-  // S32     nFrameRate;
-  // S32     nAspectRatio;
-  // S32     bIsProgressive;
-  // S32     bTopFieldFirst;
-  // S32     bRepeatTopField;
-  // S64     nPcr;
-  // S32     bMafValid;
-  // U8*     pMafData;
-  // S32     nMafFlagStride;
-  // S32     bPreFrmValid;
-  // S32     nBufId;
-  // S64     phyYBufAddr;
-  // S64     phyCBufAddr;
-  // void*      pPrivate;
-  // S32     nBufStatus;
-  // S32     bTopFieldError;
-  // S32     bBottomFieldError;
-  // S32     nColorPrimary;  // default value is 0xffffffff, valid value id
-  // 0x0000xxyy
-  //  xx: is video full range code
-  //  yy: is matrix coefficient
 };
 
 MppFrame *FRAME_Create() {
