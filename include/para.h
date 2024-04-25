@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-25 20:11:18
+ * @LastEditTime: 2024-04-25 20:18:52
  * @Description:
  */
 
@@ -165,6 +165,9 @@ static inline const char* mpp_codectype2str(int cmd) {
     MPP_CODECTYPE2STR(CODEC_V4L2_LINLONV5V7);
     MPP_CODECTYPE2STR(CODEC_K1_V2D);
     MPP_CODECTYPE2STR(CODEC_K1_JPU);
+    MPP_CODECTYPE2STR(VO_SDL2);
+    MPP_CODECTYPE2STR(VI_V4L2);
+    MPP_CODECTYPE2STR(VI_K1_CAM);
     default:
       return "UNKNOWN";
   }
