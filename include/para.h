@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-26 14:19:45
+ * @LastEditTime: 2024-04-26 17:16:05
  * @Description:
  */
 
@@ -1099,6 +1099,7 @@ typedef struct _MppViPara {
   S32 nWidth;
   S32 nHeight;
   S32 nStride;
+  S32 nBufferNum;
 
   /***
    * for vi file

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-26 11:30:30
- * @LastEditTime: 2024-04-26 15:32:30
+ * @LastEditTime: 2024-04-26 17:22:28
  * @FilePath: \mpp\test\vi_test.c
  * @Description:
  */
@@ -25,9 +25,11 @@
 #include "parse.h"
 #include "type.h"
 
+#define NUM_OF_BUFFERS 12
+
 typedef struct _TestViContext {
   /**
-   * path of input file with stream
+   * path of video device
    */
   U8 *pVideoDeviceName;
 
@@ -41,7 +43,6 @@ typedef struct _TestViContext {
   /**
    * used for save para from cmd
    */
-  MppCodingType eCodingType;
   S32 ePixelFormat;
   MppModuleType eCodecType;
 
@@ -53,7 +54,6 @@ typedef struct _TestViContext {
   MppFrame *pFrame;
   S32 nWidth;
   S32 nHeight;
-  S64 nTimeStamp;
 } TestViContext;
 
 static const MppArgument ArgumentMapping[] = {
@@ -88,10 +88,6 @@ static S32 parse_argument(TestViContext *context, char *argument, char *value,
       print_demo_usage(ArgumentMapping, num);
       print_para_enum();
       return -1;
-    case CODING_TYPE:
-      sscanf(value, "%d", (S32 *)&(context->eCodingType));
-      debug(" coding type is : %s", mpp_codingtype2str(context->eCodingType));
-      break;
     case CODEC_TYPE:
       sscanf(value, "%d", (S32 *)&(context->eCodecType));
       debug(" codec type is : %s", mpp_codectype2str(context->eCodecType));
@@ -151,8 +147,6 @@ static TestViContext *TestViContextCreate() {
     ;
   }
   memset(context->pOutputFileName, 0, DEMO_FILE_NAME_LEN);
-
-  context->nTimeStamp = 0;
 
   return context;
 }
@@ -237,10 +231,10 @@ S32 main(S32 argc, char **argv) {
   }
 
   // set para
-
   context->pViCtx->stViPara.nWidth = context->nWidth;
   context->pViCtx->stViPara.nHeight = context->nHeight;
   context->pViCtx->stViPara.ePixelFormat = context->ePixelFormat;
+  context->pViCtx->stViPara.nBufferNum = NUM_OF_BUFFERS;
   context->pViCtx->eViType = context->eCodecType;
   memcpy(context->pViCtx->stViPara.pVideoDeviceName, context->pVideoDeviceName,
          strlen(context->pVideoDeviceName));

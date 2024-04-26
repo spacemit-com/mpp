@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-25 20:00:13
- * @LastEditTime: 2024-04-26 15:34:51
+ * @LastEditTime: 2024-04-26 17:43:28
  * @FilePath: \mpp\al\vi\v4l2\vi_v4l2.c
  * @Description:
  */
@@ -29,6 +29,17 @@
 
 #define POLL_TIMEOUT 0
 
+PIXEL_FORMAT_MAPPING_DEFINE(ViV4l2, S32)
+static const ALViV4l2PixelFormatMapping stALViV4l2PixelFormatMapping[] = {
+    {PIXEL_FORMAT_I420, V4L2_PIX_FMT_YUV420M},
+    {PIXEL_FORMAT_NV12, V4L2_PIX_FMT_NV12},
+    {PIXEL_FORMAT_NV21, V4L2_PIX_FMT_NV21},
+    {PIXEL_FORMAT_YV12, V4L2_PIX_FMT_YVU420M},
+    {PIXEL_FORMAT_UYVY, V4L2_PIX_FMT_UYVY},
+    {PIXEL_FORMAT_YUYV, V4L2_PIX_FMT_YUYV},
+};
+PIXEL_FORMAT_MAPPING_CONVERT(ViV4l2, viv4l2, S32)
+
 typedef struct _ALViV4l2Context ALViV4l2Context;
 
 struct _ALViV4l2Context {
@@ -39,15 +50,20 @@ struct _ALViV4l2Context {
 
   S32 nOutputWidth;
   S32 nOutputHeight;
-  MppPixelFormat eOutputPixelFormat;
+  U32 nFormatFourcc;
+  U32 nMemType;
+  U32 nBufferNum;
   U8 pVideoDevice[128];
   S32 fd;
   struct v4l2_capability cap;
   struct v4l2_format format;
   struct v4l2_requestbuffers reqbuf;
-  struct v4l2_buffer buf;
+  struct v4l2_buffer buf[VIDEO_MAX_FRAME];
   enum v4l2_buf_type type;
-  void *buffer;
+  U8 *buffer[VIDEO_MAX_FRAME];
+
+  BOOL bIsPixfmtSupported;
+  BOOL bIsResolutionSupported;
 };
 
 S32 runPoll(struct pollfd *p) {
@@ -100,9 +116,16 @@ RETURN al_vi_init(ALBaseContext *ctx, MppViPara *para) {
 
   context->nOutputWidth = para->nWidth;
   context->nOutputHeight = para->nHeight;
-  context->eOutputPixelFormat = para->ePixelFormat;
+  context->nFormatFourcc = get_viv4l2_codec_pixel_format(para->ePixelFormat);
   memcpy(context->pVideoDevice, para->pVideoDeviceName,
          strlen(para->pVideoDeviceName));
+  context->nMemType = V4L2_MEMORY_MMAP;
+  if (para->eFrameBufferType == MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL) {
+    context->nMemType = V4L2_MEMORY_DMABUF;
+  } else if (para->eFrameBufferType == MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL) {
+    context->nMemType = V4L2_MEMORY_MMAP;
+  }
+  context->nBufferNum = para->nBufferNum;
 
   // open video device
   context->fd = open(context->pVideoDevice, O_RDWR);
@@ -116,6 +139,51 @@ RETURN al_vi_init(ALBaseContext *ctx, MppViPara *para) {
     error("Failed to query capability");
     goto exit;
   }
+
+  debug("Driver: %s", context->cap.driver);
+  debug("Card: %s", context->cap.card);
+  debug("Bus info: %s", context->cap.bus_info);
+  debug("Capabilities: 0x%08x", context->cap.capabilities);
+
+  // enum support formats
+  context->bIsPixfmtSupported = MPP_FALSE;
+  struct v4l2_fmtdesc fmt;
+  memset(&fmt, 0, sizeof(fmt));
+  fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  fmt.index = 0;
+  debug("Supported formats:");
+  while (ioctl(context->fd, VIDIOC_ENUM_FMT, &fmt) != -1) {
+    debug("\tFormat: %s", fmt.description);
+    if (fmt.pixelformat == context->nFormatFourcc) {
+      context->bIsPixfmtSupported = MPP_TRUE;
+    }
+    fmt.index++;
+  }
+
+  if (!context->bIsPixfmtSupported) goto exit;
+
+  // check resolution support
+  context->bIsResolutionSupported = MPP_FALSE;
+  struct v4l2_frmsizeenum frmsize;
+  memset(&frmsize, 0, sizeof(frmsize));
+  frmsize.pixel_format = context->nFormatFourcc;
+  debug("Supported resolutions for format YUYV:");
+  while (ioctl(context->fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) != -1) {
+    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
+      debug("\tResolution: %dx%d", frmsize.discrete.width,
+            frmsize.discrete.height);
+      if (frmsize.discrete.width == context->nOutputWidth &&
+          frmsize.discrete.height == context->nOutputHeight) {
+        context->bIsResolutionSupported = MPP_TRUE;
+      }
+    } else if (frmsize.type == V4L2_FRMSIZE_TYPE_STEPWISE) {
+      debug("\tResolution: %dx%d (stepwise)", frmsize.stepwise.max_width,
+            frmsize.stepwise.max_height);
+    }
+    frmsize.index++;
+  }
+
+  if (!context->bIsResolutionSupported) goto exit;
 
   // set fmt
   context->format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -131,39 +199,51 @@ RETURN al_vi_init(ALBaseContext *ctx, MppViPara *para) {
   // request buffers
   context->reqbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   context->reqbuf.memory = V4L2_MEMORY_MMAP;
-  context->reqbuf.count = 1;
+  context->reqbuf.count = context->nBufferNum;
   if (-1 == ioctl(context->fd, VIDIOC_REQBUFS, &(context->reqbuf))) {
     error("Failed to request buffers");
     goto exit;
   }
 
-  // query buffers
-  context->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  context->buf.memory = V4L2_MEMORY_MMAP;
-  context->buf.index = 0;
-  if (-1 == ioctl(context->fd, VIDIOC_QUERYBUF, &(context->buf))) {
-    error("Failed to query buffer");
-    goto exit;
+  if (context->nBufferNum != context->reqbuf.count) {
+    error("can not request so many buffers, want(%d), actual(%d)",
+          context->nBufferNum, context->reqbuf.count);
+    context->nBufferNum = context->reqbuf.count;
   }
-  context->buffer = mmap(NULL, context->buf.length, PROT_READ | PROT_WRITE,
-                         MAP_SHARED, context->fd, context->buf.m.offset);
-  if (context->buffer == MAP_FAILED) {
-    error("Failed to mmap buffer");
-    goto exit;
+
+  // query buffers
+  for (S32 i = 0; i < context->nBufferNum; i++) {
+    context->buf[i].type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    context->buf[i].memory = V4L2_MEMORY_MMAP;
+    context->buf[i].index = i;
+    if (-1 == ioctl(context->fd, VIDIOC_QUERYBUF, &(context->buf[i]))) {
+      error("Failed to query buffer(index=%d)", i);
+      goto exit;
+    }
+    context->buffer[i] =
+        mmap(NULL, context->buf[i].length, PROT_READ | PROT_WRITE, MAP_SHARED,
+             context->fd, context->buf[i].m.offset);
+    if (context->buffer[i] == MAP_FAILED) {
+      error("Failed to mmap buffer");
+      goto exit;
+    }
   }
 
   // queue buffers
-  if (-1 == ioctl(context->fd, VIDIOC_QBUF, &(context->buf))) {
-    error("Failed to enqueue buffer");
-    munmap(context->buffer, context->buf.length);
-    goto exit;
+  for (S32 i = 0; i < context->nBufferNum; i++) {
+    if (-1 == ioctl(context->fd, VIDIOC_QBUF, &(context->buf[i]))) {
+      error("Failed to enqueue buffer(index=%d)", i);
+      munmap(context->buffer[i], context->buf[i].length);
+      goto exit;
+    }
   }
 
   // stream on
   context->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(context->fd, VIDIOC_STREAMON, &(context->type)) == -1) {
     error("Failed to start streaming");
-    munmap(context->buffer, context->buf.length);
+    // munmap(context->buffer, context->buf.length);
+    //  to do munmap
     goto exit;
   }
 
@@ -196,16 +276,22 @@ S32 al_vi_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
   struct pollfd p = {.fd = context->fd, .events = POLLIN};
   MppFrame *src_frame = FRAME_GetFrame(src_data);
 
+  struct v4l2_buffer buf;
+  buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  buf.memory = V4L2_MEMORY_MMAP;
+
   ret = runPoll(&p);
   if (MPP_OK == ret && p.revents & POLLIN) {
-    if (ioctl(context->fd, VIDIOC_DQBUF, &(context->buf)) == -1) {
+    if (ioctl(context->fd, VIDIOC_DQBUF, &buf) == -1) {
       error("======== Failed to dequeue buffer");
-      munmap(context->buffer, context->buf.length);
+      // munmap(context->buffer, context->buf.length);
+      // to do munmap
       close(context->fd);
       return -1;
     }
     FRAME_SetDataUsedNum(src_frame, 1);
-    FRAME_SetDataPointer(src_frame, 0, context->buffer);
+    FRAME_SetID(src_frame, buf.index);
+    FRAME_SetDataPointer(src_frame, 0, context->buffer[buf.index]);
   } else {
     error("no data");
     usleep(20000);
@@ -230,10 +316,12 @@ S32 al_vi_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
   S32 ret = 0;
 
   MppFrame *src_frame = FRAME_GetFrame(src_data);
+  S32 index = FRAME_GetID(src_frame);
 
-  if (ioctl(context->fd, VIDIOC_QBUF, &(context->buf)) == -1) {
+  if (ioctl(context->fd, VIDIOC_QBUF, &(context->buf[index])) == -1) {
     error("======== Failed to queue buffer");
-    munmap(context->buffer, context->buf.length);
+    // munmap(context->buffer, context->buf.length);
+    // to do munmap
     close(context->fd);
     return -1;
   }
@@ -248,12 +336,14 @@ void al_vi_destory(ALBaseContext *ctx) {
   // stream off
   if (-1 == ioctl(context->fd, VIDIOC_STREAMOFF, &(context->type))) {
     error("Failed to stop streaming");
-    munmap(context->buffer, context->buf.length);
+    // munmap(context->buffer, context->buf.length);
     close(context->fd);
   }
 
   // munmap buffers
-  munmap(context->buffer, context->buf.length);
+  for (S32 i = 0; i < context->nBufferNum; i++) {
+    munmap(context->buffer[i], context->buf[i].length);
+  }
 
   // close fd
   close(context->fd);
