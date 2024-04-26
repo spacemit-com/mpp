@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-25 19:27:35
- * @LastEditTime: 2024-04-25 19:30:09
+ * @LastEditTime: 2024-04-26 09:48:22
  * @FilePath: \mpp\mpi\vi.c
  * @Description:
  */
@@ -28,7 +28,9 @@
 ALBaseContext *(*vi_create)();
 S32 (*vi_init)(ALBaseContext *ctx, MppViPara *para);
 S32 (*vi_getparam)(ALBaseContext *ctx, MppViPara **para);
-S32 (*vi_process)(ALBaseContext *ctx, MppData *sink_data);
+S32 (*vi_process)(ALBaseContext *ctx, MppData *src_data);
+S32 (*vi_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
+S32 (*vi_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
 void (*vi_destory)(ALBaseContext *ctx);
 
 MppViCtx *VI_CreateChannel() {
@@ -55,8 +57,12 @@ S32 VI_Init(MppViCtx *ctx) {
       dlsym(module_get_so_path(ctx->pModule), "al_vi_init");
   vi_getparam = (S32(*)(ALBaseContext * ctx, MppViPara * *para))
       dlsym(module_get_so_path(ctx->pModule), "al_vi_getparam");
-  vi_process = (S32(*)(ALBaseContext * ctx, MppData * sink_data))
+  vi_process = (S32(*)(ALBaseContext * ctx, MppData * src_data))
       dlsym(module_get_so_path(ctx->pModule), "al_vi_process");
+  vi_request_output_frame = (S32(*)(ALBaseContext * ctx, MppData * src_data))
+      dlsym(module_get_so_path(ctx->pModule), "al_vi_request_output_frame");
+  vi_return_output_frame = (S32(*)(ALBaseContext * ctx, MppData * src_data))
+      dlsym(module_get_so_path(ctx->pModule), "al_vi_return_output_frame");
   vi_destory = (void (*)(ALBaseContext * ctx))
       dlsym(module_get_so_path(ctx->pModule), "al_vi_destory");
 
@@ -76,10 +82,26 @@ S32 VI_GetParam(MppViCtx *ctx, MppViPara **stViPara) {
   return ret;
 }
 
-S32 VI_Process(MppViCtx *ctx, MppData *sink_data) {
+S32 VI_Process(MppViCtx *ctx, MppData *src_data) {
   S32 ret = 0;
-  ret = vi_process(ctx->pNode.pAlBaseContext, sink_data);
-  debug("vi one packet, ret = %d", ret);
+  ret = vi_process(ctx->pNode.pAlBaseContext, src_data);
+  debug("vi one frame, ret = %d", ret);
+
+  return ret;
+}
+
+S32 VI_RequestOutputFrame(MppViCtx *ctx, MppData *src_data) {
+  S32 ret = 0;
+  ret = vi_request_output_frame(ctx->pNode.pAlBaseContext, src_data);
+  debug("vi rquest one frame, ret = %d", ret);
+
+  return ret;
+}
+
+S32 VI_ReturnOutputFrame(MppViCtx *ctx, MppData *src_data) {
+  S32 ret = 0;
+  ret = vi_return_output_frame(ctx->pNode.pAlBaseContext, src_data);
+  debug("vi return one frame, ret = %d", ret);
 
   return ret;
 }

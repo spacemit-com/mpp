@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-25 19:31:10
- * @LastEditTime: 2024-04-25 19:33:21
+ * @LastEditTime: 2024-04-26 09:48:58
  * @FilePath: \mpp\al\include\al_interface_vi.h
  * @Description:
  */
@@ -47,7 +47,23 @@ RETURN al_vi_getparam(ALBaseContext *ctx, MppViPara **para);
  * @param {MppData} *sink_data
  * @return {*}
  */
-S32 al_vi_process(ALBaseContext *ctx, MppData *sink_data);
+S32 al_vi_process(ALBaseContext *ctx, MppData *src_data);
+
+/**
+ * @description:
+ * @param {ALBaseContext} *ctx
+ * @param {MppData} *src_data
+ * @return {*}
+ */
+S32 al_vi_request_output_frame(ALBaseContext *ctx, MppData *src_data);
+
+/**
+ * @description:
+ * @param {ALBaseContext} *ctx
+ * @param {MppData} *src_data
+ * @return {*}
+ */
+S32 al_vi_return_output_frame(ALBaseContext *ctx, MppData *src_data);
 
 /**
  * @description:

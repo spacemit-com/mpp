@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:11:03
- * @LastEditTime: 2024-04-16 19:53:00
+ * @LastEditTime: 2024-04-26 14:49:55
  * @Description:
  */
 
@@ -29,6 +29,7 @@ typedef enum {
   WIDTH,
   HEIGHT,
   FORMAT,
+  VIDEO_DEVICE,
   INVALID
 } ARGUMENT;
 
@@ -59,6 +60,12 @@ static void print_para_enum() {
   S32 i = 0;
   printf("--codectype:\n");
   for (i = 0; i < CODEC_MAX; i++) {
+    printf("%-8d %-24s\n", i, mpp_codectype2str(i));
+  }
+  for (i = VO_AUTO; i < VO_MAX; i++) {
+    printf("%-8d %-24s\n", i, mpp_codectype2str(i));
+  }
+  for (i = VI_AUTO; i < VI_MAX; i++) {
     printf("%-8d %-24s\n", i, mpp_codectype2str(i));
   }
 

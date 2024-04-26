@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-25 20:18:52
+ * @LastEditTime: 2024-04-26 14:19:45
  * @Description:
  */
 
@@ -1091,7 +1091,6 @@ typedef struct _MppViPara {
   MppModuleType eViType;
   MppFrameBufferType eFrameBufferType;
   MppDataTransmissinMode eDataTransmissinMode;
-  BOOL bIsFrame;
 
   /***
    * for frame
@@ -1100,12 +1099,11 @@ typedef struct _MppViPara {
   S32 nWidth;
   S32 nHeight;
   S32 nStride;
-  S32 nScale;
 
   /***
    * for vi file
    */
-  U8* pInputFileName;
+  U8 pVideoDeviceName[128];
 } MppViPara;
 
 #endif /*_MPP_PARA_H_*/

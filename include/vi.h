@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-25 19:21:30
- * @LastEditTime: 2024-04-25 19:44:41
+ * @LastEditTime: 2024-04-26 09:45:05
  * @FilePath: \mpp\include\vi.h
  * @Description:
  */
@@ -64,10 +64,26 @@ S32 VI_GetParam(MppViCtx *ctx, MppViPara **stViPara);
 /**
  * @description: handle data.
  * @param {MppViCtx} *ctx: channel context
- * @param {MppData} *sink_data: input stream data
+ * @param {MppData} *src_data: input stream data
  * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
  */
-S32 VI_Process(MppViCtx *ctx, MppData *sink_data);
+S32 VI_Process(MppViCtx *ctx, MppData *src_data);
+
+/**
+ * @description:
+ * @param {MppViCtx} *ctx
+ * @param {MppData} *src_data
+ * @return {*}
+ */
+S32 VI_RequestOutputFrame(MppViCtx *ctx, MppData *src_data);
+
+/**
+ * @description:
+ * @param {MppViCtx} *ctx
+ * @param {MppData} *src_data
+ * @return {*}
+ */
+S32 VI_ReturnOutputFrame(MppViCtx *ctx, MppData *src_data);
 
 /**
  * @description: destory the channel for video input.
