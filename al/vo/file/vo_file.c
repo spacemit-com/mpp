@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-16 11:17:51
- * @LastEditTime: 2024-03-16 11:37:57
+ * @LastEditTime: 2024-04-28 14:27:34
  * @FilePath: \mpp\al\vo\file\vo_file.c
  * @Description:
  */
@@ -32,8 +32,10 @@ struct _ALVoFileContext {
 
   S32 nOutputWidth;
   S32 nOutputHeight;
+  S32 nOutputStride;
   MppPixelFormat eOutputPixelFormat;
   U8 *pOutputFileName;
+  FILE *pOutputFile;
 };
 
 ALBaseContext *al_vo_create() {
@@ -65,8 +67,15 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   context->bIsFrame = para->bIsFrame;
   context->nOutputWidth = para->nWidth;
   context->nOutputHeight = para->nHeight;
+  context->nOutputStride = para->nStride;
   context->eOutputPixelFormat = para->ePixelFormat;
   context->pOutputFileName = para->pOutputFileName;
+
+  context->pOutputFile = fopen(context->pOutputFileName, "w+");
+  if (!context->pOutputFile) {
+    error("can not open context->pOutputFileName, please check !");
+    goto exit;
+  }
 
   debug("init finish");
 
@@ -96,8 +105,51 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
 
   if (context->bIsFrame) {
     MppFrame *sink_frame = FRAME_GetFrame(sink_data);
+    S32 size[4];
+
+    switch (context->eOutputPixelFormat) {
+      case PIXEL_FORMAT_I420:
+        size[0] = context->nOutputWidth * context->nOutputHeight;
+        size[1] = context->nOutputWidth * context->nOutputHeight / 4;
+        size[2] = context->nOutputWidth * context->nOutputHeight / 4;
+        break;
+      case PIXEL_FORMAT_NV12:
+      case PIXEL_FORMAT_NV21:
+        size[0] = context->nOutputWidth * context->nOutputHeight;
+        size[1] = context->nOutputWidth * context->nOutputHeight / 2;
+        break;
+      case PIXEL_FORMAT_YUYV:
+      case PIXEL_FORMAT_YVYU:
+        size[0] = context->nOutputWidth * context->nOutputHeight * 2;
+        break;
+      default:
+        error("Unsupported picture format (%d)! Please check!",
+              context->eOutputPixelFormat);
+        return MPP_CHECK_FAILED;
+    }
+
+    if (1 == FRAME_GetDataUsedNum(sink_frame)) {
+      fwrite(FRAME_GetDataPointer(sink_frame, 0), size[0], 1,
+             context->pOutputFile);
+    } else if (2 == FRAME_GetDataUsedNum(sink_frame)) {
+      fwrite(FRAME_GetDataPointer(sink_frame, 0), size[0], 1,
+             context->pOutputFile);
+      fwrite(FRAME_GetDataPointer(sink_frame, 1), size[1], 1,
+             context->pOutputFile);
+    } else {
+      fwrite(FRAME_GetDataPointer(sink_frame, 0), size[0], 1,
+             context->pOutputFile);
+      fwrite(FRAME_GetDataPointer(sink_frame, 1), size[1], 1,
+             context->pOutputFile);
+      fwrite(FRAME_GetDataPointer(sink_frame, 2), size[2], 1,
+             context->pOutputFile);
+    }
+    fflush(context->pOutputFile);
   } else {
     MppPacket *sink_packet = PACKET_GetPacket(sink_data);
+    fwrite(PACKET_GetDataPointer(sink_packet), PACKET_GetLength(sink_packet), 1,
+           context->pOutputFile);
+    fflush(context->pOutputFile);
   }
 
   return MPP_OK;
@@ -106,6 +158,12 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
 void al_vo_destory(ALBaseContext *ctx) {
   ALVoFileContext *context = (ALVoFileContext *)ctx;
   S32 ret = 0;
+
+  if (context->pOutputFile) {
+    fflush(context->pOutputFile);
+    fclose(context->pOutputFile);
+    context->pOutputFile = NULL;
+  }
 
   free(context);
 }
