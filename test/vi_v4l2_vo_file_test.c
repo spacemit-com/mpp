@@ -5,14 +5,12 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-26 11:30:30
- * @LastEditTime: 2024-04-26 17:22:28
- * @FilePath: \mpp\test\vi_test.c
+ * @LastEditTime: 2024-04-28 16:57:44
+ * @FilePath: \mpp\test\vi_v4l2_vo_file_test.c
  * @Description:
  */
 
 #define ENABLE_DEBUG 1
-
-#include "vi.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -24,10 +22,12 @@
 #include "const.h"
 #include "parse.h"
 #include "type.h"
+#include "vi.h"
+#include "vo.h"
 
 #define NUM_OF_BUFFERS 12
 
-typedef struct _TestViContext {
+typedef struct _TestViV4l2VoFileContext {
   /**
    * path of video device
    */
@@ -38,29 +38,36 @@ typedef struct _TestViContext {
    */
   U8 *pOutputFileName;
 
-  FILE *pOutputFile;
-
   /**
    * used for save para from cmd
    */
   S32 ePixelFormat;
-  MppModuleType eCodecType;
+
+  MppModuleType eViType;
+  MppModuleType eVoType;
 
   /**
-   * used for decoder
+   * used for vi
    */
   MppViCtx *pViCtx;
   MppViPara *pViPara;
+
+  /**
+   * used for vo
+   */
+  MppVoCtx *pVoCtx;
+  MppVoPara *pVoPara;
+
   MppFrame *pFrame;
   S32 nWidth;
   S32 nHeight;
-} TestViContext;
+} TestViV4l2VoFileContext;
 
 static const MppArgument ArgumentMapping[] = {
     {"-H", "--help", HELP, "Print help"},
     {"-i", "--input", INPUT, "Input file path"},
     {"-c", "--codingtype", CODING_TYPE, "Coding type"},
-    {"-ct", "--codectype", CODEC_TYPE, "Codec type"},
+    {"-m", "--moduletype", MODULE_TYPE, "Module type"},
     {"-o", "--save_frame_file", SAVE_FRAME_FILE, "Saving picture file path"},
     {"-w", "--width", WIDTH, "Video width"},
     {"-h", "--height", HEIGHT, "Video height"},
@@ -68,8 +75,8 @@ static const MppArgument ArgumentMapping[] = {
     {"-d", "--device", VIDEO_DEVICE, "Video Device Name"},
 };
 
-static S32 parse_argument(TestViContext *context, char *argument, char *value,
-                          S32 num) {
+static S32 parse_argument(TestViV4l2VoFileContext *context, char *argument,
+                          char *value, S32 num) {
   ARGUMENT arg;
   S32 len = value == NULL ? 0 : strlen(value);
   if (len > DEMO_FILE_NAME_LEN) {
@@ -88,9 +95,11 @@ static S32 parse_argument(TestViContext *context, char *argument, char *value,
       print_demo_usage(ArgumentMapping, num);
       print_para_enum();
       return -1;
-    case CODEC_TYPE:
-      sscanf(value, "%d", (S32 *)&(context->eCodecType));
-      debug(" codec type is : %s", mpp_codectype2str(context->eCodecType));
+    case MODULE_TYPE:
+      sscanf(value, "%d,%d", (S32 *)&(context->eViType),
+             (S32 *)&(context->eVoType));
+      debug(" vi type is : %s", mpp_moduletype2str(context->eViType));
+      debug(" vo type is : %s", mpp_moduletype2str(context->eVoType));
       break;
     case SAVE_FRAME_FILE:
       sscanf(value, "%2048s", context->pOutputFileName);
@@ -122,13 +131,14 @@ static S32 parse_argument(TestViContext *context, char *argument, char *value,
   return 0;
 }
 
-static TestViContext *TestViContextCreate() {
-  TestViContext *context = (TestViContext *)malloc(sizeof(TestViContext));
+static TestViV4l2VoFileContext *TestContextCreate() {
+  TestViV4l2VoFileContext *context =
+      (TestViV4l2VoFileContext *)malloc(sizeof(TestViV4l2VoFileContext));
   if (!context) {
-    error("Can not malloc TestViContext, please check !");
+    error("Can not malloc TestViV4l2VoFileContext, please check !");
     return NULL;
   }
-  memset(context, 0, sizeof(TestViContext));
+  memset(context, 0, sizeof(TestViV4l2VoFileContext));
 
   context->pVideoDeviceName = (U8 *)malloc(DEMO_FILE_NAME_LEN);
   if (!context->pVideoDeviceName) {
@@ -151,61 +161,70 @@ static TestViContext *TestViContextCreate() {
   return context;
 }
 
-S32 save_yuv_to_file(TestViContext *context, S32 *stride) {
-  S32 height = context->nHeight;
-  S32 width = context->nWidth;
-  MppPixelFormat pixel = context->ePixelFormat;
-  S32 plane_num = 0;
-  S32 ret = MPP_OK;
-
-  switch (pixel) {
-    case PIXEL_FORMAT_I420:
-      break;
-    case PIXEL_FORMAT_YUV422P:
-      break;
-    case PIXEL_FORMAT_NV12:
-    case PIXEL_FORMAT_NV21:
-      break;
-    case PIXEL_FORMAT_YUYV:
-    case PIXEL_FORMAT_YVYU:
-      break;
-    default:
-      error("Unsupported picture format (%d)! Please check!", pixel);
-      return MPP_CHECK_FAILED;
+static S32 ViPrepare(TestViV4l2VoFileContext *context) {
+  S32 ret = 0;
+  // create vi channel
+  context->pViCtx = VI_CreateChannel();
+  if (!context->pViCtx) {
+    error("Can not create MppViCtx, please check!");
+    return -1;
   }
 
-  S32 y_size = width * height;
-  S32 uv_size = y_size / 4;
+  // set vi para
+  context->pViCtx->eViType = context->eViType;
+  context->pViCtx->stViPara.nWidth = context->nWidth;
+  context->pViCtx->stViPara.nHeight = context->nHeight;
+  context->pViCtx->stViPara.ePixelFormat = context->ePixelFormat;
+  context->pViCtx->stViPara.nBufferNum = NUM_OF_BUFFERS;
+  memcpy(context->pViCtx->stViPara.pVideoDeviceName, context->pVideoDeviceName,
+         strlen(context->pVideoDeviceName));
 
-  if (1 == FRAME_GetDataUsedNum(context->pFrame)) {
-    fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size + uv_size * 4, 1,
-           context->pOutputFile);
-  } else if (2 == FRAME_GetDataUsedNum(context->pFrame)) {
-    fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size, 1,
-           context->pOutputFile);
-    fwrite(FRAME_GetDataPointer(context->pFrame, 1), uv_size * 2, 1,
-           context->pOutputFile);
-  } else {
-    fwrite(FRAME_GetDataPointer(context->pFrame, 0), y_size, 1,
-           context->pOutputFile);
-    fwrite(FRAME_GetDataPointer(context->pFrame, 1), uv_size, 1,
-           context->pOutputFile);
-    fwrite(FRAME_GetDataPointer(context->pFrame, 2), uv_size, 1,
-           context->pOutputFile);
+  // init vi
+  ret = VI_Init(context->pViCtx);
+  if (ret) {
+    error("VI_init failed, please check!");
+    return -1;
   }
-  fflush(context->pOutputFile);
 
-  return ret;
+  return 0;
+}
+
+static S32 VoPrepare(TestViV4l2VoFileContext *context) {
+  S32 ret = 0;
+  // create vo channel
+  context->pVoCtx = VO_CreateChannel();
+  if (!context->pVoCtx) {
+    error("Can not create MppVoCtx, please check!");
+    return -1;
+  }
+
+  // set vo para
+  context->pVoCtx->eVoType = context->eVoType;
+  context->pVoCtx->stVoPara.nWidth = context->nWidth;
+  context->pVoCtx->stVoPara.nHeight = context->nHeight;
+  context->pVoCtx->stVoPara.nStride = context->nWidth;
+  context->pVoCtx->stVoPara.ePixelFormat = context->ePixelFormat;
+  context->pVoCtx->stVoPara.bIsFrame = MPP_TRUE;
+  context->pVoCtx->stVoPara.pOutputFileName = context->pOutputFileName;
+
+  // init vo
+  ret = VO_Init(context->pVoCtx);
+  if (ret) {
+    error("VO_init failed, please check!");
+    return -1;
+  }
+
+  return 0;
 }
 
 S32 main(S32 argc, char **argv) {
-  TestViContext *context = NULL;
+  TestViV4l2VoFileContext *context = NULL;
   S32 argument_num = 0;
   S32 ret = 0;
 
-  context = TestViContextCreate();
+  context = TestContextCreate();
   if (!context) {
-    error("can not create TestViContext, please check!");
+    error("can not create TestContext, please check!");
     return -1;
   }
 
@@ -223,25 +242,11 @@ S32 main(S32 argc, char **argv) {
     goto finish;
   }
 
-  // create vdec channel
-  context->pViCtx = VI_CreateChannel();
-  if (!context->pViCtx) {
-    error("Can not create MppViCtx, please check!");
+  if (ViPrepare(context)) {
     goto finish;
   }
 
-  // set para
-  context->pViCtx->stViPara.nWidth = context->nWidth;
-  context->pViCtx->stViPara.nHeight = context->nHeight;
-  context->pViCtx->stViPara.ePixelFormat = context->ePixelFormat;
-  context->pViCtx->stViPara.nBufferNum = NUM_OF_BUFFERS;
-  context->pViCtx->eViType = context->eCodecType;
-  memcpy(context->pViCtx->stViPara.pVideoDeviceName, context->pVideoDeviceName,
-         strlen(context->pVideoDeviceName));
-
-  ret = VI_Init(context->pViCtx);
-  if (ret) {
-    error("VI_init failed, please check!");
+  if (VoPrepare(context)) {
     goto finish;
   }
 
@@ -251,17 +256,11 @@ S32 main(S32 argc, char **argv) {
     goto finish;
   }
 
-  context->pOutputFile = fopen(context->pOutputFileName, "w+");
-  if (!context->pOutputFile) {
-    error("can not open context->pOutputFileName, please check !");
-    goto finish;
-  }
-
   while (1) {
     ret = VI_RequestOutputFrame(context->pViCtx,
                                 FRAME_GetBaseData(context->pFrame));
     if (ret == MPP_OK) {
-      save_yuv_to_file(context, NULL);
+      VO_Process(context->pVoCtx, FRAME_GetBaseData(context->pFrame));
 
       VI_ReturnOutputFrame(context->pViCtx, FRAME_GetBaseData(context->pFrame));
     } else if (ret == MPP_CODER_NO_DATA) {
@@ -274,15 +273,15 @@ S32 main(S32 argc, char **argv) {
   }
 
 finish:
-  if (context->pOutputFile) {
-    fflush(context->pOutputFile);
-    fclose(context->pOutputFile);
-    context->pOutputFile = NULL;
-  }
 
   if (context->pFrame) {
     FRAME_Destory(context->pFrame);
     context->pFrame = NULL;
+  }
+
+  if (context->pVoCtx) {
+    VO_DestoryChannel(context->pVoCtx);
+    context->pVoCtx = NULL;
   }
 
   if (context->pViCtx) {

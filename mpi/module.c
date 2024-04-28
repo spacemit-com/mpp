@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-11 10:27:53
- * @LastEditTime: 2024-04-25 20:13:25
+ * @LastEditTime: 2024-04-28 16:29:36
  * @Description: dlopen the video codec library dynamicly
  */
 
@@ -64,6 +64,7 @@ FIND_PLUGIN(V4L2_LINLONV5V7, v4l2_linlonv5v7, v4l2_linlonv5v7_codec)
 FIND_PLUGIN(K1_V2D, k1_v2d, v2d_plugin)
 FIND_PLUGIN(K1_JPU, k1_jpu, jpu_plugin)
 FIND_PLUGIN(VO_SDL2, vo_sdl2, vo_sdl2_plugin)
+FIND_PLUGIN(VO_FILE, vo_file, vo_file_plugin)
 FIND_PLUGIN(VI_V4L2, vi_v4l2, vi_v4l2_plugin)
 FIND_PLUGIN(VI_K1_CAM, vi_k1_cam, vi_k1_cam_plugin)
 
@@ -95,10 +96,11 @@ CHECK_LIBRARY(FAKEDEC, fakedec, c, /, /)
 CHECK_LIBRARY(K1_V2D, k1_v2d, v2d, /, /)
 CHECK_LIBRARY(K1_JPU, k1_jpu, jpu, /, /)
 CHECK_LIBRARY(VO_SDL2, vo_sdl2, SDL2-2.0, /, /)
+CHECK_LIBRARY(VO_FILE, vo_file, c, /, /)
 CHECK_LIBRARY(VI_V4L2, vi_v4l2, c, /, /)
 CHECK_LIBRARY(VI_K1_CAM, vi_k1_cam, c, /, /)
 
-#define CHECKCODEC_BY_TYPE(TYPE, type) \
+#define CHECKMODULE_BY_TYPE(TYPE, type) \
 { \
     if(check_##type()) \
     { \
@@ -130,7 +132,7 @@ CHECK_LIBRARY(VI_K1_CAM, vi_k1_cam, c, /, /)
  */
 MppModule*  module_init(MppModuleType module_type)
 {
-    debug("++++++++++++++++++++++++++++++++++ module init, module type = %d", module_type);
+    debug("+++++++++++++++ module init, module type = %d", module_type);
     MppModule *module = (MppModule*)malloc(sizeof(MppModule));
 
 #if 0
@@ -142,55 +144,59 @@ MppModule*  module_init(MppModuleType module_type)
 
     if(CODEC_OPENH264 == module_type)
     {
-        CHECKCODEC_BY_TYPE(OPENH264, openh264);
+        CHECKMODULE_BY_TYPE(OPENH264, openh264);
     }
     else if(CODEC_FFMPEG == module_type)
     {
-        CHECKCODEC_BY_TYPE(FFMPEG, ffmpeg);
+        CHECKMODULE_BY_TYPE(FFMPEG, ffmpeg);
     }
     else if(CODEC_SFDEC == module_type)
     {
-        CHECKCODEC_BY_TYPE(SFDEC, sfdec);
+        CHECKMODULE_BY_TYPE(SFDEC, sfdec);
     }
     else if(CODEC_SFENC == module_type)
     {
-        CHECKCODEC_BY_TYPE(SFENC, sfenc);
+        CHECKMODULE_BY_TYPE(SFENC, sfenc);
     }
     else if(CODEC_SFOMX == module_type)
     {
-        CHECKCODEC_BY_TYPE(SFOMX, sfomx);
+        CHECKMODULE_BY_TYPE(SFOMX, sfomx);
     }
     else if(CODEC_V4L2 == module_type)
     {
-        CHECKCODEC_BY_TYPE(V4L2, v4l2);
+        CHECKMODULE_BY_TYPE(V4L2, v4l2);
     }
     else if(CODEC_FAKEDEC == module_type)
     {
-        CHECKCODEC_BY_TYPE(FAKEDEC, fakedec);
+        CHECKMODULE_BY_TYPE(FAKEDEC, fakedec);
     }
     else if(CODEC_V4L2_LINLONV5V7 == module_type)
     {
-        CHECKCODEC_BY_TYPE(V4L2_LINLONV5V7, v4l2_linlonv5v7);
-    }
-    else if(CODEC_K1_V2D == module_type)
-    {
-        CHECKCODEC_BY_TYPE(K1_V2D, k1_v2d);
+        CHECKMODULE_BY_TYPE(V4L2_LINLONV5V7, v4l2_linlonv5v7);
     }
     else if(CODEC_K1_JPU == module_type)
     {
-        CHECKCODEC_BY_TYPE(K1_JPU, k1_v2d);
+        CHECKMODULE_BY_TYPE(K1_JPU, k1_v2d);
     }
     else if(VO_SDL2 == module_type)
     {
-        CHECKCODEC_BY_TYPE(VO_SDL2, vo_sdl2);
+        CHECKMODULE_BY_TYPE(VO_SDL2, vo_sdl2);
+    }
+    else if(VO_FILE == module_type)
+    {
+        CHECKMODULE_BY_TYPE(VO_FILE, vo_file);
     }
     else if(VI_V4L2 == module_type)
     {
-        CHECKCODEC_BY_TYPE(VI_V4L2, vi_v4l2);
+        CHECKMODULE_BY_TYPE(VI_V4L2, vi_v4l2);
     }
     else if(VI_K1_CAM == module_type)
     {
-        CHECKCODEC_BY_TYPE(VI_K1_CAM, vi_k1_cam);
+        CHECKMODULE_BY_TYPE(VI_K1_CAM, vi_k1_cam);
+    }
+    else if(VPS_K1_V2D == module_type)
+    {
+        CHECKMODULE_BY_TYPE(K1_V2D, k1_v2d);
     }
     else
     {
@@ -225,7 +231,7 @@ MppModule* module_auto_init() {
  */
 void module_destory(MppModule *module)
 {
-    debug("+++++++++++++++++++++++++++++++++++++++++++++++++++ module destory");
+    debug("+++++++++++++++ module destory");
     if (module->load_so)
     {
         dlclose(module->load_so);

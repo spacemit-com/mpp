@@ -16,3 +16,9 @@ target_link_libraries(vo_sdl2_plugin utils)
 target_link_libraries(vo_sdl2_plugin SDL2)
 install(TARGETS vo_sdl2_plugin LIBRARY
         DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
+
+set(SRC_LIST ./file/vo_file.c)
+add_library(vo_file_plugin SHARED ${SRC_LIST})
+target_link_libraries(vo_file_plugin utils)
+install(TARGETS vo_file_plugin LIBRARY
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")

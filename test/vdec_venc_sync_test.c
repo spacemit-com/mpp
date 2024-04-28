@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-03-26 13:51:42
+ * @LastEditTime: 2024-04-28 15:53:25
  * @Description:
  */
 
@@ -77,7 +77,7 @@ static const MppArgument ArgumentMapping[] = {
     {"-H", "--help", HELP, "Print help"},
     {"-i", "--input", INPUT, "Input file path"},
     {"-c", "--codingtype", CODING_TYPE, "Coding type"},
-    {"-ct", "--codectype", CODEC_TYPE, "Codec type"},
+    {"-m", "--moduletype", MODULE_TYPE, "Module type"},
     {"-o", "--save_frame_file", SAVE_FRAME_FILE, "Saving picture file path"},
     {"-w", "--width", WIDTH, "Video width"},
     {"-h", "--height", HEIGHT, "Video height"},
@@ -112,9 +112,9 @@ static S32 parse_argument(TestVdecContext *context, char *argument, char *value,
       sscanf(value, "%d", (S32 *)&(context->eCodingType));
       debug(" coding type is : %s", mpp_codingtype2str(context->eCodingType));
       break;
-    case CODEC_TYPE:
+    case MODULE_TYPE:
       sscanf(value, "%d", (S32 *)&(context->eCodecType));
-      debug(" codec type is : %s", mpp_codectype2str(context->eCodecType));
+      debug(" codec type is : %s", mpp_moduletype2str(context->eCodecType));
       break;
     case SAVE_FRAME_FILE:
       sscanf(value, "%2048s", context->pOutputFileName);

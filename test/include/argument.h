@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:11:03
- * @LastEditTime: 2024-04-26 14:49:55
+ * @LastEditTime: 2024-04-28 15:52:42
  * @Description:
  */
 
@@ -25,7 +25,7 @@ typedef enum {
   SAVE_FRAME_FILE,
   COST_DRAM_THREAD_NUM,
   CODING_TYPE,
-  CODEC_TYPE,
+  MODULE_TYPE,
   WIDTH,
   HEIGHT,
   FORMAT,
@@ -60,13 +60,16 @@ static void print_para_enum() {
   S32 i = 0;
   printf("--codectype:\n");
   for (i = 0; i < CODEC_MAX; i++) {
-    printf("%-8d %-24s\n", i, mpp_codectype2str(i));
+    printf("%-8d %-24s\n", i, mpp_moduletype2str(i));
   }
   for (i = VO_AUTO; i < VO_MAX; i++) {
-    printf("%-8d %-24s\n", i, mpp_codectype2str(i));
+    printf("%-8d %-24s\n", i, mpp_moduletype2str(i));
   }
   for (i = VI_AUTO; i < VI_MAX; i++) {
-    printf("%-8d %-24s\n", i, mpp_codectype2str(i));
+    printf("%-8d %-24s\n", i, mpp_moduletype2str(i));
+  }
+  for (i = VPS_AUTO; i < VPS_MAX; i++) {
+    printf("%-8d %-24s\n", i, mpp_moduletype2str(i));
   }
 
   printf("--codingtype:\n");

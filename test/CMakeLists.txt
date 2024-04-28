@@ -59,9 +59,9 @@ set(SRC_LIST ./g2d_test.c)
 add_executable(g2d_test ${SRC_LIST})
 target_link_libraries(g2d_test spacemit_mpp)
 
-set(SRC_LIST ./vi_test.c)
-add_executable(vi_test ${SRC_LIST})
-target_link_libraries(vi_test spacemit_mpp)
+set(SRC_LIST ./vi_v4l2_vo_file_test.c)
+add_executable(vi_v4l2_vo_file_test ${SRC_LIST})
+target_link_libraries(vi_v4l2_vo_file_test spacemit_mpp)
 
 install(TARGETS vdec_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
@@ -79,5 +79,5 @@ install(TARGETS venc_sync_userptr_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 install(TARGETS g2d_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-install(TARGETS vi_test RUNTIME
+install(TARGETS vi_v4l2_vo_file_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")

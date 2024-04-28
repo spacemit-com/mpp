@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-26 17:16:05
+ * @LastEditTime: 2024-04-28 16:21:30
  * @Description:
  */
 
@@ -41,15 +41,17 @@
 +-----------------------+---------+---------+-----------+
 | CODEC_V4L2_LINLONV5V7 | √       | √       | x         |
 +-----------------------+---------+---------+-----------+
-| CODEC_K1_V2D          | x       | x       | √         |
-+-----------------------+---------+---------+-----------+
 | CODEC_K1_JPU          | √       | √       | x         |
 +-----------------------+---------+---------+-----------+
 | VO_SDL2               | x       | x       | x         |
 +-----------------------+---------+---------+-----------+
+| VO_FILE               | x       | x       | x         |
++-----------------------+---------+---------+-----------+
 | VI_V4L2               | x       | x       | x         |
 +-----------------------+---------+---------+-----------+
 | VI_K1_CAM             | x       | x       | x         |
++-----------------------+---------+---------+-----------+
+| VPS_K1_V2D            | x       | x       | √         |
 +-----------------------+---------+---------+-----------+
 
 */
@@ -106,11 +108,6 @@ typedef enum _MppModuleType {
   CODEC_V4L2_LINLONV5V7,
 
   /***
-   * use v2d for graphic 2D convert (K1).
-   */
-  CODEC_K1_V2D,
-
-  /***
    * use jpu for jpeg decoder and encoder (K1).
    */
   CODEC_K1_JPU,
@@ -126,6 +123,7 @@ typedef enum _MppModuleType {
    * use sdl2 for output
    */
   VO_SDL2,
+  VO_FILE,
 
   VO_MAX,
 
@@ -145,29 +143,42 @@ typedef enum _MppModuleType {
   VI_K1_CAM,
 
   VI_MAX,
+
+  /***
+   * auto mode, mpp select suitable vi.
+   */
+  VPS_AUTO = 300,
+
+  /***
+   * use v2d for graphic 2D convert (K1).
+   */
+  VPS_K1_V2D,
+
+  VPS_MAX,
 } MppModuleType;
 
-static inline const char* mpp_codectype2str(int cmd) {
-#define MPP_CODECTYPE2STR(cmd) \
-  case cmd:                    \
+static inline const char* mpp_moduletype2str(int cmd) {
+#define MPP_MODULETYPE2STR(cmd) \
+  case cmd:                     \
     return #cmd
 
   switch (cmd) {
-    MPP_CODECTYPE2STR(CODEC_AUTO);
-    MPP_CODECTYPE2STR(CODEC_OPENH264);
-    MPP_CODECTYPE2STR(CODEC_FFMPEG);
-    MPP_CODECTYPE2STR(CODEC_SFDEC);
-    MPP_CODECTYPE2STR(CODEC_SFENC);
-    MPP_CODECTYPE2STR(CODEC_CODADEC);
-    MPP_CODECTYPE2STR(CODEC_SFOMX);
-    MPP_CODECTYPE2STR(CODEC_V4L2);
-    MPP_CODECTYPE2STR(CODEC_FAKEDEC);
-    MPP_CODECTYPE2STR(CODEC_V4L2_LINLONV5V7);
-    MPP_CODECTYPE2STR(CODEC_K1_V2D);
-    MPP_CODECTYPE2STR(CODEC_K1_JPU);
-    MPP_CODECTYPE2STR(VO_SDL2);
-    MPP_CODECTYPE2STR(VI_V4L2);
-    MPP_CODECTYPE2STR(VI_K1_CAM);
+    MPP_MODULETYPE2STR(CODEC_AUTO);
+    MPP_MODULETYPE2STR(CODEC_OPENH264);
+    MPP_MODULETYPE2STR(CODEC_FFMPEG);
+    MPP_MODULETYPE2STR(CODEC_SFDEC);
+    MPP_MODULETYPE2STR(CODEC_SFENC);
+    MPP_MODULETYPE2STR(CODEC_CODADEC);
+    MPP_MODULETYPE2STR(CODEC_SFOMX);
+    MPP_MODULETYPE2STR(CODEC_V4L2);
+    MPP_MODULETYPE2STR(CODEC_FAKEDEC);
+    MPP_MODULETYPE2STR(CODEC_V4L2_LINLONV5V7);
+    MPP_MODULETYPE2STR(CODEC_K1_JPU);
+    MPP_MODULETYPE2STR(VO_SDL2);
+    MPP_MODULETYPE2STR(VO_FILE);
+    MPP_MODULETYPE2STR(VI_V4L2);
+    MPP_MODULETYPE2STR(VI_K1_CAM);
+    MPP_MODULETYPE2STR(VPS_K1_V2D);
     default:
       return "UNKNOWN";
   }
@@ -1064,7 +1075,6 @@ typedef struct _MppG2dPara {
  * @description: para sent and get between application and decoder.
  */
 typedef struct _MppVoPara {
-  MppModuleType eVoType;
   MppFrameBufferType eFrameBufferType;
   MppDataTransmissinMode eDataTransmissinMode;
   BOOL bIsFrame;
@@ -1076,7 +1086,6 @@ typedef struct _MppVoPara {
   S32 nWidth;
   S32 nHeight;
   S32 nStride;
-  S32 nScale;
 
   /***
    * for vo file
@@ -1088,7 +1097,6 @@ typedef struct _MppVoPara {
  * @description: para sent and get between application and decoder.
  */
 typedef struct _MppViPara {
-  MppModuleType eViType;
   MppFrameBufferType eFrameBufferType;
   MppDataTransmissinMode eDataTransmissinMode;
 

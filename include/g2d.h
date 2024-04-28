@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:11:03
- * @LastEditTime: 2024-03-15 14:54:04
+ * @LastEditTime: 2024-04-28 15:04:46
  * @Description:
  */
 
@@ -63,7 +63,7 @@ typedef enum _MppG2DProcessResult {
 
 typedef struct _MppG2dCtx {
   MppProcessNode pNode;
-  MppModuleType eCodecType;
+  MppModuleType eVpsType;
   MppModule *pModule;
   MppG2dPara stG2dPara;
 } MppG2dCtx;
