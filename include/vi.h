@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-25 19:21:30
- * @LastEditTime: 2024-04-26 09:45:05
+ * @LastEditTime: 2024-04-29 11:48:17
  * @FilePath: \mpp\include\vi.h
  * @Description:
  */
@@ -75,7 +75,7 @@ S32 VI_Process(MppViCtx *ctx, MppData *src_data);
  * @param {MppData} *src_data
  * @return {*}
  */
-S32 VI_RequestOutputFrame(MppViCtx *ctx, MppData *src_data);
+S32 VI_RequestOutputData(MppViCtx *ctx, MppData *src_data);
 
 /**
  * @description:
@@ -83,7 +83,7 @@ S32 VI_RequestOutputFrame(MppViCtx *ctx, MppData *src_data);
  * @param {MppData} *src_data
  * @return {*}
  */
-S32 VI_ReturnOutputFrame(MppViCtx *ctx, MppData *src_data);
+S32 VI_ReturnOutputData(MppViCtx *ctx, MppData *src_data);
 
 /**
  * @description: destory the channel for video input.

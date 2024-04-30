@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-28 16:21:30
+ * @LastEditTime: 2024-04-29 11:45:51
  * @Description:
  */
 
@@ -50,6 +50,8 @@
 | VI_V4L2               | x       | x       | x         |
 +-----------------------+---------+---------+-----------+
 | VI_K1_CAM             | x       | x       | x         |
++-----------------------+---------+---------+-----------+
+| VI_FILE               | x       | x       | x         |
 +-----------------------+---------+---------+-----------+
 | VPS_K1_V2D            | x       | x       | √         |
 +-----------------------+---------+---------+-----------+
@@ -141,6 +143,7 @@ typedef enum _MppModuleType {
    * use K1 ISP for input
    */
   VI_K1_CAM,
+  VI_FILE,
 
   VI_MAX,
 
@@ -178,6 +181,7 @@ static inline const char* mpp_moduletype2str(int cmd) {
     MPP_MODULETYPE2STR(VO_FILE);
     MPP_MODULETYPE2STR(VI_V4L2);
     MPP_MODULETYPE2STR(VI_K1_CAM);
+    MPP_MODULETYPE2STR(VI_FILE);
     MPP_MODULETYPE2STR(VPS_K1_V2D);
     default:
       return "UNKNOWN";
@@ -1099,6 +1103,7 @@ typedef struct _MppVoPara {
 typedef struct _MppViPara {
   MppFrameBufferType eFrameBufferType;
   MppDataTransmissinMode eDataTransmissinMode;
+  BOOL bIsFrame;
 
   /***
    * for frame
@@ -1107,12 +1112,21 @@ typedef struct _MppViPara {
   S32 nWidth;
   S32 nHeight;
   S32 nStride;
-  S32 nBufferNum;
 
+  /***
+   * for packet
+   */
+  MppCodingType eCodingType;
+
+  /***
+   * for vi v4l2
+   */
+  S32 nBufferNum;
+  U8* pVideoDeviceName;
   /***
    * for vi file
    */
-  U8 pVideoDeviceName[128];
+  U8* pInputFileName;
 } MppViPara;
 
 #endif /*_MPP_PARA_H_*/

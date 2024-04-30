@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-25 20:00:13
- * @LastEditTime: 2024-04-26 17:43:28
+ * @LastEditTime: 2024-04-29 11:27:45
  * @FilePath: \mpp\al\vi\v4l2\vi_v4l2.c
  * @Description:
  */
@@ -260,7 +260,7 @@ exit:
 
 S32 al_vi_get_para(ALBaseContext *ctx, MppViPara **para) { return 0; }
 
-S32 al_vi_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
+S32 al_vi_request_output_data(ALBaseContext *ctx, MppData *src_data) {
   if (!ctx) {
     error("input para ALBaseContext is NULL, please check!");
     return MPP_NULL_POINTER;
@@ -301,7 +301,7 @@ S32 al_vi_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
   return MPP_OK;
 }
 
-S32 al_vi_return_output_frame(ALBaseContext *ctx, MppData *src_data) {
+S32 al_vi_return_output_data(ALBaseContext *ctx, MppData *src_data) {
   if (!ctx) {
     error("input para ALBaseContext is NULL, please check!");
     return MPP_NULL_POINTER;

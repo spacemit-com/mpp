@@ -16,6 +16,18 @@ target_link_libraries(vi_v4l2_plugin utils)
 install(TARGETS vi_v4l2_plugin LIBRARY
         DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
 
+include_directories(file/include)
+set(SRC_LIST ./file/vi_file.c
+             ./file/parse/defaultparse.c
+             ./file/parse/h264parse.c
+             ./file/parse/h265parse.c
+             ./file/parse/mjpegparse.c
+             ./file/parse/parse.c)
+add_library(vi_file_plugin SHARED ${SRC_LIST})
+target_link_libraries(vi_file_plugin utils)
+install(TARGETS vi_file_plugin LIBRARY
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")
+
 include_directories(k1/cam/include)
 set(SRC_LIST ./k1/cam/vi_k1_cam.c)
 add_library(vi_k1_cam_plugin SHARED ${SRC_LIST})

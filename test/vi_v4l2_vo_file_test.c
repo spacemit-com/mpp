@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-26 11:30:30
- * @LastEditTime: 2024-04-28 16:57:44
+ * @LastEditTime: 2024-04-29 11:29:41
  * @FilePath: \mpp\test\vi_v4l2_vo_file_test.c
  * @Description:
  */
@@ -176,8 +176,7 @@ static S32 ViPrepare(TestViV4l2VoFileContext *context) {
   context->pViCtx->stViPara.nHeight = context->nHeight;
   context->pViCtx->stViPara.ePixelFormat = context->ePixelFormat;
   context->pViCtx->stViPara.nBufferNum = NUM_OF_BUFFERS;
-  memcpy(context->pViCtx->stViPara.pVideoDeviceName, context->pVideoDeviceName,
-         strlen(context->pVideoDeviceName));
+  context->pViCtx->stViPara.pVideoDeviceName = context->pVideoDeviceName;
 
   // init vi
   ret = VI_Init(context->pViCtx);
@@ -257,12 +256,12 @@ S32 main(S32 argc, char **argv) {
   }
 
   while (1) {
-    ret = VI_RequestOutputFrame(context->pViCtx,
-                                FRAME_GetBaseData(context->pFrame));
+    ret = VI_RequestOutputData(context->pViCtx,
+                               FRAME_GetBaseData(context->pFrame));
     if (ret == MPP_OK) {
       VO_Process(context->pVoCtx, FRAME_GetBaseData(context->pFrame));
 
-      VI_ReturnOutputFrame(context->pViCtx, FRAME_GetBaseData(context->pFrame));
+      VI_ReturnOutputData(context->pViCtx, FRAME_GetBaseData(context->pFrame));
     } else if (ret == MPP_CODER_NO_DATA) {
       error("no data, return");
       continue;
