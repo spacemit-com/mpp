@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-26 11:30:30
- * @LastEditTime: 2024-04-29 11:29:41
+ * @LastEditTime: 2024-04-30 10:50:02
  * @FilePath: \mpp\test\vi_v4l2_vo_file_test.c
  * @Description:
  */
@@ -20,14 +20,13 @@
 
 #include "argument.h"
 #include "const.h"
-#include "parse.h"
 #include "type.h"
 #include "vi.h"
 #include "vo.h"
 
 #define NUM_OF_BUFFERS 12
 
-typedef struct _TestViV4l2VoFileContext {
+typedef struct _TestContext {
   /**
    * path of video device
    */
@@ -61,7 +60,7 @@ typedef struct _TestViV4l2VoFileContext {
   MppFrame *pFrame;
   S32 nWidth;
   S32 nHeight;
-} TestViV4l2VoFileContext;
+} TestContext;
 
 static const MppArgument ArgumentMapping[] = {
     {"-H", "--help", HELP, "Print help"},
@@ -75,8 +74,8 @@ static const MppArgument ArgumentMapping[] = {
     {"-d", "--device", VIDEO_DEVICE, "Video Device Name"},
 };
 
-static S32 parse_argument(TestViV4l2VoFileContext *context, char *argument,
-                          char *value, S32 num) {
+static S32 parse_argument(TestContext *context, char *argument, char *value,
+                          S32 num) {
   ARGUMENT arg;
   S32 len = value == NULL ? 0 : strlen(value);
   if (len > DEMO_FILE_NAME_LEN) {
@@ -131,14 +130,13 @@ static S32 parse_argument(TestViV4l2VoFileContext *context, char *argument,
   return 0;
 }
 
-static TestViV4l2VoFileContext *TestContextCreate() {
-  TestViV4l2VoFileContext *context =
-      (TestViV4l2VoFileContext *)malloc(sizeof(TestViV4l2VoFileContext));
+static TestContext *TestContextCreate() {
+  TestContext *context = (TestContext *)malloc(sizeof(TestContext));
   if (!context) {
-    error("Can not malloc TestViV4l2VoFileContext, please check !");
+    error("Can not malloc TestContext, please check !");
     return NULL;
   }
-  memset(context, 0, sizeof(TestViV4l2VoFileContext));
+  memset(context, 0, sizeof(TestContext));
 
   context->pVideoDeviceName = (U8 *)malloc(DEMO_FILE_NAME_LEN);
   if (!context->pVideoDeviceName) {
@@ -161,7 +159,7 @@ static TestViV4l2VoFileContext *TestContextCreate() {
   return context;
 }
 
-static S32 ViPrepare(TestViV4l2VoFileContext *context) {
+static S32 ViPrepare(TestContext *context) {
   S32 ret = 0;
   // create vi channel
   context->pViCtx = VI_CreateChannel();
@@ -188,7 +186,7 @@ static S32 ViPrepare(TestViV4l2VoFileContext *context) {
   return 0;
 }
 
-static S32 VoPrepare(TestViV4l2VoFileContext *context) {
+static S32 VoPrepare(TestContext *context) {
   S32 ret = 0;
   // create vo channel
   context->pVoCtx = VO_CreateChannel();
@@ -217,7 +215,7 @@ static S32 VoPrepare(TestViV4l2VoFileContext *context) {
 }
 
 S32 main(S32 argc, char **argv) {
-  TestViV4l2VoFileContext *context = NULL;
+  TestContext *context = NULL;
   S32 argument_num = 0;
   S32 ret = 0;
 

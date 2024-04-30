@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-28 17:10:20
- * @LastEditTime: 2024-04-30 09:04:54
+ * @LastEditTime: 2024-04-30 10:30:52
  * @FilePath: \mpp\al\vi\file\vi_file.c
  * @Description:
  */
@@ -23,6 +23,16 @@
 #define MODULE_TAG "vi_file"
 
 #define MPP_PACKET_PARSE_REGION_SIZE (2 * 1024 * 1024)
+#define FRAME_FREAD(data, size, count, fp)        \
+  ({                                              \
+    S32 total = (size) * (count);                 \
+    S32 n = fread((data), (size), (count), (fp)); \
+    if (n != total && ferror(fp)) {               \
+      error("Failed to read frame from file");    \
+      exit(EXIT_FAILURE);                         \
+    }                                             \
+    n;                                            \
+  })
 
 typedef struct _ALViFileContext ALViFileContext;
 
@@ -171,7 +181,49 @@ S32 al_vi_request_output_data(ALBaseContext *ctx, MppData *src_data) {
 
   if (context->bIsFrame) {
     MppFrame *sink_frame = FRAME_GetFrame(src_data);
+    S32 read_byte = 0, size[3], pnum, i;
 
+    switch (context->eOutputPixelFormat) {
+      case PIXEL_FORMAT_I420:
+        size[0] = context->nOutputWidth * context->nOutputHeight;
+        size[1] = (context->nOutputWidth / 2) * (context->nOutputHeight / 2);
+        size[2] = (context->nOutputWidth / 2) * (context->nOutputHeight / 2);
+        pnum = 3;
+        break;
+      case PIXEL_FORMAT_YUV422P:
+        size[0] = context->nOutputWidth * context->nOutputHeight;
+        size[1] = (context->nOutputWidth / 2) * (context->nOutputHeight);
+        size[2] = (context->nOutputWidth / 2) * (context->nOutputHeight);
+        pnum = 3;
+        break;
+      case PIXEL_FORMAT_NV12:
+      case PIXEL_FORMAT_NV21:
+        size[0] = context->nOutputWidth * context->nOutputHeight;
+        size[1] = (context->nOutputWidth / 2) * (context->nOutputHeight);
+        pnum = 2;
+        break;
+      case PIXEL_FORMAT_RGBA:
+      case PIXEL_FORMAT_ARGB:
+      case PIXEL_FORMAT_BGRA:
+      case PIXEL_FORMAT_ABGR:
+        size[0] = context->nOutputWidth * context->nOutputHeight * 4;
+        pnum = 1;
+        break;
+      case PIXEL_FORMAT_YUYV:
+      case PIXEL_FORMAT_UYVY:
+        size[0] = context->nOutputWidth * context->nOutputHeight * 2;
+        pnum = 1;
+        break;
+      default:
+        error("Unsupported picture format (%d)", context->eOutputPixelFormat);
+        return -MPP_CHECK_FAILED;
+    }
+
+    for (i = 0; i < pnum; i++) {
+      read_byte += FRAME_FREAD(FRAME_GetDataPointer(sink_frame, i), 1, size[i],
+                               context->pInputFile);
+      if (read_byte == 0) context->eos = MPP_TRUE;
+    }
   } else {
     MppPacket *sink_packet = PACKET_GetPacket(src_data);
 

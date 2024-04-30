@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-30 09:12:34
+ * @LastEditTime: 2024-04-30 10:50:26
  * @Description:
  */
 
@@ -19,13 +19,12 @@
 
 #include "argument.h"
 #include "const.h"
-#include "parse.h"
 #include "type.h"
 #include "vdec.h"
 #include "vi.h"
 #include "vo.h"
 
-typedef struct _TestVdecContext {
+typedef struct _TestContext {
   /**
    * path of input file with stream
    */
@@ -74,7 +73,7 @@ typedef struct _TestVdecContext {
   S32 nHeight;
   S64 nTimeStamp;
   pthread_t parse_thread;
-} TestVdecContext;
+} TestContext;
 
 static const MppArgument ArgumentMapping[] = {
     {"-H", "--help", HELP, "Print help"},
@@ -87,7 +86,7 @@ static const MppArgument ArgumentMapping[] = {
     {"-f", "--format", FORMAT, "Video PixelFormat"},
 };
 
-static S32 parse_argument(TestVdecContext *context, char *argument, char *value,
+static S32 parse_argument(TestContext *context, char *argument, char *value,
                           S32 num) {
   ARGUMENT arg;
   S32 len = value == NULL ? 0 : strlen(value);
@@ -148,13 +147,13 @@ static S32 parse_argument(TestVdecContext *context, char *argument, char *value,
   return 0;
 }
 
-static TestVdecContext *TestVdecContextCreate() {
-  TestVdecContext *context = (TestVdecContext *)malloc(sizeof(TestVdecContext));
+static TestContext *TestContextCreate() {
+  TestContext *context = (TestContext *)malloc(sizeof(TestContext));
   if (!context) {
-    error("Can not malloc TestVdecContext, please check !");
+    error("Can not malloc TestContext, please check !");
     return NULL;
   }
-  memset(context, 0, sizeof(TestVdecContext));
+  memset(context, 0, sizeof(TestContext));
 
   context->pInputFileName = (U8 *)malloc(DEMO_FILE_NAME_LEN);
   if (!context->pInputFileName) {
@@ -182,7 +181,7 @@ static TestVdecContext *TestVdecContextCreate() {
 
 void *do_parse(void *private_data) {
   debug("------------------new thread-------------------");
-  TestVdecContext *context = (TestVdecContext *)private_data;
+  TestContext *context = (TestContext *)private_data;
   S32 ret = 0;
   BOOL eos = MPP_FALSE;
 
@@ -208,7 +207,7 @@ void *do_parse(void *private_data) {
   debug("do_parse thread exit=============================");
 }
 
-static S32 ViPrepare(TestVdecContext *context) {
+static S32 ViPrepare(TestContext *context) {
   S32 ret = 0;
   // create vi channel
   context->pViCtx = VI_CreateChannel();
@@ -236,7 +235,7 @@ static S32 ViPrepare(TestVdecContext *context) {
   return 0;
 }
 
-static S32 VdecPrepare(TestVdecContext *context) {
+static S32 VdecPrepare(TestContext *context) {
   S32 ret = 0;
   // create vdec channel
   context->pVdecCtx = VDEC_CreateChannel();
@@ -272,7 +271,7 @@ static S32 VdecPrepare(TestVdecContext *context) {
   return 0;
 }
 
-static S32 VoPrepare(TestVdecContext *context) {
+static S32 VoPrepare(TestContext *context) {
   S32 ret = 0;
   // create vo channel
   context->pVoCtx = VO_CreateChannel();
@@ -303,13 +302,13 @@ static S32 VoPrepare(TestVdecContext *context) {
 }
 
 S32 main(S32 argc, char **argv) {
-  TestVdecContext *context = NULL;
+  TestContext *context = NULL;
   S32 argument_num = 0;
   S32 ret = 0;
 
-  context = TestVdecContextCreate();
+  context = TestContextCreate();
   if (!context) {
-    error("can not create TestVdecContext, please check!");
+    error("can not create TestContext, please check!");
     return -1;
   }
 
