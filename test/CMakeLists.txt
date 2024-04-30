@@ -27,13 +27,9 @@ set(SRC_LIST ./test_sys_vdec_venc_vdec_one_frame.c)
 add_executable(test_sys_vdec_venc_vdec_one_frame ${SRC_LIST})
 target_link_libraries(test_sys_vdec_venc_vdec_one_frame spacemit_mpp)
 
-set(SRC_LIST ./vi_file_vdec_vo_file_test.c ./parse/h264parse.c ./parse/h265parse.c ./parse/mjpegparse.c ./parse/defaultparse.c ./parse/parse.c)
-add_executable(vi_file_vdec_vo_file_test ${SRC_LIST})
-target_link_libraries(vi_file_vdec_vo_file_test spacemit_mpp)
-
-set(SRC_LIST ./vdec_vo_test.c ./parse/h264parse.c ./parse/h265parse.c ./parse/mjpegparse.c ./parse/defaultparse.c ./parse/parse.c)
-add_executable(vdec_vo_test ${SRC_LIST})
-target_link_libraries(vdec_vo_test spacemit_mpp)
+set(SRC_LIST ./vi_file_vdec_vo_test.c)
+add_executable(vi_file_vdec_vo_test ${SRC_LIST})
+target_link_libraries(vi_file_vdec_vo_test spacemit_mpp)
 
 set(SRC_LIST ./vdec_venc_test.c ./parse/h264parse.c ./parse/h265parse.c ./parse/mjpegparse.c ./parse/defaultparse.c ./parse/parse.c)
 add_executable(vdec_venc_test ${SRC_LIST})
@@ -63,9 +59,7 @@ set(SRC_LIST ./vi_v4l2_vo_file_test.c)
 add_executable(vi_v4l2_vo_file_test ${SRC_LIST})
 target_link_libraries(vi_v4l2_vo_file_test spacemit_mpp)
 
-install(TARGETS vi_file_vdec_vo_file_test RUNTIME
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-install(TARGETS vdec_vo_test RUNTIME
+install(TARGETS vi_file_vdec_vo_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 install(TARGETS venc_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
