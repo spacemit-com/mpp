@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-25 20:00:13
- * @LastEditTime: 2024-04-29 11:27:45
+ * @LastEditTime: 2024-04-30 15:51:11
  * @FilePath: \mpp\al\vi\v4l2\vi_v4l2.c
  * @Description:
  */
@@ -37,6 +37,8 @@ static const ALViV4l2PixelFormatMapping stALViV4l2PixelFormatMapping[] = {
     {PIXEL_FORMAT_YV12, V4L2_PIX_FMT_YVU420M},
     {PIXEL_FORMAT_UYVY, V4L2_PIX_FMT_UYVY},
     {PIXEL_FORMAT_YUYV, V4L2_PIX_FMT_YUYV},
+    {PIXEL_FORMAT_H264, V4L2_PIX_FMT_H264},
+    {PIXEL_FORMAT_MJPEG, V4L2_PIX_FMT_MJPEG},
 };
 PIXEL_FORMAT_MAPPING_CONVERT(ViV4l2, viv4l2, S32)
 
@@ -53,7 +55,8 @@ struct _ALViV4l2Context {
   U32 nFormatFourcc;
   U32 nMemType;
   U32 nBufferNum;
-  U8 pVideoDevice[128];
+  BOOL bIsFrame;
+  U8 *pVideoDevice;
   S32 fd;
   struct v4l2_capability cap;
   struct v4l2_format format;
@@ -117,8 +120,7 @@ RETURN al_vi_init(ALBaseContext *ctx, MppViPara *para) {
   context->nOutputWidth = para->nWidth;
   context->nOutputHeight = para->nHeight;
   context->nFormatFourcc = get_viv4l2_codec_pixel_format(para->ePixelFormat);
-  memcpy(context->pVideoDevice, para->pVideoDeviceName,
-         strlen(para->pVideoDeviceName));
+  context->pVideoDevice = para->pVideoDeviceName;
   context->nMemType = V4L2_MEMORY_MMAP;
   if (para->eFrameBufferType == MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL) {
     context->nMemType = V4L2_MEMORY_DMABUF;
@@ -126,6 +128,7 @@ RETURN al_vi_init(ALBaseContext *ctx, MppViPara *para) {
     context->nMemType = V4L2_MEMORY_MMAP;
   }
   context->nBufferNum = para->nBufferNum;
+  context->bIsFrame = para->bIsFrame;
 
   // open video device
   context->fd = open(context->pVideoDevice, O_RDWR);
@@ -189,7 +192,7 @@ RETURN al_vi_init(ALBaseContext *ctx, MppViPara *para) {
   context->format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   context->format.fmt.pix.width = context->nOutputWidth;
   context->format.fmt.pix.height = context->nOutputHeight;
-  context->format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+  context->format.fmt.pix.pixelformat = context->nFormatFourcc;
   context->format.fmt.pix.field = V4L2_FIELD_NONE;
   if (-1 == ioctl(context->fd, VIDIOC_S_FMT, &(context->format))) {
     error("Failed to set format");
@@ -289,9 +292,12 @@ S32 al_vi_request_output_data(ALBaseContext *ctx, MppData *src_data) {
       close(context->fd);
       return -1;
     }
-    FRAME_SetDataUsedNum(src_frame, 1);
-    FRAME_SetID(src_frame, buf.index);
-    FRAME_SetDataPointer(src_frame, 0, context->buffer[buf.index]);
+    if (context->bIsFrame) {
+      FRAME_SetDataUsedNum(src_frame, 1);
+      FRAME_SetID(src_frame, buf.index);
+      FRAME_SetDataPointer(src_frame, 0, context->buffer[buf.index]);
+    } else {
+    }
   } else {
     error("no data");
     usleep(20000);
@@ -314,9 +320,13 @@ S32 al_vi_return_output_data(ALBaseContext *ctx, MppData *src_data) {
 
   ALViV4l2Context *context = (ALViV4l2Context *)ctx;
   S32 ret = 0;
+  S32 index;
 
-  MppFrame *src_frame = FRAME_GetFrame(src_data);
-  S32 index = FRAME_GetID(src_frame);
+  if (context->bIsFrame) {
+    MppFrame *src_frame = FRAME_GetFrame(src_data);
+    index = FRAME_GetID(src_frame);
+  } else {
+  }
 
   if (ioctl(context->fd, VIDIOC_QBUF, &(context->buf[index])) == -1) {
     error("======== Failed to queue buffer");

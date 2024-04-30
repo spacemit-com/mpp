@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-29 11:45:51
+ * @LastEditTime: 2024-04-30 15:40:23
  * @Description:
  */
 
@@ -459,6 +459,12 @@ typedef enum _MppPixelFormat {
   PIXEL_FORMAT_AFBC_YUV420_10,
   PIXEL_FORMAT_AFBC_YUV422_8,
   PIXEL_FORMAT_AFBC_YUV422_10,
+
+  /***
+   * for usb camera
+   */
+  PIXEL_FORMAT_H264,
+  PIXEL_FORMAT_MJPEG,
 
   PIXEL_FORMAT_MAX,
 } MppPixelFormat;

@@ -5,8 +5,8 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-26 11:30:30
- * @LastEditTime: 2024-04-30 15:06:54
- * @FilePath: \mpp\test\vi_v4l2_vo_file_test.c
+ * @LastEditTime: 2024-04-30 15:47:35
+ * @FilePath: \mpp\test\vi_v4l2_vo_test.c
  * @Description:
  */
 
@@ -175,6 +175,7 @@ static S32 ViPrepare(TestContext *context) {
   context->pViCtx->stViPara.ePixelFormat = context->ePixelFormat;
   context->pViCtx->stViPara.nBufferNum = NUM_OF_BUFFERS;
   context->pViCtx->stViPara.pVideoDeviceName = context->pVideoDeviceName;
+  context->pViCtx->stViPara.bIsFrame = MPP_TRUE;
 
   // init vi
   ret = VI_Init(context->pViCtx);
