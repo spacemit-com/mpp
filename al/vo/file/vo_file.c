@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-16 11:17:51
- * @LastEditTime: 2024-04-28 14:27:34
+ * @LastEditTime: 2024-04-30 14:59:02
  * @FilePath: \mpp\al\vo\file\vo_file.c
  * @Description:
  */
@@ -28,12 +28,13 @@ struct _ALVoFileContext {
    * parent class
    */
   ALVoBaseContext stAlVoBaseContext;
-  BOOL bIsFrame;
 
-  S32 nOutputWidth;
-  S32 nOutputHeight;
-  S32 nOutputStride;
-  MppPixelFormat eOutputPixelFormat;
+  BOOL bIsFrame;
+  S32 nWidth;
+  S32 nHeight;
+  S32 nStride;
+  MppPixelFormat ePixelFormat;
+
   U8 *pOutputFileName;
   FILE *pOutputFile;
 };
@@ -65,10 +66,10 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   S32 ret = 0;
 
   context->bIsFrame = para->bIsFrame;
-  context->nOutputWidth = para->nWidth;
-  context->nOutputHeight = para->nHeight;
-  context->nOutputStride = para->nStride;
-  context->eOutputPixelFormat = para->ePixelFormat;
+  context->nWidth = para->nWidth;
+  context->nHeight = para->nHeight;
+  context->nStride = para->nStride;
+  context->ePixelFormat = para->ePixelFormat;
   context->pOutputFileName = para->pOutputFileName;
 
   context->pOutputFile = fopen(context->pOutputFileName, "w+");
@@ -82,7 +83,7 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   return MPP_OK;
 
 exit:
-  error("k1 vo_sdl2 init fail");
+  error("k1 vo_file init fail");
   free(context);
   return MPP_INIT_FAILED;
 }
@@ -106,25 +107,32 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
   if (context->bIsFrame) {
     MppFrame *sink_frame = FRAME_GetFrame(sink_data);
     S32 size[4];
+    S32 y_size = context->nWidth * context->nHeight;
 
-    switch (context->eOutputPixelFormat) {
+    switch (context->ePixelFormat) {
       case PIXEL_FORMAT_I420:
-        size[0] = context->nOutputWidth * context->nOutputHeight;
-        size[1] = context->nOutputWidth * context->nOutputHeight / 4;
-        size[2] = context->nOutputWidth * context->nOutputHeight / 4;
+        size[0] = y_size;
+        size[1] = y_size / 4;
+        size[2] = y_size / 4;
         break;
       case PIXEL_FORMAT_NV12:
       case PIXEL_FORMAT_NV21:
-        size[0] = context->nOutputWidth * context->nOutputHeight;
-        size[1] = context->nOutputWidth * context->nOutputHeight / 2;
+        size[0] = y_size;
+        size[1] = y_size / 2;
         break;
       case PIXEL_FORMAT_YUYV:
       case PIXEL_FORMAT_YVYU:
-        size[0] = context->nOutputWidth * context->nOutputHeight * 2;
+        size[0] = y_size * 2;
+        break;
+      case PIXEL_FORMAT_ARGB:
+      case PIXEL_FORMAT_RGBA:
+      case PIXEL_FORMAT_ABGR:
+      case PIXEL_FORMAT_BGRA:
+        size[0] = y_size * 4;
         break;
       default:
         error("Unsupported picture format (%d)! Please check!",
-              context->eOutputPixelFormat);
+              context->ePixelFormat);
         return MPP_CHECK_FAILED;
     }
 

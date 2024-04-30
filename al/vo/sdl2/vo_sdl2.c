@@ -5,9 +5,10 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-03-15 13:41:24
- * @LastEditTime: 2024-03-16 15:40:27
+ * @LastEditTime: 2024-04-30 15:21:07
  * @FilePath: \mpp\al\vo\sdl2\vo_sdl2.c
- * @Description:
+ * @Description: support display frames of some formats,
+ * I420,NV12,NV21,YUYV,etc.
  */
 
 #define ENABLE_DEBUG 1
@@ -46,9 +47,9 @@ struct _ALVoSdl2Context {
    */
   ALVoBaseContext stAlVoBaseContext;
 
-  S32 nOutputWidth;
-  S32 nOutputHeight;
-  MppPixelFormat eOutputPixelFormat;
+  S32 nWidth;
+  S32 nHeight;
+  MppPixelFormat ePixelFormat;
 
   SDL_Window *window;
   SDL_Renderer *renderer;
@@ -84,9 +85,9 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   ALVoSdl2Context *context = (ALVoSdl2Context *)ctx;
   S32 ret = 0;
 
-  context->nOutputWidth = para->nWidth;
-  context->nOutputHeight = para->nHeight;
-  context->eOutputPixelFormat = para->ePixelFormat;
+  context->nWidth = para->nWidth;
+  context->nHeight = para->nHeight;
+  context->ePixelFormat = para->ePixelFormat;
 
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     error("SDL could not initialize! SDL_Error: %s", SDL_GetError());
@@ -95,7 +96,7 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
 
   context->window = SDL_CreateWindow(
       "Spacemit YUV Display", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-      context->nOutputWidth, context->nOutputHeight, 0);
+      context->nWidth, context->nHeight, 0);
   if (!context->window) {
     error("Window could not be created! SDL_Error: %s", SDL_GetError());
     goto exit;
@@ -112,9 +113,8 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   context->texture = SDL_CreateTexture(
       context->renderer,
       get_vosdl2_codec_pixel_format(
-          context->eOutputPixelFormat) /*SDL_PIXELFORMAT_NV12*/,
-      SDL_TEXTUREACCESS_STREAMING, context->nOutputWidth,
-      context->nOutputHeight);
+          context->ePixelFormat) /*SDL_PIXELFORMAT_NV12*/,
+      SDL_TEXTUREACCESS_STREAMING, context->nWidth, context->nHeight);
   if (!context->texture) {
     error("Texture could not be created! SDL_Error: %s", SDL_GetError());
     goto exit;
@@ -149,24 +149,27 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
 
   SDL_SetRenderDrawColor(context->renderer, 0, 0, 0, 255);
   SDL_RenderClear(context->renderer);
-  if (context->eOutputPixelFormat == PIXEL_FORMAT_I420) {
-    SDL_UpdateYUVTexture(
-        context->texture, NULL, FRAME_GetDataPointer(sink_frame, 0),
-        context->nOutputWidth, FRAME_GetDataPointer(sink_frame, 1),
-        context->nOutputWidth, FRAME_GetDataPointer(sink_frame, 2),
-        context->nOutputWidth);
-  } else if (context->eOutputPixelFormat == PIXEL_FORMAT_NV12 ||
-             context->eOutputPixelFormat == PIXEL_FORMAT_NV21) {
-    SDL_UpdateNVTexture(
-        context->texture, NULL, FRAME_GetDataPointer(sink_frame, 0),
-        context->nOutputWidth, FRAME_GetDataPointer(sink_frame, 1),
-        context->nOutputWidth);
+  if (context->ePixelFormat == PIXEL_FORMAT_I420) {
+    SDL_UpdateYUVTexture(context->texture, NULL,
+                         FRAME_GetDataPointer(sink_frame, 0), context->nWidth,
+                         FRAME_GetDataPointer(sink_frame, 1), context->nWidth,
+                         FRAME_GetDataPointer(sink_frame, 2), context->nWidth);
+  } else if (context->ePixelFormat == PIXEL_FORMAT_NV12 ||
+             context->ePixelFormat == PIXEL_FORMAT_NV21) {
+    SDL_UpdateNVTexture(context->texture, NULL,
+                        FRAME_GetDataPointer(sink_frame, 0), context->nWidth,
+                        FRAME_GetDataPointer(sink_frame, 1), context->nWidth);
+  } else if (context->ePixelFormat == PIXEL_FORMAT_YUYV ||
+             context->ePixelFormat == PIXEL_FORMAT_YVYU ||
+             context->ePixelFormat == PIXEL_FORMAT_UYVY) {
+    SDL_UpdateTexture(context->texture, NULL,
+                      FRAME_GetDataPointer(sink_frame, 0), context->nWidth * 2);
   }
 
   context->rect.x = 0;
   context->rect.y = 0;
-  context->rect.w = context->nOutputWidth;
-  context->rect.h = context->nOutputHeight;
+  context->rect.w = context->nWidth;
+  context->rect.h = context->nHeight;
   SDL_RenderCopy(context->renderer, context->texture, NULL, &(context->rect));
 
   SDL_RenderPresent(context->renderer);

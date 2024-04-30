@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2024-04-26 11:30:30
- * @LastEditTime: 2024-04-30 10:50:02
+ * @LastEditTime: 2024-04-30 15:06:54
  * @FilePath: \mpp\test\vi_v4l2_vo_file_test.c
  * @Description:
  */
@@ -202,7 +202,9 @@ static S32 VoPrepare(TestContext *context) {
   context->pVoCtx->stVoPara.nStride = context->nWidth;
   context->pVoCtx->stVoPara.ePixelFormat = context->ePixelFormat;
   context->pVoCtx->stVoPara.bIsFrame = MPP_TRUE;
-  context->pVoCtx->stVoPara.pOutputFileName = context->pOutputFileName;
+  if (context->pVoCtx->eVoType == VO_FILE) {
+    context->pVoCtx->stVoPara.pOutputFileName = context->pOutputFileName;
+  }
 
   // init vo
   ret = VO_Init(context->pVoCtx);
