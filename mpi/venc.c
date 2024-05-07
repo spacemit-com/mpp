@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2023-11-14 11:10:04
+ * @LastEditTime: 2024-05-07 15:19:10
  * @Description: MPP VENC API, use these API to do video encode
  *               from frame(YUV420) to stream(H.264 etc.)
  */
@@ -180,8 +180,8 @@ S32 VENC_Flush(MppVencCtx *ctx) {
 
 S32 VENC_DestoryChannel(MppVencCtx *ctx) {
   if (ctx) {
-    enc_destory(ctx->pNode.pAlBaseContext);
-    module_destory(ctx->pModule);
+    if (enc_destory) enc_destory(ctx->pNode.pAlBaseContext);
+    if (ctx->pModule) module_destory(ctx->pModule);
     free(ctx);
   }
   return 0;
