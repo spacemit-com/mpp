@@ -42,6 +42,22 @@ MppVencCtx *VENC_CreateChannel() {
     return NULL;
   }
 
+  enc_create = (ALBaseContext * (*)())NULL;
+  enc_init = (void (*)(ALBaseContext * ctx, MppVencPara * para))NULL;
+  enc_set_para = (S32(*)(ALBaseContext * ctx, MppVencPara * para))NULL;
+  enc_return_input_frame = (S32(*)(ALBaseContext * ctx, MppData * sink_Data))NULL;
+  enc_send_input_frame = (S32(*)(ALBaseContext * ctx, MppData * sink_Data))NULL;
+  enc_encode = (S32(*)(ALBaseContext * ctx, MppData * sink_data))NULL;
+  enc_process =
+      (S32(*)(ALBaseContext * ctx, MppData * sink_data, MppData * src_data))NULL;
+  enc_get_output_stream = (S32(*)(ALBaseContext * ctx, MppData * src_Data))NULL;
+  enc_request_output_stream = (S32(*)(ALBaseContext * ctx, MppData * src_Data))NULL;
+  enc_return_output_stream = (S32(*)(ALBaseContext * ctx, MppData * src_Data))NULL;
+  enc_flush = (S32(*)(ALBaseContext * ctx))NULL;
+  enc_destory = (void (*)(ALBaseContext * ctx))NULL;
+
+  ctx->pModule = NULL;
+
   return ctx;
 }
 
