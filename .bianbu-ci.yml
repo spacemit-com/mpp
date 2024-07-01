@@ -26,7 +26,7 @@ pack-job:
     - changes_file=$(find ../ -maxdepth 1 -type f -name "*.changes" | head -n 1)
     # 上传结果
     - ssh-keyscan reprepro-headless-service.buildsystem.svc.cluster.local >> ~/.ssh/known_hosts
-    - bianbu-dev upload $changes_file
+    - bianbu-dev upload --sync $changes_file
     # 修改为ssh协议
     - git remote set-url origin git@gitlab.dc.com:$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME.git
     - git push origin --all
