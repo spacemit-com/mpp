@@ -236,15 +236,9 @@ S32 main(S32 argc, char **argv) {
   TestContext *context = NULL;
   S32 argument_num = 0;
   S32 ret = 0;
-  S32 sleep_count = 0;
   MppVencPara *venc_para = NULL;
-  S32 fileSize;
-  S32 leaveSize;
-  S32 tmpSize;
   S32 need_drain = 0;
-  MppData *tmp;
   BOOL stop = MPP_FALSE;
-  BOOL eos = MPP_FALSE;
   S32 id = 0;
 
   context = TestContextCreate();

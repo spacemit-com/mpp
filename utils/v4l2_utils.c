@@ -491,7 +491,6 @@ BOOL check_input_format(S32 video_fd, U32 fmt) {
 BOOL check_v4l2() {
   S32 video_fd = -1;
   struct v4l2_capability vcap;
-  struct v4l2_fmtdesc format;
   U32 device_caps;
 
   debug("Start probing devices");
@@ -558,7 +557,6 @@ BOOL check_v4l2() {
 BOOL check_v4l2_linlonv5v7() {
   S32 video_fd = -1;
   struct v4l2_capability vcap;
-  struct v4l2_fmtdesc format;
   U32 device_caps;
 
   debug("check_v4l2_linlonv5v7");
@@ -629,7 +627,6 @@ BOOL check_v4l2_linlonv5v7() {
 S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
   S32 video_fd = -1;
   struct v4l2_capability vcap;
-  struct v4l2_fmtdesc format;
   U32 device_caps;
   U8 path_base[12] = "/dev/video";
 
@@ -693,7 +690,6 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
 S32 find_v4l2_encoder(U8 *device_path, S32 coding_type) {
   S32 video_fd = -1;
   struct v4l2_capability vcap;
-  struct v4l2_fmtdesc format;
   U32 device_caps;
   U8 path_base[12] = "/dev/video";
 

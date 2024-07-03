@@ -63,7 +63,6 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   }
 
   ALVoFileContext *context = (ALVoFileContext *)ctx;
-  S32 ret = 0;
 
   context->bIsFrame = para->bIsFrame;
   context->nWidth = para->nWidth;
@@ -102,7 +101,6 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
   }
 
   ALVoFileContext *context = (ALVoFileContext *)ctx;
-  S32 ret = 0;
 
   if (context->bIsFrame) {
     MppFrame *sink_frame = FRAME_GetFrame(sink_data);
@@ -165,7 +163,6 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
 
 void al_vo_destory(ALBaseContext *ctx) {
   ALVoFileContext *context = (ALVoFileContext *)ctx;
-  S32 ret = 0;
 
   if (context->pOutputFile) {
     fflush(context->pOutputFile);

@@ -50,6 +50,26 @@ S32 find_##type##_plugin(U8 *path) \
         return 1; \
     } \
  \
+    if (0 == access("/system/lib64/lib"#name".z.so", F_OK)) \
+    { \
+        debug("yeah! we have "#name" plugin---------------"); \
+        U8 *tmp = "/system/lib64/lib"#name".z.so"; \
+        S32 len = strlen(tmp);  \
+        memcpy(path, tmp, len); \
+        path[len] = '\0';  \
+        return 1; \
+    } \
+ \
+    if (0 == access("/vendor/lib64/lib"#name".z.so", F_OK)) \
+    { \
+        debug("yeah! we have "#name" plugin---------------"); \
+        U8 *tmp = "/vendor/lib64/lib"#name".z.so"; \
+        S32 len = strlen(tmp);  \
+        memcpy(path, tmp, len); \
+        path[len] = '\0';  \
+        return 1; \
+    } \
+ \
     return 0; \
 } \
 
@@ -79,7 +99,9 @@ S32 check_##type() \
             (0 == access("/usr/lib/riscv64-linux-gnu/lib"#name".so.7", F_OK)) || \
             (0 == access("/usr/lib/riscv64-linux-gnu/lib"#name".so.0", F_OK)) || \
             (0 == access(#path1"/lib"#name".so", F_OK)) || \
-            (0 == access(#path2"/lib"#name".so", F_OK))) \
+            (0 == access(#path2"/lib"#name".so", F_OK)) || \
+            (0 == access("/system/lib64/lib"#name".so", F_OK)) || \
+            (0 == access("/vendor/lib64/lib"#name".so", F_OK))) \
     { \
         debug("yeah! have "#type"---------------"); \
         return 1; \

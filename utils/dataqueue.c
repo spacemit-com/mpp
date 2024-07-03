@@ -60,7 +60,7 @@ MppDataQueue *DATAQUEUE_Init(BOOL inblk, BOOL outblk) {
 #endif
 
   queue->nMaxNum = 10;
-  queue->nCurrentNum = ATOMIC_VAR_INIT(0);
+  atomic_init(&queue->nCurrentNum, 0);
   queue->pQueueHead = NULL;
   queue->pQueueTail = NULL;
   queue->bInputBlock = inblk;

@@ -441,7 +441,7 @@ S32 handleEvent(Codec *codec) {
   }
 
   if (event.type == V4L2_EVENT_MVX_COLOR_DESC) {
-    struct v4l2_mvx_color_desc color = getColorDesc(codec);
+    // struct v4l2_mvx_color_desc color = getColorDesc(codec);
     // printColorDesc(color);
     error("V4L2_EVENT_MVX_COLOR_DESC event is not support yet, please check!");
   }

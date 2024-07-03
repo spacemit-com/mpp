@@ -360,8 +360,6 @@ U32 getBufferCount(Port *port) {
 }
 
 void queueBuffers(Port *port, BOOL eof) {
-  S32 ret = 0;
-
   for (S32 i = 0; i < port->nBufNum; i++) {
     if (!eof) {
       /* Remove vendor custom flags. */
@@ -641,7 +639,7 @@ void setDecIgnoreStreamHeaders(Port *port, U32 ish) {
  * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
  * MVE_BUFFER_BITSTREAM_FLAG_EOS
  */
-void setNALU(Port *port, enum v4l2_nalu_format nalu) {
+void setNALU(Port *port, enum NaluFormat nalu) {
   mpp_v4l2_set_ctrl(port->nVideoFd, V4L2_CID_MVE_VIDEO_NALU_FORMAT, nalu);
 }
 

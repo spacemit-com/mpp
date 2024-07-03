@@ -100,8 +100,6 @@ RETURN FRAME_Alloc(MppFrame *frame, MppPixelFormat pixelformat, S32 width,
                    S32 height) {
   S32 size[3];
   S32 i;
-  S32 ret = 0;
-  S32 fd = 0;
 
   if (!frame) {
     error("input para MppFrame is NULL, please check!!");
@@ -659,6 +657,8 @@ RETURN FRAME_SetBufferType(MppFrame *frame, MppFrameBufferType eBufferType) {
   }
 
   frame->eBufferType = eBufferType;
+
+  return MPP_OK;
 }
 
 void FRAME_Destory(MppFrame *frame) {

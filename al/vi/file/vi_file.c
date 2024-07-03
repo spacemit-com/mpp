@@ -87,7 +87,6 @@ RETURN al_vi_init(ALBaseContext *ctx, MppViPara *para) {
   }
 
   ALViFileContext *context = (ALViFileContext *)ctx;
-  S32 ret = 0;
 
   context->bIsFrame = para->bIsFrame;
   context->nOutputWidth = para->nWidth;
@@ -153,13 +152,12 @@ S32 al_vi_process(ALBaseContext *ctx, MppData *sink_data) {
   }
 
   ALViFileContext *context = (ALViFileContext *)ctx;
-  S32 ret = 0;
 
   if (context->bIsFrame) {
-    MppFrame *sink_frame = FRAME_GetFrame(sink_data);
+    // MppFrame *sink_frame = FRAME_GetFrame(sink_data);
 
   } else {
-    MppPacket *sink_packet = PACKET_GetPacket(sink_data);
+    // MppPacket *sink_packet = PACKET_GetPacket(sink_data);
   }
 
   return MPP_OK;
@@ -275,11 +273,12 @@ S32 al_vi_request_output_data(ALBaseContext *ctx, MppData *src_data) {
   return MPP_OK;
 }
 
-S32 al_vi_return_output_data(ALBaseContext *ctx, MppData *src_data) {}
+S32 al_vi_return_output_data(ALBaseContext *ctx, MppData *src_data) {
+  return MPP_OK;
+}
 
 void al_vi_destory(ALBaseContext *ctx) {
   ALViFileContext *context = (ALViFileContext *)ctx;
-  S32 ret = 0;
 
   if (context->pInputFile) {
     fflush(context->pInputFile);

@@ -288,7 +288,6 @@ static S32 checkInputParameters(MppCodingType type, S32 profile,
  */
 void *runpoll(void *private_data) {
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)private_data;
-  S32 ret = 0;
 
   while (1) {
     static S32 tmp = 0;

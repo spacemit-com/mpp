@@ -629,9 +629,7 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
   MppFrame *sink_frame = FRAME_GetFrame(sink_data);
   S32 ret = 0;
-  static S32 i = 0;
-  S32 index;
-  struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
+  // struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
   if (FRAME_GetEos(sink_frame) == FRAME_EOS_WITH_DATA) {
     debug("eos flag of input frame with data is set, EOS is coming");

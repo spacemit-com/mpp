@@ -511,6 +511,8 @@ S32 memoryUnmap(Buffer *buf) {
       }
     }
   }
+
+  return MPP_OK;
 }
 
 S32 getLength(Buffer *buf, U32 plane) {
@@ -586,4 +588,7 @@ S32 getExtraFd(Buffer *buf) { return buf->nExtraFd; }
 
 BOOL getIsQueued(Buffer *buf) { return buf->bIsQueued; }
 
-S32 setIsQueued(Buffer *buf, BOOL queued) { buf->bIsQueued = queued; }
+S32 setIsQueued(Buffer *buf, BOOL queued) {
+  buf->bIsQueued = queued;
+  return MPP_OK;
+}
