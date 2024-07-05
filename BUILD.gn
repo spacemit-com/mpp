@@ -8,6 +8,7 @@ group("mpp") {
     ":libvo_file_plugin",
     ":vi_file_vdec_vo_test",
     ":vi_file_venc_sync_userptr_vo_file_test",
+    ":vi_file_vdec_venc_sync_userptr_vo_file_test",
   ]
 }
 
@@ -22,6 +23,38 @@ cflags_cc_common = [
   "-Wno-unused-function",
   "-Wno-pointer-to-int-cast",
 ]
+
+ohos_executable("vi_file_vdec_venc_sync_userptr_vo_file_test") {
+  sources = [
+    "test/vi_file_vdec_venc_sync_userptr_vo_file_test.c",
+]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+    "mpi/include",
+    "test/include",
+  ]
+
+  output_name = "vi_file_vdec_venc_sync_userptr_vo_file_test"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+    ":libspacemit_mpp",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+}
 
 ohos_executable("vi_file_venc_sync_userptr_vo_file_test") {
   sources = [
