@@ -50,22 +50,27 @@ MppVdecCtx *VDEC_CreateChannel() {
   memset(ctx, 0, sizeof(MppVdecCtx));
   VDEC_GetDefaultParam(ctx);
 
-  dec_create = (ALBaseContext * (*)())NULL;
-  dec_init = (S32(*)(ALBaseContext * ctx, MppVdecPara * para))NULL;
-  dec_getparam = (S32(*)(ALBaseContext * ctx, MppVdecPara * *para))NULL;
-  dec_request_input_stream = (S32(*)(ALBaseContext * ctx, MppData * sink_data))NULL;
-  dec_return_input_stream = (S32(*)(ALBaseContext * ctx, MppData * sink_data))NULL;
-  dec_decode = (S32(*)(ALBaseContext * ctx, MppData * sink_data))NULL;
+  dec_create = (ALBaseContext * (*)()) NULL;
+  dec_init = (S32(*)(ALBaseContext * ctx, MppVdecPara * para)) NULL;
+  dec_getparam = (S32(*)(ALBaseContext * ctx, MppVdecPara * *para)) NULL;
+  dec_request_input_stream =
+      (S32(*)(ALBaseContext * ctx, MppData * sink_data)) NULL;
+  dec_return_input_stream =
+      (S32(*)(ALBaseContext * ctx, MppData * sink_data)) NULL;
+  dec_decode = (S32(*)(ALBaseContext * ctx, MppData * sink_data)) NULL;
   dec_process =
-      (S32(*)(ALBaseContext * ctx, MppData * sink_data, MppData * src_data))NULL;
-  dec_get_output_frame = (S32(*)(ALBaseContext * ctx, MppData * src_data))NULL;
-  dec_request_output_frame = (S32(*)(ALBaseContext * ctx, MppData * src_data))NULL;
+      (S32(*)(ALBaseContext * ctx, MppData * sink_data, MppData * src_data))
+          NULL;
+  dec_get_output_frame = (S32(*)(ALBaseContext * ctx, MppData * src_data)) NULL;
+  dec_request_output_frame =
+      (S32(*)(ALBaseContext * ctx, MppData * src_data)) NULL;
   dec_request_output_frame_2 =
-      (S32(*)(ALBaseContext * ctx, MppData * *src_data))NULL;
-  dec_return_output_frame = (S32(*)(ALBaseContext * ctx, MppData * src_data))NULL;
-  dec_destory = (void (*)(ALBaseContext * ctx))NULL;
-  dec_flush = (S32(*)(ALBaseContext * ctx))NULL;
-  dec_reset = (S32(*)(ALBaseContext * ctx))NULL;
+      (S32(*)(ALBaseContext * ctx, MppData * *src_data)) NULL;
+  dec_return_output_frame =
+      (S32(*)(ALBaseContext * ctx, MppData * src_data)) NULL;
+  dec_destory = (void (*)(ALBaseContext * ctx)) NULL;
+  dec_flush = (S32(*)(ALBaseContext * ctx)) NULL;
+  dec_reset = (S32(*)(ALBaseContext * ctx)) NULL;
 
   ctx->pModule = NULL;
   debug("create VDEC Channel success!");
