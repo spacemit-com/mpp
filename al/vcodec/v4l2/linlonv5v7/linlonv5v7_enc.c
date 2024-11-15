@@ -791,7 +791,8 @@ S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
              getUserPtr(buffer, 0), b->bytesused);
     }
     PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused);
-    PACKET_SetPts(PACKET_GetPacket(src_data), (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
+    PACKET_SetPts(PACKET_GetPacket(src_data),
+                  (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
     resetVendorFlags(buffer);
     queueBuffer(getOutputPort(context->stCodec), buffer);
 
