@@ -21,7 +21,8 @@ pack-job:
     - export PATH=$CI_PROJECT_DIR/../bianbu-devscripts:$PATH
     # 准备打包所需的源码，从detach切换到分支
     - cd $CI_PROJECT_DIR
-    - git checkout ${CI_COMMIT_TAG%%/*}  
+    - git checkout ${CI_COMMIT_TAG%%/*}
+    - bianbu-dev set-default-dist ${CI_COMMIT_TAG%%/*}
     - bianbu-pkg -u local -w . -t $CI_COMMIT_TAG
     - changes_file=$(find ../ -maxdepth 1 -type f -name "*.changes" | head -n 1)
     # 上传结果
