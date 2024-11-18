@@ -124,6 +124,7 @@ struct _ALLinlonv5v7DecContext {
    */
   S32 nWidth;
   S32 nHeight;
+  S32 nAlign;
 
   S32 nRotation;
   S32 nScale;
@@ -370,6 +371,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->bIsBlockMode = MPP_FALSE;
   context->nWidth = para->nWidth;
   context->nHeight = para->nHeight;
+  context->nAlign = para->nAlign <= 0 ? 1 : para->nAlign;
   context->bIsInterlaced = para->bIsInterlaced;
   context->nRotation = para->nRotateDegree;
   context->nScale = para->nScale;
@@ -420,7 +422,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
         context->sDevicePath);
 
   context->stCodec = createCodec(
-      context->nVideoFd, context->nWidth, context->nHeight,
+      context->nVideoFd, context->nWidth, context->nHeight, context->nAlign,
       context->bIsInterlaced, context->nInputType, context->nOutputType,
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
       context->nInputMemType, context->nOutputMemType, context->nInputBufferNum,

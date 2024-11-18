@@ -35,7 +35,7 @@ typedef struct _Codec Codec;
  * @description: create a Codec instance, for decode or encode
  * @return {*}: context of the Codec
  */
-Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
+Codec *createCodec(S32 fd, S32 width, S32 height, S32 align, BOOL isInterlaced,
                    enum v4l2_buf_type inputType, enum v4l2_buf_type outputType,
                    U32 input_format_fourcc, U32 output_format_fourcc,
                    U32 input_memtype, U32 output_memtype, U32 input_buffer_num,

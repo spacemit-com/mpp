@@ -105,7 +105,7 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
   if (context->bIsFrame) {
     MppFrame *sink_frame = FRAME_GetFrame(sink_data);
     S32 size[4];
-    S32 y_size = context->nWidth * context->nHeight;
+    S32 y_size = context->nStride * context->nHeight;
 
     switch (context->ePixelFormat) {
       case PIXEL_FORMAT_I420:

@@ -880,7 +880,11 @@ typedef struct _MppVdecPara {
    */
   S32 nWidth;
   S32 nHeight;
+  /***
+   * @deprecated use nAlign instead
+   */
   S32 nStride;
+  S32 nAlign;
   S32 nScale;
 
   /***
@@ -969,6 +973,7 @@ typedef struct _MppVencPara {
   S32 nWidth;
   S32 nHeight;
   S32 nStride;
+  S32 nAlign;
   S32 nBitrate;
   S32 nFrameRate;
 } MppVencPara;

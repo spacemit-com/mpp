@@ -24,6 +24,8 @@
 
 #define MODULE_TAG "linlonv5v7_port"
 
+#define ST_ALIGN_UP(x, align) ((x + (align - 1)) & ~(align - 1))
+
 struct _Port {
   U32 nFormatFourcc;
   U32 nMemType;
@@ -34,6 +36,7 @@ struct _Port {
   S32 nQueuedNum;
   S32 nBufNum;
   Buffer *stBuf[MAX_BUF_NUM];
+  S32 nAlign;
 
   S32 nVideoFd;
   DIRECTION ePortDirection;
@@ -65,7 +68,7 @@ struct _Port {
   FILE *pOutputFile;
 };
 
-Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
+Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc, S32 align,
                  U32 memtype, U32 buffer_num, MppFrameBufferType buffer_type) {
   Port *port_tmp = (Port *)malloc(sizeof(Port));
   if (!port_tmp) {
@@ -92,6 +95,7 @@ Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc,
   port_tmp->nQueueNumInput = 0;
   port_tmp->nQueueNumOutput = 0;
   port_tmp->eBufferType = buffer_type;
+  port_tmp->nAlign = align;
 
   if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT ||
       type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
@@ -189,7 +193,8 @@ void setFormat(Port *port, struct v4l2_format format) {
 
 void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
                      BOOL interlaced) {
-  debug("width=%d height=%d pixel_format=%x", width, height, pixel_format);
+  debug("width=%d height=%d align=%d pixel_format=%x",
+        width, height, port->nAlign, pixel_format);
   S32 width_tmp = 0, height_tmp = 0;
 
   struct v4l2_format fmt = getPortFormat(port);
@@ -202,9 +207,37 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
     f->num_planes = 2;
     // f->field = interlaced ? V4L2_FIELD_SEQ_TB : V4L2_FIELD_NONE;
 
-    for (S32 i = 0; i < 3; ++i) {
-      f->plane_fmt[i].bytesperline = 0;
-      f->plane_fmt[i].sizeimage = 0;
+    switch (pixel_format) {
+      case V4L2_PIX_FMT_NV12:
+      case V4L2_PIX_FMT_NV21:
+      case V4L2_PIX_FMT_NV12M:
+      case V4L2_PIX_FMT_NV21M:
+        f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width, port->nAlign);
+        f->plane_fmt[1].bytesperline = ST_ALIGN_UP(width, port->nAlign);
+        f->plane_fmt[2].bytesperline = 0;
+        f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
+        f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
+        f->plane_fmt[2].sizeimage = 0;
+        break;
+      case V4L2_PIX_FMT_YUV420:
+      case V4L2_PIX_FMT_YVU420:
+      case V4L2_PIX_FMT_YUV420M:
+      case V4L2_PIX_FMT_YVU420M:
+        f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width, port->nAlign);
+        f->plane_fmt[1].bytesperline =
+            ST_ALIGN_UP((width * 4 + 7) >> 3, port->nAlign);
+        f->plane_fmt[2].bytesperline =
+            ST_ALIGN_UP((width * 4 + 7) >> 3, port->nAlign);
+        f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
+        f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
+        f->plane_fmt[2].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
+        break;
+      default:
+        for (S32 i = 0; i < 3; ++i) {
+          f->plane_fmt[i].bytesperline = 0;
+          f->plane_fmt[i].sizeimage = 0;
+        }
+        break;
     }
   } else {
     struct v4l2_pix_format *f = &(fmt.fmt.pix);
