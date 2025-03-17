@@ -42,27 +42,7 @@ MppVencCtx *VENC_CreateChannel() {
     return NULL;
   }
 
-  enc_create = (ALBaseContext * (*)()) NULL;
-  enc_init = (void (*)(ALBaseContext * ctx, MppVencPara * para)) NULL;
-  enc_set_para = (S32(*)(ALBaseContext * ctx, MppVencPara * para)) NULL;
-  enc_return_input_frame =
-      (S32(*)(ALBaseContext * ctx, MppData * sink_Data)) NULL;
-  enc_send_input_frame =
-      (S32(*)(ALBaseContext * ctx, MppData * sink_Data)) NULL;
-  enc_encode = (S32(*)(ALBaseContext * ctx, MppData * sink_data)) NULL;
-  enc_process =
-      (S32(*)(ALBaseContext * ctx, MppData * sink_data, MppData * src_data))
-          NULL;
-  enc_get_output_stream =
-      (S32(*)(ALBaseContext * ctx, MppData * src_Data)) NULL;
-  enc_request_output_stream =
-      (S32(*)(ALBaseContext * ctx, MppData * src_Data)) NULL;
-  enc_return_output_stream =
-      (S32(*)(ALBaseContext * ctx, MppData * src_Data)) NULL;
-  enc_flush = (S32(*)(ALBaseContext * ctx)) NULL;
-  enc_destory = (void (*)(ALBaseContext * ctx)) NULL;
-
-  ctx->pModule = NULL;
+  memset(ctx, 0, sizeof(MppVencCtx));
 
   return ctx;
 }
@@ -201,11 +181,25 @@ S32 VENC_Flush(MppVencCtx *ctx) {
 }
 
 S32 VENC_DestoryChannel(MppVencCtx *ctx) {
-  if (ctx) {
-    if (enc_destory) enc_destory(ctx->pNode.pAlBaseContext);
-    if (ctx->pModule) module_destory(ctx->pModule);
-    free(ctx);
+  if (!ctx) {
+    error("input para ctx is NULL, please check!");
+    return MPP_NULL_POINTER;
   }
+
+  if (ctx->pModule == NULL) {
+    info("module not init!");
+    free(ctx);
+    return 0;
+  }
+
+  if (enc_destory) enc_destory(ctx->pNode.pAlBaseContext);
+  debug("finish destory ecoder");
+
+  module_destory(ctx->pModule);
+  debug("finish destory module");
+
+  free(ctx);
+
   return 0;
 }
 

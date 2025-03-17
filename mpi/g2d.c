@@ -172,9 +172,25 @@ S32 G2D_ReturnOutputFrame(MppG2dCtx *ctx, MppData *src_data) {
 }
 
 S32 G2D_DestoryChannel(MppG2dCtx *ctx) {
+  if (!ctx) {
+    error("input para ctx is NULL, please check!");
+    return MPP_NULL_POINTER;
+  }
+
+  if (ctx->pModule == NULL) {
+    info("module not init!");
+    free(ctx);
+    return 0;
+  }
+
   g2d_destory(ctx->pNode.pAlBaseContext);
+  debug("finish destory g2d");
 
   module_destory(ctx->pModule);
+  debug("finish destory module");
+
+  free(ctx);
+
   return 0;
 }
 

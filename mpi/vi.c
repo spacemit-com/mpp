@@ -112,6 +112,12 @@ S32 VI_DestoryChannel(MppViCtx *ctx) {
     return MPP_NULL_POINTER;
   }
 
+  if (ctx->pModule == NULL) {
+    info("module not init!");
+    free(ctx);
+    return 0;
+  }
+
   vi_destory(ctx->pNode.pAlBaseContext);
   debug("finish destory vi");
 

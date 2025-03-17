@@ -234,10 +234,16 @@ S32 VDEC_DestoryChannel(MppVdecCtx *ctx) {
     return MPP_NULL_POINTER;
   }
 
+  if (ctx->pModule == NULL) {
+    info("module not init!");
+    free(ctx);
+    return 0;
+  }
+
   if (dec_destory) dec_destory(ctx->pNode.pAlBaseContext);
   debug("finish destory decoder");
 
-  if (ctx->pModule) module_destory(ctx->pModule);
+  module_destory(ctx->pModule);
   debug("finish destory module");
 
   free(ctx);

@@ -90,6 +90,12 @@ S32 VO_DestoryChannel(MppVoCtx *ctx) {
     return MPP_NULL_POINTER;
   }
 
+  if (ctx->pModule == NULL) {
+    info("module not init!");
+    free(ctx);
+    return 0;
+  }
+
   vo_destory(ctx->pNode.pAlBaseContext);
   debug("finish destory vo");
 
