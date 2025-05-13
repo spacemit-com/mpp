@@ -463,7 +463,9 @@ static void setEncoderRateControl(ALLinlonv5v7EncContext *context, const U8 *rc,
   }
   setRateControl(getOutputPort(context->stCodec), &v4l2_rc);
 }
-
+static void setEncoderRotation(ALLinlonv5v7EncContext *context, S32 rotation) {
+  setPortRotation(getInputPort(context->stCodec), rotation);
+}
 static void setEncoderCropLeft(ALLinlonv5v7EncContext *context, S32 left) {
   setCropLeft(getInputPort(context->stCodec), left);
 }
@@ -554,7 +556,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   context->nHeight = para->nHeight;
   context->nAlign = para->nAlign <= 0 ? 1 : para->nAlign;
   // context->bIsInterlaced = para->bIsInterlaced;
-  // context->nRotation = para->nRotateDegree;
+  context->nRotation = para->nRotateDegree;
   // context->nScale = para->nScale;
   context->nInputMemType = V4L2_MEMORY_DMABUF;
   context->nOutputMemType = V4L2_MEMORY_MMAP;
@@ -584,8 +586,8 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
     return MPP_OPEN_FAILED;
   }
 
-  debug("video fd = %d, device path = '%s'", context->nVideoFd,
-        context->sDevicePath);
+  debug("video fd = %d, device path = '%s', rot:%d", context->nVideoFd,
+        context->sDevicePath, context->nRotation);
 
   context->stCodec = createCodec(
       context->nVideoFd, context->nWidth, context->nHeight, context->nAlign,
@@ -606,6 +608,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   // setHEVCMaxQP(context, 20);
 
   setEncoderRateControl(context, "off", 0, 0);
+  setEncoderRotation(context, context->nRotation);
 
   // setformat, allocate buffer, stream on
   stream(context->stCodec);
