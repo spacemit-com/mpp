@@ -976,6 +976,7 @@ typedef struct _MppVencPara {
   S32 nAlign;
   S32 nBitrate;
   S32 nFrameRate;
+  S32 nRotateDegree;
 } MppVencPara;
 
 typedef enum _MppG2dCmd {
