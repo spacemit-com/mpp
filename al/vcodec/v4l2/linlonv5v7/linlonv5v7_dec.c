@@ -318,7 +318,7 @@ void *runpoll(void *private_data) {
     tmp++;
     if (200 == tmp) {
       tmp = 0;
-      info("Now k1 hardware decoding ...");
+      // info("Now k1 hardware decoding ...");
     }
   }
 }

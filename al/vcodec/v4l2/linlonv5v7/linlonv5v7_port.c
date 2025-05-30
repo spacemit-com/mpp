@@ -24,7 +24,7 @@
 
 #define MODULE_TAG "linlonv5v7_port"
 
-#define ST_ALIGN_UP(x, align) ((x + (align - 1)) & ~(align - 1))
+#define ST_ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 
 struct _Port {
   U32 nFormatFourcc;
@@ -204,7 +204,6 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
     f->pixelformat = pixel_format;
     f->width = width;
     f->height = height;
-    f->num_planes = 2;
     // f->field = interlaced ? V4L2_FIELD_SEQ_TB : V4L2_FIELD_NONE;
 
     switch (pixel_format) {
@@ -218,6 +217,7 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
         f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
         f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
         f->plane_fmt[2].sizeimage = 0;
+        f->num_planes = 2;
         break;
       case V4L2_PIX_FMT_YUV420:
       case V4L2_PIX_FMT_YVU420:
@@ -230,13 +230,15 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
             ST_ALIGN_UP((width * 4 + 7) >> 3, port->nAlign);
         f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
         f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
-        f->plane_fmt[2].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
+        f->plane_fmt[2].sizeimage = f->plane_fmt[2].bytesperline * height / 2;
+        f->num_planes = 3;
         break;
       default:
         for (S32 i = 0; i < 3; ++i) {
           f->plane_fmt[i].bytesperline = 0;
           f->plane_fmt[i].sizeimage = 0;
         }
+        f->num_planes = 3;
         break;
     }
   } else {
