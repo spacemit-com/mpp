@@ -22,17 +22,17 @@
 
 #define MODULE_TAG "mpp_g2d"
 
-ALBaseContext *(*g2d_create)();
-void (*g2d_init)(ALBaseContext *ctx, MppG2dPara *para);
-S32 (*g2d_set_para)(ALBaseContext *ctx, MppG2dPara *para);
-S32 (*g2d_send_input_frame)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*g2d_return_input_frame)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*g2d_convert)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*g2d_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
-S32 (*g2d_get_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*g2d_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*g2d_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
-void (*g2d_destory)(ALBaseContext *ctx);
+static ALBaseContext *(*g2d_create)();
+static void (*g2d_init)(ALBaseContext *ctx, MppG2dPara *para);
+static S32 (*g2d_set_para)(ALBaseContext *ctx, MppG2dPara *para);
+static S32 (*g2d_send_input_frame)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*g2d_return_input_frame)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*g2d_convert)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*g2d_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
+static S32 (*g2d_get_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*g2d_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*g2d_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static void (*g2d_destory)(ALBaseContext *ctx);
 
 MppG2dCtx *G2D_CreateChannel() {
   debug("G2D_CreateChannel start!");

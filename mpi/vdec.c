@@ -25,20 +25,20 @@
 
 #define MODULE_TAG "mpp_vdec"
 
-ALBaseContext *(*dec_create)();
-S32 (*dec_init)(ALBaseContext *ctx, MppVdecPara *para);
-S32 (*dec_getparam)(ALBaseContext *ctx, MppVdecPara **para);
-S32 (*dec_request_input_stream)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*dec_return_input_stream)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*dec_decode)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*dec_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
-S32 (*dec_get_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*dec_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*dec_request_output_frame_2)(ALBaseContext *ctx, MppData **src_data);
-S32 (*dec_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*dec_flush)(ALBaseContext *ctx);
-S32 (*dec_reset)(ALBaseContext *ctx);
-void (*dec_destory)(ALBaseContext *ctx);
+static ALBaseContext *(*dec_create)();
+static S32 (*dec_init)(ALBaseContext *ctx, MppVdecPara *para);
+static S32 (*dec_getparam)(ALBaseContext *ctx, MppVdecPara **para);
+static S32 (*dec_request_input_stream)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*dec_return_input_stream)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*dec_decode)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*dec_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
+static S32 (*dec_get_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*dec_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*dec_request_output_frame_2)(ALBaseContext *ctx, MppData **src_data);
+static S32 (*dec_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*dec_flush)(ALBaseContext *ctx);
+static S32 (*dec_reset)(ALBaseContext *ctx);
+static void (*dec_destory)(ALBaseContext *ctx);
 
 MppVdecCtx *VDEC_CreateChannel() {
   MppVdecCtx *ctx = (MppVdecCtx *)malloc(sizeof(MppVdecCtx));

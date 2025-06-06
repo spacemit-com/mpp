@@ -22,18 +22,18 @@
 
 #define MODULE_TAG "mpp_venc"
 
-ALBaseContext *(*enc_create)();
-void (*enc_init)(ALBaseContext *ctx, MppVencPara *para);
-S32 (*enc_set_para)(ALBaseContext *ctx, MppVencPara *para);
-S32 (*enc_return_input_frame)(ALBaseContext *ctx, MppData *sink_Data);
-S32 (*enc_send_input_frame)(ALBaseContext *ctx, MppData *sink_Data);
-S32 (*enc_encode)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*enc_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
-S32 (*enc_get_output_stream)(ALBaseContext *ctx, MppData *src_Data);
-S32 (*enc_request_output_stream)(ALBaseContext *ctx, MppData *src_Data);
-S32 (*enc_return_output_stream)(ALBaseContext *ctx, MppData *src_Data);
-S32 (*enc_flush)(ALBaseContext *ctx);
-void (*enc_destory)(ALBaseContext *ctx);
+static ALBaseContext *(*enc_create)();
+static void (*enc_init)(ALBaseContext *ctx, MppVencPara *para);
+static S32 (*enc_set_para)(ALBaseContext *ctx, MppVencPara *para);
+static S32 (*enc_return_input_frame)(ALBaseContext *ctx, MppData *sink_Data);
+static S32 (*enc_send_input_frame)(ALBaseContext *ctx, MppData *sink_Data);
+static S32 (*enc_encode)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*enc_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
+static S32 (*enc_get_output_stream)(ALBaseContext *ctx, MppData *src_Data);
+static S32 (*enc_request_output_stream)(ALBaseContext *ctx, MppData *src_Data);
+static S32 (*enc_return_output_stream)(ALBaseContext *ctx, MppData *src_Data);
+static S32 (*enc_flush)(ALBaseContext *ctx);
+static void (*enc_destory)(ALBaseContext *ctx);
 
 MppVencCtx *VENC_CreateChannel() {
   MppVencCtx *ctx = (MppVencCtx *)malloc(sizeof(MppVencCtx));

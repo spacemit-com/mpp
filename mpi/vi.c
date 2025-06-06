@@ -25,13 +25,13 @@
 
 #define MODULE_TAG "mpp_vi"
 
-ALBaseContext *(*vi_create)();
-S32 (*vi_init)(ALBaseContext *ctx, MppViPara *para);
-S32 (*vi_getparam)(ALBaseContext *ctx, MppViPara **para);
-S32 (*vi_process)(ALBaseContext *ctx, MppData *src_data);
-S32 (*vi_request_output_data)(ALBaseContext *ctx, MppData *src_data);
-S32 (*vi_return_output_data)(ALBaseContext *ctx, MppData *src_data);
-void (*vi_destory)(ALBaseContext *ctx);
+static ALBaseContext *(*vi_create)();
+static S32 (*vi_init)(ALBaseContext *ctx, MppViPara *para);
+static S32 (*vi_getparam)(ALBaseContext *ctx, MppViPara **para);
+static S32 (*vi_process)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*vi_request_output_data)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*vi_return_output_data)(ALBaseContext *ctx, MppData *src_data);
+static void (*vi_destory)(ALBaseContext *ctx);
 
 MppViCtx *VI_CreateChannel() {
   MppViCtx *ctx = (MppViCtx *)malloc(sizeof(MppViCtx));

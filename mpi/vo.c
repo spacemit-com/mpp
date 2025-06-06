@@ -25,11 +25,11 @@
 
 #define MODULE_TAG "mpp_vo"
 
-ALBaseContext *(*vo_create)();
-S32 (*vo_init)(ALBaseContext *ctx, MppVoPara *para);
-S32 (*vo_getparam)(ALBaseContext *ctx, MppVoPara **para);
-S32 (*vo_process)(ALBaseContext *ctx, MppData *sink_data);
-void (*vo_destory)(ALBaseContext *ctx);
+static ALBaseContext *(*vo_create)();
+static S32 (*vo_init)(ALBaseContext *ctx, MppVoPara *para);
+static S32 (*vo_getparam)(ALBaseContext *ctx, MppVoPara **para);
+static S32 (*vo_process)(ALBaseContext *ctx, MppData *sink_data);
+static void (*vo_destory)(ALBaseContext *ctx);
 
 MppVoCtx *VO_CreateChannel() {
   MppVoCtx *ctx = (MppVoCtx *)malloc(sizeof(MppVoCtx));
