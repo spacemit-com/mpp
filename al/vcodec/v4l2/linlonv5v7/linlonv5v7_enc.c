@@ -618,7 +618,60 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   return MPP_OK;
 }
 
-S32 al_enc_set_para(ALBaseContext *ctx, MppVencPara *para) { return MPP_OK; }
+S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
+  ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+  switch (cmd) {
+    case MPP_VENC_CMD_SET_PARAM_H264_CBR:
+      MppVencParaH264CBR *rcCbrParaH264 = (MppVencParaH264CBR *)para;
+      setH264EncMinQP(getOutputPort(context->stCodec), rcCbrParaH264->nMinQP);
+      setH264EncMaxQP(getOutputPort(context->stCodec), rcCbrParaH264->nMaxQP);
+      setPFrames(context, rcCbrParaH264->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_CBR:
+      MppVencParaHEVCCBR *rcCbrParaHEVC = (MppVencParaHEVCCBR *)para;
+      setHEVCEncMinQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMinQP);
+      setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMaxQP);
+      setPFrames(context, rcCbrParaHEVC->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_H264_VBR:
+      MppVencParaH264VBR *rcVbrParaH264 = (MppVencParaH264VBR *)para;
+      setH264EncMinQP(getOutputPort(context->stCodec), rcVbrParaH264->nMinQP);
+      setH264EncMaxQP(getOutputPort(context->stCodec), rcVbrParaH264->nMaxQP);
+      setPFrames(context, rcVbrParaH264->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_VBR:
+      MppVencParaHEVCCBR *rcVbrParaHEVC = (MppVencParaHEVCCBR *)para;
+      setHEVCEncMinQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMinQP);
+      setHEVCEncMaxQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMaxQP);
+      setPFrames(context, rcVbrParaHEVC->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_H264_CVBR:
+      MppVencParaH264CVBR *rcCvbrParaH264 = (MppVencParaH264CVBR *)para;
+      setH264EncMinQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMinQP);
+      setH264EncMaxQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMaxQP);
+      setPFrames(context, rcCvbrParaH264->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_CVBR:
+      MppVencParaHEVCCVBR *rcCvbrParaHEVC = (MppVencParaHEVCCVBR *)para;
+      setHEVCEncMinQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMinQP);
+      setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMaxQP);
+      setPFrames(context, rcCvbrParaHEVC->nGop);
+      break;
+    case MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM:
+    case MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM:
+    case MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM:
+      MppVencRateControl *paramBitrate = (MppVencRateControl *)para;
+      setRateControl(getOutputPort(context->stCodec), (struct v4l2_rate_control *)paramBitrate);
+      break;
+    case MPP_VENC_CMD_SET_ROI_REGIONS_PARAM:
+      MppVencRoiRegions *paramRoi = (MppVencRoiRegions *)para;
+      setRoiRegion(getOutputPort(context->stCodec),(struct v4l2_mvx_roi_regions *)paramRoi);
+      break;
+    default:
+      return MPP_OK;
+  }
+  return MPP_OK;
+}
 
 S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   if (!ctx) {

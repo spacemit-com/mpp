@@ -210,7 +210,7 @@ struct v4l2_mvx_primary {
  * @display.b:			Blue point.
  * @display.w:			White point.
  * @display.luminance_min:	Minimum display luminance.
- * @display.luminance_max:	Maximum display luminance.
+ * @display.luance_max:	Maximum display luminance.
  * @content.luminance_max:	Maximum content luminance.
  * @content.luminance_average:	Average content luminance.
  *

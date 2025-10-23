@@ -38,7 +38,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para);
  * @param {MppVencPara} *para
  * @return {*}
  */
-S32 al_enc_set_para(ALBaseContext *ctx, MppVencPara *para);
+S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para);
 
 /**
  * @description:

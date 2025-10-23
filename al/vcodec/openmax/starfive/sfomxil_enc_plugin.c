@@ -551,7 +551,7 @@ exit:
   return MPP_INIT_FAILED;
 }
 
-S32 al_enc_set_para(ALBaseContext *ctx, MppVencPara *para) { return 0; }
+S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) { return 0; }
 
 S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
   if (!ctx) return MPP_NULL_POINTER;

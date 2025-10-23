@@ -143,7 +143,7 @@ S32 VENC_Init(MppVencCtx *ctx);
  * @param {MppVencPara} *para
  * @return {*}
  */
-S32 VENC_SetParam(MppVencCtx *ctx, MppVencPara *para);
+S32 VENC_SetParam(MppVencCtx *ctx, MppVencCmd cmd, void *para);
 
 /**
  * @description:
