@@ -258,7 +258,7 @@ static void Set_Enc_Para(MppVencCmd cmd, TestContext *context) {
     case MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM:
       /* code */
       MppVencRateControl *Param_Bitrate_CBR = malloc(sizeof(MppVencRateControl));
-      Param_Bitrate_CBR->nRcType = MPP_V4L2_OPT_RATE_CONTROL_MODE_CONSTANT;
+      Param_Bitrate_CBR->nRcType = MPP_RATE_CONTROL_MODE_CBR;
       Param_Bitrate_CBR->nTargetBitrate = 5000000;
       Param_Bitrate_CBR->nMaximumBitrate = 10000000;
       VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM,
@@ -267,7 +267,7 @@ static void Set_Enc_Para(MppVencCmd cmd, TestContext *context) {
     case MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM:
       /* code */
       MppVencRateControl *Param_Bitrate_VBR = malloc(sizeof(MppVencRateControl));
-      Param_Bitrate_VBR->nRcType = MPP_V4L2_OPT_RATE_CONTROL_MODE_VARIABLE;
+      Param_Bitrate_VBR->nRcType = MPP_RATE_CONTROL_MODE_VBR;
       Param_Bitrate_VBR->nTargetBitrate = 5000000;
       Param_Bitrate_VBR->nMaximumBitrate = 10000000;
       VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM,
@@ -276,7 +276,7 @@ static void Set_Enc_Para(MppVencCmd cmd, TestContext *context) {
     case MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM:
       /* code */
       MppVencRateControl *Param_Bitrate_CVBR = malloc(sizeof(MppVencRateControl));
-      Param_Bitrate_CVBR->nRcType = MPP_V4L2_OPT_RATE_CONTROL_MODE_C_VARIABLE;
+      Param_Bitrate_CVBR->nRcType = MPP_RATE_CONTROL_MODE_CVBR;
       Param_Bitrate_CVBR->nTargetBitrate = 5000000;
       Param_Bitrate_CVBR->nMaximumBitrate = 10000000;
       VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM,
@@ -297,17 +297,6 @@ static void Set_Enc_Para(MppVencCmd cmd, TestContext *context) {
       Param_ROI->roi[0].nQpDelta = -40;
       VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
                     (void *)Param_ROI);
-    case MPP_VENC_CMD_DEFAULT:
-      /* code */
-      MppVencPara *venc_para = (MppVencPara *)malloc(sizeof(MppVencPara));
-      memset(venc_para, 0, sizeof(MppVencPara));
-      venc_para->nBitrate = 5000000;
-      venc_para->nFrameRate = 30;
-      venc_para->nHeight = 720;
-      venc_para->nWidth = 1280;
-      venc_para->nStride = 1280;
-      VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_DEFAULT, (void *)venc_para);
-    default:
       break;
   }
 }
@@ -380,11 +369,51 @@ S32 main(S32 argc, char **argv) {
   if (VoPrepare(context)) {
     goto finish;
   }
+  // Must Set rate control parameters first
 
-  Set_Enc_Para(MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM,
-               context);  // Must Set rate control parameters
-  Set_Enc_Para(MPP_VENC_CMD_SET_PARAM_HEVC_CVBR, context);
+  // MppVencParaHEVCVBR *Param_HEVC_VBR = malloc(sizeof(MppVencParaHEVCVBR));
+  // Param_HEVC_VBR->nGop = 32;
+  // Param_HEVC_VBR->nMinQP = 20;
+  // Param_HEVC_VBR->nMaxQP = 40;
+  // VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_PARAM_HEVC_VBR,
+  //                   (void *)Param_HEVC_VBR);
+  
+  MppVencRateControl *Param_Bitrate_CBR = malloc(sizeof(MppVencRateControl));
+  Param_Bitrate_CBR->nRcType = MPP_RATE_CONTROL_MODE_CBR;
+  Param_Bitrate_CBR->nTargetBitrate = 5000000;
+  Param_Bitrate_CBR->nMaximumBitrate = 10000000;
+  VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM,
+                    (void *)Param_Bitrate_CBR);
 
+  // Set other encoding parameters
+
+  // MppVencParaHEVCVBR *Param_HEVC_VBR = malloc(sizeof(MppVencParaHEVCVBR));
+  // Param_HEVC_VBR->nGop = 32;
+  // Param_HEVC_VBR->nMinQP = 20;
+  // Param_HEVC_VBR->nMaxQP = 40;
+  // VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_PARAM_HEVC_VBR,
+  //               (void *)Param_HEVC_VBR);
+
+  MppVencParaHEVCCBR *Param_HEVC_CBR = malloc(sizeof(MppVencParaHEVCCBR));
+  Param_HEVC_CBR->nGop = 32;
+  Param_HEVC_CBR->nMinQP = 20;
+  Param_HEVC_CBR->nMaxQP = 40;
+  VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_PARAM_HEVC_CBR,
+                    (void *)Param_HEVC_CBR);
+
+  MppVencRoiRegions *Param_ROI = malloc(sizeof(MppVencRoiRegions));
+  Param_ROI->nPicIndex = 3;
+  Param_ROI->nQpPresent = 0;
+  Param_ROI->nQp = 30; // not work when nQpPresent is 0 
+  Param_ROI->nRoiPresent = 1;
+  Param_ROI->nNumRoi = 1;
+  Param_ROI->roi[0].nMbxLeft = 10;
+  Param_ROI->roi[0].nMbxRight = 60;
+  Param_ROI->roi[0].nMbyTop = 10;
+  Param_ROI->roi[0].nMbyBottom = 60;
+  Param_ROI->roi[0].nQpDelta = -40;
+  VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
+                (void *)Param_ROI);                  
   // create mpp packet
   context->pPacket = PACKET_Create();
   PACKET_Alloc(context->pPacket, MPP_PACKET_MALLOC_SIZE * 2);
@@ -401,8 +430,8 @@ S32 main(S32 argc, char **argv) {
     frame_num++;
     if (frame_num == 24) {
       MppVencParaHEVCCVBR *Param_HEVC_CVBR = malloc(sizeof(MppVencParaHEVCCVBR));
-      Param_HEVC_CVBR->nMinQP = 10;
-      Param_HEVC_CVBR->nMaxQP = 20;
+      Param_HEVC_CVBR->nMinQP = 20;
+      Param_HEVC_CVBR->nMaxQP = 30;
       VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_PARAM_HEVC_CVBR,
                       (void *)Param_HEVC_CVBR);
     }

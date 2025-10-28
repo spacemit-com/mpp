@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-04-09 19:37:11
+ * @LastEditTime: 2025-11-10 20:44:44
  * @Description:
  */
 
@@ -317,7 +317,6 @@ struct v4l2_crop getPortCrop(Port *port) {
 }
 
 void setRoiRegion(Port *port, struct v4l2_mvx_roi_regions *roi) {
-  debug("setRoiRegion");
   if (!port || !roi){
     error("setRoiRegion failed, port or roi is NULL");
     return;
@@ -326,7 +325,6 @@ void setRoiRegion(Port *port, struct v4l2_mvx_roi_regions *roi) {
 }
 
 struct v4l2_mvx_roi_regions getRoiRegion(Port *port) {
-  debug("getRoiRegion");
   if (!port){
     error("getRoiRegion failed, port is NULL");
     return (struct v4l2_mvx_roi_regions){0};

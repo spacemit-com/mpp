@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2024-04-30 15:40:23
+ * @LastEditTime: 2025-11-10 20:17:23
  * @Description:
  */
 
@@ -1017,24 +1017,24 @@ typedef struct _MppVencParaHEVCCVBR {
 
 typedef struct _MppVencRateControl {
   U32 nRcType;
-#define MPP_V4L2_OPT_RATE_CONTROL_MODE_OFF (0)
-#define MPP_V4L2_OPT_RATE_CONTROL_MODE_STANDARD (1)
-#define MPP_V4L2_OPT_RATE_CONTROL_MODE_VARIABLE (2)
-#define MPP_V4L2_OPT_RATE_CONTROL_MODE_CONSTANT (3)
-#define MPP_V4L2_OPT_RATE_CONTROL_MODE_C_VARIABLE (4)
+#define MPP_RATE_CONTROL_MODE_OFF (0)
+#define MPP_RATE_CONTROL_MODE_STANDARD (1)
+#define MPP_RATE_CONTROL_MODE_VBR (2)
+#define MPP_RATE_CONTROL_MODE_CBR (3)
+#define MPP_RATE_CONTROL_MODE_CVBR (4)
   U32 nTargetBitrate;
   U32 nMaximumBitrate;
 } MppVencRateControl;
 
-#define MPP_V4L2_MVX_MAX_FRAME_REGIONS 16
-typedef struct _MPP_v4l2_buffer_param_region {
+#define MPP_MVX_MAX_FRAME_REGIONS 16
+typedef struct _MPPBufferRegion {
   U16 nMbxLeft;   /**< X coordinate of the left most macroblock */
   U16 nMbxRight;  /**< X coordinate of the right most macroblock */
   U16 nMbyTop;    /**< Y coordinate of the top most macroblock */
   U16 nMbyBottom; /**< Y coordinate of the bottom most macroblock */
   S16 nQpDelta;   /**< QP delta value. This region will be encoded
                    *   with qp = qp_default + qp_delta. */
-}MPP_v4l2_buffer_param_region;
+} MppBufferRegion;
 
 typedef struct _MppVencRoiRegions {
   U32 nPicIndex;
@@ -1042,7 +1042,7 @@ typedef struct _MppVencRoiRegions {
   U8 nQp;
   U8 nRoiPresent;
   U8 nNumRoi;
-  MPP_v4l2_buffer_param_region roi[MPP_V4L2_MVX_MAX_FRAME_REGIONS];
+  MppBufferRegion roi[MPP_MVX_MAX_FRAME_REGIONS];
 } MppVencRoiRegions;
 
 typedef enum {
@@ -1059,8 +1059,7 @@ typedef enum {
   MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM,
   MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM,
   MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
-
-  MPP_VENC_CMD_DEFAULT,
+  
 } MppVencCmd;
 
 typedef enum _MppG2dCmd {
