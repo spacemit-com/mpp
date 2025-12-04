@@ -1056,6 +1056,48 @@ void setH264EncFixedQPB(Port *port, U32 fqp) {
   }
 }
 
+void setHEVCEncFixedQPI(Port *port, U32 fqp) {
+  debug("setHEVCEncFixedQPI(%u)", fqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC I frame fqp=%u.", fqp);
+  }
+}
+
+void setHEVCEncFixedQPP(Port *port, U32 fqp) {
+  debug("setHEVCEncFixedQPP(%u)", fqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC P frame fqp=%u.", fqp);
+  }
+}
+
+void setHEVCEncFixedQPB(Port *port, U32 fqp) {
+  debug("setHEVCEncFixedQPB(%u)", fqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC B frame fqp=%u.", fqp);
+  }
+}
+
 void setH264EncBandwidth(Port *port, U32 bw) {
   debug("setH264EncBandwidth(%u)", bw);
 

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-30 10:50:16
+ * @LastEditTime: 2025-12-04 14:26:50
  * @Description:
  */
 
@@ -298,6 +298,12 @@ static void Set_Enc_Para(MppVencCmd cmd, TestContext *context) {
       VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
                     (void *)Param_ROI);
       break;
+	case MPP_VENC_CMD_SET_MIRROR:
+	  MppVencMirror *Param_Mirror = malloc(sizeof(MppVencMirror));
+	  Param_Mirror->nMirror = 1;// hori
+	  VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_MIRROR,
+                    (void *)Param_Mirror);
+	  break;
   }
 }
 static S32 VoPrepare(TestContext *context) {
@@ -396,24 +402,24 @@ S32 main(S32 argc, char **argv) {
 
   MppVencParaHEVCCBR *Param_HEVC_CBR = malloc(sizeof(MppVencParaHEVCCBR));
   Param_HEVC_CBR->nGop = 32;
-  Param_HEVC_CBR->nMinQP = 20;
-  Param_HEVC_CBR->nMaxQP = 40;
+  Param_HEVC_CBR->nMinQP = 30;
+  Param_HEVC_CBR->nMaxQP = 50;
   VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_PARAM_HEVC_CBR,
                     (void *)Param_HEVC_CBR);
 
-  MppVencRoiRegions *Param_ROI = malloc(sizeof(MppVencRoiRegions));
-  Param_ROI->nPicIndex = 3;
-  Param_ROI->nQpPresent = 0;
-  Param_ROI->nQp = 30; // not work when nQpPresent is 0 
-  Param_ROI->nRoiPresent = 1;
-  Param_ROI->nNumRoi = 1;
-  Param_ROI->roi[0].nMbxLeft = 10;
-  Param_ROI->roi[0].nMbxRight = 60;
-  Param_ROI->roi[0].nMbyTop = 10;
-  Param_ROI->roi[0].nMbyBottom = 60;
-  Param_ROI->roi[0].nQpDelta = -40;
-  VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
-                (void *)Param_ROI);                  
+//   MppVencRoiRegions *Param_ROI = malloc(sizeof(MppVencRoiRegions));
+//   Param_ROI->nPicIndex = 3;
+//   Param_ROI->nQpPresent = 0;
+//   Param_ROI->nQp = 30; // not work when nQpPresent is 0
+//   Param_ROI->nRoiPresent = 1;
+//   Param_ROI->nNumRoi = 1;
+//   Param_ROI->roi[0].nMbxLeft = 10;
+//   Param_ROI->roi[0].nMbxRight = 60;
+//   Param_ROI->roi[0].nMbyTop = 10;
+//   Param_ROI->roi[0].nMbyBottom = 60;
+//   Param_ROI->roi[0].nQpDelta = -40;
+//   VENC_SetParam(context->pVencCtx, MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
+//                 (void *)Param_ROI);
   // create mpp packet
   context->pPacket = PACKET_Create();
   PACKET_Alloc(context->pPacket, MPP_PACKET_MALLOC_SIZE * 2);

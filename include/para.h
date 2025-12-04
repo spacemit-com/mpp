@@ -979,6 +979,20 @@ typedef struct _MppVencPara {
   S32 nRotateDegree;
 } MppVencPara;
 
+typedef struct _MppVencParaH264FixedQP {
+  S32 nGop;
+  S32 nIQp;
+  S32 nPQp;
+  S32 nBQp;
+} MppVencParaH264FixedQP;
+
+typedef struct _MppVencParaHEVCFixedQP {
+  S32 nGop;
+  S32 nIQp;
+  S32 nPQp;
+  S32 nBQp;
+} MppVencParaHEVCFixedQP;
+
 typedef struct _MppVencParaH264CBR {
   S32 nGop;
   S32 nMinQP;
@@ -1045,10 +1059,20 @@ typedef struct _MppVencRoiRegions {
   MppBufferRegion roi[MPP_MVX_MAX_FRAME_REGIONS];
 } MppVencRoiRegions;
 
+typedef struct _MppVencMirror {
+  S32 nMirror;
+} MppVencMirror;
+
+typedef struct _MppVencSlice {
+  S32 nSpacing;
+} MppVencSlice;
+
 typedef enum {
   /***
    * set rc param
    */
+  MPP_VENC_CMD_SET_PARAM_H264_FIXED_QP,
+  MPP_VENC_CMD_SET_PARAM_HEVC_FIXED_QP,
   MPP_VENC_CMD_SET_PARAM_H264_CBR,
   MPP_VENC_CMD_SET_PARAM_H264_VBR,
   MPP_VENC_CMD_SET_PARAM_H264_CVBR,
@@ -1059,7 +1083,8 @@ typedef enum {
   MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM,
   MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM,
   MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
-  
+  MPP_VENC_CMD_SET_MIRROR,
+  MPP_VENC_CMD_SET_SLICE
 } MppVencCmd;
 
 typedef enum _MppG2dCmd {
