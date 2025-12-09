@@ -64,6 +64,7 @@ struct _Codec {
   BOOL bIsBlockMode;
   S32 nWidth;
   S32 nHeight;
+  S32 nAlign;
   BOOL bIsInterlaced;
   U32 nInputFormatFourcc;
   U32 nOutputFormatFourcc;
@@ -98,7 +99,7 @@ struct _Codec {
   MppFrameBufferType eBufferType;
 };
 
-Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
+Codec *createCodec(S32 fd, S32 width, S32 height, S32 align, BOOL isInterlaced,
                    enum v4l2_buf_type inputType, enum v4l2_buf_type outputType,
                    U32 input_format_fourcc, U32 output_format_fourcc,
                    U32 input_memtype, U32 output_memtype, U32 input_buffer_num,
@@ -112,9 +113,9 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
   memset(codec_tmp, 0, sizeof(Codec));
 
   debug(
-      "create a codec, width=%d height=%d inputtype=%d outputtype=%d "
+      "create a codec, width=%d height=%d align=%d inputtype=%d outputtype=%d "
       "inputformat=%x outputformat=%x inputbufnum=%d outputbufnum=%d",
-      width, height, inputType, outputType, input_format_fourcc,
+      width, height, align, inputType, outputType, input_format_fourcc,
       output_format_fourcc, input_buffer_num, output_buffer_num);
 
   codec_tmp->nVideoFd = fd;
@@ -127,7 +128,7 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
   codec_tmp->nOutputBufferNum = output_buffer_num;
   codec_tmp->eBufferType = buffer_type;
   codec_tmp->stInputPort =
-      createPort(fd, inputType, input_format_fourcc, input_memtype,
+      createPort(fd, inputType, input_format_fourcc, align, input_memtype,
                  input_buffer_num, buffer_type);
   if (!codec_tmp->stInputPort) {
     error("create input port failed, please check!");
@@ -135,7 +136,7 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
     return NULL;
   }
   codec_tmp->stOutputPort =
-      createPort(fd, outputType, output_format_fourcc, output_memtype,
+      createPort(fd, outputType, output_format_fourcc, align, output_memtype,
                  output_buffer_num, buffer_type);
   if (!codec_tmp->stOutputPort) {
     error("create output port failed, please check!");
@@ -146,6 +147,7 @@ Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
 
   codec_tmp->nWidth = width;
   codec_tmp->nHeight = height;
+  codec_tmp->nAlign = align;
   codec_tmp->bIsInterlaced = isInterlaced;
   codec_tmp->bCsweo = MPP_FALSE;
   codec_tmp->nFps = 0;
@@ -441,7 +443,7 @@ S32 handleEvent(Codec *codec) {
   }
 
   if (event.type == V4L2_EVENT_MVX_COLOR_DESC) {
-    struct v4l2_mvx_color_desc color = getColorDesc(codec);
+    // struct v4l2_mvx_color_desc color = getColorDesc(codec);
     // printColorDesc(color);
     error("V4L2_EVENT_MVX_COLOR_DESC event is not support yet, please check!");
   }

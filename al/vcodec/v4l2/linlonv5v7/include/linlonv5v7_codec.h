@@ -29,47 +29,13 @@
 #include "mvx-v4l2-controls.h"
 #include "v4l2_utils.h"
 
-/***
- * V4L2_CID_MVE_VIDEO_NALU_FORMAT
- *
- * NALU format of input bitstream buffers for decode.
- *
- * START_CODES:
- * The data stream contains start codes to format the data into packets.
- * Firmware ignores boundaries between data buffers except when one of the flags
- * is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_EOS
- *
- * ONE_NALU_PER_BUFFER:
- * There is at most one logical packet (subframe) per buffer. A packet may
- * consist of multiple buffers. The end of the subframe is signaled by setting
- * one of the flags: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_EOS
- *
- * ONE_BYTE_LENGTH_FIELD/TWO_BYTE_LENGTH_FIELD/FOUR_BYTE_LENGTH_FIELD:
- * Each logical packet (subframe) is preceded by a length field of the indicated
- * size. Firmware ignores boundaries between data buffers except when one of the
- * flags is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_EOS
- */
-enum NaluFormat {
-  NALU_FORMAT_START_CODES,
-  NALU_FORMAT_ONE_NALU_PER_BUFFER,
-  NALU_FORMAT_ONE_BYTE_LENGTH_FIELD,
-  NALU_FORMAT_TWO_BYTE_LENGTH_FIELD,
-  NALU_FORMAT_FOUR_BYTE_LENGTH_FIELD
-};
-
 typedef struct _Codec Codec;
 
 /**
  * @description: create a Codec instance, for decode or encode
  * @return {*}: context of the Codec
  */
-Codec *createCodec(S32 fd, S32 width, S32 height, BOOL isInterlaced,
+Codec *createCodec(S32 fd, S32 width, S32 height, S32 align, BOOL isInterlaced,
                    enum v4l2_buf_type inputType, enum v4l2_buf_type outputType,
                    U32 input_format_fourcc, U32 output_format_fourcc,
                    U32 input_memtype, U32 output_memtype, U32 input_buffer_num,

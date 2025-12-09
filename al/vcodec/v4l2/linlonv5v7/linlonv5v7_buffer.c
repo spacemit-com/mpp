@@ -299,14 +299,17 @@ S32 setRotation(Buffer *buf, S32 rotation) {
     case 90:
       buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
       buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_90;
+      buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_90;
       break;
     case 180:
       buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
       buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_180;
+      buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_180;
       break;
     case 270:
       buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
       buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_270;
+      buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_270;
       break;
     default:
       break;
@@ -511,6 +514,8 @@ S32 memoryUnmap(Buffer *buf) {
       }
     }
   }
+
+  return MPP_OK;
 }
 
 S32 getLength(Buffer *buf, U32 plane) {
@@ -586,4 +591,7 @@ S32 getExtraFd(Buffer *buf) { return buf->nExtraFd; }
 
 BOOL getIsQueued(Buffer *buf) { return buf->bIsQueued; }
 
-S32 setIsQueued(Buffer *buf, BOOL queued) { buf->bIsQueued = queued; }
+S32 setIsQueued(Buffer *buf, BOOL queued) {
+  buf->bIsQueued = queued;
+  return MPP_OK;
+}

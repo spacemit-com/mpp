@@ -16,7 +16,7 @@
 #include "log.h"
 #include "parse.h"
 
-S32 PARSE_DEFAULT_Init(MppParseContext *ctx) {}
+S32 PARSE_DEFAULT_Init(MppParseContext *ctx) { return MPP_OK; }
 
 S32 PARSE_DEFAULT_Parse(MppParseContext *ctx, U8 *stream_start_addr,
                         S32 stream_size, U8 *frame_start_addr, S32 *frame_size,
@@ -24,9 +24,7 @@ S32 PARSE_DEFAULT_Parse(MppParseContext *ctx, U8 *stream_start_addr,
   S32 i = 0;
   S32 num_start_code = 0;  // num 0f 0x000001 or 0x00000001
   S32 num_finish_code = 0;
-  U8 *rbsp_base;
 
-  U8 tmp_0, tmp_1;
   U8 *tmp_mem, *src_mem;
 
   U8 *start_pos;

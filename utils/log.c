@@ -116,7 +116,8 @@ void mpp_set_log_level(int level) {
 }
 
 int mpp_get_log_level(void) {
-  int level;
+  // to do
+  int level = 0;
 
   mpp_log_level = level;
 

@@ -205,6 +205,7 @@ void *do_parse(void *private_data) {
   }
 
   debug("do_parse thread exit=============================");
+  return NULL;
 }
 
 static S32 ViPrepare(TestContext *context) {

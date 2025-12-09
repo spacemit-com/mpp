@@ -174,8 +174,6 @@ static inline uint32_t br_get_ue_golomb(br_state *br) {
   return n ? ((1 << n) - 1) + br_get_bits(br, n) : 0;
 }
 
-#pragma warning(disable : 4146)
-
 static inline int32_t br_get_se_golomb(br_state *br) {
   uint32_t r = br_get_ue_golomb(br) + 1;
   return (r & 1) ? -(r >> 1) : (r >> 1);

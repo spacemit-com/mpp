@@ -63,7 +63,6 @@ RETURN al_vo_init(ALBaseContext *ctx, MppVoPara *para) {
   }
 
   ALVoFileContext *context = (ALVoFileContext *)ctx;
-  S32 ret = 0;
 
   context->bIsFrame = para->bIsFrame;
   context->nWidth = para->nWidth;
@@ -102,12 +101,11 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
   }
 
   ALVoFileContext *context = (ALVoFileContext *)ctx;
-  S32 ret = 0;
 
   if (context->bIsFrame) {
     MppFrame *sink_frame = FRAME_GetFrame(sink_data);
     S32 size[4];
-    S32 y_size = context->nWidth * context->nHeight;
+    S32 y_size = context->nStride * context->nHeight;
 
     switch (context->ePixelFormat) {
       case PIXEL_FORMAT_I420:
@@ -165,7 +163,6 @@ S32 al_vo_process(ALBaseContext *ctx, MppData *sink_data) {
 
 void al_vo_destory(ALBaseContext *ctx) {
   ALVoFileContext *context = (ALVoFileContext *)ctx;
-  S32 ret = 0;
 
   if (context->pOutputFile) {
     fflush(context->pOutputFile);

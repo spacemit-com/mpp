@@ -61,10 +61,10 @@
  *
  */
 
-static const MppProcessNodeTypeMapping mapping[] = {
-    {VDEC, "Vdec"}, {VENC, "Venc"},
-    //    {G2D, "G2d"},
-};
+// static const MppProcessNodeTypeMapping mapping[] = {
+//     {VDEC, "Vdec"}, {VENC, "Venc"},
+//     {G2D, "G2d"},
+//};
 
 static const MppProcessNodeBindCouple couple[] = {
     {VDEC, VENC},

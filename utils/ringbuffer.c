@@ -36,7 +36,7 @@ struct _MppRingBuffer {
 void ringbuffer_reset(MppRingBuffer *rBuf) {
   rBuf->headOffset = -1;
   rBuf->tailOffset = -1;
-  rBuf->dataSize = ATOMIC_VAR_INIT(0);
+  atomic_init(&rBuf->dataSize, 0);
 }
 
 MppRingBuffer *RingBufferCreate(U32 size) {
@@ -70,7 +70,7 @@ void RingBufferFree(MppRingBuffer *rBuf) {
   pthread_mutex_destroy(&rBuf->mutex);
   pthread_cond_destroy(&rBuf->cond);
 
-  rBuf->dataSize = ATOMIC_VAR_INIT(0);
+  atomic_init(&rBuf->dataSize, 0);
   rBuf->size = 0;
   rBuf->buffer = NULL;
   free(rBuf);

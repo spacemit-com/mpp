@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-18 11:46:03
- * @LastEditTime: 2024-01-10 14:36:25
+ * @LastEditTime: 2024-09-23 11:17:00
  * @Description: MPP VDEC API, use these API to do video decode
  *               from stream(H.264 etc.) to frame(YUV420)
  */
@@ -25,20 +25,20 @@
 
 #define MODULE_TAG "mpp_vdec"
 
-ALBaseContext *(*dec_create)();
-S32 (*dec_init)(ALBaseContext *ctx, MppVdecPara *para);
-S32 (*dec_getparam)(ALBaseContext *ctx, MppVdecPara **para);
-S32 (*dec_request_input_stream)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*dec_return_input_stream)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*dec_decode)(ALBaseContext *ctx, MppData *sink_data);
-S32 (*dec_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
-S32 (*dec_get_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*dec_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*dec_request_output_frame_2)(ALBaseContext *ctx, MppData **src_data);
-S32 (*dec_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
-S32 (*dec_flush)(ALBaseContext *ctx);
-S32 (*dec_reset)(ALBaseContext *ctx);
-void (*dec_destory)(ALBaseContext *ctx);
+static ALBaseContext *(*dec_create)();
+static S32 (*dec_init)(ALBaseContext *ctx, MppVdecPara *para);
+static S32 (*dec_getparam)(ALBaseContext *ctx, MppVdecPara **para);
+static S32 (*dec_request_input_stream)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*dec_return_input_stream)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*dec_decode)(ALBaseContext *ctx, MppData *sink_data);
+static S32 (*dec_process)(ALBaseContext *ctx, MppData *sink_data, MppData *src_data);
+static S32 (*dec_get_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*dec_request_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*dec_request_output_frame_2)(ALBaseContext *ctx, MppData **src_data);
+static S32 (*dec_return_output_frame)(ALBaseContext *ctx, MppData *src_data);
+static S32 (*dec_flush)(ALBaseContext *ctx);
+static S32 (*dec_reset)(ALBaseContext *ctx);
+static void (*dec_destory)(ALBaseContext *ctx);
 
 MppVdecCtx *VDEC_CreateChannel() {
   MppVdecCtx *ctx = (MppVdecCtx *)malloc(sizeof(MppVdecCtx));
@@ -50,29 +50,6 @@ MppVdecCtx *VDEC_CreateChannel() {
   memset(ctx, 0, sizeof(MppVdecCtx));
   VDEC_GetDefaultParam(ctx);
 
-  dec_create = (ALBaseContext * (*)()) NULL;
-  dec_init = (S32(*)(ALBaseContext * ctx, MppVdecPara * para)) NULL;
-  dec_getparam = (S32(*)(ALBaseContext * ctx, MppVdecPara * *para)) NULL;
-  dec_request_input_stream =
-      (S32(*)(ALBaseContext * ctx, MppData * sink_data)) NULL;
-  dec_return_input_stream =
-      (S32(*)(ALBaseContext * ctx, MppData * sink_data)) NULL;
-  dec_decode = (S32(*)(ALBaseContext * ctx, MppData * sink_data)) NULL;
-  dec_process =
-      (S32(*)(ALBaseContext * ctx, MppData * sink_data, MppData * src_data))
-          NULL;
-  dec_get_output_frame = (S32(*)(ALBaseContext * ctx, MppData * src_data)) NULL;
-  dec_request_output_frame =
-      (S32(*)(ALBaseContext * ctx, MppData * src_data)) NULL;
-  dec_request_output_frame_2 =
-      (S32(*)(ALBaseContext * ctx, MppData * *src_data)) NULL;
-  dec_return_output_frame =
-      (S32(*)(ALBaseContext * ctx, MppData * src_data)) NULL;
-  dec_destory = (void (*)(ALBaseContext * ctx)) NULL;
-  dec_flush = (S32(*)(ALBaseContext * ctx)) NULL;
-  dec_reset = (S32(*)(ALBaseContext * ctx)) NULL;
-
-  ctx->pModule = NULL;
   debug("create VDEC Channel success!");
   return ctx;
 }
@@ -257,10 +234,16 @@ S32 VDEC_DestoryChannel(MppVdecCtx *ctx) {
     return MPP_NULL_POINTER;
   }
 
+  if (ctx->pModule == NULL) {
+    info("module not init!");
+    free(ctx);
+    return 0;
+  }
+
   if (dec_destory) dec_destory(ctx->pNode.pAlBaseContext);
   debug("finish destory decoder");
 
-  if (ctx->pModule) module_destory(ctx->pModule);
+  module_destory(ctx->pModule);
   debug("finish destory module");
 
   free(ctx);

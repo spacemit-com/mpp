@@ -124,6 +124,7 @@ struct _ALLinlonv5v7EncContext {
    */
   S32 nWidth;
   S32 nHeight;
+  S32 nAlign;
 
   S32 nRotation;
   S32 nScale;
@@ -462,7 +463,9 @@ static void setEncoderRateControl(ALLinlonv5v7EncContext *context, const U8 *rc,
   }
   setRateControl(getOutputPort(context->stCodec), &v4l2_rc);
 }
-
+static void setEncoderRotation(ALLinlonv5v7EncContext *context, S32 rotation) {
+  setPortRotation(getInputPort(context->stCodec), rotation);
+}
 static void setEncoderCropLeft(ALLinlonv5v7EncContext *context, S32 left) {
   setCropLeft(getInputPort(context->stCodec), left);
 }
@@ -551,8 +554,9 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   context->bIsBlockMode = MPP_FALSE;
   context->nWidth = para->nWidth;
   context->nHeight = para->nHeight;
+  context->nAlign = para->nAlign <= 0 ? 1 : para->nAlign;
   // context->bIsInterlaced = para->bIsInterlaced;
-  // context->nRotation = para->nRotateDegree;
+  context->nRotation = para->nRotateDegree;
   // context->nScale = para->nScale;
   context->nInputMemType = V4L2_MEMORY_DMABUF;
   context->nOutputMemType = V4L2_MEMORY_MMAP;
@@ -582,11 +586,11 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
     return MPP_OPEN_FAILED;
   }
 
-  debug("video fd = %d, device path = '%s'", context->nVideoFd,
-        context->sDevicePath);
+  debug("video fd = %d, device path = '%s', rot:%d", context->nVideoFd,
+        context->sDevicePath, context->nRotation);
 
   context->stCodec = createCodec(
-      context->nVideoFd, context->nWidth, context->nHeight,
+      context->nVideoFd, context->nWidth, context->nHeight, context->nAlign,
       context->bIsInterlaced, context->nInputType, context->nOutputType,
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
       context->nInputMemType, context->nOutputMemType, ENCODER_INPUT_BUF_NUM,
@@ -604,6 +608,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   // setHEVCMaxQP(context, 20);
 
   setEncoderRateControl(context, "off", 0, 0);
+  setEncoderRotation(context, context->nRotation);
 
   // setformat, allocate buffer, stream on
   stream(context->stCodec);
@@ -629,9 +634,7 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
   MppFrame *sink_frame = FRAME_GetFrame(sink_data);
   S32 ret = 0;
-  static S32 i = 0;
-  S32 index;
-  struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
+  // struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
   if (FRAME_GetEos(sink_frame) == FRAME_EOS_WITH_DATA) {
     debug("eos flag of input frame with data is set, EOS is coming");

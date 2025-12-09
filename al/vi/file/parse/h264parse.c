@@ -16,7 +16,7 @@
 #include "log.h"
 #include "parse.h"
 
-S32 PARSE_H264_Init(MppParseContext *ctx) {}
+S32 PARSE_H264_Init(MppParseContext *ctx) { return MPP_OK; }
 
 static U32 read_bits(unsigned char bytes[], S32 num_read, S32 *bit_offset) {
   U32 bits;
@@ -99,7 +99,6 @@ S32 PARSE_H264_Parse(MppParseContext *ctx, U8 *stream_start_addr,
   U8 *src_mem;
 
   S32 nal_count = 0;
-  S32 b_have_got_width_height = 0;  // for only get width and height once
 
   U8 *start_pos;
 

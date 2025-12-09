@@ -1,0 +1,299 @@
+import("//build/ohos.gni")
+
+group("mpp") {
+  deps = [
+    ":libspacemit_mpp",
+    ":libv4l2_linlonv5v7_codec",
+    ":libvi_file_plugin",
+    ":libvo_file_plugin",
+    ":vi_file_vdec_vo_test",
+    ":vi_file_venc_sync_userptr_vo_file_test",
+    ":vi_file_vdec_venc_sync_userptr_vo_file_test",
+  ]
+}
+
+cflags_c_common = [
+  "-Wno-pointer-sign",
+  "-Wno-unused-function",
+  "-Wno-pointer-to-int-cast",
+]
+
+cflags_cc_common = [
+  "-Wno-pointer-sign",
+  "-Wno-unused-function",
+  "-Wno-pointer-to-int-cast",
+]
+
+ohos_executable("vi_file_vdec_venc_sync_userptr_vo_file_test") {
+  sources = [
+    "test/vi_file_vdec_venc_sync_userptr_vo_file_test.c",
+]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+    "mpi/include",
+    "test/include",
+  ]
+
+  output_name = "vi_file_vdec_venc_sync_userptr_vo_file_test"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+    ":libspacemit_mpp",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+}
+
+ohos_executable("vi_file_venc_sync_userptr_vo_file_test") {
+  sources = [
+    "test/vi_file_venc_sync_userptr_vo_file_test.c",
+]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+    "mpi/include",
+    "test/include",
+  ]
+
+  output_name = "vi_file_venc_sync_userptr_vo_file_test"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+    ":libspacemit_mpp",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+}
+
+ohos_executable("vi_file_vdec_vo_test") {
+  sources = [
+    "test/vi_file_vdec_vo_test.c",
+]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+    "mpi/include",
+    "test/include",
+  ]
+
+  output_name = "vi_file_vdec_vo_test"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+    ":libspacemit_mpp",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+}
+
+
+ohos_shared_library("libvo_file_plugin") {
+  sources = [
+    "al/vo/file/vo_file.c",
+]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+  ]
+
+  output_name = "libvo_file_plugin"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+  subsystem_name = "spacemit_products"
+}
+
+ohos_shared_library("libvi_file_plugin") {
+  sources = [
+    "al/vi/file/vi_file.c",
+    "al/vi/file/parse/defaultparse.c",
+    "al/vi/file/parse/h264parse.c",
+    "al/vi/file/parse/h265parse.c",
+    "al/vi/file/parse/mjpegparse.c",
+    "al/vi/file/parse/parse.c",
+]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+    "al/vi/file/include",
+  ]
+
+  output_name = "libvi_file_plugin"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+  subsystem_name = "spacemit_products"
+}
+
+ohos_shared_library("libv4l2_linlonv5v7_codec") {
+  sources = [
+    "al/vcodec/v4l2/linlonv5v7/linlonv5v7_dec.c",
+    "al/vcodec/v4l2/linlonv5v7/linlonv5v7_enc.c",
+    "al/vcodec/v4l2/linlonv5v7/linlonv5v7_codec.c",
+    "al/vcodec/v4l2/linlonv5v7/linlonv5v7_buffer.c",
+    "al/vcodec/v4l2/linlonv5v7/linlonv5v7_port.c",
+  ]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+    "al/vcodec/v4l2/linlonv5v7/include",
+  ]
+
+  output_name = "libv4l2_linlonv5v7_codec"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+  subsystem_name = "spacemit_products"
+}
+
+
+ohos_shared_library("libspacemit_mpp") {
+  sources = [
+    "mpi/sys.c",
+    "mpi/vdec.c",
+    "mpi/venc.c",
+    "mpi/g2d.c",
+    "mpi/module.c",
+    "mpi/vo.c",
+    "mpi/vi.c",
+  ]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "al/include",
+    "mpi/include",
+  ]
+
+  output_name = "libspacemit_mpp"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+    ":libutils",
+  ]
+
+  external_deps = [
+  ]
+
+  install_enable = true
+  install_images = [ system_base_dir ]
+  part_name = "spacemit_products"
+  subsystem_name = "spacemit_products"
+}
+
+ohos_static_library("libutils") {
+  sources = [
+    "utils/log.c",
+    "utils/os/linux/os_log.c",
+    "utils/frame.c",
+    "utils/packet.c",
+    "utils/dataqueue.c",
+    "utils/v4l2_utils.c",
+    "utils/utils.c",
+    "utils/resolution_utils.c",
+    "utils/dmabufwrapper.c",
+    "utils/ringbuffer.c",
+    "utils/env.c",
+    "utils/os/linux/os_env.c",
+  ]
+
+  include_dirs = [
+    "include",
+    "utils/include",
+    "utils/os/include",
+  ]
+
+  output_name = "libutils"
+
+  cflags_c = cflags_c_common
+
+  cflags_cc = cflags_cc_common
+
+  deps = [
+  ]
+
+  external_deps = [
+  ]
+
+  part_name = "spacemit_products"
+  subsystem_name = "spacemit_products"
+}

@@ -124,6 +124,7 @@ struct _ALLinlonv5v7DecContext {
    */
   S32 nWidth;
   S32 nHeight;
+  S32 nAlign;
 
   S32 nRotation;
   S32 nScale;
@@ -288,7 +289,6 @@ static S32 checkInputParameters(MppCodingType type, S32 profile,
  */
 void *runpoll(void *private_data) {
   ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)private_data;
-  S32 ret = 0;
 
   while (1) {
     static S32 tmp = 0;
@@ -318,7 +318,7 @@ void *runpoll(void *private_data) {
     tmp++;
     if (200 == tmp) {
       tmp = 0;
-      info("Now k1 hardware decoding ...");
+      // info("Now k1 hardware decoding ...");
     }
   }
 }
@@ -371,6 +371,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   context->bIsBlockMode = MPP_FALSE;
   context->nWidth = para->nWidth;
   context->nHeight = para->nHeight;
+  context->nAlign = para->nAlign <= 0 ? 1 : para->nAlign;
   context->bIsInterlaced = para->bIsInterlaced;
   context->nRotation = para->nRotateDegree;
   context->nScale = para->nScale;
@@ -421,7 +422,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
         context->sDevicePath);
 
   context->stCodec = createCodec(
-      context->nVideoFd, context->nWidth, context->nHeight,
+      context->nVideoFd, context->nWidth, context->nHeight, context->nAlign,
       context->bIsInterlaced, context->nInputType, context->nOutputType,
       context->nInputFormatFourcc, context->nOutputFormatFourcc,
       context->nInputMemType, context->nOutputMemType, context->nInputBufferNum,
