@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-11-13 10:10:18
- * @LastEditTime: 2023-11-14 14:05:12
+ * @LastEditTime: 2025-12-11 20:05:27
  * @Description:
  */
 
@@ -15,10 +15,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 #include "al_interface_g2d.h"
-#include "asr_v2d_api.h"
-#include "asr_v2d_type.h"
+#include "v2d_api.h"
+#include "v2d_type.h"
 #include "log.h"
+#include "para.h"
+
 
 #define MODULE_TAG "v2d"
 
@@ -43,6 +46,9 @@ struct _ALK1V2dContext {
   V2D_ROTATE_ANGLE_E enForeRotate, enBackRotate;
   V2D_CSC_MODE_E enForeCSCMode, enBackCSCMode;
   V2D_DITHER_E dither;
+
+
+  S32 V2D_CMD;
 
   /**
    * other
@@ -84,6 +90,51 @@ static const ALK1V2dPixelFormatMapping stALK1V2dPixelFormatMapping[] = {
 };
 PIXEL_FORMAT_MAPPING_CONVERT(K1V2d, k1v2d, V2D_COLOR_FORMAT_E)
 
+
+S32 get_stride(S32 width, MppPixelFormat format) {
+    S32 stride = 0;
+
+    switch (format) {
+        case PIXEL_FORMAT_RGB_888:
+            stride = width * 3;  // 每个像素3字节
+            break;
+        case PIXEL_FORMAT_RGBA:
+            stride = width * 4;  // 每个像素4字节
+            break;
+        case PIXEL_FORMAT_RGB_565:
+            stride = width * 2;  // 每个像素2字节
+            break;
+        case PIXEL_FORMAT_NV12:
+            stride = width;  // 每个像素3字节
+            break;
+        default:
+            // 未知格式，返回0或根据需求处理
+            stride = width ;  // 默认按Nv12处理
+            break;
+    }
+
+    return stride;
+}
+S32 get_offset(S32 width, S32 height, MppPixelFormat format) {
+    S32 offset = 0;
+
+    switch (format) {
+        case PIXEL_FORMAT_RGB_888:
+        case PIXEL_FORMAT_RGBA:
+            offset = 0;
+            break;
+        case PIXEL_FORMAT_NV12:
+            offset = width * height;
+            break;
+        default:
+            offset = 0;
+            break;
+    }
+
+    return offset;
+}
+
+
 ALBaseContext *al_g2d_create() {
   ALK1V2dContext *context = (ALK1V2dContext *)malloc(sizeof(ALK1V2dContext));
   if (!context) {
@@ -110,8 +161,9 @@ RETURN al_g2d_init(ALBaseContext *ctx, MppG2dPara *para) {
   ALK1V2dContext *context = (ALK1V2dContext *)ctx;
   S32 ret = 0;
 
-  // context->nInputBufFd = para->nInputBufFd;
-  // context->nOutputBufFd = para->nOutputBufFd;
+  memset(&(context->stBackGround), 0, sizeof(V2D_SURFACE_S));
+  memset(&(context->stDst), 0, sizeof(V2D_SURFACE_S));
+  memset(&(context->stBlendConf), 0, sizeof(V2D_BLEND_CONF_S));
 
   context->eInputPixelFormat = para->eInputPixelFormat;
   context->eOutputPixelFormat = para->eOutputPixelFormat;
@@ -119,32 +171,40 @@ RETURN al_g2d_init(ALBaseContext *ctx, MppG2dPara *para) {
   context->nInputBufSize = para->nInputBufSize;
   context->nOutputBufSize = para->nOutputBufSize;
 
+  context->stBackGround.format =
+      get_k1v2d_codec_pixel_format(para->eInputPixelFormat);
+
+  context->stDst.format = get_k1v2d_codec_pixel_format(para->eOutputPixelFormat);
+
   context->nInputWidth = para->nInputWidth;
   context->nInputHeight = para->nInputHeight;
   context->nOutputWidth = para->nOutputWidth;
   context->nOutputHeight = para->nOutputHeight;
 
+
+  context->stBackGroundRect.x = para->nBackRectx;
+  context->stBackGroundRect.y = para->nBackRecty;
+  context->stBackGroundRect.w = para->nBackRectWidth;
+  context->stBackGroundRect.h = para->nBackRectHeight;
+
+  context->stDstRect.x = para->nFrontRectx;
+  context->stDstRect.y = para->nFrontRecty;
+  context->stDstRect.w = para->nFrontRectWidth;
+  context->stDstRect.h = para->nFrontRectHeight;
+
+  context->enForeCSCMode = para->nFrontCSCMode;
+  context->enBackCSCMode = para->nBackCSCMode;
+
+  context->V2D_CMD = para->eG2dCmd;
+
+  context->enForeRotate = para->sRotatePara.eRotate;
+  context->enBackRotate = para->sRotatePara.eRotate;
+
+
   context->nInputBufMapSize = ALIGN_UP(context->nInputBufSize, PAGESIZE);
   context->nOutputBufMapSize = ALIGN_UP(context->nOutputBufSize, PAGESIZE);
-  /*
-    context->pInputBufMapAddr =
-        mmap(NULL, context->nInputBufMapSize, PROT_READ | PROT_WRITE,
-    MAP_SHARED, context->nInputBufFd, 0); if (context->pInputBufMapAddr ==
-    MAP_FAILED) { error(" v2d mmap input fd failed, please check!"); return
-    MPP_MMAP_FAILED;
-    }
-    memset(context->pInputBufMapAddr, 0, context->nInputBufMapSize);
 
-    context->pOutputBufMapAddr =
-        mmap(NULL, context->nOutputBufMapSize, PROT_READ | PROT_WRITE,
-    MAP_SHARED, context->nOutputBufFd, 0);
-    ;
-    if (context->pOutputBufMapAddr == MAP_FAILED) {
-      error(" v2d mmap output fd failed, please check!");
-      return MPP_MMAP_FAILED;
-    }
-    memset(context->pOutputBufMapAddr, 0, context->nOutputBufMapSize);
-  */
+
   debug("init finish");
 
   return MPP_OK;
@@ -178,66 +238,72 @@ S32 al_g2d_process(ALBaseContext *ctx, MppData *sink_data, MppData *src_data) {
   MppFrame *src_frame = FRAME_GetFrame(src_data);
   S32 ret = 0;
 
-  // config layer0
-  context->enBackRotate = V2D_ROT_0;
-  context->enBackCSCMode = V2D_CSC_MODE_BUTT;
-  memset(&(context->stBackGround), 0, sizeof(V2D_SURFACE_S));
   context->stBackGround.fbc_enable = 0;
   context->stBackGround.fd = FRAME_GetFD(sink_frame, 0);
-  context->stBackGround.offset = context->nInputWidth * context->nInputHeight;
+  context->stBackGround.offset = get_offset(context->nInputWidth, context->nInputHeight, context->eInputPixelFormat);
   context->stBackGround.w = context->nInputWidth;
   context->stBackGround.h = context->nInputHeight;
-  context->stBackGround.stride = context->nInputWidth;
-  context->stBackGround.format =
-      get_k1v2d_codec_pixel_format(PIXEL_FORMAT_NV12);
-  context->stBackGroundRect.x = 0;
-  context->stBackGroundRect.y = 0;
-  context->stBackGroundRect.w = context->nInputWidth;
-  context->stBackGroundRect.h = context->nInputHeight;
+  context->stBackGround.stride = get_stride(context->nInputWidth, context->eInputPixelFormat);
 
-  // config layer1
-  context->enForeRotate = V2D_ROT_0;
-  context->enForeCSCMode = V2D_CSC_MODE_BUTT;
 
   // config output
   context->dither = V2D_NO_DITHER;
 
-  memset(&(context->stDst), 0, sizeof(V2D_SURFACE_S));
   context->stDst.fbc_enable = 0;
   context->stDst.fd = FRAME_GetFD(src_frame, 0);
-  context->stDst.offset = context->nOutputWidth * context->nOutputHeight;
+  context->stDst.offset = get_offset(context->nOutputWidth, context->nOutputHeight, context->eOutputPixelFormat);
   context->stDst.w = context->nOutputWidth;
   context->stDst.h = context->nOutputHeight;
-  context->stDst.stride = context->nOutputWidth;
-  context->stDst.format = get_k1v2d_codec_pixel_format(PIXEL_FORMAT_NV12);
-  context->stDstRect.x = 0;
-  context->stDstRect.y = 0;
-  context->stDstRect.w = context->nOutputWidth;
-  context->stDstRect.h = context->nOutputHeight;
+  context->stDst.stride = get_stride(context->nOutputWidth, context->eOutputPixelFormat);
 
-  memset(&(context->stBlendConf), 0, sizeof(V2D_BLEND_CONF_S));
-  context->stBlendConf.blendlayer[0].blend_area.x = 0;
-  context->stBlendConf.blendlayer[0].blend_area.y = 0;
-  context->stBlendConf.blendlayer[0].blend_area.w = context->nOutputWidth;
-  context->stBlendConf.blendlayer[0].blend_area.h = context->nOutputHeight;
-
-  ret = ASR_V2D_BeginJob(&(context->hHandle));
+  ret = V2D_BeginJob(&(context->hHandle));
   if (ret) {
     error("can not begin v2d job, please check!");
     return MPP_CONVERTER_ERROR;
   }
 
-  ret = ASR_V2D_AddBlendTask(
+  if(context->V2D_CMD == MPP_G2D_CMD_Bitblit){
+    ret = V2D_AddBitblitTask(
+      context->hHandle, &(context->stDst), &(context->stDstRect),
+      &(context->stBackGround), &(context->stBackGroundRect), context->enBackCSCMode);
+    if (ret) {
+    error("can not add Bitblit task, please check!");
+    return MPP_CONVERTER_ERROR;
+    }
+  }
+  else if(context->V2D_CMD == MPP_G2D_CMD_FILL_COLOR){
+    V2D_FILLCOLOR_S stFillColor;
+    stFillColor.format = V2D_COLOR_FORMAT_ARGB8888;
+    stFillColor.colorvalue  = 0x00ffcc66;
+    ret = V2D_AddFillTask(
+      context->hHandle, &(context->stDst),&(context->stDstRect),&stFillColor);
+    if (ret) {
+    error("can not add fill task, please check!");
+    return MPP_CONVERTER_ERROR;
+    }
+  }
+  else
+  {
+    context->stBlendConf.blendlayer[0].blend_area.x = 0;
+    context->stBlendConf.blendlayer[0].blend_area.y = 0;
+    context->stBlendConf.blendlayer[0].blend_area.w = context->nOutputWidth;
+    context->stBlendConf.blendlayer[0].blend_area.h = context->nOutputHeight;
+
+    debug("context->nOutputWidth %d , context->nOutputHeight %d , context->stDstRect.w %d ,context->enForeCSCMode %d, context->enBackCSCMode %d \n",context->nOutputWidth,context->nOutputHeight,context->stDstRect.w,context->enForeCSCMode,context->enBackCSCMode);
+    debug("stDst format %d , fd %d , offset %d , w %d , h %d , stride %d \n",context->stDst.format,context->stDst.fd,context->stDst.offset,context->stDst.w,context->stDst.h,context->stDst.stride);
+
+    ret = V2D_AddBlendTask(
       context->hHandle, &(context->stBackGround), &(context->stBackGroundRect),
       NULL, NULL, NULL, NULL, &(context->stDst), &(context->stDstRect),
       &(context->stBlendConf), context->enForeRotate, context->enBackRotate,
       context->enForeCSCMode, context->enBackCSCMode, NULL, context->dither);
-  if (ret) {
+    if (ret) {
     error("can not add blend task, please check!");
     return MPP_CONVERTER_ERROR;
+    }
   }
 
-  ret = ASR_V2D_EndJob(context->hHandle);
+  ret = V2D_EndJob(context->hHandle);
   if (ret) {
     error("can not end v2d job, please check!");
     return MPP_CONVERTER_ERROR;

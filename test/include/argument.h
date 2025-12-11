@@ -25,11 +25,45 @@ typedef enum {
   SAVE_FRAME_FILE,
   COST_DRAM_THREAD_NUM,
   CODING_TYPE,
+  V2D_CMD,
   MODULE_TYPE,
   WIDTH,
   HEIGHT,
   FORMAT,
   VIDEO_DEVICE,
+// ***************V2D ARGUMENT ***************
+
+//input/output width height
+  INPUT_WIDTH,
+  INPUT_HEIGHT,
+  OUTPUT_WIDTH,
+  OUTPUT_HEIGHT,
+
+  //format
+  INPUT_FORMAT,
+  OUTPUT_FORMAT,
+
+  //Rotate angle
+  FRONT_ROTATE_ANGLE,
+  BACK_ROTATE_ANGLE,
+
+  //backgroud rect
+  BACK_RECT_X,
+  BACK_RECT_Y,
+  BACK_RECT_WIDTH,
+  BACK_RECT_HEIGHT,
+
+  //front rect
+  FRONT_RECT_X,
+  FRONT_RECT_Y,
+  FRONT_RECT_WIDTH,
+  FRONT_RECT_HEIGHT,
+	//csc mode
+  FRONT_CSC_MODE,
+  BACK_CSC_MODE,
+
+
+
   INVALID
 } ARGUMENT;
 
