@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2024-04-17 13:59:22
+ * @LastEditTime: 2025-12-04 14:12:06
  * @Description: video encode plugin for V4L2 codec standard interface
  */
 
@@ -346,6 +346,18 @@ static void setH264FixedQPB(ALLinlonv5v7EncContext *context, U32 fqp) {
   setH264EncFixedQPB(getOutputPort(context->stCodec), fqp);
 }
 
+static void setHEVCFixedQPI(ALLinlonv5v7EncContext *context, U32 fqp) {
+  setHEVCEncFixedQPI(getOutputPort(context->stCodec), fqp);
+}
+
+static void setHEVCFixedQPP(ALLinlonv5v7EncContext *context, U32 fqp) {
+  setHEVCEncFixedQPP(getOutputPort(context->stCodec), fqp);
+}
+
+static void setHEVCFixedQPB(ALLinlonv5v7EncContext *context, U32 fqp) {
+  setHEVCEncFixedQPB(getOutputPort(context->stCodec), fqp);
+}
+
 static void setH264Bandwidth(ALLinlonv5v7EncContext *context, U32 bw) {
   setH264EncBandwidth(getOutputPort(context->stCodec), bw);
 }
@@ -606,9 +618,11 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
 
   // setHEVCMinQP(context, 1);
   // setHEVCMaxQP(context, 20);
-
+  setHEVCFixedQPI(context, 35);
+  setHEVCFixedQPP(context, 30);
   setEncoderRateControl(context, "off", 0, 0);
   setEncoderRotation(context, context->nRotation);
+//  setEncoderMirror(context, 1); //hori
 
   // setformat, allocate buffer, stream on
   stream(context->stCodec);
@@ -618,7 +632,82 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   return MPP_OK;
 }
 
-S32 al_enc_set_para(ALBaseContext *ctx, MppVencPara *para) { return MPP_OK; }
+S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
+  ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+  switch (cmd) {
+	case MPP_VENC_CMD_SET_PARAM_H264_FIXED_QP:
+	  MppVencParaH264FixedQP *fixedQpParaH264 = (MppVencParaH264FixedQP *)para;
+	  setH264FixedQPI(context, fixedQpParaH264->nIQp);
+	  setH264FixedQPP(context, fixedQpParaH264->nPQp);
+	  setH264FixedQPB(context, fixedQpParaH264->nBQp);
+	  setPFrames(context, fixedQpParaH264->nGop);
+	  break;
+	case MPP_VENC_CMD_SET_PARAM_HEVC_FIXED_QP:
+	  MppVencParaHEVCFixedQP *fixedQpParaHEVC = (MppVencParaHEVCFixedQP *)para;
+	  setHEVCFixedQPI(context, fixedQpParaHEVC->nIQp);
+	  setHEVCFixedQPP(context, fixedQpParaHEVC->nPQp);
+	  setHEVCFixedQPB(context, fixedQpParaHEVC->nBQp);
+	  setPFrames(context, fixedQpParaHEVC->nGop);
+	  break;
+    case MPP_VENC_CMD_SET_PARAM_H264_CBR:
+      MppVencParaH264CBR *rcCbrParaH264 = (MppVencParaH264CBR *)para;
+      setH264EncMinQP(getOutputPort(context->stCodec), rcCbrParaH264->nMinQP);
+      setH264EncMaxQP(getOutputPort(context->stCodec), rcCbrParaH264->nMaxQP);
+      setPFrames(context, rcCbrParaH264->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_CBR:
+      MppVencParaHEVCCBR *rcCbrParaHEVC = (MppVencParaHEVCCBR *)para;
+      setHEVCEncMinQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMinQP);
+      setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMaxQP);
+      setPFrames(context, rcCbrParaHEVC->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_H264_VBR:
+      MppVencParaH264VBR *rcVbrParaH264 = (MppVencParaH264VBR *)para;
+      setH264EncMinQP(getOutputPort(context->stCodec), rcVbrParaH264->nMinQP);
+      setH264EncMaxQP(getOutputPort(context->stCodec), rcVbrParaH264->nMaxQP);
+      setPFrames(context, rcVbrParaH264->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_VBR:
+      MppVencParaHEVCCBR *rcVbrParaHEVC = (MppVencParaHEVCCBR *)para;
+      setHEVCEncMinQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMinQP);
+      setHEVCEncMaxQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMaxQP);
+      setPFrames(context, rcVbrParaHEVC->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_H264_CVBR:
+      MppVencParaH264CVBR *rcCvbrParaH264 = (MppVencParaH264CVBR *)para;
+      setH264EncMinQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMinQP);
+      setH264EncMaxQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMaxQP);
+      setPFrames(context, rcCvbrParaH264->nGop);
+      break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_CVBR:
+      MppVencParaHEVCCVBR *rcCvbrParaHEVC = (MppVencParaHEVCCVBR *)para;
+      setHEVCEncMinQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMinQP);
+      setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMaxQP);
+      setPFrames(context, rcCvbrParaHEVC->nGop);
+      break;
+    case MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM:
+    case MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM:
+    case MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM:
+      MppVencRateControl *paramBitrate = (MppVencRateControl *)para;
+      setRateControl(getOutputPort(context->stCodec), (struct v4l2_rate_control *)paramBitrate);
+      break;
+    case MPP_VENC_CMD_SET_ROI_REGIONS_PARAM:
+      MppVencRoiRegions *paramRoi = (MppVencRoiRegions *)para;
+      setRoiRegion(getOutputPort(context->stCodec),(struct v4l2_mvx_roi_regions *)paramRoi);
+      break;
+	case MPP_VENC_CMD_SET_MIRROR:
+	  MppVencMirror *paramMirror = (MppVencMirror*)para;
+	  setEncoderMirror(context, paramMirror->nMirror);
+	  break;
+	case MPP_VENC_CMD_SET_SLICE:
+	  MppVencSlice *paramSlice = (MppVencSlice*)para;
+	  setEncSliceSpacing(getOutputPort(context->stCodec), paramSlice->nSpacing);
+	  break;
+    default:
+      return MPP_OK;
+  }
+  return MPP_OK;
+}
 
 S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
   if (!ctx) {

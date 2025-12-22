@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 17:37:14
- * @LastEditTime: 2024-04-09 19:37:11
+ * @LastEditTime: 2025-11-10 20:44:44
  * @Description:
  */
 
@@ -60,6 +60,9 @@ struct _Port {
    * only for frame, not used for packet
    */
   MppFrameBufferType eBufferType;
+
+  // roi struct
+  struct v4l2_mvx_roi_regions stRoi;
 
   // environment variable
   BOOL bEnableBufferPrint;
@@ -313,6 +316,22 @@ struct v4l2_crop getPortCrop(Port *port) {
   return crop;
 }
 
+void setRoiRegion(Port *port, struct v4l2_mvx_roi_regions *roi) {
+  if (!port || !roi){
+    error("setRoiRegion failed, port or roi is NULL");
+    return;
+  }
+  memcpy(&port->stRoi, roi, sizeof(port->stRoi));
+}
+
+struct v4l2_mvx_roi_regions getRoiRegion(Port *port) {
+  if (!port){
+    error("getRoiRegion failed, port is NULL");
+    return (struct v4l2_mvx_roi_regions){0};
+  }
+  return port->stRoi;
+}
+
 void setPortInterlaced(Port *port, BOOL interlaced) {
   port->bInterlaced = interlaced;
 }
@@ -415,7 +434,7 @@ S32 queueBuffer(Port *port, Buffer *buf) {
   setRotation(buf, port->nRotation);
   setMirror(buf, port->nMirror);
   setDownScale(buf, port->nScale);
-
+  setRoiCfg(buf, getRoiRegion(port));
   if (getRoiCfgflag(buf) && getBytesUsed(b) != 0) {
     struct v4l2_mvx_roi_regions roi = getRoiCfg(buf);
     ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_ROI_REGIONS, &roi);
@@ -1037,6 +1056,48 @@ void setH264EncFixedQPB(Port *port, U32 fqp) {
   }
 }
 
+void setHEVCEncFixedQPI(Port *port, U32 fqp) {
+  debug("setHEVCEncFixedQPI(%u)", fqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC I frame fqp=%u.", fqp);
+  }
+}
+
+void setHEVCEncFixedQPP(Port *port, U32 fqp) {
+  debug("setHEVCEncFixedQPP(%u)", fqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC P frame fqp=%u.", fqp);
+  }
+}
+
+void setHEVCEncFixedQPB(Port *port, U32 fqp) {
+  debug("setHEVCEncFixedQPB(%u)", fqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC B frame fqp=%u.", fqp);
+  }
+}
+
 void setH264EncBandwidth(Port *port, U32 bw) {
   debug("setH264EncBandwidth(%u)", bw);
 
@@ -1052,7 +1113,7 @@ void setH264EncBandwidth(Port *port, U32 bw) {
 }
 
 void setHEVCEncMinQP(Port *port, U32 minqp) {
-  debug("setH264EncMinQP(%u)", minqp);
+  debug("setHEVCEncMinQP(%u)", minqp);
 
   struct v4l2_control control;
 
@@ -1066,7 +1127,7 @@ void setHEVCEncMinQP(Port *port, U32 minqp) {
 }
 
 void setHEVCEncMaxQP(Port *port, U32 maxqp) {
-  debug("setH264EncMaxQP(%u)", maxqp);
+  debug("setHEVCEncMaxQP(%u)", maxqp);
 
   struct v4l2_control control;
 
@@ -1086,6 +1147,45 @@ void setHEVCEncMaxQP(Port *port, U32 maxqp) {
     error("Failed to set HEVC maxqp=%u.", maxqp);
   }
 }
+
+void setHEVCEncFixedQP(Port *port, U32 fqp) {
+  debug("setHEVCEncFixedQP(%u)", fqp);
+
+  struct v4l2_control control;
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_I_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC I frame fqp=%u.", fqp);
+  }
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_P_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC P frame fqp=%u.", fqp);
+  }
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_HEVC_B_FRAME_QP;
+  control.value = fqp;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to set HEVC B frame fqp=%u.", fqp);
+  }
+
+  memset(&control, 0, sizeof(control));
+  control.id = V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE;
+  control.value = 0;
+
+  if (-1 == ioctl(port->nVideoFd, VIDIOC_S_CTRL, &control)) {
+    error("Failed to enable/disable rate control.");
+  }
+}
+
 
 void setHEVCEncEntropySync(Port *port, U32 es) {
   debug("setHEVCEncEntropySync(%u)", es);

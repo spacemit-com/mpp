@@ -12,6 +12,6 @@
 include_directories(v2d/include)
 set(SRC_LIST ./v2d/v2d.c)
 add_library(v2d_plugin SHARED ${SRC_LIST})
-target_link_libraries(v2d_plugin utils)
+target_link_libraries(v2d_plugin utils v2d)
 install(TARGETS v2d_plugin LIBRARY
         DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")

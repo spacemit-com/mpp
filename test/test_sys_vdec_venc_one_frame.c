@@ -142,14 +142,14 @@ int main(int argc, char **argv) {
 
   SYS_Bind(ctx, vdec_node, venc_node);
 
-  venc_para = (MppVencPara *)malloc(sizeof(MppVencPara));
-  memset(venc_para, 0, sizeof(MppVencPara));
-  venc_para->nBitrate = 5000000;
-  venc_para->nFrameRate = 30;
-  venc_para->nHeight = 720;
-  venc_para->nWidth = 1280;
-  venc_para->nStride = 1280;
-  VENC_SetParam((MppVencCtx *)venc_node, venc_para);
+//   venc_para = (MppVencPara *)malloc(sizeof(MppVencPara));
+//   memset(venc_para, 0, sizeof(MppVencPara));
+//   venc_para->nBitrate = 5000000;
+//   venc_para->nFrameRate = 30;
+//   venc_para->nHeight = 720;
+//   venc_para->nWidth = 1280;
+//   venc_para->nStride = 1280;
+//   VENC_SetParam((MppVencCtx *)venc_node, MPP_VENC_CMD_DEFAULT, (void *)venc_para);
 
   sink_packet = PACKET_Create();
 

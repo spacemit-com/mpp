@@ -24,7 +24,7 @@
 
 static ALBaseContext *(*enc_create)();
 static void (*enc_init)(ALBaseContext *ctx, MppVencPara *para);
-static S32 (*enc_set_para)(ALBaseContext *ctx, MppVencPara *para);
+static S32 (*enc_set_para)(ALBaseContext *ctx, MppVencCmd cmd, void *para);
 static S32 (*enc_return_input_frame)(ALBaseContext *ctx, MppData *sink_Data);
 static S32 (*enc_send_input_frame)(ALBaseContext *ctx, MppData *sink_Data);
 static S32 (*enc_encode)(ALBaseContext *ctx, MppData *sink_data);
@@ -54,7 +54,7 @@ S32 VENC_Init(MppVencCtx *ctx) {
       dlsym(module_get_so_path(ctx->pModule), "al_enc_create");
   enc_init = (void (*)(ALBaseContext * ctx, MppVencPara * para))
       dlsym(module_get_so_path(ctx->pModule), "al_enc_init");
-  enc_set_para = (S32(*)(ALBaseContext * ctx, MppVencPara * para))
+  enc_set_para = (S32(*)(ALBaseContext * ctx, MppVencCmd cmd, void * para))
       dlsym(module_get_so_path(ctx->pModule), "al_enc_set_para");
   enc_return_input_frame = (S32(*)(ALBaseContext * ctx, MppData * sink_Data))
       dlsym(module_get_so_path(ctx->pModule), "al_enc_return_input_frame");
@@ -82,8 +82,9 @@ S32 VENC_Init(MppVencCtx *ctx) {
   return 0;
 }
 
-S32 VENC_SetParam(MppVencCtx *ctx, MppVencPara *para) {
-  S32 ret = enc_set_para(ctx->pNode.pAlBaseContext, para);
+
+S32 VENC_SetParam(MppVencCtx *ctx, MppVencCmd cmd, void *para) {
+  S32 ret = enc_set_para(ctx->pNode.pAlBaseContext, cmd, para);
 
   return ret;
 }

@@ -314,7 +314,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
   return MPP_OK;
 }
 
-S32 al_enc_set_para(ALBaseContext *ctx, MppVencPara *para) { return 0; }
+S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) { return 0; }
 
 S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
   if (!ctx) {

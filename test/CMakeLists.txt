@@ -39,6 +39,10 @@ set(SRC_LIST ./vi_file_venc_sync_userptr_vo_file_test.c)
 add_executable(vi_file_venc_sync_userptr_vo_file_test ${SRC_LIST})
 target_link_libraries(vi_file_venc_sync_userptr_vo_file_test spacemit_mpp)
 
+set(SRC_LIST ./vi_file_venc_setpara_sync_userptr_vo_file_test.c)
+add_executable(vi_file_venc_setpara_sync_userptr_vo_file_test ${SRC_LIST})
+target_link_libraries(vi_file_venc_setpara_sync_userptr_vo_file_test spacemit_mpp)
+
 set(SRC_LIST ./g2d_test.c)
 add_executable(g2d_test ${SRC_LIST})
 target_link_libraries(g2d_test spacemit_mpp)
@@ -52,6 +56,8 @@ install(TARGETS vi_file_vdec_vo_test RUNTIME
 install(TARGETS vi_file_vdec_venc_sync_userptr_vo_file_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 install(TARGETS vi_file_venc_sync_userptr_vo_file_test RUNTIME
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+install(TARGETS vi_file_venc_setpara_sync_userptr_vo_file_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
 install(TARGETS g2d_test RUNTIME
         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")

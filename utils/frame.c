@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-13 18:10:10
- * @LastEditTime: 2024-04-24 17:16:59
+ * @LastEditTime: 2025-12-11 19:56:34
  * @Description:
  */
 
@@ -188,13 +188,57 @@ RETURN FRAME_Alloc(MppFrame *frame, MppPixelFormat pixelformat, S32 width,
     }
   } else if (MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == frame->eBufferType) {
     frame->nDataUsedNum = 1;
-
+    S32 size_all=0;
+     switch (pixelformat) {
+      case PIXEL_FORMAT_I420:
+      case PIXEL_FORMAT_YV12:
+        size[0] = width * height;
+        size[1] = (width / 2) * (height / 2);
+        size[2] = (width / 2) * (height / 2);
+        size_all = size[0] + size[1] + size[2];
+        break;
+      case PIXEL_FORMAT_YUV422P:
+        size[0] = width * height;
+        size[1] = (width / 2) * height;
+        size[2] = (width / 2) * height;
+        size_all = size[0] + size[1] + size[2];
+        break;
+      case PIXEL_FORMAT_NV12:
+      case PIXEL_FORMAT_NV21:
+        size[0] = width * height;
+        size[1] = (width / 2) * height;
+        size_all = size[0] + size[1];
+        break;
+      case PIXEL_FORMAT_RGB_888:
+        size[0] = width * height* 3;
+        size_all = size[0] ;
+        break;
+      case PIXEL_FORMAT_ARGB:
+      case PIXEL_FORMAT_BGRA:
+      case PIXEL_FORMAT_ABGR:
+        size[0] = width * height * 4;
+        size_all = size[0];
+        break;
+      case PIXEL_FORMAT_YUYV:
+        size[0] = width * height * 2;
+        size_all = size[0];
+        break;
+     case PIXEL_FORMAT_UYVY:
+        size[0] = width * height * 2;
+        size_all = size[0];
+        break;
+      default:
+        error("Unsupported picture format (%d)! Please check!", pixelformat);
+        return MPP_NOT_SUPPORTED_FORMAT;
+    }
     frame->pDmaBufWrapper = createDmaBufWrapper(DMA_HEAP_CMA);
     if (!frame->pDmaBufWrapper) {
       return MPP_NULL_POINTER;
     }
+    // alloc dma buf
+    debug("size_all = %d\n",size_all);
+    frame->nFd[0] = allocDmaBuf(frame->pDmaBufWrapper, size_all);
 
-    frame->nFd[0] = allocDmaBuf(frame->pDmaBufWrapper, width * height * 3 / 2);
     if (frame->nFd[0] < 0) {
       return MPP_IOCTL_FAILED;
     }
