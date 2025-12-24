@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <asm-generic/ioctl.h>
-#include <stdbool.h>
 
 #define V2D_LOG_LEVEL_DEBUG
 #ifdef V2D_LOG_LEVEL_DEBUG
@@ -32,6 +31,7 @@ typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
 typedef unsigned long uint64_t;
 typedef uint64_t V2D_HANDLE;
+typedef int bool;
 
 typedef enum asrV2D_INPUT_LAYER_E {
     V2D_INPUT_LAYER0    =0,
