@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-31 09:15:38
- * @LastEditTime: 2025-12-11 20:06:42
+ * @LastEditTime: 2025-11-10 20:17:23
  * @Description:
  */
 
@@ -188,8 +188,6 @@ static inline const char* mpp_moduletype2str(int cmd) {
   }
 }
 
-
-
 typedef enum _MppCodingType {
   CODING_UNKNOWN = 0,
   CODING_H263,
@@ -229,6 +227,7 @@ typedef enum _MppCodingType {
   CODING_FWHT,
   CODING_MAX,
 } MppCodingType;
+
 typedef enum _MppProfileType {
   PROFILE_UNKNOWN = 0,
   PROFILE_MPEG2_422,
@@ -1092,14 +1091,12 @@ typedef enum _MppG2dCmd {
   /***
    * draw.
    */
-  MPP_G2D_CMD_Bitblit,
+  MPP_G2D_CMD_DRAW,
 
   /***
    * fill color to a rect of a frame.
    */
   MPP_G2D_CMD_FILL_COLOR,
-
-  MPP_G2D_CMD_BLEND,
 
   /***
    * rotate a rect of src frame to a rect of dst frame.
@@ -1119,31 +1116,7 @@ typedef enum _MppG2dCmd {
   MPP_G2D_CMD_DITHER,
   MPP_G2D_CMD_MASK,
 } MppG2dCmd;
-typedef enum _MPP_G2D_CSC_MODE_E {
-    MPP_G2D_MODE_RGB_2_BT601WIDE            =0,
-    MPP_G2D_MODE_BT601WIDE_2_RGB            =1,
-    MPP_G2D_MODE_RGB_2_BT601NARROW          =2,
-    MPP_G2D_MODE_BT601NARROW_2_RGB          =3,
-    MPP_G2D_MODE_RGB_2_BT709WIDE            =4,
-    MPP_G2D_MODE_BT709WIDE_2_RGB            =5,
-    MPP_G2D_MODE_RGB_2_BT709NARROW          =6,
-    MPP_G2D_MODE_BT709NARROW_2_RGB          =7,
-    MPP_G2D_MODE_BT601WIDE_2_BT709WIDE      =8,
-    MPP_G2D_MODE_BT601WIDE_2_BT709NARROW    =9,
-    MPP_G2D_MODE_BT601WIDE_2_BT601NARROW    =10,
-    MPP_G2D_MODE_BT601NARROW_2_BT709WIDE    =11,
-    MPP_G2D_MODE_BT601NARROW_2_BT709NARROW  =12,
-    MPP_G2D_MODE_BT601NARROW_2_BT601WIDE    =13,
-    MPP_G2D_MODE_BT709WIDE_2_BT601WIDE      =14,
-    MPP_G2D_MODE_BT709WIDE_2_BT601NARROW    =15,
-    MPP_G2D_MODE_BT709WIDE_2_BT709NARROW    =16,
-    MPP_G2D_MODE_BT709NARROW_2_BT601WIDE    =17,
-    MPP_G2D_MODE_BT709NARROW_2_BT601NARROW  =18,
-    MPP_G2D_MODE_BT709NARROW_2_BT709WIDE    =19,
-    MPP_G2D_MODE_RGB_2_GREY                 =20,
-    MPP_G2D_MODE_RGB_2_RGB                  =21,
-    MPP_G2D_MODE_BUTT                       =22,
-} MPP_G2D_CSC_MODE_E;
+
 typedef struct _MppG2dFillColorPara {
   MppPixelFormat eColorFormat;
   union {
@@ -1210,20 +1183,6 @@ typedef struct _MppG2dPara {
   S32 nInputHeight;
   S32 nOutputWidth;
   S32 nOutputHeight;
-
-  S32 nBackRectx;
-  S32 nBackRecty;
-  S32 nBackRectWidth;
-  S32 nBackRectHeight;
-
-  S32 nFrontRectx;
-  S32 nFrontRecty;
-  S32 nFrontRectWidth;
-  S32 nFrontRectHeight;
-
-  S32 nFrontCSCMode;
-  S32 nBackCSCMode;
-
   S32 nInputBufSize;
   S32 nOutputBufSize;
   union {

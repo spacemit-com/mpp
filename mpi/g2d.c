@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-01-17 09:38:36
- * @LastEditTime: 2025-12-11 20:04:08
+ * @LastEditTime: 2024-04-28 15:21:11
  * @Description: MPP G2D API, use these API to do frame(YUV420) format
  * conversion
  */
@@ -48,7 +48,6 @@ MppG2dCtx *G2D_CreateChannel() {
 }
 
 S32 G2D_Init(MppG2dCtx *ctx) {
-  S32 ret = 0;
   ctx->pModule = module_init(ctx->eVpsType);
 
   g2d_create = (ALBaseContext * (*)())
@@ -77,9 +76,8 @@ S32 G2D_Init(MppG2dCtx *ctx) {
 
   ctx->pNode.pAlBaseContext = g2d_create();
 
-   g2d_init(ctx->pNode.pAlBaseContext, &(ctx->stG2dPara));
-
-  return ret;
+  g2d_init(ctx->pNode.pAlBaseContext, &(ctx->stG2dPara));
+  return 0;
 }
 
 S32 G2D_SetParam(MppG2dCtx *ctx, MppG2dPara *para) {
