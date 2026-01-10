@@ -467,6 +467,7 @@ RETURN al_dec_getparam(ALBaseContext *ctx, MppVdecPara **para) {
   }
 
   if (p.revents & POLLERR) {
+    usleep(2000);
     error("Poll returned error event.");
   }
 
@@ -613,7 +614,7 @@ RETURN al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data) {
     }
   } else {
     // debug("no data, please try again!");
-    // usleep(1000);
+    usleep(2000);
     // error("can not get output buffer");
     return MPP_CODER_NO_DATA;
   }

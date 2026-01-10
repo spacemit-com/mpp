@@ -1617,7 +1617,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   }
 
   if (!getBytesUsed(b)) {
-    error("null data, app decide what to do!");
+    // error("null data, app decide what to do!");
     return MPP_CODER_NULL_DATA;
   }
 
