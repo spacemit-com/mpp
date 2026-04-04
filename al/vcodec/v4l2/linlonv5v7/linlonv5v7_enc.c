@@ -145,6 +145,12 @@ struct _ALLinlonv5v7EncContext {
    */
   U32 nInputQueuedNum;
   BOOL bBufferNeedReturned[MAX_INPUT_BUF_NUM];
+
+  /***
++   * SPS/PPS/VPS
++   */
+  U8 *pHeader;
+  U32 nHeaderSize;
 };
 
 static void changeSWEO(ALLinlonv5v7EncContext *context, U32 csweo) {
@@ -866,11 +872,51 @@ S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
   ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
   S32 ret = 0;
   struct pollfd p = {.fd = context->nVideoFd, .events = POLLIN};
+  void *out_ptr = PACKET_GetDataPointer(PACKET_GetPacket(src_data));
 
   ret = runPoll(context->stCodec, &p);
   if (MPP_OK == ret && p.revents & POLLIN) {
     Buffer *buffer = dequeueBuffer(getOutputPort(context->stCodec));
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
+
+
+    // stash SPS/PPS
+    if ((b->flags & V4L2_BUF_FLAG_MVX_CODEC_CONFIG) ==
+        V4L2_BUF_FLAG_MVX_CODEC_CONFIG) {
+      if (context->nHeaderSize == 0) {
+        context->pHeader = malloc(b->bytesused);
+        context->nHeaderSize = b->bytesused;
+      } else if (context->nHeaderSize < b->bytesused) {
+        void *temp = realloc(context->pHeader, b->bytesused);
+        if (temp == NULL) {
+            free(context->pHeader);
+            context->pHeader = NULL;
+            context->nHeaderSize = 0;
+        }
+        context->pHeader = temp;
+        context->nHeaderSize = b->bytesused;
+      }
+      if (context->pHeader != NULL) {
+        if (context->eCodingType == CODING_H265 ||
+            context->eCodingType == CODING_VP9) {
+          memcpy(context->pHeader,
+              getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
+        } else {
+          memcpy(context->pHeader,
+              getUserPtr(buffer, 0), b->bytesused);
+        }
+      }
+	  return MPP_CODER_NO_DATA;
+    }
+
+    // add SPS/PPS to IDR
+    if (b->flags & V4L2_BUF_FLAG_KEYFRAME) {
+      if (context->pHeader != NULL) {
+        memcpy(out_ptr, context->pHeader, context->nHeaderSize);
+        out_ptr += context->nHeaderSize;
+      }
+    }
+
     if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
       debug("Capture EOS.");
       context->bOutputEos = MPP_TRUE;
@@ -878,13 +924,17 @@ S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
     // if (buffer == NULL) return MPP_CODER_NO_DATA;
     if (context->eCodingType == CODING_H265 ||
         context->eCodingType == CODING_VP9) {
-      memcpy(PACKET_GetDataPointer(PACKET_GetPacket(src_data)),
-             getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
+      memcpy(out_ptr,
+              getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
     } else {
-      memcpy(PACKET_GetDataPointer(PACKET_GetPacket(src_data)),
-             getUserPtr(buffer, 0), b->bytesused);
+      memcpy(out_ptr,
+              getUserPtr(buffer, 0), b->bytesused);
     }
-    PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused);
+	if (b->flags & V4L2_BUF_FLAG_KEYFRAME) {
+      PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused + context->nHeaderSize);
+    } else {
+      PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused);
+    }
     PACKET_SetPts(PACKET_GetPacket(src_data),
                   (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
     resetVendorFlags(buffer);
