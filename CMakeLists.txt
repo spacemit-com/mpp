@@ -14,11 +14,11 @@ message("CMAKE_MAJOR_VERSION: ${CMAKE_MAJOR_VERSION}")
 message("CMAKE_MINOR_VERSION: ${CMAKE_MINOR_VERSION}")
 message("CMAKE_PATCH_VERSION: ${CMAKE_PATCH_VERSION}")
 
-if(${CMAKE_VERSION} VERSION_LESS "2.8.8")
-    message("Please consider to switch to CMake 2.8.8 or Later")
+if(${CMAKE_VERSION} VERSION_LESS "3.5")
+    message("Please consider to switch to CMake 3.5 or Later")
 endif()
 
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 3.5)
 
 project(spacemit_mpp)
 
