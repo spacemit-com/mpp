@@ -1,0 +1,977 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: mpp
+Source: <url://example.com>
+#
+# Please double check copyright with the licensecheck(1) command.
+
+Files:     .gitignore
+           CMakeLists.txt
+           al/CMakeLists.txt
+           al/linlonv5v7.c
+           al/vc8000.c
+           cmake/modules/Findlibavcodec.cmake
+           cmake/modules/Findlibopenh264.cmake
+           cmake/modules/Findlibsf-omx-il.cmake
+           cmake/modules/Findlibsfdec.cmake
+           cmake/modules/Findlibsfenc.cmake
+           cmake/version.in
+           doc/C_naming_conventions.md
+           mpi/CMakeLists.txt
+           pkgconfig/spacemit_mpp.pc.cmake
+           test/CMakeLists.txt
+           test/test_script/cases/vdec.csv
+           test/test_script/streams/avs/foreman_128x64.avs
+           test/test_script/streams/avs2/foreman_128x64.avs
+           test/test_script/streams/h264/Cisco_Men_whisper_640x320_CAVLC_Bframe_9.264
+           test/test_script/streams/h264/Zhling_1280x720.264
+           test/test_script/streams/h264/foreman_128x64.264
+           test/test_script/streams/h265/foreman_128x64.265
+           test/test_script/streams/h265/tractorHDcrop_x0y220_960x128_3f_10b.hevc
+           test/test_script/streams/h265/tractorHDcrop_x0y220_960x128_3f_8b.hevc
+           test/test_script/streams/mjpeg/foreman_128x64.jpg
+           test/test_script/streams/vp8/foreman_128x64_vp8.ivf
+           test/test_script/streams/vp9/foreman_128x64_vp9.ivf
+           test/test_script/streams/yuv420p/foreman_128x64_3frames.yuv
+           test/test_script/streams/yuv420p/tractorHDcrop_x0y220_960x128_3f_2plane.yuv
+           thirdparty/ffmpeg_compile_install.md
+           thirdparty/openh264_compile_install.md
+           utils/CMakeLists.txt
+           utils/include/version.h
+Copyright: __NO_COPYRIGHT_NOR_LICENSE__
+License:   __NO_COPYRIGHT_NOR_LICENSE__
+
+Files:     al/include/khronos/OMX_Audio.h
+           al/include/khronos/OMX_Component.h
+           al/include/khronos/OMX_ComponentExt.h
+           al/include/khronos/OMX_ContentPipe.h
+           al/include/khronos/OMX_Core.h
+           al/include/khronos/OMX_CoreExt.h
+           al/include/khronos/OMX_IVCommon.h
+           al/include/khronos/OMX_Image.h
+           al/include/khronos/OMX_ImageExt.h
+           al/include/khronos/OMX_Index.h
+           al/include/khronos/OMX_IndexExt.h
+           al/include/khronos/OMX_Other.h
+           al/include/khronos/OMX_Types.h
+           al/include/khronos/OMX_Video.h
+           al/include/khronos/OMX_VideoExt.h
+Copyright: 2008-2016 The Khronos Group Inc.
+License:   Expat
+ Permission is hereby granted, free of charge, to any person obtaining
+ a copy of this software and associated documentation files (the
+ "Software"), to deal in the Software without restriction, including
+ without limitation the rights to use, copy, modify, merge, publish,
+ distribute, sublicense, and/or sell copies of the Software, and to
+ permit persons to whom the Software is furnished to do so, subject
+ to the following conditions:
+ The above copyright notice and this permission notice shall be included
+ in all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Files:     utils/include/resolution_utils.h
+           utils/include/v4l2_utils.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-10 15:52:19
+ @LastEditTime: 2023-02-02 14:53:49
+ @Description:
+
+Files:     al/sfomxil_enc_plugin.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-05-05 17:08:00
+ @Description: video encode plugin for starfive omxIL layer
+
+Files:     include/para.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-31 09:15:38
+ @LastEditTime: 2023-02-01 15:27:08
+ @Description:
+
+Files:     mpi/sys.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-30 17:52:11
+ @LastEditTime: 2023-07-31 15:17:49
+ @Description:
+
+Files:     include/module.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 15:24:32
+ @Description:
+
+Files:     utils/v4l2_utils.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-11 15:35:41
+ @LastEditTime: 2023-02-02 15:23:49
+ @Description: some V4L2 utils
+
+Files:     al/include/al_interface_dec.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-02-01 09:34:03
+ @LastEditTime: 2023-02-02 14:54:35
+ @Description: abstract layer interface of video decode
+
+Files:     al/sfomxil_dec_plugin.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-08-30 09:10:14
+ @Description: video decode plugin for starfive omxIL layer
+
+Files:     mpi/venc.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-07-31 15:23:45
+ @Description: MPP VENC API, use these API to do video encode
+ from frame(YUV420) to stream(H.264 etc.)
+
+Files:     mpi/g2d.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-08-01 09:01:15
+ @Description: MPP G2D API, use these API to do frame(YUV420) format
+ conversion
+
+Files:     al/ffmpegenc.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-02-01 19:05:51
+ @Description: video encode plugin for ffmpeg
+
+Files:     test/test_mpp_env.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:39:18
+ @LastEditTime: 2023-02-01 11:02:18
+ @Description:
+
+Files:     utils/utils.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-12 10:08:48
+ @LastEditTime: 2023-02-01 19:56:33
+ @Description:
+
+Files:     test/include/h264parse.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 15:30:16
+ @Description:
+
+Files:     al/ffmpegswscale.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-31 15:46:44
+ @LastEditTime: 2023-08-01 08:54:01
+ @Description: video scale plugin for ffmpeg
+
+Files:     include/g2d.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 10:54:52
+ @Description:
+
+Files:     compile_install_completely.sh
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:36:45
+ @LastEditTime: 2023-02-02 10:16:49
+ @Description: compile and install sh, ubuntu can work, need sudo password at the "1" position
+
+Files:     test/include/const.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 15:28:39
+ @Description:
+
+Files:     test/include/parse.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-02 15:13:40
+ @Description:
+
+Files:     utils/include/type.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 15:02:50
+ @Description:
+
+Files:     utils/log.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:33:01
+ @LastEditTime: 2023-02-02 15:19:41
+ @Description:
+
+Files:     al/openh264dec.cpp
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:40
+ @LastEditTime: 2023-02-02 10:06:32
+ @Description: video decode plugin for openh264, only can decode H.264 stream
+
+Files:     test/include/argument.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-02 14:43:22
+ @Description:
+
+Files:     test/vdec_test.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-03 16:08:38
+ @Description:
+
+Files:     utils/frame.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-08-29 16:53:26
+ @Description:
+
+Files:     include/vdec.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-11 17:24:41
+ @LastEditTime: 2023-02-03 10:26:25
+ @Description: MPP VDEC API, use these API to do video decode
+ from stream(H.264 etc.) to frame(YUV420)
+
+Files:     utils/os/include/os_log.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 11:05:12
+ @Description:
+
+Files:     do_test.sh
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2022-12-21 17:05:26
+ @LastEditTime: 2023-02-02 10:16:24
+ @Description: auto test sh
+
+Files:     format.sh
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-18 11:26:26
+ @LastEditTime: 2023-02-02 10:15:58
+ @Description: code style optimization, use clang-format to format the code
+ .
+ How to use
+ 1.  apt install clang-format(if not root, do it in docker)
+ 2.  su username, switch from root to normal
+ 3.  ./format.sh in the mpp root directory
+ 4.  check the code and verify it again, code-stype optimization may cause trouble
+
+Files:     test/parse/h264parse.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-02 15:15:19
+ @Description:
+
+Files:     utils/include/info.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 11:04:34
+ @Description:
+
+Files:     remove_space_end_of_line.sh
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-02-02 10:05:09
+ @LastEditTime: 2023-02-02 16:22:05
+ @Description: code style optimization, remove spaces at the end of line.
+
+Files:     utils/include/env.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-02 14:46:30
+ @Description:
+
+Files:     mpi/module.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-11 10:27:53
+ @LastEditTime: 2023-08-04 13:50:19
+ @Description: dlopen the video codec library dynamicly
+
+Files:     al/v4l2enc.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-02-01 10:43:49
+ @LastEditTime: 2023-07-31 15:25:57
+ @Description: video encode plugin for V4L2 codec standard interface
+
+Files:     al/sfenc_plugin.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-02-01 10:51:34
+ @Description:
+
+Files:     include/frame.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-03 10:56:26
+ @Description: MppFrame is the carrier the frame(data before encode or after
+ decode)
+
+Files:     include/data.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-11 17:14:39
+ @LastEditTime: 2023-02-03 10:56:46
+ @Description: MppData definition,
+ MppData is the base class of MppPacket and MppFrame,
+ MppData is data abstraction for data transmission in pipeline
+
+Files:     utils/packet.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-08-29 10:25:37
+ @Description:
+
+Files:     utils/os/linux/os_env.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-02 15:26:01
+ @Description:
+
+Files:     al/include/al_interface_base.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-02-01 09:34:01
+ @LastEditTime: 2023-02-03 08:58:54
+ @Description: base class of the abstract layer interface
+
+Files:     utils/include/log.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-02 14:48:41
+ @Description:
+
+Files:     test/include/mjpegparse.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 11:00:23
+ @Description:
+
+Files:     test/test_mpp_info.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:39:08
+ @LastEditTime: 2023-02-01 11:02:28
+ @Description:
+
+Files:     test/test_sys_venc_vdec_one_frame.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-01 19:44:57
+ @Description:
+
+Files:     al/v4l2dec.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-02-01 10:31:08
+ @LastEditTime: 2023-02-02 09:52:05
+ @Description: video decode plugin for V4L2 codec interface
+
+Files:     utils/dataqueue.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-08-29 15:41:47
+ @Description:
+
+Files:     utils/info.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:34:48
+ @LastEditTime: 2023-02-01 11:06:51
+ @Description:
+
+Files:     pack_to_tar_gz.sh
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2022-12-21 17:05:26
+ @LastEditTime: 2023-02-02 10:14:48
+ @Description: util, tar the mpp code to a tar.gz, naming with commit and date info
+
+Files:     test/include/defaultparse.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 15:30:23
+ @Description:
+
+Files:     include/packet.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-03 10:56:18
+ @Description: MppPacket is the carrier the stream(data before decode or after
+ encode)
+
+Files:     mpi/vdec.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-18 11:46:03
+ @LastEditTime: 2023-08-29 15:59:20
+ @Description: MPP VDEC API, use these API to do video decode
+ from stream(H.264 etc.) to frame(YUV420)
+
+Files:     test/test_g2d_one_frame.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-01 19:42:35
+ @Description:
+
+Files:     utils/env.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:32:50
+ @LastEditTime: 2023-02-01 11:06:30
+ @Description:
+
+Files:     test/include/h265parse.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 19:35:45
+ @Description:
+
+Files:     include/dataqueue.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-11 17:20:27
+ @LastEditTime: 2023-02-02 15:04:49
+ @Description: MppDataQueue is the managerment queue of MppData,
+ which is used for data buffering
+
+Files:     utils/os/linux/os_log.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:10
+ @LastEditTime: 2023-02-02 15:26:37
+ @Description:
+
+Files:     include/sys.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-30 17:52:04
+ @LastEditTime: 2023-02-02 14:39:47
+ @Description:
+
+Files:     utils/resolution_utils.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-10 15:52:19
+ @LastEditTime: 2023-08-29 16:26:17
+ @Description:
+
+Files:     al/ffmpegdec.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-07-31 15:13:11
+ @Description: video decode plugin for ffmpeg
+
+Files:     al/include/al_interface_enc.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-02-01 09:34:01
+ @LastEditTime: 2023-02-01 10:44:57
+ @Description: abstract layer interface of video encode
+
+Files:     test/parse/h265parse.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-02 15:16:34
+ @Description:
+
+Files:     include/base.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-11 14:35:20
+ @LastEditTime: 2023-02-03 11:06:10
+ @Description: base class for pipeline flow
+
+Files:     test/test_sys_vdec_venc_one_frame.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-01 19:43:48
+ @Description:
+
+Files:     test/test_sys_vdec_venc_vdec_one_frame.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-01 19:44:22
+ @Description:
+
+Files:     al/sfdec_plugin.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-07-31 15:13:32
+ @Description:
+
+Files:     al/include/al_interface_g2d.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-02-01 09:34:03
+ @LastEditTime: 2023-02-02 14:55:17
+ @Description: abstract layer interface of video g2d
+
+Files:     test/parse/parse.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-01 19:42:26
+ @Description:
+
+Files:     utils/os/include/os_env.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:11:03
+ @LastEditTime: 2023-02-01 11:05:01
+ @Description:
+
+Files:     test/test_script/vdec_test.sh
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2022-12-21 14:05:48
+ @LastEditTime: 2023-02-02 10:19:39
+ @Description: video decode test sh, running the csv config case
+
+Files:     al/openh264enc.cpp
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:40
+ @LastEditTime: 2023-02-01 19:13:45
+ @Description: video encode plugin for openh264, only can encode H.264 stream
+
+Files:     include/venc.h
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-11 10:28:37
+ @LastEditTime: 2023-02-03 10:04:17
+ @Description: MPP VENC API, use these API to do video encode
+ from frame(YUV420) to stream(H.264 etc.)
+
+Files:     test/venc_test.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-03 16:11:41
+ @Description:
+
+Files:     test/parse/defaultparse.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-01 15:32:58
+ @Description:
+
+Files:     test/parse/mjpegparse.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-13 18:10:10
+ @LastEditTime: 2023-02-01 19:41:49
+ @Description:
+
+Files:     al/fake_dec_plugin.c
+Copyright: 2022-2023 SPACEMIT.
+License:   __UNKNOWN__
+ Use of this source code is governed by a BSD-style license
+ that can be found in the LICENSE file.
+ .
+ @Author: David(qiang.fu@spacemit.com)
+ @Date: 2023-01-17 09:38:36
+ @LastEditTime: 2023-08-04 11:54:15
+ @Description: video decode plugin for starfive omxIL layer
+
+#----------------------------------------------------------------------------
+# xml and html files (skipped):
+#         mpp.cppcheck
+
+#----------------------------------------------------------------------------
+# huge files   (skipped):
+#         doc/MPP Module Design Document V0.1.pdf
+#         test/test_script/streams/mjpeg/outm.mjpeg
+#         test/test_script/streams/yuv420p/Cisco_Absolute_Power_1280x720_30fps.yuv
+#         test/test_script/streams/h264/VID_1920x1080_cavlc_temporal_direct.264
+#         test/test_script/streams/h264/VID_1920x1080_cabac_temporal_direct.264
+#         test/test_script/streams/h265/stream-1080P.h265
+
+#----------------------------------------------------------------------------
+# Files marked as NO_LICENSE_TEXT_FOUND may be covered by the following
+# license/copyright files.
+
+#----------------------------------------------------------------------------
+# License file: LICENSE
+ // Copyright (c) 2022-2023, SPACEMIT
+ // All rights reserved.
+ //
+ // Redistribution and use in source and binary forms, with or without
+ // modification, are permitted provided that the following conditions are met:
+ //
+ // 1. Redistributions of source code must retain the above copyright notice,
+ // this list of conditions and the following disclaimer.
+ //
+ // 2. Redistributions in binary form must reproduce the above copyright notice,
+ // this list of conditions and the following disclaimer in the documentation
+ // and/or other materials provided with the distribution.
+ //
+ // 3. Neither the name of the copyright holder nor the names of its contributors
+ // may be used to endorse or promote products derived from this software without
+ // specific prior written permission.
+ //
+ // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ // AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ // IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ // ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ // LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ // CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ // SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ // INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ // POSSIBILITY OF SUCH DAMAGE.

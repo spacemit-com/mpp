@@ -1,0 +1,1 @@
+ACTION=="add",KERNEL=="linux,cma",SUBSYSTEM=="dma_heap",MODE="0666"
