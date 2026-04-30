@@ -2,11 +2,6 @@
  * Copyright 2022-2023 SPACEMIT. All rights reserved.
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
- *
- * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2024-04-24 16:44:07
- * @Description:
  */
 
 #define ENABLE_DEBUG 0
@@ -24,8 +19,7 @@ DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap) {
   }
   memset(wrapper_tmp, 0, sizeof(DmaBufWrapper));
 
-  U8 *dma_heap_path[64] = {"/dev/dma_heap/linux,cma",
-                           //"/dev/dma_heap/linux,cma@70000000",
+  char *dma_heap_path[64] = {"/dev/dma_heap/linux,cma",
                            "/dev/dma_heap/system"};
 
   wrapper_tmp->nDmaHeapFd = open(dma_heap_path[heap], O_RDONLY | O_CLOEXEC);

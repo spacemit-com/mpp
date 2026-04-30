@@ -1,59 +1,103 @@
-#------------------------------------------------------------
-# @Copyright 2022-2023 SPACEMIT. All rights reserved.
-# @Use of this source code is governed by a BSD-style license
-# @that can be found in the LICENSE file.
-# @
-# @Author: David(qiang.fu@spacemit.com)
-# @Date: 2022-12-22 14:56:49
-# @LastEditTime: 2023-11-02 18:01:15
-# @Description: the cmake script of test.
-#------------------------------------------------------------
+# Test executables (SYS + VB + integration + multi-process)
+# Link mpp_sys (contains sys.c, vb.c, mpp_shm.c, dma_alloc.c).
 
-include_directories(include)
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/mpi/include)
-include_directories(${PROJECT_SOURCE_DIR}/al/include)
-include_directories(${PROJECT_SOURCE_DIR}/utils/include)
+set(MPP_TEST_COMMON_DEFS _GNU_SOURCE)
 
-set(SRC_LIST ./test_sys_vdec_venc_one_frame.c)
-add_executable(test_sys_vdec_venc_one_frame ${SRC_LIST})
-target_link_libraries(test_sys_vdec_venc_one_frame spacemit_mpp)
+function(mpp_add_test_executable name)
+    add_executable(${name} ${name}.c)
+    target_compile_definitions(${name} PRIVATE ${MPP_TEST_COMMON_DEFS})
+    target_link_libraries(${name} PRIVATE mpp_sys)
+    target_include_directories(${name} PRIVATE ${MPP_INCLUDE_DIRS})
+    add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
+endfunction()
 
-set(SRC_LIST ./test_sys_venc_vdec_one_frame.c)
-add_executable(test_sys_venc_vdec_one_frame ${SRC_LIST})
-target_link_libraries(test_sys_venc_vdec_one_frame spacemit_mpp)
+mpp_add_test_executable(test_sys)
+mpp_add_test_executable(test_vb)
+mpp_add_test_executable(test_integration)
+mpp_add_test_executable(test_multiproc)
 
-set(SRC_LIST ./test_sys_vdec_venc_vdec_one_frame.c)
-add_executable(test_sys_vdec_venc_vdec_one_frame ${SRC_LIST})
-target_link_libraries(test_sys_vdec_venc_vdec_one_frame spacemit_mpp)
+# RTSP pipeline test (demux + mux, needs ffmpeg)
+add_executable(test_rtsp_pipeline test_rtsp_pipeline.c)
+target_compile_definitions(test_rtsp_pipeline PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_rtsp_pipeline PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_rtsp_pipeline PRIVATE mpp_demux mpp_mux mpp_sys)
 
-set(SRC_LIST ./vi_file_vdec_vo_test.c)
-add_executable(vi_file_vdec_vo_test ${SRC_LIST})
-target_link_libraries(vi_file_vdec_vo_test spacemit_mpp)
+add_executable(test_uvc test_uvc.c)
+target_compile_definitions(test_uvc PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_uvc PRIVATE mpp_uvc mpp_sys)
+target_include_directories(test_uvc PRIVATE ${MPP_INCLUDE_DIRS})
+add_test(NAME test_uvc COMMAND $<TARGET_FILE:test_uvc>)
 
-set(SRC_LIST ./vi_file_vdec_venc_sync_userptr_vo_file_test.c)
-add_executable(vi_file_vdec_venc_sync_userptr_vo_file_test ${SRC_LIST})
-target_link_libraries(vi_file_vdec_venc_sync_userptr_vo_file_test spacemit_mpp)
+# UVC → VDEC → VENC integration test (MJPEG in, H.264 ES to file)
+add_executable(test_uvc_vdec test_uvc_vdec.c)
+target_compile_definitions(test_uvc_vdec PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_uvc_vdec PRIVATE mpp_uvc mpp_vdec mpp_venc mpp_mux mpp_sys)
+target_include_directories(test_uvc_vdec PRIVATE ${MPP_INCLUDE_DIRS})
+add_test(NAME test_uvc_vdec COMMAND $<TARGET_FILE:test_uvc_vdec>)
 
-set(SRC_LIST ./vi_file_venc_sync_userptr_vo_file_test.c)
-add_executable(vi_file_venc_sync_userptr_vo_file_test ${SRC_LIST})
-target_link_libraries(vi_file_venc_sync_userptr_vo_file_test spacemit_mpp)
+# File-based single-module codec tests
+add_executable(test_venc_file test_venc_file.c)
+target_compile_definitions(test_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_venc_file PRIVATE mpp_venc mpp_sys)
+target_include_directories(test_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
 
-set(SRC_LIST ./g2d_test.c)
-add_executable(g2d_test ${SRC_LIST})
-target_link_libraries(g2d_test spacemit_mpp)
+add_executable(test_vdec_file test_vdec_file.c)
+target_compile_definitions(test_vdec_file PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vdec_file PRIVATE mpp_vdec mpp_sys)
+target_include_directories(test_vdec_file PRIVATE ${MPP_INCLUDE_DIRS})
+# Demo executables
+add_executable(test_v2d test_v2d.c)
+target_compile_definitions(test_v2d PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_v2d PRIVATE mpp_v2d mpp_sys)
+target_include_directories(test_v2d PRIVATE ${MPP_INCLUDE_DIRS})
 
-set(SRC_LIST ./vi_v4l2_vo_test.c)
-add_executable(vi_v4l2_vo_test ${SRC_LIST})
-target_link_libraries(vi_v4l2_vo_test spacemit_mpp)
+add_executable(test_v2d_draw test_v2d_draw.c)
+target_compile_definitions(test_v2d_draw PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_v2d_draw PRIVATE mpp_v2d mpp_sys)
+target_include_directories(test_v2d_draw PRIVATE ${MPP_INCLUDE_DIRS})
 
-install(TARGETS vi_file_vdec_vo_test RUNTIME
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-install(TARGETS vi_file_vdec_venc_sync_userptr_vo_file_test RUNTIME
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-install(TARGETS vi_file_venc_sync_userptr_vo_file_test RUNTIME
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-install(TARGETS g2d_test RUNTIME
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
-install(TARGETS vi_v4l2_vo_test RUNTIME
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+add_executable(test_v2d_blend test_v2d_blend.c)
+target_compile_definitions(test_v2d_blend PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_v2d_blend PRIVATE mpp_v2d mpp_sys)
+target_include_directories(test_v2d_blend PRIVATE ${MPP_INCLUDE_DIRS})
+
+if(TARGET mpp_cpp)
+    add_executable(test_vi_cpp test_vi_cpp.c)
+    target_compile_definitions(test_vi_cpp PRIVATE ${MPP_TEST_COMMON_DEFS})
+    target_link_libraries(test_vi_cpp PRIVATE mpp_vi mpp_cpp mpp_sys)
+    target_include_directories(test_vi_cpp PRIVATE ${MPP_INCLUDE_DIRS})
+
+    add_executable(test_vi_cpp_multi_output test_vi_cpp_multi_output.c)
+    target_compile_definitions(test_vi_cpp_multi_output PRIVATE ${MPP_TEST_COMMON_DEFS})
+    target_link_libraries(test_vi_cpp_multi_output PRIVATE mpp_vi mpp_cpp mpp_sys)
+    target_include_directories(test_vi_cpp_multi_output PRIVATE ${MPP_INCLUDE_DIRS})
+else()
+    message(STATUS "mpp_cpp not available, skipping vi_cpp_demo and vi_cpp_multi_output_demo")
+endif()
+
+add_executable(test_vi_k1_cam test_vi_k1_cam.c)
+target_compile_definitions(test_vi_k1_cam PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_k1_cam PRIVATE mpp_vi mpp_sys)
+target_include_directories(test_vi_k1_cam PRIVATE ${MPP_INCLUDE_DIRS})
+
+add_executable(test_vi_k1_ispbypass test_vi_k1_ispbypass.c)
+target_compile_definitions(test_vi_k1_ispbypass PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_k1_ispbypass PRIVATE mpp_vi mpp_sys)
+target_include_directories(test_vi_k1_ispbypass PRIVATE ${MPP_INCLUDE_DIRS})
+
+add_executable(test_vi_isp_cam_api test_vi_isp_cam_api.c)
+target_compile_definitions(test_vi_isp_cam_api PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_isp_cam_api PRIVATE mpp_vi mpp_sys)
+target_include_directories(test_vi_isp_cam_api PRIVATE ${MPP_INCLUDE_DIRS})
+
+# ROS2 ISP camera examples are built by the top-level build_ros2_examples
+# target when BUILD_ROS2_EXAMPLES is AUTO/ON and ROS2 + colcon are available.
+
+add_executable(test_vi_k1_offline_addr test_vi_k1_offline_addr.c)
+target_compile_definitions(test_vi_k1_offline_addr PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_k1_offline_addr PRIVATE mpp_vi mpp_sys)
+target_include_directories(test_vi_k1_offline_addr PRIVATE ${MPP_INCLUDE_DIRS})
+
+set_tests_properties(test_multiproc PROPERTIES
+    LABELS "slow;multiproc"
+)

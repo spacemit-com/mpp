@@ -74,12 +74,16 @@ S32 al_dec_get_output_frame(ALBaseContext *ctx, MppData *src_data);
 S32 al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data);
 
 /**
- * @description:
+ * @description: request output frame from decoder (double-pointer version).
+ *                  Internally creates MppFrame, polls V4L2 with timeout,
+ *                  and returns the MppData pointer to caller.
  * @param {ALBaseContext} *ctx
- * @param {MppData} **src_data
- * @return {*}
+ * @param {MppData} **src_data: output, caller must return via al_dec_return_output_frame
+ * @param {U32} u32TimeoutMs: poll timeout in ms (0 = non-blocking, (U32)-1 = infinite)
+ * @return {*}: MPP_OK on success, MPP_CODER_NO_DATA / MPP_CODER_EOS / error
  */
-S32 al_dec_request_output_frame_2(ALBaseContext *ctx, MppData **src_data);
+S32 al_dec_request_output_frame_2(ALBaseContext *ctx, MppData **src_data,
+                                  U32 u32TimeoutMs);
 
 /**
  * @description:
@@ -88,6 +92,15 @@ S32 al_dec_request_output_frame_2(ALBaseContext *ctx, MppData **src_data);
  * @return {*}
  */
 S32 al_dec_return_output_frame(ALBaseContext *ctx, MppData *src_data);
+
+/**
+ * @description: queue an output buffer with external dmabuf fd for decode.
+ *               used when eFrameBufferType is MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL.
+ * @param {ALBaseContext} *ctx
+ * @param {MppData} *src_data: contains the frame with external fd and data pointer
+ * @return {*}
+ */
+S32 al_dec_queue_output_buffer(ALBaseContext *ctx, MppData *src_data);
 
 /**
  * @description:

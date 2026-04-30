@@ -136,11 +136,6 @@ BOOL check_output_is_stream(S32 video_fd) {
   return check_result;
 }
 
-/**
- * @description: check whether the V4L2 output is frame(YUV)
- * @param {S32} video_fd : the opened device fd
- * @return {*}
- */
 BOOL check_output_is_frame(S32 video_fd) {
   BOOL check_result = MPP_FALSE;
   struct v4l2_fmtdesc format;
@@ -153,7 +148,7 @@ BOOL check_output_is_frame(S32 video_fd) {
     format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("=======================================");
@@ -182,7 +177,7 @@ BOOL check_output_is_frame(S32 video_fd) {
     format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("=======================================");
@@ -210,12 +205,6 @@ BOOL check_output_is_frame(S32 video_fd) {
   return check_result;
 }
 
-/**
- * @description: check if V4L2 support the output format wo need
- * @param {S32} video_fd : input, the opened device fd
- * @param {U32} fmt : input, the format we need
- * @return {*}
- */
 BOOL check_output_format(S32 video_fd, U32 fmt) {
   BOOL check_result = MPP_FALSE;
   struct v4l2_fmtdesc format;
@@ -228,12 +217,11 @@ BOOL check_output_format(S32 video_fd, U32 fmt) {
     format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("index:       %u", format.index);
     debug("type:        %d", format.type);
-    // debug("flags:       %08x", format.flags);
     debug("description: %s", format.description);
     debug("pixelformat: %d", format.pixelformat);
 
@@ -246,12 +234,11 @@ BOOL check_output_format(S32 video_fd, U32 fmt) {
     format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("index:       %u", format.index);
     debug("type:        %d", format.type);
-    // debug("flags:       %08x", format.flags);
     debug("description: %s", format.description);
     debug("pixelformat: %d", format.pixelformat);
 
@@ -263,11 +250,6 @@ BOOL check_output_format(S32 video_fd, U32 fmt) {
   return check_result;
 }
 
-/**
- * @description: check whether the V4L2 input is stream(H264 etc.)
- * @param {S32} video_fd : the opened device fd
- * @return {*}
- */
 BOOL check_input_is_stream(S32 video_fd) {
   BOOL check_result = MPP_FALSE;
   struct v4l2_fmtdesc format;
@@ -280,7 +262,7 @@ BOOL check_input_is_stream(S32 video_fd) {
     format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("=======================================");
@@ -320,7 +302,7 @@ BOOL check_input_is_stream(S32 video_fd) {
     format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("=======================================");
@@ -359,11 +341,6 @@ BOOL check_input_is_stream(S32 video_fd) {
   return check_result;
 }
 
-/**
- * @description: check whether the V4L2 input is frame(YUV)
- * @param {S32} video_fd : the opened device fd
- * @return {*}
- */
 BOOL check_input_is_frame(S32 video_fd) {
   BOOL check_result = MPP_FALSE;
   struct v4l2_fmtdesc format;
@@ -376,7 +353,7 @@ BOOL check_input_is_frame(S32 video_fd) {
     format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("index:       %u", format.index);
@@ -403,7 +380,7 @@ BOOL check_input_is_frame(S32 video_fd) {
     format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("index:       %u", format.index);
@@ -429,12 +406,6 @@ BOOL check_input_is_frame(S32 video_fd) {
   return check_result;
 }
 
-/**
- * @description: check if V4L2 support the input format wo need
- * @param {S32} video_fd : input, the opened device fd
- * @param {U32} fmt : input, the format we need
- * @return {*}
- */
 BOOL check_input_format(S32 video_fd, U32 fmt) {
   BOOL check_result = MPP_FALSE;
   struct v4l2_fmtdesc format;
@@ -447,7 +418,7 @@ BOOL check_input_format(S32 video_fd, U32 fmt) {
     format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("=================================");
@@ -466,7 +437,7 @@ BOOL check_input_format(S32 video_fd, U32 fmt) {
     format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 
     if (ioctl(video_fd, VIDIOC_ENUM_FMT, &format) < 0) {
-      break; /* end of enumeration */
+      break;
     }
 
     debug("=================================");
@@ -484,11 +455,10 @@ BOOL check_input_format(S32 video_fd, U32 fmt) {
 }
 
 /**
- * @description: check whether there is V4L2 decoder or V4L2 encoder, module.c
- * use it, if there is V4L2 codec, dlopen the V4L2 codec library.
- * @return {*}
+ * @description: Probe /dev/video* for an M2M V4L2 codec (decoder or encoder).
+ *               Used by module.c before dlopen of the standard V4L2 plugin.
  */
-BOOL check_v4l2() {
+BOOL check_v4l2(void) {
   S32 video_fd = -1;
   struct v4l2_capability vcap;
   U32 device_caps;
@@ -503,10 +473,10 @@ BOOL check_v4l2() {
 
     U8 path_base[12] = "/dev/video";
     U8 device_path[20];
-    sprintf(device_path, "%s%d", path_base, i);
+    sprintf((char *)device_path, "%s%d", (char *)path_base, i);
     debug("Now open '%s' and check it!", device_path);
 
-    video_fd = open(device_path, O_RDWR | O_CLOEXEC);
+    video_fd = open((const char *)device_path, O_RDWR | O_CLOEXEC);
 
     if (video_fd == -1) {
       error("Can not open '%s', please check it! (%s)", device_path,
@@ -532,76 +502,8 @@ BOOL check_v4l2() {
       continue;
     }
 
-    debug("Probing '%s' located at '%s'", (const U8 *)vcap.driver, device_path);
-
-    if ((check_input_is_stream(video_fd) && check_output_is_frame(video_fd)) ||
-        (check_input_is_frame(video_fd) && check_output_is_stream(video_fd))) {
-      close(video_fd);
-      video_fd = -1;
-      return MPP_TRUE;
-    }
-  }
-
-  if (video_fd >= 0) {
-    close(video_fd);
-    video_fd = -1;
-  }
-  return MPP_FALSE;
-}
-
-/**
- * @description: check whether there is V4L2 decoder or V4L2 encoder of LINLIN
- * V5V7, module.c use it, if there is V4L2 codec, dlopen the V4L2 codec library.
- * @return {*}
- */
-BOOL check_v4l2_linlonv5v7() {
-  S32 video_fd = -1;
-  struct v4l2_capability vcap;
-  U32 device_caps;
-
-  debug("check_v4l2_linlonv5v7");
-
-  for (S32 i = 0; i < MAX_VIDEO_NODE_NUM; i++) {
-    if (video_fd >= 0) {
-      close(video_fd);
-      video_fd = -1;
-    }
-
-    U8 path_base[12] = "/dev/video";
-    U8 device_path[20];
-    sprintf(device_path, "%s%d", path_base, i);
-    debug("Now open '%s' and check it!", device_path);
-
-    video_fd = open(device_path, O_RDWR | O_CLOEXEC);
-
-    if (video_fd == -1) {
-      error("Can not open '%s', please check it! (%s)", device_path,
-            strerror(errno));
-      continue;
-    }
-
-    memset(&vcap, 0, sizeof(vcap));
-
-    if (ioctl(video_fd, VIDIOC_QUERYCAP, &vcap) < 0) {
-      error("Can not get device capabilities, please check it ! (%s)",
-            strerror(errno));
-      continue;
-    }
-
-    debug("driver = (%s)", vcap.driver);
-
-    if (vcap.capabilities & V4L2_CAP_DEVICE_CAPS) {
-      device_caps = vcap.device_caps;
-    } else {
-      device_caps = vcap.capabilities;
-    }
-
-    if (!V4L2_IS_M2M(device_caps)) {
-      error("device is not a M2M device!");
-      continue;
-    }
-
-    debug("Probing '%s' located at '%s'", (const U8 *)vcap.driver, device_path);
+    debug("Probing '%s' located at '%s'", (const char *)vcap.driver,
+          (const char *)device_path);
 
     if ((check_input_is_stream(video_fd) && check_output_is_frame(video_fd)) ||
         (check_input_is_frame(video_fd) && check_output_is_stream(video_fd))) {
@@ -638,9 +540,9 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
       video_fd = -1;
     }
 
-    sprintf(device_path, "%s%d", path_base, i);
+    sprintf((char *)device_path, "%s%d", (char *)path_base, i);
     debug("now open '%s' and check it!", device_path);
-    video_fd = open(device_path, O_RDWR | O_CLOEXEC);
+    video_fd = open((const char *)device_path, O_RDWR | O_CLOEXEC);
 
     if (video_fd == -1) {
       error("can not open '%s', please check it! (%s)", device_path,
@@ -670,7 +572,8 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
       continue;
     }
 
-    debug("Probing '%s' located at '%s'", (const U8 *)vcap.driver, device_path);
+    debug("Probing '%s' located at '%s'", (const char *)vcap.driver,
+          (const char *)device_path);
 
     if (check_input_is_stream(video_fd) && check_output_is_frame(video_fd) &&
         check_input_format(video_fd, coding_type)) {
@@ -678,6 +581,10 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
     }
   }
 
+  if (video_fd >= 0) {
+    close(video_fd);
+    video_fd = -1;
+  }
   return -1;
 }
 
@@ -693,7 +600,7 @@ S32 find_v4l2_encoder(U8 *device_path, S32 coding_type) {
   U32 device_caps;
   U8 path_base[12] = "/dev/video";
 
-  debug("find V4L2 Decoder");
+  debug("find V4L2 Encoder");
 
   for (S32 i = 0; i < MAX_VIDEO_NODE_NUM; i++) {
     if (video_fd >= 0) {
@@ -701,9 +608,9 @@ S32 find_v4l2_encoder(U8 *device_path, S32 coding_type) {
       video_fd = -1;
     }
 
-    sprintf(device_path, "%s%d", path_base, i);
+    sprintf((char *)device_path, "%s%d", (char *)path_base, i);
     debug("now open '%s' and check it!", device_path);
-    video_fd = open(device_path, O_RDWR | O_CLOEXEC);
+    video_fd = open((const char *)device_path, O_RDWR | O_CLOEXEC);
 
     if (video_fd == -1) {
       error("can not open '%s', please check it! (%s)", device_path,
@@ -729,7 +636,8 @@ S32 find_v4l2_encoder(U8 *device_path, S32 coding_type) {
       continue;
     }
 
-    debug("Probing '%s' located at '%s'", (const U8 *)vcap.driver, device_path);
+    debug("Probing '%s' located at '%s'", (const char *)vcap.driver,
+          (const char *)device_path);
 
     if (check_input_is_frame(video_fd) && check_output_is_stream(video_fd) &&
         check_output_format(video_fd, coding_type)) {
@@ -737,97 +645,30 @@ S32 find_v4l2_encoder(U8 *device_path, S32 coding_type) {
     }
   }
 
+  if (video_fd >= 0) {
+    close(video_fd);
+    video_fd = -1;
+  }
   return -1;
 }
 
-/**
- * @description: get the cap
- * @param {S32} video_fd : input, the video device fd
- * @param {v4l2_capability} *vcap : output, the cap we get
- * @return {*}
- */
-BOOL v4l2_get_capabilities(S32 video_fd, struct v4l2_capability *vcap) {
-  debug("Get capabilities");
-
-  if (video_fd == -1) return MPP_FALSE;
-
-  if (ioctl(video_fd, VIDIOC_QUERYCAP, vcap) < 0) return MPP_FALSE;
-
-  debug("driver:      '%s'", vcap->driver);
-  debug("card:        '%s'", vcap->card);
-  debug("bus_info:    '%s'", vcap->bus_info);
-  debug("version:     %08x", vcap->version);
-  debug("capabilities: %08x", vcap->device_caps);
-
-  return MPP_TRUE;
-}
-
-/**
- * @description: open the device path, and get a fd
- * @param {U8} *device_path : input, video device path, such as /dev/video0
- * @param {S32} *fd : output, the opened device fd
- * @return {*}
- */
-BOOL v4l2_open(U8 *device_path, S32 *fd) {
-  struct stat st;
-  int video_fd = -1;
-
-  debug("Trying to open device %s", device_path);
-
-  V4L2_CHECK_NOT_OPEN(video_fd);
-
-  /* check if it is a device */
-  if (stat(device_path, &st) == -1) return MPP_FALSE;
-
-  if (!S_ISCHR(st.st_mode)) return MPP_FALSE;
-
-  /* open the device */
-  video_fd = open(device_path, O_RDWR /* | O_NONBLOCK */);
-
-  if (!V4L2_IS_OPEN(video_fd)) return MPP_FALSE;
-
-  *fd = video_fd;
-
-  return MPP_TRUE;
-}
-
-/**
- * @description: close the opened device fd
- * @param {S32} video_fd : input, the opened device fd
- * @return {*}
- */
-BOOL v4l2_close(S32 video_fd) {
-  debug("Trying to close device %d", video_fd);
-
-  V4L2_CHECK_OPEN(video_fd);
-
-  /* close device */
-  close(video_fd);
-  video_fd = -1;
-
-  return MPP_TRUE;
-}
-
-S32 ioctl_handler(S32 fd, S32 req, void *data) {
+static S32 ioctl_handler(S32 fd, unsigned long req, void *data) {
   S32 ret = ioctl(fd, req, data);
   if (0 != ret) {
-    error("=====> IOCTL ERROR, ret = %d, req = %08x (%s)", ret, req,
-          strerror(errno));
+    error("=====> IOCTL ERROR, ret = %d, req = %08lx (%s)", ret,
+          (unsigned long)req, strerror(errno));
   }
-
   return ret;
 }
 
 S32 mpp_v4l2_set_ctrl(S32 fd, S32 id, S32 val) {
-  S32 ret = 0;
   struct v4l2_control ctrl;
 
   memset(&ctrl, 0, sizeof(ctrl));
   ctrl.id = id;
   ctrl.value = val;
 
-  ret = ioctl_handler(fd, VIDIOC_S_CTRL, &ctrl);
-  return ret;
+  return ioctl_handler(fd, VIDIOC_S_CTRL, &ctrl);
 }
 
 S32 mpp_v4l2_get_format(S32 fd, struct v4l2_format *fmt,
@@ -876,17 +717,10 @@ S32 mpp_v4l2_get_crop(S32 fd, struct v4l2_crop *crop) {
   return ioctl_handler(fd, VIDIOC_G_CROP, crop);
 }
 
-/**
- * @description: do mmap for the v4l2_buffer, support single and multi plane
- * @param {S32} fd : input, the video device fd
- * @param {v4l2_buffer} *buf : input, the v4l2 buffer need to be map
- * @param {U8} *user_ptr : output, the mapped address
- * @return {*}
- */
 S32 mpp_v4l2_map_memory(S32 fd, const struct v4l2_buffer *buf,
                         U8 *user_ptr[8]) {
   if (V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
-    for (S32 i = 0; i < buf->length; ++i) {
+    for (U32 i = 0; i < buf->length; ++i) {
       struct v4l2_plane *p = &buf->m.planes[i];
       if (p->length > 0) {
         user_ptr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE, MAP_SHARED,
@@ -910,15 +744,9 @@ S32 mpp_v4l2_map_memory(S32 fd, const struct v4l2_buffer *buf,
   return MPP_OK;
 }
 
-/**
- * @description: do munmap for the v4l2_buffer, support single and multi plane
- * @param {v4l2_buffer} *buf : input, the v4l2 buffer need to be unmap
- * @param {U8} *user_ptr : output, the mapped address
- * @return {*}
- */
 void mpp_v4l2_unmap_memory(const struct v4l2_buffer *buf, U8 *user_ptr[8]) {
   if (V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
-    for (S32 i = 0; i < buf->length; ++i) {
+    for (U32 i = 0; i < buf->length; ++i) {
       if (user_ptr[i] != 0) {
         munmap(user_ptr[i], buf->m.planes[i].length);
       }
@@ -930,11 +758,6 @@ void mpp_v4l2_unmap_memory(const struct v4l2_buffer *buf, U8 *user_ptr[8]) {
   }
 }
 
-/**
- * @description: show buffer info, just for debug
- * @param {v4l2_buffer} *p : input, the v4l2_buffer need to be showed
- * @return {*}
- */
 void show_buffer_info(const struct v4l2_buffer *p) {
   debug("======= v4l2_buffer =====");
   debug("index:             %d", p->index);
@@ -949,8 +772,75 @@ void show_buffer_info(const struct v4l2_buffer *p) {
   debug("timecode seconds:  %d", p->timecode.seconds);
   debug("timecode minutes:  %d", p->timecode.minutes);
   debug("timecode hours:    %d", p->timecode.hours);
-  // debug("timecode userbits: %d", (uint32_t)p->timecode.userbits);
   debug("sequence:          %d", p->sequence);
   debug("length:            %d", p->length);
   debug("reserved2:         %08x", p->reserved2);
+}
+
+/**
+ * @description: Same role as check_v4l2 for Linlon V5V7–style M2M devices.
+ */
+BOOL check_v4l2_linlonv5v7(void) {
+  S32 video_fd = -1;
+  struct v4l2_capability vcap;
+  U32 device_caps;
+
+  debug("check_v4l2_linlonv5v7");
+
+  for (S32 i = 0; i < MAX_VIDEO_NODE_NUM; i++) {
+    if (video_fd >= 0) {
+      close(video_fd);
+      video_fd = -1;
+    }
+
+    U8 path_base[12] = "/dev/video";
+    U8 device_path[20];
+    sprintf((char *)device_path, "%s%d", (char *)path_base, i);
+    debug("Now open '%s' and check it!", device_path);
+
+    video_fd = open((const char *)device_path, O_RDWR | O_CLOEXEC);
+
+    if (video_fd == -1) {
+      error("Can not open '%s', please check it! (%s)", device_path,
+            strerror(errno));
+      continue;
+    }
+
+    memset(&vcap, 0, sizeof(vcap));
+
+    if (ioctl(video_fd, VIDIOC_QUERYCAP, &vcap) < 0) {
+      error("Can not get device capabilities, please check it ! (%s)",
+            strerror(errno));
+      continue;
+    }
+
+    debug("driver = (%s)", vcap.driver);
+
+    if (vcap.capabilities & V4L2_CAP_DEVICE_CAPS) {
+      device_caps = vcap.device_caps;
+    } else {
+      device_caps = vcap.capabilities;
+    }
+
+    if (!V4L2_IS_M2M(device_caps)) {
+      error("device is not a M2M device!");
+      continue;
+    }
+
+    debug("Probing '%s' located at '%s'", (const char *)vcap.driver,
+          (const char *)device_path);
+
+    if ((check_input_is_stream(video_fd) && check_output_is_frame(video_fd)) ||
+        (check_input_is_frame(video_fd) && check_output_is_stream(video_fd))) {
+      close(video_fd);
+      video_fd = -1;
+      return MPP_TRUE;
+    }
+  }
+
+  if (video_fd >= 0) {
+    close(video_fd);
+    video_fd = -1;
+  }
+  return MPP_FALSE;
 }

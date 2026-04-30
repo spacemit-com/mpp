@@ -52,7 +52,7 @@ struct _MppPacket {
   BOOL bEos;
 
   // environment variable
-  BOOL bEnableUnfreePacketDebug;
+  U32 bEnableUnfreePacketDebug;
   // S64    nPcr;
   // S32    bIsFirstPart;
   // S32    bIsLastPart;

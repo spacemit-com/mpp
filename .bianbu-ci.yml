@@ -1,36 +1,3 @@
-image: harbor.bianbu.xyz/gitlab/ci-pack
-
-stages:
-  - pack
-
-pack-job:
-  stage: pack
-  script:
-    - echo "Building for tag $CI_COMMIT_TAG"
-    - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - ssh-keyscan gitlab.dc.com >> ~/.ssh/known_hosts
-    - chmod 644 ~/.ssh/known_hosts
-    - git config --global user.email "bianbu-ci@spacemit.com"
-    - git config --global user.name "bianbu-ci"
-    # 准备打包脚本
-    - cd ..
-    - git clone git@gitlab.dc.com:bianbu/bianbu-devscripts.git
-    - export PATH=$CI_PROJECT_DIR/../bianbu-devscripts:$PATH
-    # 准备打包所需的源码，从detach切换到分支
-    - cd $CI_PROJECT_DIR
-    - git checkout ${CI_COMMIT_TAG%%/*}
-    - bianbu-dev set-default-dist ${CI_COMMIT_TAG%%/*}
-    - bianbu-pkg -u local -w . -t $CI_COMMIT_TAG
-    - changes_file=$(find ../ -maxdepth 1 -type f -name "*.changes" | head -n 1)
-    # 上传结果
-    - ssh-keyscan reprepro-headless-service.buildsystem.svc.cluster.local >> ~/.ssh/known_hosts
-    - bianbu-dev upload --sync $changes_file
-    # 修改为ssh协议
-    - git remote set-url origin git@gitlab.dc.com:$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME.git
-    - git push origin --all
-
-  only:
-    - tags
+include:
+  - project: 'bianbu/gitlab-ci-templates'
+    file: 'bianbu-pack-and-build-bianbu-4.0.yml'

@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-02-01 09:34:01
- * @LastEditTime: 2024-04-25 20:31:03
+ * @LastEditTime: 2026-04-20 11:06:49
  * @Description: base class of the abstract layer interface
  */
 
@@ -41,7 +41,7 @@ extern "C" {
                                                                              \
     error("Can not find the mapping format, please check it(%d) !",          \
           mapping_length);                                                   \
-    return PIXEL_FORMAT_UNKNOWN;                                             \
+    return MPP_PIXEL_FORMAT_UNKNOWN;                                             \
   }                                                                          \
                                                                              \
   static format get_##type##_codec_pixel_format(MppPixelFormat src_format) { \

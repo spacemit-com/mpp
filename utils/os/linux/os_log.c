@@ -2,11 +2,6 @@
  * Copyright 2022-2023 SPACEMIT. All rights reserved.
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
- *
- * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-01-13 18:11:10
- * @LastEditTime: 2023-02-02 15:26:37
- * @Description:
  */
 
 #include "os_log.h"

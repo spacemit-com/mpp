@@ -66,7 +66,7 @@ struct _MppFrame {
   DmaBufWrapper *pDmaBufWrapper;
 
   // environment variable
-  BOOL bEnableUnfreeFrameDebug;
+  U32 bEnableUnfreeFrameDebug;
 };
 
 MppFrame *FRAME_Create() {
@@ -118,34 +118,34 @@ RETURN FRAME_Alloc(MppFrame *frame, MppPixelFormat pixelformat, S32 width,
 
   if (MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL == frame->eBufferType) {
     switch (pixelformat) {
-      case PIXEL_FORMAT_I420:
-      case PIXEL_FORMAT_YV12:
+      case MPP_PIXEL_FORMAT_I420:
+      case MPP_PIXEL_FORMAT_YV12:
         size[0] = width * height;
         size[1] = (width / 2) * (height / 2);
         size[2] = (width / 2) * (height / 2);
         frame->nDataUsedNum = 3;
         break;
-      case PIXEL_FORMAT_YUV422P:
+      case MPP_PIXEL_FORMAT_YUV422P:
         size[0] = width * height;
         size[1] = (width / 2) * height;
         size[2] = (width / 2) * height;
         frame->nDataUsedNum = 3;
         break;
-      case PIXEL_FORMAT_NV12:
-      case PIXEL_FORMAT_NV21:
+      case MPP_PIXEL_FORMAT_NV12:
+      case MPP_PIXEL_FORMAT_NV21:
         size[0] = width * height;
         size[1] = (width / 2) * height;
         frame->nDataUsedNum = 2;
         break;
-      case PIXEL_FORMAT_RGBA:
-      case PIXEL_FORMAT_ARGB:
-      case PIXEL_FORMAT_BGRA:
-      case PIXEL_FORMAT_ABGR:
+      case MPP_PIXEL_FORMAT_RGBA:
+      case MPP_PIXEL_FORMAT_ARGB:
+      case MPP_PIXEL_FORMAT_BGRA:
+      case MPP_PIXEL_FORMAT_ABGR:
         size[0] = width * height * 4;
         frame->nDataUsedNum = 1;
         break;
-      case PIXEL_FORMAT_YUYV:
-      case PIXEL_FORMAT_UYVY:
+      case MPP_PIXEL_FORMAT_YUYV:
+      case MPP_PIXEL_FORMAT_UYVY:
         size[0] = width * height * 2;
         frame->nDataUsedNum = 1;
         break;
@@ -251,6 +251,17 @@ RETURN FRAME_Free(MppFrame *frame) {
       info("debug frame memory: num of unfree frame data: %d",
            num_of_unfree_data);
     }
+  } else if (MPP_FRAME_BUFFERTYPE_NORMAL_EXTERNAL == frame->eBufferType ||
+             MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == frame->eBufferType) {
+    /*
+     * Planes point to mmap'd V4L2 buffers, imported dma-buf, or other
+     * non-heap memory — never pass these pointers to free().
+     */
+    frame->pData0 = NULL;
+    frame->pData1 = NULL;
+    frame->pData2 = NULL;
+    frame->pData3 = NULL;
+    frame->pDmaBufWrapper = NULL;
   } else {
     error("unsupported buffertype, please check!!");
     return MPP_NOT_SUPPORTED_FORMAT;
@@ -481,7 +492,7 @@ RETURN FRAME_SetPts(MppFrame *frame, S64 pts) {
   return MPP_OK;
 }
 
-MppFrameEos FRAME_GetEos(MppFrame *frame) {
+S32 FRAME_GetEos(MppFrame *frame) {
   if (!frame) {
     error("input para MppFrame is NULL, please check!");
     return MPP_NULL_POINTER;
@@ -636,7 +647,7 @@ RETURN FRAME_SetFD(MppFrame *frame, S32 fd, S32 index) {
   return MPP_OK;
 }
 
-MppFrameBufferType FRAME_GetBufferType(MppFrame *frame) {
+S32 FRAME_GetBufferType(MppFrame *frame) {
   if (!frame) {
     error("input para MppFrame is NULL, please check!");
     return MPP_NULL_POINTER;
@@ -666,6 +677,8 @@ void FRAME_Destory(MppFrame *frame) {
     error("input para MppFrame is NULL, please check!");
     return;
   }
+
+  (void)FRAME_Free(frame);
 
   if (frame->bEnableUnfreeFrameDebug) {
     num_of_unfree_frame--;

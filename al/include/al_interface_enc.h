@@ -13,6 +13,7 @@
 #define _AL_INTERFACE_ENC_H_
 
 #include "al_interface_base.h"
+#include "venc_type.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,7 +39,7 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para);
  * @param {MppVencPara} *para
  * @return {*}
  */
-S32 al_enc_set_para(ALBaseContext *ctx, MppVencPara *para);
+S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para);
 
 /**
  * @description:

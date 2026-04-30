@@ -25,8 +25,8 @@
 struct _MppRingBuffer {
   U32 size;                // capacity bytes size
   atomic_size_t dataSize;  // occupied data size
-  U32 tailOffset;          // head offset, the oldest byte position offset
-  U32 headOffset;          // tail offset, the lastest byte position offset
+  S32 tailOffset;          // head offset, the oldest byte position offset
+  S32 headOffset;          // tail offset, the lastest byte position offset
   void *buffer;
 
   pthread_mutex_t mutex;
@@ -157,9 +157,9 @@ try_loop:
     rBuf->tailOffset += writableLen;
     atomic_store(&rBuf->dataSize, atomic_load(&rBuf->dataSize) + writableLen);
 
-    if (rBuf->tailOffset == rBuf->size) {
+    if ((U32)rBuf->tailOffset == rBuf->size) {
       rBuf->tailOffset = 0;
-    } else if (rBuf->tailOffset > rBuf->size) {
+    } else if ((U32)rBuf->tailOffset > rBuf->size) {
       error("error, tailOffset cross the border(%u)", rBuf->headOffset);
       return -1;
     }
@@ -224,9 +224,9 @@ U32 inter_ringbuffer_read(MppRingBuffer *rBuf, U32 length, void *dataOut,
     rBuf->headOffset += drLen;
     atomic_store(&rBuf->dataSize, atomic_load(&rBuf->dataSize) - drLen);
 
-    if (rBuf->headOffset == rBuf->size) {
+    if ((U32)rBuf->headOffset == rBuf->size) {
       rBuf->headOffset = 0;
-    } else if (rBuf->headOffset > rBuf->size) {
+    } else if ((U32)rBuf->headOffset > rBuf->size) {
       error("error, headOffset cross the border(%u)", rBuf->headOffset);
       return -1;
     }
@@ -272,17 +272,17 @@ void RingBufferPrint(MppRingBuffer *rBuf, BOOL hex) {
     if (RingBufferGetDataSize(rBuf) == 0) {
       c = '_';
     } else if (rBuf->headOffset == -1 && rBuf->tailOffset != -1) {
-      if (i >= rBuf->tailOffset && dataSize != cSize)
+      if (i >= (U32)rBuf->tailOffset && dataSize != cSize)
         c = '_';
       else
         c = b[i];
     } else if (rBuf->headOffset < rBuf->tailOffset) {
-      if (i >= rBuf->headOffset && i < rBuf->tailOffset)
+      if (i >= (U32)rBuf->headOffset && i < (U32)rBuf->tailOffset)
         c = b[i];
       else
         c = '_';
     } else if (rBuf->headOffset > rBuf->tailOffset) {
-      if (i >= rBuf->tailOffset && i < rBuf->headOffset) {
+      if (i >= (U32)rBuf->tailOffset && i < (U32)rBuf->headOffset) {
         c = '_';
       } else
         c = b[i];
@@ -323,7 +323,7 @@ void TestRingBuffer(void) {
             *(a + offset + len - 1));
       RingBufferPush(cb, a + offset, len);
       offset += len;
-      if (strlen(a) < offset + 3) offset = 0;
+      if ((int)strlen(a) < offset + 3) offset = 0;
       RingBufferPrint(cb, MPP_FALSE);
     }
     for (i = 0; i < 3; i++) {
@@ -350,7 +350,7 @@ void TestRingBuffer(void) {
             *(a + offset + len - 1));
       RingBufferPush(cb, a + offset, len);
       offset += len;
-      if (strlen(a) < offset + 3) offset = 0;
+      if ((int)strlen(a) < offset + 3) offset = 0;
       RingBufferPrint(cb, MPP_FALSE);
     }
     for (i = 0; i < 1; i++) {
@@ -378,7 +378,7 @@ void TestRingBuffer(void) {
             *(a + offset + len - 1));
       RingBufferPush(cb, a + offset, len);
       offset += len;
-      if (strlen(a) < offset + 3) offset = 0;
+      if ((int)strlen(a) < offset + 3) offset = 0;
       RingBufferPrint(cb, MPP_FALSE);
     }
     for (i = 0; i < 1; i++) {
@@ -406,7 +406,7 @@ void TestRingBuffer(void) {
             *(a + offset + len - 1));
       RingBufferPush(cb, a + offset, len);
       offset += len;
-      if (strlen(a) < offset + 3) offset = 0;
+      if ((int)strlen(a) < offset + 3) offset = 0;
       RingBufferPrint(cb, MPP_FALSE);
     }
     for (i = 0; i < 1; i++) {

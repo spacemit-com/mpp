@@ -2,11 +2,6 @@
  * Copyright 2022-2023 SPACEMIT. All rights reserved.
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
- *
- * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-01-17 09:33:01
- * @LastEditTime: 2023-11-09 14:50:49
- * @Description:
  */
 
 #define MODULE_TAG "mpp_log"
@@ -27,7 +22,6 @@ extern "C" {
 
 U32 mpp_debug = 0;
 
-// TODO: add log timing information and switch flag
 static const char *msg_log_warning = "log message is long\n";
 static const char *msg_log_nothing = "\n";
 static int mpp_log_level = MPP_LOG_INFO;
@@ -83,7 +77,7 @@ void _mpp_log_l(int level, const char *tag, const char *fmt, const char *fname,
       NULL,         /* MPP_LOG_DEFAULT */
       os_log_fatal, /* MPP_LOG_FATAL   */
       os_log_error, /* MPP_LOG_ERROR   */
-      os_log_warn,  /* MPP_LOG_WARN   */
+      os_log_warn,  /* MPP_LOG_WARN    */
       os_log_info,  /* MPP_LOG_INFO    */
       os_log_debug, /* MPP_LOG_DEBUG   */
       os_log_trace, /* MPP_LOG_VERBOSE */
@@ -116,11 +110,8 @@ void mpp_set_log_level(int level) {
 }
 
 int mpp_get_log_level(void) {
-  // to do
   int level = 0;
-
   mpp_log_level = level;
-
   return level;
 }
 
