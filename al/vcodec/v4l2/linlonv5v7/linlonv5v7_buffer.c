@@ -5,7 +5,7 @@
  *
  * @Author: David(qiang.fu@spacemit.com)
  * @Date: 2023-10-07 14:08:38
- * @LastEditTime: 2024-04-09 16:51:49
+ * @LastEditTime: 2026-05-06 19:46:15
  * @Description:
  */
 
@@ -345,17 +345,12 @@ S32 setDownScale(Buffer *buf, S32 scale) {
 }
 
 S32 setMirror(Buffer *buf, S32 mirror) {
-  if (0 == mirror) {
-    // debug("no need to set mirror");
-    return MPP_OK;
-  } else {
-    if (1 == mirror) {
-      buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_MIRROR_MASK;
-      buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_MIRROR_HORI;
-    } else if (2 == mirror) {
-      buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_MIRROR_MASK;
-      buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_MIRROR_VERT;
-    }
+  buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_MIRROR_MASK;
+  debug("set mirror: %d", mirror);
+  if (1 == mirror) {
+    buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_MIRROR_HORI;
+  } else if (2 == mirror) {
+    buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_MIRROR_VERT;
   }
   return MPP_OK;
 }
