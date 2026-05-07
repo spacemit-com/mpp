@@ -41,6 +41,11 @@ target_compile_definitions(test_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_venc_file PRIVATE mpp_venc mpp_sys)
 target_include_directories(test_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
 
+add_executable(test_vi_venc_file test_vi_venc_file.c)
+target_compile_definitions(test_vi_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_venc_file PRIVATE mpp_vi mpp_venc mpp_sys)
+target_include_directories(test_vi_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
+
 add_executable(test_vdec_file test_vdec_file.c)
 target_compile_definitions(test_vdec_file PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_vdec_file PRIVATE mpp_vdec mpp_sys)

@@ -467,7 +467,6 @@ static S32 vi_load_plugin(VOID)
     vi_enable_chn_func = (S32 (*)(VI_DEV, VI_CHN))dlsym(handle, "al_vi_enable_chn");
     vi_disable_chn_func = (S32 (*)(VI_DEV, VI_CHN))dlsym(handle, "al_vi_disable_chn");
     vi_dequeue_done_buffer_func = (S32 (*)(VI_DEV, VI_CHN, U32 *, S32))dlsym(handle, "al_vi_dequeue_done_buffer");
-    vi_query_frame_meta_func = (S32 (*)(VI_DEV, VI_CHN, U32, ViFrameMetaInfo *))dlsym(handle, "al_vi_query_frame_meta");
     vi_queue_buffer_func = (S32 (*)(VI_DEV, VI_CHN, U32))dlsym(handle, "al_vi_queue_buffer");
     vi_trigger_raw_dump_func = (S32 (*)(VI_DEV, VI_CHN))dlsym(handle, "al_vi_trigger_raw_dump");
     vi_get_raw_dump_frame_func = (S32 (*)(VI_DEV, VI_CHN, VideoFrameInfo *, S32))dlsym(handle, "al_vi_get_raw_dump_frame");
@@ -483,7 +482,7 @@ static S32 vi_load_plugin(VOID)
         vi_get_dev_attr_func == NULL || vi_enable_dev_func == NULL || vi_disable_dev_func == NULL ||
         vi_set_chn_attr_func == NULL || vi_get_chn_attr_func == NULL || vi_set_chn_framerate_func == NULL ||
         vi_get_chn_framerate_func == NULL || vi_enable_chn_func == NULL || vi_disable_chn_func == NULL ||
-        vi_dequeue_done_buffer_func == NULL || vi_query_frame_meta_func == NULL || vi_queue_buffer_func == NULL ||
+        vi_dequeue_done_buffer_func == NULL  || vi_queue_buffer_func == NULL ||
         vi_trigger_raw_dump_func == NULL || vi_get_raw_dump_frame_func == NULL ||
         vi_release_raw_dump_frame_func == NULL || vi_get_rawdump_attr_func == NULL || vi_set_rawdump_buf_func == NULL ||
          vi_offline_set_input_addr_func == NULL ||
