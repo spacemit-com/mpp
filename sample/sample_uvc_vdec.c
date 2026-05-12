@@ -43,7 +43,7 @@
 #define SAMPLE_SAVE_COUNT   20      /* number of decoded frames to save */
 #define SAMPLE_WARMUP_COUNT 2       /* discard initial frames (manual mode) */
 
-static const char *g_devNode  = "/dev/video13";
+static const char *g_devNode  = "/dev/video0";
 static const char *g_outDir   = "./nv12_output";
 static S32         g_bindMode = 0;  /* 0 = manual, 1 = bind */
 

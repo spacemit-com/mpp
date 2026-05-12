@@ -22,11 +22,18 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <limits.h>
+#include <stdbool.h>
+#include <pthread.h>
 
 #include "sys/mpp_shm.h"
 
 #define SHM_LOG_ERR(fmt, ...) \
     fprintf(stderr, "[SHM][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define SHM_LOG_WARN(fmt, ...) \
+    fprintf(stderr, "[SHM][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
 #define SHM_LOG_INFO(fmt, ...) \
     fprintf(stdout, "[SHM][INFO] " fmt "\n", ##__VA_ARGS__)
 
@@ -40,7 +47,11 @@ static S32 shm_init_mutex(pthread_mutex_t *mtx)
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+#ifdef PTHREAD_MUTEX_ROBUST
     pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST);
+#elif defined(PTHREAD_MUTEX_ROBUST_NP)
+    pthread_mutexattr_setrobust_np(&attr, PTHREAD_MUTEX_ROBUST_NP);
+#endif
     int r = pthread_mutex_init(mtx, &attr);
     pthread_mutexattr_destroy(&attr);
     return r == 0 ? 0 : -1;
@@ -82,6 +93,62 @@ static S32 shm_init_queue(MppChanQueue *q)
     q->tail = 0;
     q->count = 0;
     return 0;
+}
+
+static bool mpp_shm_file_in_use(void)
+{
+    pid_t self_pid = getpid();
+    DIR *proc_dir = opendir("/proc");
+    if (!proc_dir)
+        return false;
+
+    struct dirent *proc_ent;
+    while ((proc_ent = readdir(proc_dir)) != NULL) {
+        if (!isdigit((unsigned char)proc_ent->d_name[0]))
+            continue;
+
+        pid_t pid = (pid_t)atoi(proc_ent->d_name);
+        if (pid == self_pid)
+            continue;
+
+        char fd_dir_path[PATH_MAX];
+        snprintf(fd_dir_path, sizeof(fd_dir_path), "/proc/%s/fd", proc_ent->d_name);
+        DIR *fd_dir = opendir(fd_dir_path);
+        if (!fd_dir)
+            continue;
+
+        struct dirent *fd_ent;
+        while ((fd_ent = readdir(fd_dir)) != NULL) {
+            if (fd_ent->d_name[0] == '.')
+                continue;
+
+            char link_path[PATH_MAX];
+            size_t dir_len = strlen(fd_dir_path);
+            size_t name_len = strlen(fd_ent->d_name);
+            if (dir_len + 1 + name_len >= sizeof(link_path))
+                continue;
+            memcpy(link_path, fd_dir_path, dir_len);
+            link_path[dir_len] = '/';
+            memcpy(link_path + dir_len + 1, fd_ent->d_name, name_len + 1);
+
+            char target[PATH_MAX];
+            ssize_t len = readlink(link_path, target, sizeof(target) - 1);
+            if (len < 0)
+                continue;
+            target[len] = '\0';
+
+            if (strcmp(target, "/dev/shm/mpp_ctrl") == 0 ||
+                strcmp(target, "/dev/shm/mpp_ctrl (deleted)") == 0) {
+                closedir(fd_dir);
+                closedir(proc_dir);
+                return true;
+            }
+        }
+        closedir(fd_dir);
+    }
+
+    closedir(proc_dir);
+    return false;
 }
 
 static S32 shm_init_stream_queue(MppStreamQueue *q)
@@ -211,15 +278,33 @@ S32 mpp_shm_init(void)
             return -1;
         }
     } else {
-        /* attach — verify magic/version and bump ref */
+        bool stale = false;
+
+        /* attach — verify magic/version and bump ref or recover stale shm */
         if (shm->magic != MPP_SHM_MAGIC || shm->version != MPP_SHM_VERSION) {
-            SHM_LOG_ERR("bad shm header magic=0x%08X version=%u (expected magic=0x%08X version=%u)",
-                        shm->magic, shm->version, MPP_SHM_MAGIC, MPP_SHM_VERSION);
-            munmap(shm, sizeof(MppSharedMem));
-            close(fd);
-            return -1;
+            SHM_LOG_WARN("bad shm header detected, checking if orphaned");
+            if (!mpp_shm_file_in_use()) {
+                stale = true;
+            } else {
+                SHM_LOG_ERR("bad shared memory header and active users present");
+                munmap(shm, sizeof(MppSharedMem));
+                close(fd);
+                return -1;
+            }
+        } else if (!mpp_shm_file_in_use()) {
+            stale = true;
         }
-        atomic_fetch_add(&shm->proc_ref, 1);
+
+        if (stale) {
+            SHM_LOG_WARN("orphaned shared memory detected, reinitializing");
+            if (shm_init_all(shm) != 0) {
+                munmap(shm, sizeof(MppSharedMem));
+                close(fd);
+                return -1;
+            }
+        } else {
+            atomic_fetch_add(&shm->proc_ref, 1);
+        }
     }
 
     g_shm = shm;

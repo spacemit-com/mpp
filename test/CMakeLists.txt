@@ -22,6 +22,12 @@ target_compile_definitions(test_rtsp_pipeline PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_rtsp_pipeline PRIVATE ${MPP_INCLUDE_DIRS})
 target_link_libraries(test_rtsp_pipeline PRIVATE mpp_demux mpp_mux mpp_sys)
 
+# RTSP pull test (demux only, needs ffmpeg/network source)
+add_executable(test_rtsp_pull test_rtsp_pull.c)
+target_compile_definitions(test_rtsp_pull PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_rtsp_pull PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_rtsp_pull PRIVATE mpp_demux mpp_sys)
+
 add_executable(test_uvc test_uvc.c)
 target_compile_definitions(test_uvc PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_uvc PRIVATE mpp_uvc mpp_sys)

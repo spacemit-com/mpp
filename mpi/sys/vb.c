@@ -552,6 +552,8 @@ static S32 vb_pool_alloc_blocks(VbPoolShm *pool)
         blk->size      = buf_size;
         blk->pts       = 0;
         blk->exported  = 0;
+        blk->frame_info_set = 0;
+        memset(&blk->frame_info, 0, sizeof(blk->frame_info));
         blk->owner_pid = my_pid;
         blk->owner_fd  = fd;
         blk->next_free = (i + 1 < buf_cnt) ? (i + 1) : VB_FREE_LIST_END;
@@ -606,6 +608,8 @@ static void vb_pool_free_blocks(VbPoolShm *pool)
         blk->state = VB_BLK_FREE;
         blk->owner_pid = 0;
         blk->owner_fd  = -1;
+        blk->frame_info_set = 0;
+        memset(&blk->frame_info, 0, sizeof(blk->frame_info));
     }
 }
 
