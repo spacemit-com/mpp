@@ -438,6 +438,8 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
   setDecoderInterlaced(context, context->bIsInterlaced);
   setDecoderRotation(context, context->nRotation);
   setDecoderDownScale(context, context->nScale);
+  setDecoderDSLFrame(context, context->pVdecPara->nHorizonScaleDownFrameWidth,
+      context->pVdecPara->nVerticalScaleDownFrameHeight);
 
   // setformat, allocate buffer, stream on
   stream(context->stCodec);

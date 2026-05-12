@@ -188,6 +188,8 @@ static void vdec_attr_to_old_para(const VdecChnAttr *pstAttr,
     pOldCtx->stVdecPara.nHorizonScaleDownRatio  = 1;
     pOldCtx->stVdecPara.nVerticalScaleDownRatio = 1;
     pOldCtx->stVdecPara.bDispErrorFrame = pstAttr->bDispErrorFrame;
+    pOldCtx->stVdecPara.nHorizonScaleDownFrameWidth = (S32)pstAttr->stScale.u32Width;
+    pOldCtx->stVdecPara.nVerticalScaleDownFrameHeight = (S32)pstAttr->stScale.u32Height;
 
     /* Always use DMABUF_EXTERNAL — internally managed VB pool */
     pOldCtx->stVdecPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
@@ -696,9 +698,14 @@ static void *vdec_output_task(void *arg)
             }
             continue;
         }
+        /*
+         * After capture EOS, poll may still report POLLIN while DQBUF fails;
+         * plugin returns MPP_CODER_NO_DATA — not an error, avoid log spam.
+         */
+        if (ret == MPP_CODER_NO_DATA)
+            continue;
         if (ret != MPP_OK || !src_data) {
-            //if (ret != MPP_CODER_NO_DATA)
-                error("output task: unexpected ret=%d", ret);
+            error("output task: unexpected ret=%d", ret);
             continue;  /* timeout or transient error */
         }
 

@@ -192,6 +192,9 @@ int main(int argc, char *argv[])
     attr.u32Height = height;
     attr.bIsFrameReordering = MPP_FALSE;
     attr.bDispErrorFrame = MPP_FALSE;
+    attr.stScale.bScaleEnable = MPP_TRUE;
+    attr.stScale.u32Width = 320;
+    attr.stScale.u32Height = 320;
 
     ret = VDEC_CreateChn(chn, &attr);
     if (ret != 0) {

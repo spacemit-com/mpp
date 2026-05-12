@@ -521,7 +521,14 @@ Buffer *dequeueBuffer(Port *port) {
 
   ret = ioctl(port->nVideoFd, VIDIOC_DQBUF, &buf);
   if (ret) {
-    error("Failed to dequeue buffer. type=%u, memory=%u", buf.type, buf.memory);
+    int e = errno;
+    /*
+     * After stream end, poll can wake with POLLIN but DQBUF returns EAGAIN
+     * or similar; treat as quiet empty dequeue.
+     */
+    if (e != EAGAIN && e != EPIPE)
+      error("Failed to dequeue buffer. type=%u, memory=%u errno=%d (%s)",
+            buf.type, buf.memory, e, strerror(e));
     return NULL;
   }
 
@@ -1574,12 +1581,8 @@ static MppPixelFormat linlon_port_v4l2_to_mpp_pixel(U32 pixfmt)
 
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
   Buffer *buffer = dequeueBuffer(port);
-  if (!buffer) {
-    error(
-        "dequeueBuffer failed, this dequeueBuffer must successed, because it "
-        "is after Poll, please check! maybe after EOS?");
+  if (!buffer)
     return MPP_CODER_NO_DATA;
-  }
 
   struct v4l2_buffer *b = getV4l2Buffer(buffer);
   MppFrame *frame = FRAME_GetFrame(data);
