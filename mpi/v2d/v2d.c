@@ -22,6 +22,7 @@
 typedef enum MppV2DTaskType {
     MPP_V2D_TASK_NONE = 0,
     MPP_V2D_TASK_CPU_LINE,
+    MPP_V2D_TASK_CPU_CIRCLE,
     MPP_V2D_TASK_FILL,
     MPP_V2D_TASK_BITBLIT,
     MPP_V2D_TASK_BLEND,
@@ -31,6 +32,7 @@ typedef struct MppV2DTaskNode {
     V2DSubmitTask submitTask;
     VideoFrameInfo *cpuDstFrame;
     V2DLine cpuLine;
+    V2DCircle cpuCircle;
     MppV2DTaskType type;
     struct MppV2DTaskNode *next;
 } MppV2DTaskNode;
@@ -246,6 +248,142 @@ static S32 mpp_v2d_draw_line_cpu(V2DSurface *dst,
                 err += dx;
                 y0 += sy;
             }
+        }
+    }
+
+    return SUCCESS;
+}
+
+static S32 mpp_v2d_draw_circle_points(V2DSurface *pstDst,
+                                      U8 *pu8BaseAddr,
+                                      const V2DCircle *pstCircle,
+                                      S32 s32OffsetX,
+                                      S32 s32OffsetY)
+{
+    S32 s32CenterX;
+    S32 s32CenterY;
+
+    if ((pstDst == NULL) || (pu8BaseAddr == NULL) || (pstCircle == NULL)) {
+        return FAILURE;
+    }
+
+    s32CenterX = pstCircle->s32CenterX;
+    s32CenterY = pstCircle->s32CenterY;
+
+    if ((mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetX, s32CenterY + s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetX, s32CenterY + s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetX, s32CenterY - s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetX, s32CenterY - s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetY, s32CenterY + s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetY, s32CenterY + s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetY, s32CenterY - s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetY, s32CenterY - s32OffsetX, &pstCircle->stColor) != SUCCESS)) {
+        return FAILURE;
+    }
+
+    return SUCCESS;
+}
+
+static S32 mpp_v2d_draw_circle_outline_cpu(V2DSurface *pstDst,
+                                           U8 *pu8BaseAddr,
+                                           const V2DCircle *pstCircle,
+                                           U32 u32Radius)
+{
+    S32 s32X;
+    S32 s32Y;
+    S32 s32Decision;
+
+    if ((pstDst == NULL) || (pu8BaseAddr == NULL) || (pstCircle == NULL)) {
+        return FAILURE;
+    }
+
+    s32X = 0;
+    s32Y = (S32)u32Radius;
+    s32Decision = 1 - s32Y;
+
+    while (s32X <= s32Y) {
+        if (mpp_v2d_draw_circle_points(pstDst, pu8BaseAddr, pstCircle, s32X, s32Y) != SUCCESS) {
+            return FAILURE;
+        }
+
+        s32X++;
+        if (s32Decision < 0) {
+            s32Decision += (2 * s32X) + 1;
+        } else {
+            s32Y--;
+            s32Decision += (2 * (s32X - s32Y)) + 1;
+        }
+    }
+
+    return SUCCESS;
+}
+
+static S32 mpp_v2d_draw_circle_filled_cpu(V2DSurface *pstDst,
+                                          U8 *pu8BaseAddr,
+                                          const V2DCircle *pstCircle)
+{
+    S32 s32OffsetY;
+    S32 s32Radius;
+
+    if ((pstDst == NULL) || (pu8BaseAddr == NULL) || (pstCircle == NULL)) {
+        return FAILURE;
+    }
+
+    s32Radius = (S32)pstCircle->u32Radius;
+    for (s32OffsetY = -s32Radius; s32OffsetY <= s32Radius; ++s32OffsetY) {
+        S32 s32Remain;
+        S32 s32OffsetX;
+        V2DLine stLine;
+
+        s32Remain = (s32Radius * s32Radius) - (s32OffsetY * s32OffsetY);
+        s32OffsetX = 0;
+        while (((s32OffsetX + 1) * (s32OffsetX + 1)) <= s32Remain) {
+            ++s32OffsetX;
+        }
+
+        memset(&stLine, 0, sizeof(stLine));
+        stLine.s32X0 = pstCircle->s32CenterX - s32OffsetX;
+        stLine.s32Y0 = pstCircle->s32CenterY + s32OffsetY;
+        stLine.s32X1 = pstCircle->s32CenterX + s32OffsetX;
+        stLine.s32Y1 = pstCircle->s32CenterY + s32OffsetY;
+        stLine.stColor = pstCircle->stColor;
+        stLine.u32LineWidth = 1U;
+
+        if (mpp_v2d_draw_line_cpu(pstDst, pu8BaseAddr, &stLine) != SUCCESS) {
+            return FAILURE;
+        }
+    }
+
+    return SUCCESS;
+}
+
+static S32 mpp_v2d_draw_circle_cpu(V2DSurface *pstDst,
+                                   U8 *pu8BaseAddr,
+                                   const V2DCircle *pstCircle)
+{
+    U32 u32Thickness;
+    U32 u32Radius;
+
+    if ((pstDst == NULL) || (pu8BaseAddr == NULL) || (pstCircle == NULL)) {
+        return FAILURE;
+    }
+
+    if (pstCircle->s32Thickness < 0) {
+        return mpp_v2d_draw_circle_filled_cpu(pstDst, pu8BaseAddr, pstCircle);
+    }
+
+    u32Thickness = (U32)pstCircle->s32Thickness;
+    if (u32Thickness == 0U) {
+        return FAILURE;
+    }
+
+    if (u32Thickness > pstCircle->u32Radius) {
+        u32Thickness = pstCircle->u32Radius;
+    }
+
+    for (u32Radius = pstCircle->u32Radius; u32Radius > (pstCircle->u32Radius - u32Thickness); --u32Radius) {
+        if (mpp_v2d_draw_circle_outline_cpu(pstDst, pu8BaseAddr, pstCircle, u32Radius) != SUCCESS) {
+            return FAILURE;
         }
     }
 
@@ -508,6 +646,20 @@ static S32 mpp_v2d_submit_task(MppV2DJobCtx *job, MppV2DTaskNode *node)
         return mpp_v2d_draw_line_cpu(&dst, base_addr, &node->cpuLine);
     }
 
+    if (node->type == MPP_V2D_TASK_CPU_CIRCLE) {
+        if ((node->cpuDstFrame == NULL) ||
+            (V2D_SurfaceFromVideoFrame(node->cpuDstFrame, &dst) != SUCCESS)) {
+            return FAILURE;
+        }
+
+        ret = mpp_v2d_line_get_base_addr(node->cpuDstFrame, &base_addr);
+        if (ret != SUCCESS) {
+            return ret;
+        }
+
+        return mpp_v2d_draw_circle_cpu(&dst, base_addr, &node->cpuCircle);
+    }
+
     written = write(job->devFd, &node->submitTask, sizeof(node->submitTask));
     if (written != (ssize_t)sizeof(node->submitTask)) {
         return FAILURE;
@@ -682,6 +834,9 @@ static S32 V2D_SurfaceFromVideoFrame(const VideoFrameInfo *frame, V2DSurface *su
         break;
     case MPP_PIXEL_FORMAT_ABGR:
         surface->enFormat = V2D_COLOR_FORMAT_ABGR8888;
+        break;
+    case MPP_PIXEL_FORMAT_A8:
+        surface->enFormat = V2D_COLOR_FORMAT_A8;
         break;
     default:
         return FAILURE;
@@ -1062,6 +1217,154 @@ S32 V2D_DrawRect(V2DHandle handle,
     }
 
     return SUCCESS;
+}
+
+S32 V2D_DrawCircle(V2DHandle handle,
+                   VideoFrameInfo *pstDstFrame,
+                   V2DCircle *pstCircle)
+{
+    MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
+    MppV2DTaskNode *node;
+    V2DSurface dst;
+    S32 s32OuterRadius;
+
+    if ((job == NULL) || (pstDstFrame == NULL) || (pstCircle == NULL)) {
+        return FAILURE;
+    }
+
+    if (V2D_SurfaceFromVideoFrame(pstDstFrame, &dst) != SUCCESS) {
+        return FAILURE;
+    }
+
+    if (dst.bFbcEnable) {
+        return FAILURE;
+    }
+
+    if (mpp_v2d_format_has_cpu_writer(dst.enFormat) != SUCCESS) {
+        return FAILURE;
+    }
+
+    if ((pstCircle->stColor.enFormat != V2D_COLOR_FORMAT_NV12) &&
+        (pstCircle->stColor.enFormat != V2D_COLOR_FORMAT_NV21)) {
+        return FAILURE;
+    }
+
+    if (pstCircle->u32Radius == 0U) {
+        return FAILURE;
+    }
+
+    if ((pstCircle->s32CenterX < 0) || (pstCircle->s32CenterY < 0)) {
+        return FAILURE;
+    }
+
+    s32OuterRadius = (S32)pstCircle->u32Radius;
+    if ((pstCircle->s32CenterX - s32OuterRadius < 0) ||
+        (pstCircle->s32CenterY - s32OuterRadius < 0) ||
+        ((U32)(pstCircle->s32CenterX + s32OuterRadius) >= dst.u16W) ||
+        ((U32)(pstCircle->s32CenterY + s32OuterRadius) >= dst.u16H)) {
+        return FAILURE;
+    }
+
+    if (pstCircle->s32Thickness == 0) {
+        return FAILURE;
+    }
+
+    if (mpp_v2d_append_task(job, MPP_V2D_TASK_CPU_CIRCLE, &node) != SUCCESS) {
+        return FAILURE;
+    }
+
+    node->cpuDstFrame = pstDstFrame;
+    node->cpuCircle = *pstCircle;
+
+    return SUCCESS;
+}
+
+S32 V2D_DrawMask(V2DHandle handle,
+                 const VideoFrameInfo *pstBackgroundFrame,
+                 const V2DArea *pstBackgroundRect,
+                 const VideoFrameInfo *pstForegroundFrame,
+                 const V2DArea *pstForegroundRect,
+                 const VideoFrameInfo *pstMaskFrame,
+                 const V2DArea *pstMaskRect,
+                 VideoFrameInfo *pstDstFrame,
+                 const V2DArea *pstDstRect)
+{
+    V2DBlendConf blendConf;
+    V2DArea backgroundRect;
+    V2DArea foregroundRect;
+    V2DArea maskRect;
+    V2DArea dstRect;
+
+    if ((handle == 0) || (pstBackgroundFrame == NULL) || (pstForegroundFrame == NULL) ||
+        (pstMaskFrame == NULL) || (pstDstFrame == NULL)) {
+        return FAILURE;
+    }
+
+    if (pstBackgroundRect != NULL) {
+        backgroundRect = *pstBackgroundRect;
+    } else {
+        backgroundRect.u16X = 0;
+        backgroundRect.u16Y = 0;
+        backgroundRect.u16W = pstBackgroundFrame->stCommFrameInfo.u32Width;
+        backgroundRect.u16H = pstBackgroundFrame->stCommFrameInfo.u32Height;
+    }
+
+    if (pstForegroundRect != NULL) {
+        foregroundRect = *pstForegroundRect;
+    } else {
+        foregroundRect.u16X = 0;
+        foregroundRect.u16Y = 0;
+        foregroundRect.u16W = pstForegroundFrame->stCommFrameInfo.u32Width;
+        foregroundRect.u16H = pstForegroundFrame->stCommFrameInfo.u32Height;
+    }
+
+    if (pstMaskRect != NULL) {
+        maskRect = *pstMaskRect;
+    } else {
+        maskRect.u16X = 0;
+        maskRect.u16Y = 0;
+        maskRect.u16W = pstMaskFrame->stCommFrameInfo.u32Width;
+        maskRect.u16H = pstMaskFrame->stCommFrameInfo.u32Height;
+    }
+
+    if (pstDstRect != NULL) {
+        dstRect = *pstDstRect;
+    } else {
+        dstRect.u16X = 0;
+        dstRect.u16Y = 0;
+        dstRect.u16W = pstDstFrame->stCommFrameInfo.u32Width;
+        dstRect.u16H = pstDstFrame->stCommFrameInfo.u32Height;
+    }
+
+    memset(&blendConf, 0, sizeof(blendConf));
+    blendConf.enBlendCmd = V2D_BLENDCMD_ALPHA;
+    blendConf.enMaskCmd = V2D_MASKCMD_AS_VALUE;
+    blendConf.stBlendLayer[0].stBlendArea = backgroundRect;
+    blendConf.stBlendLayer[1].stBlendArea = foregroundRect;
+    blendConf.stBlendMaskArea = maskRect;
+    blendConf.stBlendLayer[1].enBlendAlphaSource = V2D_BLENDALPHA_SOURCE_MASK;
+    blendConf.stBlendLayer[1].enBlendPreAlphaFunc = V2D_BLEND_PRE_ALPHA_FUNC_DISABLE;
+    blendConf.stBlendLayer[1].stBlendFactor.enSrcColorFactor = V2D_BLEND_SRC_ALPHA;
+    blendConf.stBlendLayer[1].stBlendFactor.enSrcAlphaFactor = V2D_BLEND_ONE;
+    blendConf.stBlendLayer[1].stBlendFactor.enDstColorFactor = V2D_BLEND_ONE_MINUS_SRC_ALPHA;
+    blendConf.stBlendLayer[1].stBlendFactor.enDstAlphaFactor = V2D_BLEND_ZERO;
+
+    return V2D_AddBlendTask(handle,
+                            pstBackgroundFrame,
+                            &backgroundRect,
+                            pstForegroundFrame,
+                            &foregroundRect,
+                            pstMaskFrame,
+                            &maskRect,
+                            pstDstFrame,
+                            &dstRect,
+                            &blendConf,
+                            V2D_ROT_0,
+                            V2D_ROT_0,
+                            V2D_CSC_MODE_RGB_2_BT709NARROW,
+                            V2D_CSC_MODE_BUTT,
+                            NULL,
+                            V2D_NO_DITHER);
 }
 
 S32 V2D_ConvertFrame(V2DHandle handle,

@@ -31,11 +31,15 @@
 #define DEMO_OUTPUT_FILE  "./v2d_draw_out.yuv"
 #define DEMO_WIDTH        1920U
 #define DEMO_HEIGHT       1080U
+#define DEMO_MODE_RECT    "rect"
+#define DEMO_MODE_KEYPOINT "keypoint"
+#define DEMO_KEYPOINT_NUM 5U
 
 #define DEMO_LOG(fmt, ...)  printf("[v2d_draw_demo] " fmt "\n", ##__VA_ARGS__)
 #define DEMO_FAIL(fmt, ...) do { printf("[v2d_draw_demo][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
 
 typedef struct DEMO_CONFIG_S {
+    const char *mode;
     const char *input_file;
     const char *output_file;
     U32 width;
@@ -50,8 +54,10 @@ typedef struct DEMO_CONFIG_S {
 static void demo_print_usage(const char *prog)
 {
     printf("Usage:\n");
-    printf("  %s [input_file width height output_file rect_x rect_y rect_w rect_h [yuv_hex]]\n", prog);
+    printf("  %s [mode [input_file width height output_file rect_x rect_y rect_w rect_h [yuv_hex]]]\n", prog);
+    printf("  %s %s [input_file [output_file]]\n", prog, DEMO_MODE_KEYPOINT);
     printf("\nDefaults:\n");
+    printf("  mode       : %s | %s\n", DEMO_MODE_RECT, DEMO_MODE_KEYPOINT);
     printf("  input_file : %s\n", DEMO_INPUT_FILE);
     printf("  width      : %u\n", DEMO_WIDTH);
     printf("  height     : %u\n", DEMO_HEIGHT);
@@ -62,7 +68,9 @@ static void demo_print_usage(const char *prog)
     printf("  rect_h     : %u\n", DEMO_HEIGHT / 2U);
     printf("  yuv_hex    : 0x00VVUUYY, e.g. 0x00FF4C52\n");
     printf("\nExample:\n");
-    printf("  %s in.yuv 1920 1080 out.yuv 100 100 400 300 0x00FF4C52\n", prog);
+    printf("  %s %s in.yuv 1920 1080 out.yuv 100 100 400 300 0x00FF4C52\n", prog, DEMO_MODE_RECT);
+    printf("  %s %s\n", prog, DEMO_MODE_KEYPOINT);
+    printf("  %s %s in.yuv out.yuv\n", prog, DEMO_MODE_KEYPOINT);
 }
 
 static int demo_parse_u32(const char *text, U32 *value)
@@ -90,6 +98,7 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     }
 
     memset(config, 0, sizeof(*config));
+    config->mode = DEMO_MODE_RECT;
     config->input_file = DEMO_INPUT_FILE;
     config->output_file = DEMO_OUTPUT_FILE;
     config->width = DEMO_WIDTH;
@@ -101,8 +110,19 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     config->yuv_color = 0x00FF4C52U;
 }
 
+static int demo_is_mode(const char *mode, const char *expected)
+{
+    if ((mode == NULL) || (expected == NULL)) {
+        return 0;
+    }
+
+    return strcmp(mode, expected) == 0;
+}
+
 static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
 {
+    int arg_offset;
+
     if (config == NULL) {
         return -1;
     }
@@ -113,24 +133,50 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         return 0;
     }
 
-    if ((argc != 9) && (argc != 10)) {
+    arg_offset = 1;
+    if (demo_is_mode(argv[1], DEMO_MODE_RECT) || demo_is_mode(argv[1], DEMO_MODE_KEYPOINT)) {
+        config->mode = argv[1];
+        arg_offset = 2;
+    }
+
+    if (demo_is_mode(config->mode, DEMO_MODE_KEYPOINT)) {
+        if ((argc != arg_offset) && (argc != (arg_offset + 1)) && (argc != (arg_offset + 2))) {
+            return -1;
+        }
+
+        if (argc >= (arg_offset + 1)) {
+            config->input_file = argv[arg_offset];
+        }
+
+        if (argc >= (arg_offset + 2)) {
+            config->output_file = argv[arg_offset + 1];
+        }
+
+        return 0;
+    }
+
+    if (!demo_is_mode(config->mode, DEMO_MODE_RECT)) {
         return -1;
     }
 
-    config->input_file = argv[1];
-    config->output_file = argv[4];
-
-    if ((demo_parse_u32(argv[2], &config->width) != 0) ||
-        (demo_parse_u32(argv[3], &config->height) != 0) ||
-        (demo_parse_u32(argv[5], &config->rect_x) != 0) ||
-        (demo_parse_u32(argv[6], &config->rect_y) != 0) ||
-        (demo_parse_u32(argv[7], &config->rect_w) != 0) ||
-        (demo_parse_u32(argv[8], &config->rect_h) != 0)) {
+    if ((argc != (arg_offset + 8)) && (argc != (arg_offset + 9))) {
         return -1;
     }
 
-    if (argc == 10) {
-        if (demo_parse_u32(argv[9], &config->yuv_color) != 0) {
+    config->input_file = argv[arg_offset];
+    config->output_file = argv[arg_offset + 3];
+
+    if ((demo_parse_u32(argv[arg_offset + 1], &config->width) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 2], &config->height) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 4], &config->rect_x) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 5], &config->rect_y) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 6], &config->rect_w) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 7], &config->rect_h) != 0)) {
+        return -1;
+    }
+
+    if (argc == (arg_offset + 9)) {
+        if (demo_parse_u32(argv[arg_offset + 8], &config->yuv_color) != 0) {
             return -1;
         }
     }
@@ -332,6 +378,79 @@ static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config)
     return 0;
 }
 
+static int demo_draw_keypoint(VideoFrameInfo *frame)
+{
+    static const struct {
+        S32 x;
+        S32 y;
+    } astPoints[DEMO_KEYPOINT_NUM] = {
+        {720, 320},
+        {840, 280},
+        {980, 360},
+        {930, 500},
+        {780, 460},
+    };
+    V2DHandle handle = 0;
+    V2DFillColor color;
+    U32 u32Index;
+    int ret;
+
+    if (frame == NULL) {
+        return -1;
+    }
+
+    memset(&color, 0, sizeof(color));
+    color.u32ColorValue = 0x004cff52U;
+    color.enFormat = V2D_COLOR_FORMAT_NV12;
+
+    ret = V2D_BeginJob(&handle);
+    if (ret != 0) {
+        return -1;
+    }
+
+    for (u32Index = 0; u32Index < DEMO_KEYPOINT_NUM; ++u32Index) {
+        V2DCircle circle;
+
+        memset(&circle, 0, sizeof(circle));
+        circle.s32CenterX = astPoints[u32Index].x;
+        circle.s32CenterY = astPoints[u32Index].y;
+        circle.u32Radius = 8U;
+        circle.stColor = color;
+        circle.s32Thickness = -1;
+
+        ret = V2D_DrawCircle(handle, frame, &circle);
+        if (ret != 0) {
+            V2D_CancelJob(handle);
+            return -1;
+        }
+    }
+
+    for (u32Index = 0; (u32Index + 1U) < DEMO_KEYPOINT_NUM; ++u32Index) {
+        V2DLine line;
+
+        memset(&line, 0, sizeof(line));
+        line.s32X0 = astPoints[u32Index].x;
+        line.s32Y0 = astPoints[u32Index].y;
+        line.s32X1 = astPoints[u32Index + 1U].x;
+        line.s32Y1 = astPoints[u32Index + 1U].y;
+        line.stColor = color;
+        line.u32LineWidth = 1U;
+
+        ret = V2D_DrawLine(handle, frame, &line);
+        if (ret != 0) {
+            V2D_CancelJob(handle);
+            return -1;
+        }
+    }
+
+    ret = V2D_EndJob(handle);
+    if (ret != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     S32 ret;
@@ -383,23 +502,35 @@ int main(int argc, char *argv[])
         goto EXIT;
     }
 
-    if (demo_draw_rect(&frame, &config) != 0) {
-        DEMO_LOG("draw rectangle failed");
-        goto EXIT;
+    if (demo_is_mode(config.mode, DEMO_MODE_KEYPOINT)) {
+        if (demo_draw_keypoint(&frame) != 0) {
+            DEMO_LOG("draw keypoint failed");
+            goto EXIT;
+        }
+    } else {
+        if (demo_draw_rect(&frame, &config) != 0) {
+            DEMO_LOG("draw rectangle failed");
+            goto EXIT;
+        }
     }
 
     if (demo_dump_nv12_file(&frame, config.output_file) != 0) {
         goto EXIT;
     }
 
-    DEMO_LOG("draw done: input=%s output=%s rect=(%u,%u,%u,%u) yuv=0x%08x",
-             config.input_file,
-             config.output_file,
-             config.rect_x,
-             config.rect_y,
-             config.rect_w,
-             config.rect_h,
-             config.yuv_color);
+    if (demo_is_mode(config.mode, DEMO_MODE_KEYPOINT)) {
+        DEMO_LOG("draw done: mode=%s input=%s output=%s", config.mode, config.input_file, config.output_file);
+    } else {
+        DEMO_LOG("draw done: mode=%s input=%s output=%s rect=(%u,%u,%u,%u) yuv=0x%08x",
+                 config.mode,
+                 config.input_file,
+                 config.output_file,
+                 config.rect_x,
+                 config.rect_y,
+                 config.rect_w,
+                 config.rect_h,
+                 config.yuv_color);
+    }
 
     VB_ReleaseBuffer(buffer);
     VB_DestroyPool(pool);

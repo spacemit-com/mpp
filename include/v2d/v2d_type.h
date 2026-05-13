@@ -219,6 +219,14 @@ typedef struct V2DLine {
     U32 u32LineWidth;
 } V2DLine;
 
+typedef struct V2DCircle {
+    S32 s32CenterX;
+    S32 s32CenterY;
+    U32 u32Radius;
+    V2DFillColor stColor;
+    S32 s32Thickness;
+} V2DCircle;
+
 #ifdef __cplusplus
 }
 #endif

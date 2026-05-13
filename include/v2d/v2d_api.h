@@ -57,6 +57,20 @@ S32 V2D_DrawRect(V2DHandle handle,
                 V2DFillColor *pstColor,
                 U32 u32LineWidth);
 
+S32 V2D_DrawCircle(V2DHandle handle,
+                   VideoFrameInfo *pstDstFrame,
+                   V2DCircle *pstCircle);
+
+S32 V2D_DrawMask(V2DHandle handle,
+                const VideoFrameInfo *pstBackgroundFrame,
+                const V2DArea *pstBackgroundRect,
+                const VideoFrameInfo *pstForegroundFrame,
+                const V2DArea *pstForegroundRect,
+                const VideoFrameInfo *pstMaskFrame,
+                const V2DArea *pstMaskRect,
+                VideoFrameInfo *pstDstFrame,
+                const V2DArea *pstDstRect);
+
 S32 V2D_Adv2Layers(V2DHandle handle,
                     const VideoFrameInfo *pstBackgroundFrame,
                     const VideoFrameInfo *pstForegroundFrame,
