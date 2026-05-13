@@ -52,10 +52,21 @@ target_compile_definitions(test_vi_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_vi_venc_file PRIVATE mpp_vi mpp_venc mpp_sys)
 target_include_directories(test_vi_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
 
-add_executable(test_vdec_file test_vdec_file.c)
-target_compile_definitions(test_vdec_file PRIVATE ${MPP_TEST_COMMON_DEFS})
-target_link_libraries(test_vdec_file PRIVATE mpp_vdec mpp_sys)
-target_include_directories(test_vdec_file PRIVATE ${MPP_INCLUDE_DIRS})
+# VDEC: API / multi-codec / scale regression (select suites via --test)
+# Paths are relative to this directory (test/), not project root.
+set(TEST_VDEC_PARSE_SRCS
+    vdec/parse/parse.c
+    vdec/parse/h264parse.c
+    vdec/parse/h265parse.c
+    vdec/parse/mjpegparse.c
+    vdec/parse/defaultparse.c)
+add_executable(test_vdec vdec/test_vdec.c ${TEST_VDEC_PARSE_SRCS})
+target_compile_definitions(test_vdec PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vdec PRIVATE mpp_vdec mpp_sys)
+target_include_directories(test_vdec PRIVATE ${MPP_INCLUDE_DIRS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/vdec/include")
+add_test(NAME test_vdec COMMAND $<TARGET_FILE:test_vdec> --test api)
+
 # Demo executables
 add_executable(test_v2d test_v2d.c)
 target_compile_definitions(test_v2d PRIVATE ${MPP_TEST_COMMON_DEFS})
