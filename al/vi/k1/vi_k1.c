@@ -234,12 +234,12 @@ S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
         }
     }
 
-	s32Ret = ASR_VI_SetCallback(pstChnCtx->u32AsrChn, K1_VI_BufferCallback);
+    s32Ret = ASR_VI_SetCallback(pstChnCtx->u32AsrChn, K1_VI_BufferCallback);
     if (s32Ret != SUCCESS) {
         return s32Ret;
     }
 
-	s32Ret = ASR_VI_EnableDev(ViDev);
+    s32Ret = ASR_VI_EnableDev(ViDev);
     if (s32Ret != 0) {
         if (eWorkMode != VI_WORK_MODE_OFFLINE)
             (void)K1_VI_DeInitIsp(pstChnCtx);
@@ -253,7 +253,7 @@ S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
         return s32Ret;
     }
 
-	/* Queue all buffers before starting ISP/sensor so hardware has
+    /* Queue all buffers before starting ISP/sensor so hardware has
      * buffers available from the very first frame. */
     s32Ret = K1_VI_QueueAllBuffers(pstChnCtx);
     if (s32Ret != K1_VI_SUCCESS) {
@@ -274,8 +274,8 @@ S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
     }
 
     if (eWorkMode != VI_WORK_MODE_OFFLINE) {
-	    s32Ret = K1_VI_StartSensor(ViDev);
-	    if (s32Ret != K1_VI_SUCCESS) {
+        s32Ret = K1_VI_StartSensor(ViDev);
+        if (s32Ret != K1_VI_SUCCESS) {
             ASR_VI_DisableChn(pstChnCtx->u32AsrChn);
             ASR_VI_DisableDev((U32)ViDev);
             (void)K1_VI_DeInitIsp(pstChnCtx);
@@ -335,7 +335,7 @@ S32 K1_VI_StopChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool
 
 int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer)
 {
-	//info("Received buffer callback for ASR VI channel %u\n", nChn);
+    //info("Received buffer callback for ASR VI channel %u\n", nChn);
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     K1_VI_BUF_NODE_S *pstBufNode = NULL;
@@ -346,10 +346,10 @@ int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer)
 
     pstRawCtx = K1_VI_FindRawCtxByAsrChn(nChn);
     if (pstRawCtx != NULL)
-	{
-		error("Handling raw dump callback for ASR VI channel %u\n", nChn);
-		return K1_VI_HandleRawDumpCallback(pstRawCtx, vi_buffer);
-	}
+    {
+        error("Handling raw dump callback for ASR VI channel %u\n", nChn);
+        return K1_VI_HandleRawDumpCallback(pstRawCtx, vi_buffer);
+    }
         
 
     pstImageBuffer = vi_buffer->buffer;
@@ -447,7 +447,7 @@ S32 K1_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
         return s32Ret;
 
     s32Ret = ASR_VI_SetDevAttr((U32)ViDev, &stAsrDevAttr);
-	// info("%s: ASR_VI_SetDevAttr devId %d, workMode %d, rawType %d, %dx%d, lane_num %d, bindSensorIdx %d, ret = %d\n",
+    // info("%s: ASR_VI_SetDevAttr devId %d, workMode %d, rawType %d, %dx%d, lane_num %d, bindSensorIdx %d, ret = %d\n",
     //        __func__, ViDev, stAsrDevAttr.enWorkMode, stAsrDevAttr.enRawType, stAsrDevAttr.width, stAsrDevAttr.height,
     //        stAsrDevAttr.mipi_lane_num, stAsrDevAttr.bindSensorIdx, s32Ret);
     if (s32Ret != SUCCESS)
@@ -578,9 +578,15 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
             return K1_VI_ERR_INVALID_PARAM;
         if (pstPhyChnCtx->bCreated != MPP_TRUE || pstPhyChnCtx->stAttr.eChnType != VI_CHN_TYPE_PHYSICAL)
             return K1_VI_ERR_INVALID_PARAM;
-        if (pstChnAttr->u32Width > pstPhyChnCtx->stAttr.u32Width ||
-            pstChnAttr->u32Height > pstPhyChnCtx->stAttr.u32Height)
-            return K1_VI_ERR_INVALID_PARAM;
+        if (pstChnAttr->eRotateMode == VI_ROT_90 || pstChnAttr->eRotateMode == VI_ROT_270) {
+            if (pstChnAttr->u32Width > pstPhyChnCtx->stAttr.u32Height ||
+                pstChnAttr->u32Height > pstPhyChnCtx->stAttr.u32Width)
+                return K1_VI_ERR_INVALID_PARAM;
+        } else {
+            if (pstChnAttr->u32Width > pstPhyChnCtx->stAttr.u32Width ||
+                pstChnAttr->u32Height > pstPhyChnCtx->stAttr.u32Height)
+                return K1_VI_ERR_INVALID_PARAM;
+        }
 
         memset(pstChnCtx, 0, sizeof(*pstChnCtx));
         memcpy(&pstChnCtx->stAttr, pstChnAttr, sizeof(*pstChnAttr));
@@ -624,7 +630,7 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
         return s32Ret;
 
     s32Ret = ASR_VI_SetChnAttr(u32AsrChn, &stAsrChnAttr);
-	// info("%s: ASR_VI_SetChnAttr chnId %d, %dx%d, pixFormat %d, ret = %d\n",
+    // info("%s: ASR_VI_SetChnAttr chnId %d, %dx%d, pixFormat %d, ret = %d\n",
     //        __func__, u32AsrChn, stAsrChnAttr.width, stAsrChnAttr.height, stAsrChnAttr.enPixFormat, s32Ret);
     if (s32Ret != SUCCESS)
         return s32Ret;

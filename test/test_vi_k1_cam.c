@@ -302,9 +302,9 @@ static void VI_DemoInitConfig(VI_DEMO_CONFIG_S *pstCfg, VI_DEMO_MODE_E enMode)
 
     pstCfg->stVirt1Attr = pstCfg->stPhyAttr;
     pstCfg->stVirt1Attr.eChnType = VI_CHN_TYPE_VIRTUAL;
-    pstCfg->stVirt1Attr.u32Width = 1920;
-    pstCfg->stVirt1Attr.u32Height = 1080;
-    //pstCfg->stVirt1Attr.eRotateMode = VI_ROT_270;
+    pstCfg->stVirt1Attr.u32Width = 1080;
+    pstCfg->stVirt1Attr.u32Height = 1920;
+    pstCfg->stVirt1Attr.eRotateMode = VI_ROT_270;
     // pstCfg->stVirt1Attr.bCropEnable = MPP_FALSE;
     // pstCfg->stVirt1Attr.u32CropX = 0;
     // pstCfg->stVirt1Attr.u32CropY = 0;
@@ -316,23 +316,29 @@ static void VI_DemoInitConfig(VI_DEMO_CONFIG_S *pstCfg, VI_DEMO_MODE_E enMode)
     pstCfg->stVirt2Attr.eChnType = VI_CHN_TYPE_VIRTUAL;
     pstCfg->stVirt2Attr.u32Width = 1920;
     pstCfg->stVirt2Attr.u32Height = 1080;
-    //pstCfg->stVirt2Attr.eRotateMode = VI_ROT_FLIP;
+    pstCfg->stVirt2Attr.eRotateMode = VI_ROT_FLIP;
     // pstCfg->stVirt2Attr.bCropEnable = MPP_TRUE;
     // pstCfg->stVirt2Attr.u32CropX = 160;
     // pstCfg->stVirt2Attr.u32CropY = 80;
-    // pstCfg->stVirt2Attr.u32CropWidth = 320;
-    // pstCfg->stVirt2Attr.u32CropHeight = 180;
-//   pstCfg->stVirt2Attr.eStrideAlign = VI_STRIDE_ALIGN_64;
+    // pstCfg->stVirt2Attr.u32CropWidth = 600;
+    // pstCfg->stVirt2Attr.u32CropHeight = 300;
+    // pstCfg->stVirt2Attr.eStrideAlign = VI_STRIDE_ALIGN_64;
 
     pstCfg->stVirt3Attr = pstCfg->stPhyAttr;
     pstCfg->stVirt3Attr.eChnType = VI_CHN_TYPE_VIRTUAL;
     pstCfg->stVirt3Attr.u32Width = 1920;
     pstCfg->stVirt3Attr.u32Height = 1080;
+    pstCfg->stVirt3Attr.bCropEnable = MPP_TRUE;
+    pstCfg->stVirt3Attr.u32CropX = 160;
+    pstCfg->stVirt3Attr.u32CropY = 80;
+    pstCfg->stVirt3Attr.u32CropWidth = 600;
+    pstCfg->stVirt3Attr.u32CropHeight = 300;
 
     pstCfg->stVirt4Attr = pstCfg->stPhyAttr;
     pstCfg->stVirt4Attr.eChnType = VI_CHN_TYPE_VIRTUAL;
     pstCfg->stVirt4Attr.u32Width = 1920;
     pstCfg->stVirt4Attr.u32Height = 1080;
+    pstCfg->stVirt4Attr.eStrideAlign = VI_STRIDE_ALIGN_64;
 
     pstCfg->stVirt5Attr = pstCfg->stPhyAttr;
     pstCfg->stVirt5Attr.eChnType = VI_CHN_TYPE_VIRTUAL;
@@ -539,7 +545,7 @@ static S32 VI_DemoRunRawDump(VI_DEV ViDev, VI_CHN ViChn, S32 s32TimeoutMs,
         LOG_ERROR("[rawdump] VI_TriggerRawDump failed, ret=%d\n", s32Ret);
         return s32Ret;
     }
-	usleep(200*1000); // sleep 200ms to wait raw frame ready, or directly call VI_GetRawDumpFrame may get -4 (frame not ready)
+    usleep(200*1000); // sleep 200ms to wait raw frame ready, or directly call VI_GetRawDumpFrame may get -4 (frame not ready)
 
     s32Ret = VI_GetRawDumpFrame(ViDev, ViChn, &stRawFrame, s32TimeoutMs);
     if (s32Ret != 0) {
@@ -769,7 +775,7 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg)
         LOG_ERROR("VI_EnableDev failed, ret=%d\n", s32Ret);
         return s32Ret;
     }
-	
+
     s32Ret = VI_EnableChn(pstCfg->ViDev, pstCfg->ViPhyChn);
     if (s32Ret != 0) {
         LOG_ERROR("VI_EnableChn phy failed, ret=%d\n", s32Ret);
@@ -858,7 +864,7 @@ static S32 VI_DemoRunBasic(const VI_DEMO_CONFIG_S *pstCfg)
             return s32Ret;
 
         VI_DemoFpsStatUpdate(&stFpsStat);
-		usleep(33 * 1000);
+        usleep(33 * 1000);
     }
 
     VI_DemoFpsStatPrintFinal(&stFpsStat);
@@ -903,7 +909,6 @@ static S32 VI_DemoRunVirtual(const VI_DEMO_CONFIG_S *pstCfg)
 
         if (s32Ret == 0)
             VI_DemoFpsStatUpdate(&stPhyFpsStat);
-		
 
         if (pstCfg->bEnableVirt1 == MPP_TRUE) {
             s32Ret =  VI_DemoGetAndReleaseFrame(pstCfg->ViDev, pstCfg->ViVirtChn1,
@@ -944,9 +949,8 @@ static S32 VI_DemoRunVirtual(const VI_DEMO_CONFIG_S *pstCfg)
             if (s32Ret == 0)
                 VI_DemoFpsStatUpdate(&stVirt5FpsStat);
         }
-		usleep(33 * 1000);
+        usleep(33 * 1000);
     }
-	
 
     VI_DemoFpsStatPrintFinal(&stPhyFpsStat);
     if (pstCfg->bEnableVirt1 == MPP_TRUE)
@@ -1106,7 +1110,7 @@ int main(int argc, char **argv)
         VI_DemoTeardown(&stCfg);
         return s32Ret;
     }
-	sleep(1);
+    sleep(1);
 
     switch (enMode) {
     case VI_DEMO_MODE_BASIC:
