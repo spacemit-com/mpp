@@ -755,13 +755,6 @@ static VOID cpp_dump_grp_attr(const char *pszTag, const CPP_GRP_ATTR_S *pstGrpAt
     if ((pszTag == NULL) || (pstGrpAttr == NULL)) {
         return;
     }
-
-    // printf("[cpp][%s] width=%u height=%u format=%d mode=%d\n",
-    //        pszTag,
-    //        pstGrpAttr->width,
-    //        pstGrpAttr->height,
-    //        pstGrpAttr->format,
-    //        pstGrpAttr->mode);
 }
 
 static VOID cpp_dump_frame_info(const char *pszTag, const FRAME_INFO_S *pstFrameInfo)
@@ -769,8 +762,6 @@ static VOID cpp_dump_frame_info(const char *pszTag, const FRAME_INFO_S *pstFrame
     if ((pszTag == NULL) || (pstFrameInfo == NULL)) {
         return;
     }
-
-    // printf("[cpp][%s] frameId=%d\n", pszTag, pstFrameInfo->frameId);
 }
 
 static VOID cpp_fill_cam_frame_info(FRAME_INFO_S *pstDst, const ViFrameMetaInfo *pstSrc, U32 u32FrameId)
@@ -820,14 +811,6 @@ static int32_t cpp_internal_callback(MPP_CHN_S mppCpp, const IMAGE_BUFFER_S *cpp
         return CPP_ERR_INVALID_PARAM;
     }
 
-    printf("[cpp][callback] devId=%u frameId=%d success=%d out_fd=%d out_vir=%p ts=%llu\n",
-           mppCpp.devId,
-           cppBuf->frameId,
-           success,
-           (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1,
-           (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].virAddr : NULL,
-           (unsigned long long)cppBuf->timeStamp);
-
     s32Ret = cpp_check_grp_created((CPP_GRP)mppCpp.devId, &pstGrpCtx);
     if (s32Ret != CPP_SUCCESS) {
         return s32Ret;
@@ -836,17 +819,9 @@ static int32_t cpp_internal_callback(MPP_CHN_S mppCpp, const IMAGE_BUFFER_S *cpp
     pthread_mutex_lock(&pstGrpCtx->stPendingLock);
     pstPending = cpp_pending_find_by_outfd(pstGrpCtx, cppBuf);
     if (pstPending == NULL) {
-        printf("[cpp][callback] pending not found by fd: cb_frameId=%d cb_fd=%d\n",
-               cppBuf->frameId,
-               (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1);
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
         return CPP_ERR_NOT_EXIST;
     }
-
-    printf("[cpp][callback] match by fd: cb_frameId=%d pending_frameId=%u fd=%d\n",
-           cppBuf->frameId,
-           pstPending->u32FrameId,
-           (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1);
 
     cpp_fill_frame_from_cam_buffer(cppBuf, &pstPending->stOutFrame, &pstPending->stOutFrame);
     pstPending->stOutFrame.ulBufferId = pstPending->ulOutBufferId;
@@ -922,7 +897,7 @@ S32 CPP_CreateGrp(CPP_GRP CppGrp)
 
     cpp_reset_grp_ctx(&g_stCppGrpCtx[CppGrp]);
     cpp_init_grp_runtime(&g_stCppGrpCtx[CppGrp]);
-    // printf("[cpp] cam_cpp_create_grp grp=%d\n", CppGrp);
+
     s32Ret = cam_cpp_create_grp((uint32_t)CppGrp);
     if (s32Ret != 0) {
         return s32Ret;
@@ -947,7 +922,6 @@ S32 CPP_DestroyGrp(CPP_GRP CppGrp)
         return s32Ret;
     }
 
-    // printf("[cpp] cam_cpp_destroy_grp grp=%d\n", CppGrp);
     s32Ret = cam_cpp_destroy_grp((uint32_t)CppGrp);
     if (s32Ret != 0) {
         return s32Ret;
@@ -979,9 +953,6 @@ S32 CPP_SetGrpAttr(CPP_GRP CppGrp, const CppGrpAttrS *pstGrpAttr)
     stCamAttr.height = pstGrpAttr->u32Height;
     stCamAttr.format = cpp_mpp_to_cam_format(pstGrpAttr->ePixelFormat, MPP_TRUE);
     stCamAttr.mode = (pstGrpAttr->eProcessMode == CPP_PROCESS_MODE_SLICE) ? CPP_GRP_SLICE_MODE : CPP_GRP_FRAME_MODE;
-
-    // printf("[cpp] cam_cpp_set_grp_attr grp=%d attr=%p\n", CppGrp, &stCamAttr);
-    //cpp_dump_grp_attr("set_grp_attr", &stCamAttr);
 
     s32Ret = cam_cpp_set_grp_attr((uint32_t)CppGrp, &stCamAttr);
     if (s32Ret != 0) {
@@ -1038,7 +1009,6 @@ S32 CPP_StartGrp(CPP_GRP CppGrp)
         return s32Ret;
     }
 
-    // printf("[cpp] cam_cpp_start_grp grp=%d\n", CppGrp);
     s32Ret = cam_cpp_start_grp((uint32_t)CppGrp);
     if (s32Ret != 0) {
         return s32Ret;
@@ -1057,7 +1027,6 @@ S32 CPP_StopGrp(CPP_GRP CppGrp)
         return s32Ret;
     }
 
-    // printf("[cpp] cam_cpp_stop_grp grp=%d\n", CppGrp);
     s32Ret = cam_cpp_stop_grp((uint32_t)CppGrp);
     if (s32Ret != 0) {
         return s32Ret;
@@ -1283,17 +1252,6 @@ S32 CPP_SendFrame(CPP_GRP CppGrp,
     stInBuf.frameId = (int)u32FrameId;
     stOutBuf.frameId = (int)u32FrameId;
 
-	printf("[cpp][send] frameId=%u in_idx=%u in_buf=%lu in_fd=%lu in_vir=%p out_idx=%u out_buf=%lu out_fd=%lu out_vir=%p\n",
-		   u32FrameId,
-		   pstInFrame->u32Idx,
-		   pstInFrame->ulBufferId,
-           (pstInFrame->stVFrame.u32PlaneNum > 0U) ? (long unsigned int)pstInFrame->stVFrame.u32Fd[0] : (long unsigned int)-1,
-		   (pstInFrame->stVFrame.u32PlaneNum > 0U) ? (void *)pstInFrame->stVFrame.ulPlaneVirAddr[0] : NULL,
-		   stOutFrame.u32Idx,
-		   stOutFrame.ulBufferId,
-           (stOutFrame.stVFrame.u32PlaneNum > 0U) ? (long unsigned int)stOutFrame.stVFrame.u32Fd[0] : (long unsigned int)-1,
-		   (stOutFrame.stVFrame.u32PlaneNum > 0U) ? (void *)stOutFrame.stVFrame.ulPlaneVirAddr[0] : NULL);
-
     pthread_mutex_lock(&pstGrpCtx->stPendingLock);
     s32Ret = cpp_pending_alloc(pstGrpCtx, &u32PendingIdx);
     if (s32Ret != CPP_SUCCESS) {
@@ -1385,22 +1343,9 @@ S32 CPP_ReleaseFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstVideoFrame)
     pthread_mutex_lock(&pstGrpCtx->stPendingLock);
     pstPending = cpp_pending_find_borrowed(pstGrpCtx, pstVideoFrame);
     if (pstPending == NULL) {
-        printf("[cpp][release] pending not found: idx=%u buf=%lu fd=%lu vir=%p\n",
-               pstVideoFrame->u32Idx,
-               pstVideoFrame->ulBufferId,
-               pstVideoFrame->stVFrame.u32Fd[0],
-             (void *)pstVideoFrame->stVFrame.ulPlaneVirAddr[0]);
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
         return CPP_ERR_NOT_EXIST;
     }
-
-    printf("[cpp][release] matched pending: pending_frameId=%u pending_buf=%lu pending_fd=%lu req_idx=%u req_buf=%lu req_fd=%lu\n",
-           pstPending->u32FrameId,
-           pstPending->ulOutBufferId,
-           pstPending->stOutFrame.stVFrame.u32Fd[0],
-           pstVideoFrame->u32Idx,
-           pstVideoFrame->ulBufferId,
-           pstVideoFrame->stVFrame.u32Fd[0]);
 
     if (pstPending->ulOutBufferId != 0U) {
         s32Ret = VB_ReleaseBuffer(pstPending->ulOutBufferId);
@@ -1421,7 +1366,6 @@ S32 CPP_DumpFrame(CPP_GRP CppGrp, const CHAR *pszPath, U32 u32Count)
         return CPP_ERR_INVALID_PARAM;
     }
 
-    // printf("[cpp] cam_cpp_dump_frame grp=%d path=%s count=%u\n", CppGrp, pszPath, u32Count);
     return cam_cpp_dump_frame((uint32_t)CppGrp, pszPath, u32Count);
 }
 

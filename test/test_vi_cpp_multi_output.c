@@ -14,7 +14,7 @@
 #define DEMO_CPP_GRP_BASE      0
 #define DEMO_MULTI_GRP_MAX     4
 #define DEMO_FRAME_COUNT       30
-#define DEMO_TIMEOUT_MS        1000
+#define DEMO_TIMEOUT_MS        30
 #define DEMO_SAVE_LAST_FRAME   1
 
 #ifndef ARRAY_SIZE
@@ -32,6 +32,7 @@ typedef struct _CPP_MULTI_OUT_GRP_S {
     BOOL            bEnableFrameRateCtrl;
     CppFrameRateCtrlS stFrameRateCtrl;
     U32             u32DoneCount;
+    U32             u32DropCount;
     U32             u32ErrCount;
     BOOL            bSavedLastCppFrame;
     CHAR            szLastCppFramePath[320];
@@ -170,9 +171,12 @@ static S32 DemoInitConfig(CPP_MULTI_CONFIG_S *pstCfg)
         pstOutGrp->u32Width = au32Widths[i];
         pstOutGrp->u32Height = au32Heights[i];
         pstOutGrp->ePixelFormat = pstCfg->ePixelFormat;
-        pstOutGrp->bEnableFrameRateCtrl = MPP_FALSE;
-        // pstOutGrp->stFrameRateCtrl.u32InputFrameStep = i + 1U;
-        // pstOutGrp->stFrameRateCtrl.u32OutputFrameStep = 1U;
+    }
+    for (i = 1; i < DEMO_MULTI_GRP_MAX; ++i) {
+        CPP_MULTI_OUT_GRP_S *pstOutGrp = &pstCfg->astOutGrp[i];
+        pstOutGrp->bEnableFrameRateCtrl = MPP_TRUE;
+        pstOutGrp->stFrameRateCtrl.u32InputFrameStep = 2;
+        pstOutGrp->stFrameRateCtrl.u32OutputFrameStep = 1;
     }
 
     return 0;
@@ -207,6 +211,7 @@ static VOID DemoUpdateOutputAttrs(CPP_MULTI_CONFIG_S *pstCfg)
         pstOutGrp->stCppChnAttr.u32Height = pstOutGrp->u32Height;
         pstOutGrp->stCppChnAttr.ePixelFormat = pstOutGrp->ePixelFormat;
         pstOutGrp->u32DoneCount = 0;
+        pstOutGrp->u32DropCount = 0;
         pstOutGrp->u32ErrCount = 0;
         pstOutGrp->bSavedLastCppFrame = MPP_FALSE;
         pstOutGrp->dFps = 0.0;
@@ -423,6 +428,7 @@ static S32 DemoRunViToCpp(CPP_MULTI_RUN_CTX_S *pstCtx)
     pstCtx->u32ErrCount = 0;
     for (j = 0; j < pstCtx->stCfg.u32OutGrpCount; ++j) {
         pstCtx->stCfg.astOutGrp[j].u32DoneCount = 0;
+        pstCtx->stCfg.astOutGrp[j].u32DropCount = 0;
         pstCtx->stCfg.astOutGrp[j].u32ErrCount = 0;
         pstCtx->stCfg.astOutGrp[j].bSavedLastCppFrame = MPP_FALSE;
         pstCtx->stCfg.astOutGrp[j].dFps = 0.0;
@@ -446,9 +452,9 @@ static S32 DemoRunViToCpp(CPP_MULTI_RUN_CTX_S *pstCtx)
 
         u32FrameId = stInFrame.stVFrame.u32PrivateData;
         pstFrameMeta = &stInFrame.stViFrameInfo.stFrameMetaInfo;
-        DemoPrintFrameBrief("vi_in", &stInFrame);
+        // DemoPrintFrameBrief("vi_in", &stInFrame);
 
-        DemoPrintFrameMetaBrief("vi_meta", pstFrameMeta);
+        // DemoPrintFrameMetaBrief("vi_meta", pstFrameMeta);
 
         for (j = 0; j < pstCtx->stCfg.u32OutGrpCount; ++j) {
             CPP_MULTI_OUT_GRP_S *pstOutGrp = &pstCtx->stCfg.astOutGrp[j];
@@ -468,18 +474,17 @@ static S32 DemoRunViToCpp(CPP_MULTI_RUN_CTX_S *pstCtx)
                 return s32Ret;
             }
 
-            if ((pstOutGrp->bEnableFrameRateCtrl == MPP_TRUE) &&
-                (pstOutGrp->stFrameRateCtrl.u32OutputFrameStep < pstOutGrp->stFrameRateCtrl.u32InputFrameStep) &&
-                ((i % pstOutGrp->stFrameRateCtrl.u32InputFrameStep) >= pstOutGrp->stFrameRateCtrl.u32OutputFrameStep)) {
-                printf("[demo][grp%d] cpp drop by frame-rate ctrl: submit_idx=%u frameId=%u\n",
-                       pstOutGrp->CppGrp,
-                       i,
-                       u32FrameId);
-                continue;
-            }
-
             s32Ret = CPP_GetFrame(pstOutGrp->CppGrp, &stOutFrame, pstCtx->stCfg.s32TimeoutMs);
             if (s32Ret != 0) {
+                if ((pstOutGrp->bEnableFrameRateCtrl == MPP_TRUE) && (s32Ret == -6)) {
+                    pstOutGrp->u32DropCount++;
+                    printf("[demo][grp%d] no cpp output for submit_idx=%u frameId=%u due to frame-rate ctrl\n",
+                           pstOutGrp->CppGrp,
+                           i,
+                           u32FrameId);
+                    continue;
+                }
+
                 printf("CPP_GetFrame failed at frame %u, grp=%d, frameId=%u ret=%d\n",
                        i,
                        pstOutGrp->CppGrp,
@@ -529,12 +534,13 @@ static S32 DemoRunViToCpp(CPP_MULTI_RUN_CTX_S *pstCtx)
                     continue;
 
                 pstOutGrp->dFps = DemoCalcFps(pstOutGrp->u32DoneCount, &stStartTv, &stNowTv);
-                printf("[fps][grp%d] size=%ux%u done=%u fps=%.2f\n",
-                       pstOutGrp->CppGrp,
-                       pstOutGrp->u32Width,
-                       pstOutGrp->u32Height,
-                       pstOutGrp->u32DoneCount,
-                       pstOutGrp->dFps);
+                printf("[fps][grp%d] size=%ux%u done=%u drop=%u fps=%.2f\n",
+                    pstOutGrp->CppGrp,
+                    pstOutGrp->u32Width,
+                    pstOutGrp->u32Height,
+                    pstOutGrp->u32DoneCount,
+                    pstOutGrp->u32DropCount,
+                    pstOutGrp->dFps);
             }
             stLastStatTv = stNowTv;
         }
@@ -545,25 +551,26 @@ static S32 DemoRunViToCpp(CPP_MULTI_RUN_CTX_S *pstCtx)
 
     (void)gettimeofday(&stEndTv, NULL);
     printf("[summary] submit_frames=%u out_grps=%u done=%u err=%u elapsed=%.2f ms\n",
-           pstCtx->stCfg.u32FrameCount,
-           pstCtx->stCfg.u32OutGrpCount,
-            pstCtx->u32DoneCount,
-            pstCtx->u32ErrCount,
-           DemoTimeDiffMs(&stStartTv, &stEndTv));
+        pstCtx->stCfg.u32FrameCount,
+        pstCtx->stCfg.u32OutGrpCount,
+        pstCtx->u32DoneCount,
+        pstCtx->u32ErrCount,
+        DemoTimeDiffMs(&stStartTv, &stEndTv));
 
     for (j = 0; j < pstCtx->stCfg.u32OutGrpCount; ++j) {
         CPP_MULTI_OUT_GRP_S *pstOutGrp = &pstCtx->stCfg.astOutGrp[j];
-         pstOutGrp->dFps = DemoCalcFps(pstOutGrp->u32DoneCount, &stStartTv, &stEndTv);
-        printf("[summary][grp%d] size=%ux%u done=%u err=%u\n",
-               pstOutGrp->CppGrp,
-               pstOutGrp->u32Width,
-               pstOutGrp->u32Height,
-               pstOutGrp->u32DoneCount,
-               pstOutGrp->u32ErrCount);
-         printf("[summary][grp%d] fps=%.2f last_frame=%s\n",
-             pstOutGrp->CppGrp,
-             pstOutGrp->dFps,
-             pstOutGrp->bSavedLastCppFrame == MPP_TRUE ? pstOutGrp->szLastCppFramePath : "not_saved");
+        pstOutGrp->dFps = DemoCalcFps(pstOutGrp->u32DoneCount, &stStartTv, &stEndTv);
+        printf("[summary][grp%d] size=%ux%u done=%u drop=%u err=%u\n",
+            pstOutGrp->CppGrp,
+            pstOutGrp->u32Width,
+            pstOutGrp->u32Height,
+            pstOutGrp->u32DoneCount,
+            pstOutGrp->u32DropCount,
+            pstOutGrp->u32ErrCount);
+        printf("[summary][grp%d] fps=%.2f last_frame=%s\n",
+            pstOutGrp->CppGrp,
+            pstOutGrp->dFps,
+            pstOutGrp->bSavedLastCppFrame == MPP_TRUE ? pstOutGrp->szLastCppFramePath : "not_saved");
     }
 
     return 0;
