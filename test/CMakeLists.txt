@@ -77,6 +77,11 @@ target_compile_definitions(test_v2d_mask PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_v2d_mask PRIVATE mpp_v2d mpp_sys)
 target_include_directories(test_v2d_mask PRIVATE ${MPP_INCLUDE_DIRS})
 
+add_executable(test_v2d_boarder_fill test_v2d_boarder_fill.c)
+target_compile_definitions(test_v2d_boarder_fill PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_v2d_boarder_fill PRIVATE mpp_v2d mpp_sys)
+target_include_directories(test_v2d_boarder_fill PRIVATE ${MPP_INCLUDE_DIRS})
+
 if(TARGET mpp_cpp)
     add_executable(test_vi_cpp test_vi_cpp.c)
     target_compile_definitions(test_vi_cpp PRIVATE ${MPP_TEST_COMMON_DEFS})

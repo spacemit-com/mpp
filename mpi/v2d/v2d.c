@@ -447,6 +447,36 @@ static S32 mpp_v2d_validate_rect(const V2DArea *rect, const V2DSurface *surface)
     return SUCCESS;
 }
 
+static S32 mpp_v2d_resolve_rect(const VideoFrameInfo *frame,
+                                const V2DArea *rect,
+                                V2DSurface *surface,
+                                V2DArea *resolved_rect)
+{
+    if ((frame == NULL) || (surface == NULL) || (resolved_rect == NULL)) {
+        return FAILURE;
+    }
+
+    if (V2D_SurfaceFromVideoFrame(frame, surface) != SUCCESS) {
+        return FAILURE;
+    }
+
+    if (rect != NULL) {
+        *resolved_rect = *rect;
+    } else {
+        resolved_rect->u16X = 0;
+        resolved_rect->u16Y = 0;
+        resolved_rect->u16W = surface->u16W;
+        resolved_rect->u16H = surface->u16H;
+    }
+
+    return mpp_v2d_validate_rect(resolved_rect, surface);
+}
+
+static U16 mpp_v2d_align_even_floor(U32 value)
+{
+    return (U16)(value & ~1U);
+}
+
 static S32 mpp_v2d_validate_adv_2layer_frame(const VideoFrameInfo *frame, U32 width, U32 height, MppPixelFormat format)
 {
     if (frame == NULL) {
@@ -1428,6 +1458,83 @@ S32 V2D_ScaleFrame(V2DHandle handle,
                      pstDstFrame,
                      &dstRect,
                      eCscMode);
+}
+
+S32 V2D_BorderFill(V2DHandle handle,
+                    const VideoFrameInfo *pstSrcFrame,
+                    const V2DArea *pstSrcRect,
+                    VideoFrameInfo *pstDstFrame,
+                    const V2DArea *pstDstRect,
+                    U32 u32Top,
+                    U32 u32Bottom,
+                    U32 u32Left,
+                    U32 u32Right,
+                    const V2DFillColor *pstBorderColor,
+                    V2DCscMode eCscMode)
+{
+    V2DSurface srcSurface;
+    V2DSurface dstSurface;
+    V2DArea srcRect;
+    V2DArea dstRect;
+    V2DArea innerRect;
+    U32 innerWidth;
+    U32 innerHeight;
+
+    if ((handle == 0U) || (pstSrcFrame == NULL) || (pstDstFrame == NULL) ||
+        (pstBorderColor == NULL)) {
+        return FAILURE;
+    }
+
+    if ((mpp_v2d_resolve_rect(pstSrcFrame, pstSrcRect, &srcSurface, &srcRect) != SUCCESS) ||
+        (mpp_v2d_resolve_rect(pstDstFrame, pstDstRect, &dstSurface, &dstRect) != SUCCESS)) {
+        return FAILURE;
+    }
+
+    if ((pstBorderColor->enFormat != dstSurface.enFormat) &&
+        !((pstBorderColor->enFormat == V2D_COLOR_FORMAT_NV12) && (dstSurface.enFormat == V2D_COLOR_FORMAT_NV21)) &&
+        !((pstBorderColor->enFormat == V2D_COLOR_FORMAT_NV21) && (dstSurface.enFormat == V2D_COLOR_FORMAT_NV12))) {
+        return FAILURE;
+    }
+
+    if ((u32Left & 1U) != 0U || (u32Right & 1U) != 0U ||
+        (u32Top & 1U) != 0U || (u32Bottom & 1U) != 0U) {
+        return FAILURE;
+    }
+
+    if ((u32Left + u32Right > dstRect.u16W) || (u32Top + u32Bottom > dstRect.u16H)) {
+        return FAILURE;
+    }
+
+    innerWidth = (U32)dstRect.u16W - u32Left - u32Right;
+    innerHeight = (U32)dstRect.u16H - u32Top - u32Bottom;
+
+    if ((innerWidth == 0U) || (innerHeight == 0U)) {
+        return FAILURE;
+    }
+
+    if (((innerWidth & 1U) != 0U) || ((innerHeight & 1U) != 0U)) {
+        return FAILURE;
+    }
+
+    innerRect.u16X = dstRect.u16X + (U16)u32Left;
+    innerRect.u16Y = dstRect.u16Y + (U16)u32Top;
+    innerRect.u16W = (U16)innerWidth;
+    innerRect.u16H = (U16)innerHeight;
+
+    if ((innerRect.u16W != srcRect.u16W) || (innerRect.u16H != srcRect.u16H)) {
+        return FAILURE;
+    }
+
+    if (V2D_AddFillTask(handle, pstDstFrame, &dstRect, (V2DFillColor *)pstBorderColor) != SUCCESS) {
+        return FAILURE;
+    }
+
+    return V2D_AddBitblitTask(handle,
+                              pstSrcFrame,
+                              (V2DArea *)&srcRect,
+                              pstDstFrame,
+                              &innerRect,
+                              eCscMode);
 }
 
 S32 V2D_RotateFrame(V2DHandle handle,

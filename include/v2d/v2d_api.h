@@ -92,6 +92,18 @@ S32 V2D_ScaleFrame(V2DHandle handle,
                     VideoFrameInfo *pstDstFrame,
                     V2DCscMode eCscMode);
 
+S32 V2D_BorderFill(V2DHandle handle,
+                    const VideoFrameInfo *pstSrcFrame,
+                    const V2DArea *pstSrcRect,
+                    VideoFrameInfo *pstDstFrame,
+                    const V2DArea *pstDstRect,
+                    U32 u32Top,
+                    U32 u32Bottom,
+                    U32 u32Left,
+                    U32 u32Right,
+                    const V2DFillColor *pstBorderColor,
+                    V2DCscMode eCscMode);
+
 #ifdef __cplusplus
 }
 #endif
