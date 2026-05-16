@@ -1,8 +1,8 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*------------------------------------------------------------------------------
+*/
 
 #include "include/vi_k1_defs.h"
 #include "include/vi_k1_ctx.h"
@@ -15,8 +15,9 @@ extern S32 K1_VI_HandleNormalCallback(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE
 
 static V2DRotateAngle K1_VI_GetV2dRotateMode(const ViChnAttrS *pstChnAttr)
 {
-    if (pstChnAttr == NULL)
+    if (pstChnAttr == NULL){
         return V2D_ROT_0;
+    }
 
     switch (pstChnAttr->eRotateMode) {
     case VI_ROT_0:
@@ -36,27 +37,31 @@ static V2DRotateAngle K1_VI_GetV2dRotateMode(const ViChnAttrS *pstChnAttr)
         break;
     }
 
-    if (pstChnAttr->bMirror == MPP_TRUE && pstChnAttr->bFlip == MPP_TRUE)
+    if (pstChnAttr->bMirror == MPP_TRUE && pstChnAttr->bFlip == MPP_TRUE){
         return V2D_ROT_180;
-    if (pstChnAttr->bMirror == MPP_TRUE)
+    }
+    if (pstChnAttr->bMirror == MPP_TRUE){
         return V2D_ROT_MIRROR;
-    if (pstChnAttr->bFlip == MPP_TRUE)
+    }
+    if (pstChnAttr->bFlip == MPP_TRUE){
         return V2D_ROT_FLIP;
+    }
 
     return V2D_ROT_0;
 }
 
 static S32 K1_VI_OutputVirtualFrame(K1_VI_CHN_CTX_S *pstVirtChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
 {
-    if (pstVirtChnCtx == NULL || pstBufNode == NULL)
+    if (pstVirtChnCtx == NULL || pstBufNode == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     if (pstVirtChnCtx->bSysBound == MPP_TRUE) {
         /*
-         * SYS bind forwarding stub for virtual channels.
-         * Virtual frames use an independent pool, so recycle immediately
-         * until real sink delivery is wired in.
-         */
+        * SYS bind forwarding stub for virtual channels.
+        * Virtual frames use an independent pool, so recycle immediately
+        * until real sink delivery is wired in.
+        */
         pstBufNode->enState = K1_VI_BUF_STATE_IDLE;
         return K1_VI_SUCCESS;
     }
@@ -74,8 +79,9 @@ VOID K1_VI_CopyFrameMeta(VideoFrameInfo *pstDstFrame, const VideoFrameInfo *pstS
     U32 u32Height = 0;
     MppPixelFormat ePixelFormat = MPP_PIXEL_FORMAT_MAX;
 
-    if (pstDstFrame == NULL || pstSrcFrame == NULL)
+    if (pstDstFrame == NULL || pstSrcFrame == NULL){
         return;
+    }
 
     memcpy(&stDstVFrame, &pstDstFrame->stVFrame, sizeof(stDstVFrame));
     ulPoolId = pstDstFrame->ulPoolId;
@@ -99,11 +105,12 @@ VOID K1_VI_CopyFrameMeta(VideoFrameInfo *pstDstFrame, const VideoFrameInfo *pstS
 }
 
 static VOID K1_VI_GetSrcCropRect(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                                 const K1_VI_CHN_CTX_S *pstDstChnCtx,
-                                 V2DArea *pstSrcRect)
+    const K1_VI_CHN_CTX_S *pstDstChnCtx,
+    V2DArea *pstSrcRect)
 {
-    if (pstSrcRect == NULL || pstSrcChnCtx == NULL || pstDstChnCtx == NULL)
+    if (pstSrcRect == NULL || pstSrcChnCtx == NULL || pstDstChnCtx == NULL){
         return;
+    }
 
     pstSrcRect->u16X = 0;
     pstSrcRect->u16Y = 0;
@@ -119,9 +126,9 @@ static VOID K1_VI_GetSrcCropRect(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
 }
 
 S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                          const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                          K1_VI_CHN_CTX_S *pstDstChnCtx,
-                          VideoFrameInfo *pstDstFrame)
+    const VI_IMAGE_BUFFER_S *pstSrcBuffer,
+    K1_VI_CHN_CTX_S *pstDstChnCtx,
+    VideoFrameInfo *pstDstFrame)
 {
     const IMAGE_BUFFER_S *pstSrcImageBuffer = NULL;
     K1_VI_BUF_NODE_S *pstSrcBufNode = NULL;
@@ -132,19 +139,23 @@ S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
     V2DRotateAngle enRotate = V2D_ROT_0;
     S32 s32Ret = 0;
 
-    if (pstSrcChnCtx == NULL || pstSrcBuffer == NULL || pstDstChnCtx == NULL || pstDstFrame == NULL)
+    if (pstSrcChnCtx == NULL || pstSrcBuffer == NULL || pstDstChnCtx == NULL || pstDstFrame == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstSrcImageBuffer = pstSrcBuffer->buffer;
-    if (pstSrcImageBuffer == NULL)
+    if (pstSrcImageBuffer == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstDstFrame->stVFrame.u32PlaneNum == 0)
+    if (pstDstFrame->stVFrame.u32PlaneNum == 0){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstSrcBufNode = K1_VI_FindBufNodeByImageBuffer((K1_VI_CHN_CTX_S *)pstSrcChnCtx, pstSrcImageBuffer);
-    if (pstSrcBufNode == NULL)
+    if (pstSrcBufNode == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
 
     K1_VI_GetSrcCropRect(pstSrcChnCtx, pstDstChnCtx, &stSrcRect);
@@ -158,67 +169,72 @@ S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
 
 
     s32Ret = V2D_BeginJob(&hHandle);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     if (enRotate == V2D_ROT_0) {
         s32Ret = V2D_AddBitblitTask(hHandle,
-                                    &pstSrcBufNode->stFrameInfo,
-                                    &stSrcRect,
-                                    pstDstFrame,
-                                    &stDstRect,
-                                    V2D_CSC_MODE_BUTT);
+            &pstSrcBufNode->stFrameInfo,
+            &stSrcRect,
+            pstDstFrame,
+            &stDstRect,
+            V2D_CSC_MODE_BUTT);
     } else {
         memset(&stBlendConf, 0, sizeof(stBlendConf));
         stBlendConf.stBlendLayer[0].stBlendArea = stDstRect;
 
         s32Ret = V2D_AddBlendTask(hHandle,
-                                  &pstSrcBufNode->stFrameInfo,
-                                  &stSrcRect,
-                                  NULL,
-                                  NULL,
-                                  NULL,
-                                  NULL,
-                                  pstDstFrame,
-                                  &stDstRect,
-                                  &stBlendConf,
-                                  enRotate,
-                                  enRotate,
-                                  V2D_CSC_MODE_BUTT,
-                                  V2D_CSC_MODE_BUTT,
-                                  NULL,
-                                  V2D_NO_DITHER);
+            &pstSrcBufNode->stFrameInfo,
+            &stSrcRect,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            pstDstFrame,
+            &stDstRect,
+            &stBlendConf,
+            enRotate,
+            enRotate,
+            V2D_CSC_MODE_BUTT,
+            V2D_CSC_MODE_BUTT,
+            NULL,
+            V2D_NO_DITHER);
     }
     if (s32Ret != K1_VI_SUCCESS) {
         return s32Ret;
     }
 
     s32Ret = V2D_EndJob(hHandle);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     pstDstFrame->stVFrame.u32PlaneSizeValid[0] = pstDstFrame->stVFrame.u32PlaneSize[0];
-    if (pstDstFrame->stVFrame.u32PlaneNum > 1)
+    if (pstDstFrame->stVFrame.u32PlaneNum > 1){
         pstDstFrame->stVFrame.u32PlaneSizeValid[1] = pstDstFrame->stVFrame.u32PlaneSize[1];
+    }
 
     return K1_VI_SUCCESS;
 }
 
 S32 K1_VI_ProcessOneVirtualChn(K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                               const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                               const VideoFrameInfo *pstSrcFrame,
-                               K1_VI_CHN_CTX_S *pstVirtChnCtx)
+    const VI_IMAGE_BUFFER_S *pstSrcBuffer,
+    const VideoFrameInfo *pstSrcFrame,
+    K1_VI_CHN_CTX_S *pstVirtChnCtx)
 {
     K1_VI_BUF_NODE_S *pstBufNode = NULL;
     S32 s32Ret = 0;
 
-    if (pstSrcChnCtx == NULL || pstSrcBuffer == NULL || pstSrcFrame == NULL || pstVirtChnCtx == NULL)
+    if (pstSrcChnCtx == NULL || pstSrcBuffer == NULL || pstSrcFrame == NULL || pstVirtChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstBufNode = K1_VI_GetIdleBufNode(pstVirtChnCtx);
 
-    if (pstBufNode == NULL)
+    if (pstBufNode == NULL){
         return K1_VI_ERR_BUSY;
+    }
 
     K1_VI_CopyFrameMeta(&pstBufNode->stFrameInfo, pstSrcFrame);
     pstBufNode->stFrameInfo.eFrameType = FRAME_TYPE_VI;
@@ -240,24 +256,28 @@ S32 K1_VI_ProcessOneVirtualChn(K1_VI_CHN_CTX_S *pstSrcChnCtx,
 }
 
 VOID K1_VI_DispatchVirtualFrames(K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                                 const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                                 const VideoFrameInfo *pstSrcFrame)
+    const VI_IMAGE_BUFFER_S *pstSrcBuffer,
+    const VideoFrameInfo *pstSrcFrame)
 {
     VI_CHN ViChn;
-    if (pstSrcChnCtx == NULL || pstSrcBuffer == NULL || pstSrcFrame == NULL)
+    if (pstSrcChnCtx == NULL || pstSrcBuffer == NULL || pstSrcFrame == NULL){
         return;
+    }
 
     for (ViChn = 0; ViChn < VI_MAX_CHN_NUM; ViChn++) {
         K1_VI_CHN_CTX_S *pstVirtChnCtx = &g_stK1ViCtx.astChnCtx[pstSrcChnCtx->ViDev][ViChn];
 
-        if (pstVirtChnCtx->bCreated != MPP_TRUE || pstVirtChnCtx->bEnabled != MPP_TRUE)
+        if (pstVirtChnCtx->bCreated != MPP_TRUE || pstVirtChnCtx->bEnabled != MPP_TRUE){
             continue;
+        }
 
-        if (pstVirtChnCtx->bIsVirtual != MPP_TRUE)
+        if (pstVirtChnCtx->bIsVirtual != MPP_TRUE){
             continue;
+        }
 
-        if (pstVirtChnCtx->ViSrcChn != pstSrcChnCtx->ViChn)
+        if (pstVirtChnCtx->ViSrcChn != pstSrcChnCtx->ViChn){
             continue;
+        }
 
         (void)K1_VI_ProcessOneVirtualChn(pstSrcChnCtx, pstSrcBuffer, pstSrcFrame, pstVirtChnCtx);
     }
@@ -265,23 +285,29 @@ VOID K1_VI_DispatchVirtualFrames(K1_VI_CHN_CTX_S *pstSrcChnCtx,
 
 S32 K1_VI_StartVirtualChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
 {
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (ViDev != pstChnCtx->ViDev || ViChn != pstChnCtx->ViChn)
+    if (ViDev != pstChnCtx->ViDev || ViChn != pstChnCtx->ViChn){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bEnabled == MPP_TRUE)
+    if (pstChnCtx->bEnabled == MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
-    if (K1_VI_IsValidChn(pstChnCtx->ViSrcChn) != MPP_TRUE)
+    if (K1_VI_IsValidChn(pstChnCtx->ViSrcChn) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (g_stK1ViCtx.astChnCtx[ViDev][pstChnCtx->ViSrcChn].bEnabled != MPP_TRUE)
+    if (g_stK1ViCtx.astChnCtx[ViDev][pstChnCtx->ViSrcChn].bEnabled != MPP_TRUE){
         return K1_VI_ERR_BUSY;
+    }
 
-    if (pstChnCtx->ulVbPool == 0)
+    if (pstChnCtx->ulVbPool == 0){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstChnCtx->bEnabled = MPP_TRUE;
     return K1_VI_SUCCESS;

@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    vi_k1_defs.h
- * @Date      :    2026-3-30
- * @Author    :    SPACEMIT
- * @Brief     :    K1 VI internal common definitions.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    vi_k1_defs.h
+* @Date      :    2026-3-30
+* @Author    :    SPACEMIT
+* @Brief     :    K1 VI internal common definitions.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __AL_VI_K1_DEFS_H__
-#define __AL_VI_K1_DEFS_H__
+#ifndef VI_K1_DEFS_H
+#define VI_K1_DEFS_H
 
 #include <string.h>
 #include <stdbool.h>
@@ -50,17 +50,17 @@ typedef enum _K1_VI_BUF_STATE_E {
 } K1_VI_BUF_STATE_E;
 
 typedef struct _K1_VI_BUF_NODE_S {
-    BOOL               bValid;
-    U32                u32Index;
-    UL                 ulPoolId;
-    UL                 ulBufferId;
-    IMAGE_BUFFER_S     stImageBuffer;
-    VideoFrameInfo     stFrameInfo;
-    K1_VI_BUF_STATE_E  enState;
+    BOOL bValid;
+    U32 u32Index;
+    UL ulPoolId;
+    UL ulBufferId;
+    IMAGE_BUFFER_S stImageBuffer;
+    VideoFrameInfo stFrameInfo;
+    K1_VI_BUF_STATE_E enState;
 } K1_VI_BUF_NODE_S;
 
 BOOL K1_VI_IsValidDev(VI_DEV ViDev);
 BOOL K1_VI_IsValidChn(VI_CHN ViChn);
 BOOL K1_VI_IsValidSize(U32 u32Width, U32 u32Height);
 
-#endif /* __AL_VI_K1_DEFS_H__ */
+#endif /* VI_K1_DEFS_H */

@@ -1,25 +1,25 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_integration.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Integration test for SYS + VB modules.
- *                 Covers: export/import, SYS+VB combined flow,
- *                 concurrent stress, and resource leak checking.
- *
- * Build:
- *   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
- *       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
- *       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
- *       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
- *       test_integration.c -o test_integration -lrt
- *
- * Run:
- *   ./test_integration
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_integration.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    Integration test for SYS + VB modules.
+*                 Covers: export/import, SYS+VB combined flow,
+*                 concurrent stress, and resource leak checking.
+*
+* Build:
+*   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
+*       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
+*       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
+*       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
+*       test_integration.c -o test_integration -lrt
+*
+* Run:
+*   ./test_integration
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -38,7 +38,7 @@
 extern VOID VB_DumpPools(VOID);
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while (0)
 
 /* ======================== Test 1: VB Export / Import / Unexport ======================== */
 static void test_export_import(void)
@@ -54,7 +54,7 @@ static void test_export_import(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = { .u32BufSize = 2048, .u32BufCnt = 4,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -64,20 +64,23 @@ static void test_export_import(void)
     /* export */
     ret = VB_Export(buf, &token);
     assert(ret == 0);
-    if (token == 0)
+    if (token == 0){
         TEST_FAIL(name, "export returned zero token");
+    }
 
     /* double export should fail */
     U64 token2 = 0;
     ret = VB_Export(buf, &token2);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "double export should fail");
+    }
 
     /* import — simulates another "process" getting the buffer */
     ret = VB_Import(token, &imported_buf);
     assert(ret == 0);
-    if (imported_buf == 0)
+    if (imported_buf == 0){
         TEST_FAIL(name, "import returned zero handle");
+    }
 
     /* original release — buffer still alive (export ref + import ref) */
     ret = VB_ReleaseBuffer(buf);
@@ -89,13 +92,15 @@ static void test_export_import(void)
 
     /* double unexport should fail */
     ret = VB_Unexport(imported_buf);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "double unexport should fail");
+    }
 
     /* destroy should fail — imported ref still held */
     ret = VB_DestroyPool(pool_id);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "destroy should fail with import ref held");
+    }
 
     /* release imported ref — buffer now free */
     ret = VB_ReleaseBuffer(imported_buf);
@@ -123,34 +128,38 @@ static void test_export_invalid(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = { .u32BufSize = 1024, .u32BufCnt = 2,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
     /* export invalid handle */
     ret = VB_Export(0, &token);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "export invalid handle should fail");
+    }
 
     /* export null token */
     UL buf = VB_GetBuffer(pool_id, 0);
     assert(buf != 0);
     ret = VB_Export(buf, NULL);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "export null token should fail");
+    }
 
     /* import invalid token */
     UL imp = 0;
     ret = VB_Import(0, &imp);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "import invalid token should fail");
+    }
 
     /* import non-exported buffer */
     UL buf2 = VB_GetBuffer(pool_id, 0);
     assert(buf2 != 0);
     ret = VB_Import((U64)buf2, &imp);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "import non-exported should fail");
+    }
 
     VB_ReleaseBuffer(buf);
     VB_ReleaseBuffer(buf2);
@@ -178,7 +187,7 @@ static void test_sys_vb_combined(void)
 
     /* create a pool and allocate a buffer */
     VbPoolCfg cfg = { .u32BufSize = 4096, .u32BufCnt = 4,
-                       .eModId = MPP_ID_VI, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_VI, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -217,10 +226,12 @@ static void test_sys_vb_combined(void)
     ret = VB_GetFrameInfo(buf, &read_fi);
     assert(ret == 0);
     if (read_fi.stCommFrameInfo.u32Width != 1920 ||
-        read_fi.stCommFrameInfo.u32Height != 1080)
+        read_fi.stCommFrameInfo.u32Height != 1080){
         TEST_FAIL(name, "frame info mismatch");
-    if (read_fi.stVFrame.u64PTS != pts)
+    }
+    if (read_fi.stVFrame.u64PTS != pts){
         TEST_FAIL(name, "PTS mismatch");
+    }
 
     /* VI releases its ref */
     ret = VB_ReleaseBuffer(buf);
@@ -288,7 +299,7 @@ static void *stress_worker(void *arg)
             }
             usleep(50);
             r = VB_RefSub(buf);
-            if (r != 0) sa->errors++;
+            if (r != 0){sa->errors++;}
         }
 
         usleep(50 + (sa->thread_id * 7) % 100);
@@ -318,7 +329,7 @@ static void test_concurrent_stress(void)
 
     /* small pool to maximize contention */
     VbPoolCfg cfg = { .u32BufSize = 256, .u32BufCnt = 4,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -348,16 +359,17 @@ static void test_concurrent_stress(void)
     }
 
     printf("  stress stats: threads=%d iters=%d gets=%d releases=%d timeouts=%d errors=%d\n",
-           num_threads, iterations, total_gets, total_releases, total_timeouts, total_errors);
+        num_threads, iterations, total_gets, total_releases, total_timeouts, total_errors);
 
-    if (total_errors > 0)
+    if (total_errors > 0){
         TEST_FAIL(name, "errors in concurrent stress");
+    }
 
     /* leak check: all gets should equal releases */
     if (total_gets != total_releases) {
         char msg[128];
         snprintf(msg, sizeof(msg), "leak detected: gets=%d releases=%d",
-                 total_gets, total_releases);
+            total_gets, total_releases);
         TEST_FAIL(name, msg);
     }
 
@@ -365,8 +377,9 @@ static void test_concurrent_stress(void)
     VB_DumpPools();
 
     ret = VB_DestroyPool(pool_id);
-    if (ret != 0)
+    if (ret != 0){
         TEST_FAIL(name, "destroy failed after stress — possible leak");
+    }
 
     VB_Exit();
     SYS_Exit();
@@ -418,7 +431,7 @@ static void test_export_concurrent(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = { .u32BufSize = 1024, .u32BufCnt = 2,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -453,8 +466,9 @@ static void test_export_concurrent(void)
 
     printf("  export_concurrent: imports=%d errors=%d\n", total_imports, total_errors);
 
-    if (total_errors > 0)
+    if (total_errors > 0){
         TEST_FAIL(name, "import/release errors under contention");
+    }
 
     /* unexport and release original */
     ret = VB_Unexport(buf);
@@ -464,8 +478,9 @@ static void test_export_concurrent(void)
 
     /* pool should be fully free now */
     ret = VB_DestroyPool(pool_id);
-    if (ret != 0)
+    if (ret != 0){
         TEST_FAIL(name, "destroy failed after export_concurrent — possible leak");
+    }
 
     VB_Exit();
     SYS_Exit();

@@ -1,11 +1,11 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*/
 
-#ifndef __MPP_OS_LOG_H__
-#define __MPP_OS_LOG_H__
+#ifndef OS_LOG_H
+#define OS_LOG_H
 
 #include "stdarg.h"
 
@@ -26,4 +26,4 @@ void os_log_fatal(const char *tag, const char *msg, va_list list);
 }
 #endif
 
-#endif /*__MPP_OS_LOG_H__*/
+#endif /* OS_LOG_H */

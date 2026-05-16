@@ -1,24 +1,24 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_vb.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Minimal test for VB CreatePool/DestroyPool/GetBuffer/ReleaseBuffer.
- *                 Covers: common pool, private pool, refcount, timeout, multi-thread.
- *
- * Build:
- *   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
- *       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
- *       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
- *       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
- *       test_vb.c -o test_vb -lrt
- *
- * Run:
- *   ./test_vb
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_vb.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    Minimal test for VB CreatePool/DestroyPool/GetBuffer/ReleaseBuffer.
+*                 Covers: common pool, private pool, refcount, timeout, multi-thread.
+*
+* Build:
+*   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
+*       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
+*       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
+*       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
+*       test_vb.c -o test_vb -lrt
+*
+* Run:
+*   ./test_vb
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -34,7 +34,7 @@
 #include "vb_api.h"
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while (0)
 
 /* ======================== Test 1: Basic Lifecycle ======================== */
 static void test_basic_lifecycle(void)
@@ -56,16 +56,19 @@ static void test_basic_lifecycle(void)
         .eRemapMode  = VB_REMAP_MODE_NONE,
     };
     pool_id = VB_CreatePool(&cfg);
-    if (pool_id == 0)
+    if (pool_id == 0){
         TEST_FAIL(name, "CreatePool returned 0");
+    }
 
     /* get 2 buffers */
     buf1 = VB_GetBuffer(pool_id, 0);
     buf2 = VB_GetBuffer(pool_id, 0);
-    if (buf1 == 0 || buf2 == 0)
+    if (buf1 == 0 || buf2 == 0){
         TEST_FAIL(name, "GetBuffer returned 0");
-    if (buf1 == buf2)
+    }
+    if (buf1 == buf2){
         TEST_FAIL(name, "got same buffer twice");
+    }
 
     /* release both */
     ret = VB_ReleaseBuffer(buf1);
@@ -114,21 +117,24 @@ static void test_exhaustion_timeout(void)
 
     /* next get should fail (non-blocking) */
     UL fail_buf = VB_GetBuffer(pool_id, 0);
-    if (fail_buf != 0)
+    if (fail_buf != 0){
         TEST_FAIL(name, "should fail when pool exhausted");
+    }
 
     /* timed wait should timeout */
     fail_buf = VB_GetBuffer(pool_id, 50);
-    if (fail_buf != 0)
+    if (fail_buf != 0){
         TEST_FAIL(name, "should timeout");
+    }
 
     /* release one, then get should succeed */
     ret = VB_ReleaseBuffer(bufs[0]);
     assert(ret == 0);
 
     UL new_buf = VB_GetBuffer(pool_id, 0);
-    if (new_buf == 0)
+    if (new_buf == 0){
         TEST_FAIL(name, "should get buffer after release");
+    }
 
     /* cleanup */
     VB_ReleaseBuffer(new_buf);
@@ -153,7 +159,7 @@ static void test_refcount(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = { .u32BufSize = 2048, .u32BufCnt = 2,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -174,8 +180,9 @@ static void test_refcount(void)
 
     /* cannot destroy pool while buffer is held */
     ret = VB_DestroyPool(pool_id);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "destroy should fail with outstanding buffer");
+    }
 
     /* final release -> refcount = 0, block returned */
     ret = VB_ReleaseBuffer(buf);
@@ -183,8 +190,9 @@ static void test_refcount(void)
 
     /* double release should fail */
     ret = VB_ReleaseBuffer(buf);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "double release should fail");
+    }
 
     /* now destroy should succeed */
     ret = VB_DestroyPool(pool_id);
@@ -241,7 +249,7 @@ static void test_multithread(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = { .u32BufSize = 512, .u32BufCnt = 4,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -265,8 +273,9 @@ static void test_multithread(void)
         total_errors += args[i].errors;
     }
 
-    if (total_errors > 0)
+    if (total_errors > 0){
         TEST_FAIL(name, "release errors in multi-thread");
+    }
 
     ret = VB_DestroyPool(pool_id);
     assert(ret == 0);
@@ -288,7 +297,7 @@ static void test_destroy_outstanding(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = { .u32BufSize = 1024, .u32BufCnt = 2,
-                       .eModId = MPP_ID_VDEC, .eRemapMode = VB_REMAP_MODE_NONE };
+                        .eModId = MPP_ID_VDEC, .eRemapMode = VB_REMAP_MODE_NONE };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -297,8 +306,9 @@ static void test_destroy_outstanding(void)
 
     /* destroy should fail because a buffer is outstanding */
     ret = VB_DestroyPool(pool_id);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "destroy should fail with outstanding buffer");
+    }
 
     /* release then destroy should work */
     VB_ReleaseBuffer(buf);

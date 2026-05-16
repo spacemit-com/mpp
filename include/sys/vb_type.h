@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    vb_types.h
- * @Date      :    2026-3-16
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Media Interface for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    vb_types.h
+* @Date      :    2026-3-16
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    Media Interface for MPP.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __VB_TYPE_H__
-#define __VB_TYPE_H__
+#ifndef VB_TYPE_H
+#define VB_TYPE_H
 
 #include "type.h"
 #include "sys_type.h"
@@ -59,49 +59,49 @@ typedef enum _Rotation {
 } Rotation;
 
 /***
- * @description: pixelformat mpp or some other platform may use.
- */
+* @description: pixelformat mpp or some other platform may use.
+*/
 typedef enum _MppPixelFormat {
     MPP_PIXEL_FORMAT_UNKNOWN = 0,
 
     /***
-     * YYYYYYYYVVUU
-     */
+    * YYYYYYYYVVUU
+    */
     MPP_PIXEL_FORMAT_YV12,
 
     /***
-     * YYYYYYYYUUVV  YU12/YUV420P is the same
-     */
+    * YYYYYYYYUUVV  YU12/YUV420P is the same
+    */
     MPP_PIXEL_FORMAT_I420,
 
     /***
-     * YYYYYYYYVUVU
-     */
+    * YYYYYYYYVUVU
+    */
     MPP_PIXEL_FORMAT_NV21,
 
     /***
-     * YYYYYYYYUVUV
-     */
+    * YYYYYYYYUVUV
+    */
     MPP_PIXEL_FORMAT_NV12,
 
     /***
-     * 11111111 11000000, 16bit only use 10bit
-     */
+    * 11111111 11000000, 16bit only use 10bit
+    */
     MPP_PIXEL_FORMAT_YV12_P010,
 
     /***
-     * 11111111 11000000, 16bit only use 10bit
-     */
+    * 11111111 11000000, 16bit only use 10bit
+    */
     MPP_PIXEL_FORMAT_I420_P010,
 
     /***
-     * 11111111 11000000, 16bit only use 10bit
-     */
+    * 11111111 11000000, 16bit only use 10bit
+    */
     MPP_PIXEL_FORMAT_NV21_P010,
 
     /***
-     * 11111111 11000000, 16bit only use 10bit
-     */
+    * 11111111 11000000, 16bit only use 10bit
+    */
     MPP_PIXEL_FORMAT_NV12_P010,
     MPP_PIXEL_FORMAT_YV12_P016,
     MPP_PIXEL_FORMAT_I420_P016,
@@ -109,23 +109,23 @@ typedef enum _MppPixelFormat {
     MPP_PIXEL_FORMAT_NV12_P016,
 
     /***
-     * YYYYUUVV, YU16 is the same
-     */
+    * YYYYUUVV, YU16 is the same
+    */
     MPP_PIXEL_FORMAT_YUV422P,
 
     /***
-     * YYYYVVUU
-     */
+    * YYYYVVUU
+    */
     MPP_PIXEL_FORMAT_YV16,
 
     /***
-     * YYYYUVUV  NV16 is the same
-     */
+    * YYYYUVUV  NV16 is the same
+    */
     MPP_PIXEL_FORMAT_YUV422SP,
 
     /***
-     * YYYYVUVU
-     */
+    * YYYYVUVU
+    */
     MPP_PIXEL_FORMAT_NV61,
     MPP_PIXEL_FORMAT_YUV422P_P010,
     MPP_PIXEL_FORMAT_YV16_P010,
@@ -133,13 +133,13 @@ typedef enum _MppPixelFormat {
     MPP_PIXEL_FORMAT_NV61_P010,
 
     /***
-     * YYUUVV
-     */
+    * YYUUVV
+    */
     MPP_PIXEL_FORMAT_YUV444P,
 
     /***
-     * YYUVUV
-     */
+    * YYUVUV
+    */
     MPP_PIXEL_FORMAT_YUV444SP,
     MPP_PIXEL_FORMAT_YUYV,
     MPP_PIXEL_FORMAT_YVYU,
@@ -190,8 +190,8 @@ typedef enum _MppPixelFormat {
     MPP_PIXEL_FORMAT_AFBC_YUV422_10,
 
     /***
-     * for usb camera
-     */
+    * for usb camera
+    */
     MPP_PIXEL_FORMAT_H264,
     MPP_PIXEL_FORMAT_MJPEG,
 
@@ -214,27 +214,27 @@ typedef enum _ColorSpace {
 } ColorSpace;
 
 typedef struct _VideoFrame {
-    U32              u32TotalSize;
-    U32              u32PlaneNum;
-    U32              u32PlaneStride[FRAME_MAX_PLANE];
-    U32              u32PlaneSize[FRAME_MAX_PLANE];
-    U32              u32PlaneSizeValid[FRAME_MAX_PLANE];
-    U64              u64PlanePhyAddr[FRAME_MAX_PLANE];
-    UL               ulPlaneVirAddr[FRAME_MAX_PLANE];
-    UL               u32Fd[FRAME_MAX_PLANE];
-    U64              u64PTS;
-    U32              u32FrameFlag;
-    Rotation         enRotation;
-    U32              u32PrivateData;
+    U32 u32TotalSize;
+    U32 u32PlaneNum;
+    U32 u32PlaneStride[FRAME_MAX_PLANE];
+    U32 u32PlaneSize[FRAME_MAX_PLANE];
+    U32 u32PlaneSizeValid[FRAME_MAX_PLANE];
+    U64 u64PlanePhyAddr[FRAME_MAX_PLANE];
+    UL ulPlaneVirAddr[FRAME_MAX_PLANE];
+    UL u32Fd[FRAME_MAX_PLANE];
+    U64 u64PTS;
+    U32 u32FrameFlag;
+    Rotation enRotation;
+    U32 u32PrivateData;
 } VideoFrame;
 
 typedef struct _CommonFrameInfo {
-    U32              u32Width;
-    U32              u32Height;
-    U32              u32Align;
-    MppPixelFormat   ePixelFormat;
-    CompressMode     eCompressMode;
-    ColorSpace       eColorSpace;
+    U32 u32Width;
+    U32 u32Height;
+    U32 u32Align;
+    MppPixelFormat ePixelFormat;
+    CompressMode eCompressMode;
+    ColorSpace eColorSpace;
 } CommonFrameInfo;
 
 typedef struct _VdecScaleInfo {
@@ -256,49 +256,49 @@ typedef struct _ViFrameMetaInfo {
     U32 u32BGain;
     U32 u32CCM[9];
     U32 u32BlackLevel[4];
-    U8  u8AeStable;
-    U8  u8AwbStable;
-    U8  au8Reserved[2];
+    U8 u8AeStable;
+    U8 u8AwbStable;
+    U8 au8Reserved[2];
 } ViFrameMetaInfo;
 
 typedef struct _ViFrameInfo {
-    CommonFrameInfo  stCommFrameInfo;
-    ViFrameMetaInfo  stFrameMetaInfo;
+    CommonFrameInfo stCommFrameInfo;
+    ViFrameMetaInfo stFrameMetaInfo;
 } ViFrameInfo;
 
 typedef struct _CppFrameInfo {
-    CommonFrameInfo  stCommFrameInfo;
+    CommonFrameInfo stCommFrameInfo;
 } CppFrameInfo;
 
 typedef struct _VoFrameInfo {
-    CommonFrameInfo  stCommFrameInfo;
+    CommonFrameInfo stCommFrameInfo;
 } VoFrameInfo;
 
 typedef struct _VencFrameInfo {
-    CommonFrameInfo  stCommFrameInfo;
+    CommonFrameInfo stCommFrameInfo;
 } VencFrameInfo;
 
 typedef struct _VdecFrameInfo {
-    CommonFrameInfo  stCommFrameInfo;
-    VdecScaleInfo    stScaleInfo;
-    BOOL             bEndOfStream;
+    CommonFrameInfo stCommFrameInfo;
+    VdecScaleInfo stScaleInfo;
+    BOOL bEndOfStream;
 } VdecFrameInfo;
 
 typedef struct _VideoFrameInfo {
-    VideoFrame       stVFrame;
-    FrameType        eFrameType;
-    U32              u32Idx;
-    ModId            eModId;
-    UL               ulPoolId;
-    UL               ulBufferId;
+    VideoFrame stVFrame;
+    FrameType eFrameType;
+    U32 u32Idx;
+    ModId eModId;
+    UL ulPoolId;
+    UL ulBufferId;
     union {
-        CommonFrameInfo  stCommFrameInfo;
-        ViFrameInfo      stViFrameInfo;
-        CppFrameInfo     stCppFrameInfo;
-        VoFrameInfo      stVoFrameInfo;
-        VencFrameInfo    stVencFrameInfo;
-        VdecFrameInfo    stVdecFrameInfo;
-        U8               u8UserDef[128];
+        CommonFrameInfo stCommFrameInfo;
+        ViFrameInfo stViFrameInfo;
+        CppFrameInfo stCppFrameInfo;
+        VoFrameInfo stVoFrameInfo;
+        VencFrameInfo stVencFrameInfo;
+        VdecFrameInfo stVdecFrameInfo;
+        U8 u8UserDef[128];
     };
 } VideoFrameInfo;
 

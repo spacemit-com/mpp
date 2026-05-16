@@ -1,17 +1,17 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    vdec_type.h
- * @Date      :    2026-04-18
- * @Brief     :    VDEC module type definitions for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    vdec_type.h
+* @Date      :    2026-04-18
+* @Brief     :    VDEC module type definitions for MPP.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __VDEC_TYPE_H__
-#define __VDEC_TYPE_H__
+#ifndef VDEC_TYPE_H
+#define VDEC_TYPE_H
 
 #include "sys/type.h"
 #include "sys/sys_type.h"
@@ -49,40 +49,40 @@ extern "C" {
 /* ======================== Structures ======================== */
 
 /**
- * @brief VDEC channel attributes (set before VDEC_EnableChn)
- */
+* @brief VDEC channel attributes (set before VDEC_EnableChn)
+*/
 typedef struct _VdecScale {
-    U32              u32Align;          /**< alignment for scaled width/height (e.g. 16) */
-    U32              u32Width;          /**< scaled width (0 = no scaling) */
-    U32              u32Height;         /**< scaled height (0 = no scaling) */
-    BOOL             bScaleEnable;      /**< enable scaling (if FALSE, u32Width/u32Height are ignored) */
+    U32 u32Align;                       /**< alignment for scaled width/height (e.g. 16) */
+    U32 u32Width;                       /**< scaled width (0 = no scaling) */
+    U32 u32Height;                      /**< scaled height (0 = no scaling) */
+    BOOL bScaleEnable;                  /**< enable scaling (if FALSE, u32Width/u32Height are ignored) */
 } VdecScale;
 
 /**
- * @brief VDEC channel attributes (set before VDEC_EnableChn)
- */
+* @brief VDEC channel attributes (set before VDEC_EnableChn)
+*/
 typedef struct _VdecChnAttr {
-    MppStreamCodecType  eCodecType;             /**< H264 / H265 / MJPEG */
-    MppPixelFormat      eOutputPixelFormat;     /**< desired output pixel format */
-    U32                 u32Align;               /**< alignment for decoded width/height (e.g. 16) */
-    U32                 u32Width;               /**< stream width  (0 = auto detect) */
-    U32                 u32Height;              /**< stream height (0 = auto detect) */
-    BOOL                bIsInterlaced;          /**< interlaced stream */
-    BOOL                bIsFrameReordering;     /**< enable frame reordering */
-    U32                 u32RotateDegree;        /**< 0 / 90 / 180 / 270 */
-    BOOL                bDispErrorFrame;        /**< display error frames */
-    VdecScale           stScale;                /**< scaling parameters */
+    MppStreamCodecType eCodecType;              /**< H264 / H265 / MJPEG */
+    MppPixelFormat eOutputPixelFormat;          /**< desired output pixel format */
+    U32 u32Align;                               /**< alignment for decoded width/height (e.g. 16) */
+    U32 u32Width;                               /**< stream width  (0 = auto detect) */
+    U32 u32Height;                              /**< stream height (0 = auto detect) */
+    BOOL bIsInterlaced;                         /**< interlaced stream */
+    BOOL bIsFrameReordering;                    /**< enable frame reordering */
+    U32 u32RotateDegree;                        /**< 0 / 90 / 180 / 270 */
+    BOOL bDispErrorFrame;                       /**< display error frames */
+    VdecScale stScale;                          /**< scaling parameters */
 } VdecChnAttr;
 
 /**
- * @brief VDEC channel status (read-only, queried via VDEC_QueryStatus)
- */
+* @brief VDEC channel status (read-only, queried via VDEC_QueryStatus)
+*/
 typedef struct _VdecChnStatus {
-    U32     u32LeftStreamFrames;    /**< pending stream packets in input queue */
-    U32     u32LeftDecodedFrames;   /**< decoded frames available for output */
-    U32     u32Width;               /**< current decoded width */
-    U32     u32Height;              /**< current decoded height */
-    BOOL    bEndOfStream;           /**< EOS reached */
+    U32 u32LeftStreamFrames;        /**< pending stream packets in input queue */
+    U32 u32LeftDecodedFrames;       /**< decoded frames available for output */
+    U32 u32Width;                   /**< current decoded width */
+    U32 u32Height;                  /**< current decoded height */
+    BOOL bEndOfStream;              /**< EOS reached */
 } VdecChnStatus;
 
 #ifdef __cplusplus

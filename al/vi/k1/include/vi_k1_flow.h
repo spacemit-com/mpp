@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    vi_k1_flow.h
- * @Date      :    2026-3-30
- * @Author    :    SPACEMIT
- * @Brief     :    K1 VI channel flow helpers.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    vi_k1_flow.h
+* @Date      :    2026-3-30
+* @Author    :    SPACEMIT
+* @Brief     :    K1 VI channel flow helpers.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __AL_VI_K1_FLOW_H__
-#define __AL_VI_K1_FLOW_H__
+#ifndef VI_K1_FLOW_H
+#define VI_K1_FLOW_H
 
 #include "vi_k1_ctx.h"
 
@@ -22,4 +22,4 @@ S32 K1_VI_StopChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool
 int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer);
 int32_t K1_VI_CcicBufferCallback(uint32_t nChn, CCIC_IMAGE_BUFFER_S *ccic_buffer);
 
-#endif /* __AL_VI_K1_FLOW_H__ */
+#endif /* VI_K1_FLOW_H */

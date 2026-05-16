@@ -30,18 +30,18 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
     stMuxPkt.u64PTS = pstPkt->u64PTS;
 
     switch (pstPkt->eCodecType) {
-        case DEMUX_CODEC_H264:
-            stMuxPkt.eCodecType = MUX_CODEC_H264;
-            break;
-        case DEMUX_CODEC_H265:
-            stMuxPkt.eCodecType = MUX_CODEC_H265;
-            break;
-        case DEMUX_CODEC_MJPEG:
-            stMuxPkt.eCodecType = MUX_CODEC_MJPEG;
-            break;
-        default:
-            stMuxPkt.eCodecType = MUX_CODEC_UNKNOWN;
-            break;
+    case DEMUX_CODEC_H264:
+        stMuxPkt.eCodecType = MUX_CODEC_H264;
+        break;
+    case DEMUX_CODEC_H265:
+        stMuxPkt.eCodecType = MUX_CODEC_H265;
+        break;
+    case DEMUX_CODEC_MJPEG:
+        stMuxPkt.eCodecType = MUX_CODEC_MJPEG;
+        break;
+    default:
+        stMuxPkt.eCodecType = MUX_CODEC_UNKNOWN;
+        break;
     }
 
     return MUX_SendPacket(0, &stMuxPkt);
@@ -54,13 +54,13 @@ int main(int argc, char *argv[])
 
     if (argc < 3) {
         fprintf(stderr,
-                "usage: %s <input_rtsp_url> <output_rtsp_url>\n"
-                "  example:\n"
-                "    %s rtsp://192.168.1.100:554/live rtsp://0.0.0.0:8554/relay\n"
-                "  then play with:\n"
-                "    ffplay rtsp://127.0.0.1:8554/relay\n"
-                "    vlc rtsp://127.0.0.1:8554/relay\n",
-                argv[0], argv[0]);
+            "usage: %s <input_rtsp_url> <output_rtsp_url>\n"
+            "  example:\n"
+            "    %s rtsp://192.168.1.100:554/live rtsp://0.0.0.0:8554/relay\n"
+            "  then play with:\n"
+            "    ffplay rtsp://127.0.0.1:8554/relay\n"
+            "    vlc rtsp://127.0.0.1:8554/relay\n",
+            argv[0], argv[0]);
         return 1;
     }
 
@@ -123,9 +123,9 @@ int main(int argc, char *argv[])
         MuxChnStat stStat;
         if (MUX_GetChnStat(0, &stStat) == 0) {
             printf("\r[RTSP] clients=%u  pkts=%llu  bytes=%llu  ",
-                   stStat.u32ActiveClients,
-                   (unsigned long long)stStat.u64TotalPkts,
-                   (unsigned long long)stStat.u64TotalBytes);
+                stStat.u32ActiveClients,
+                (unsigned long long)stStat.u64TotalPkts,
+                (unsigned long long)stStat.u64TotalBytes);
             fflush(stdout);
         }
         sleep(2);

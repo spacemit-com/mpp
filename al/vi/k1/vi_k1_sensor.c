@@ -1,10 +1,10 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*------------------------------------------------------------------------------
+*/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,16 +16,19 @@
 
 static BOOL K1_VI_IsSensorCfgMatch(const K1_VI_DEV_CTX_S *pstDevCtx, const SENSOR_CONFIG_S *pstCfg)
 {
-    if (pstDevCtx == NULL || pstCfg == NULL)
+    if (pstDevCtx == NULL || pstCfg == NULL){
         return MPP_FALSE;
+    }
 
     if ((U32)pstCfg->width != pstDevCtx->stAttr.u32Width ||
-        (U32)pstCfg->height != pstDevCtx->stAttr.u32Height)
+        (U32)pstCfg->height != pstDevCtx->stAttr.u32Height){
         return MPP_FALSE;
+    }
 
     if (pstDevCtx->stAttr.u32MipiLaneNum != 0 &&
-        (U32)pstCfg->lane_num != pstDevCtx->stAttr.u32MipiLaneNum)
+        (U32)pstCfg->lane_num != pstDevCtx->stAttr.u32MipiLaneNum){
         return MPP_FALSE;
+    }
 
     return MPP_TRUE;
 }
@@ -35,18 +38,20 @@ static S32 K1_VI_SelectSensorCfg(K1_VI_DEV_CTX_S *pstDevCtx)
     U32 i = 0;
     SENSOR_CONFIG_S *pstCfg = NULL;
 
-    if (pstDevCtx == NULL)
+    if (pstDevCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     for (i = 0; i < (U32)pstDevCtx->stSensorCapability.sensor_capability.snr_config_num; i++) {
         pstCfg = &pstDevCtx->stSensorCapability.sensor_capability.snr_config[i];
-        if (K1_VI_IsSensorCfgMatch(pstDevCtx, pstCfg) != MPP_TRUE)
+        if (K1_VI_IsSensorCfgMatch(pstDevCtx, pstCfg) != MPP_TRUE){
             continue;
+        }
 
         pstDevCtx->pstSensorCfg = pstCfg;
-		info("Selected sensor config %u: %ux%u\n", i, pstCfg->width, pstCfg->height);
-		info("Selected sensor config minFps maxFps: %f %f bitDepth=%d lane_num=%d\n",
-		       pstCfg->minFps, pstCfg->maxFps, pstCfg->bitDepth, pstCfg->lane_num);
+        info("Selected sensor config %u: %ux%u\n", i, pstCfg->width, pstCfg->height);
+        info("Selected sensor config minFps maxFps: %f %f bitDepth=%d lane_num=%d\n",
+            pstCfg->minFps, pstCfg->maxFps, pstCfg->bitDepth, pstCfg->lane_num);
 
         return K1_VI_SUCCESS;
     }
@@ -59,13 +64,15 @@ static S32 K1_VI_GetSelectedSensorCfgIndex(const K1_VI_DEV_CTX_S *pstDevCtx)
 
     if (pstDevCtx == NULL ||
         pstDevCtx->pstSensorCfg == NULL ||
-        pstDevCtx->stSensorCapability.sensor_capability.snr_config == NULL)
+        pstDevCtx->stSensorCapability.sensor_capability.snr_config == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     iIndex = pstDevCtx->pstSensorCfg - pstDevCtx->stSensorCapability.sensor_capability.snr_config;
     if (iIndex < 0 ||
-        (U32)iIndex >= (U32)pstDevCtx->stSensorCapability.sensor_capability.snr_config_num)
+        (U32)iIndex >= (U32)pstDevCtx->stSensorCapability.sensor_capability.snr_config_num){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     return (S32)iIndex;
 }
@@ -79,14 +86,17 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
     int s32Height = 0;
     S32 s32CfgIndex = 0;
 
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE)
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstDevCtx = &g_stK1ViCtx.astDevCtx[ViDev];
-    if (pstDevCtx->bSensorInfoValid == MPP_TRUE)
+    if (pstDevCtx->bSensorInfoValid == MPP_TRUE){
         return K1_VI_SUCCESS;
-    if (pstDevCtx->pSensorHandle != NULL)
+    }
+    if (pstDevCtx->pSensorHandle != NULL){
         return K1_VI_SUCCESS;
+    }
 
     memset(&stSnrCustom, 0, sizeof(stSnrCustom));
     stSnrCustom.dev_id = ViDev;
@@ -94,10 +104,11 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
     stSnrCustom.board_id = 1;
 
     memset(pstDevCtx->szSensorName, 0, sizeof(pstDevCtx->szSensorName));
-	info("Detecting sensor for VI dev %u...\n", ViDev);
+    info("Detecting sensor for VI dev %u...\n", ViDev);
     s32Ret = SPM_SENSORS_MODULE_Detect_Auto(pstDevCtx->szSensorName, &s32Width, &s32Height, ViDev, stSnrCustom.board_id);
-    if (s32Ret != 0)
+    if (s32Ret != 0){
         return s32Ret;
+    }
 
     pstDevCtx->bSensorDetected = MPP_TRUE;
 
@@ -107,19 +118,20 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
     }
 
     s32Ret = SPM_SENSORS_MODULE_Init(&pstDevCtx->pSensorHandle,
-                                     pstDevCtx->szSensorName,
-                                     ViDev,
-                                     &pstDevCtx->stSensorModuleInfo,
-                                     stSnrCustom.i2c_addr);
-	info("%s: SPM_SENSORS_MODULE_Init %s devId %d, i2cAddr %d, ret = %d\n", __func__, pstDevCtx->szSensorName, ViDev, stSnrCustom.i2c_addr, s32Ret);
-    if (s32Ret != 0)
+        pstDevCtx->szSensorName,
+        ViDev,
+        &pstDevCtx->stSensorModuleInfo,
+        stSnrCustom.i2c_addr);
+    info("%s: SPM_SENSORS_MODULE_Init %s devId %d, i2cAddr %d, ret = %d\n", __func__, pstDevCtx->szSensorName, ViDev, stSnrCustom.i2c_addr, s32Ret);
+    if (s32Ret != 0){
         return s32Ret;
+    }
 
     if (pstDevCtx->stSensorModuleInfo.snr_config_num > 0) {
         pstDevCtx->stSensorCapability.sensor_capability.snr_config_num = pstDevCtx->stSensorModuleInfo.snr_config_num;
         pstDevCtx->stSensorCapability.sensor_capability.snr_config =
             (SENSOR_CONFIG_S *)calloc(1,
-                pstDevCtx->stSensorModuleInfo.snr_config_num * sizeof(SENSOR_CONFIG_S));
+            pstDevCtx->stSensorModuleInfo.snr_config_num * sizeof(SENSOR_CONFIG_S));
         if (pstDevCtx->stSensorCapability.sensor_capability.snr_config == NULL) {
             K1_VI_DeInitSensor(ViDev);
             return K1_VI_ERR_BUSY;
@@ -127,7 +139,7 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
     }
 
     s32Ret = SPM_SENSORS_MODULE_EnumCapability(pstDevCtx->pSensorHandle, &pstDevCtx->stSensorCapability);
-	info("%s: SPM_SENSORS_MODULE_EnumCapability ret = %d, config_num = %d\n", __func__, s32Ret, pstDevCtx->stSensorCapability.sensor_capability.snr_config_num);
+    info("%s: SPM_SENSORS_MODULE_EnumCapability ret = %d, config_num = %d\n", __func__, s32Ret, pstDevCtx->stSensorCapability.sensor_capability.snr_config_num);
     if (s32Ret != 0) {
         K1_VI_DeInitSensor(ViDev);
         return s32Ret;
@@ -178,18 +190,22 @@ S32 K1_VI_StartSensor(VI_DEV ViDev)
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     int s32Ret = 0;
 
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE)
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstDevCtx = &g_stK1ViCtx.astDevCtx[ViDev];
-    if (pstDevCtx->bSensorAutoManaged != MPP_TRUE || pstDevCtx->pSensorHandle == NULL)
+    if (pstDevCtx->bSensorAutoManaged != MPP_TRUE || pstDevCtx->pSensorHandle == NULL){
         return K1_VI_SUCCESS;
-    if (pstDevCtx->bSensorStreaming == MPP_TRUE)
+    }
+    if (pstDevCtx->bSensorStreaming == MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     s32Ret = SPM_SENSOR_StreamOn(pstDevCtx->pSensorHandle);
-    if (s32Ret != 0)
+    if (s32Ret != 0){
         return s32Ret;
+    }
 
     pstDevCtx->bSensorStreaming = MPP_TRUE;
     return K1_VI_SUCCESS;
@@ -200,18 +216,22 @@ S32 K1_VI_StopSensor(VI_DEV ViDev)
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     int s32Ret = 0;
 
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE)
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstDevCtx = &g_stK1ViCtx.astDevCtx[ViDev];
-    if (pstDevCtx->bSensorAutoManaged != MPP_TRUE || pstDevCtx->pSensorHandle == NULL)
+    if (pstDevCtx->bSensorAutoManaged != MPP_TRUE || pstDevCtx->pSensorHandle == NULL){
         return K1_VI_SUCCESS;
-    if (pstDevCtx->bSensorStreaming != MPP_TRUE)
+    }
+    if (pstDevCtx->bSensorStreaming != MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     s32Ret = SPM_SENSOR_StreamOff(pstDevCtx->pSensorHandle);
-    if (s32Ret != 0)
+    if (s32Ret != 0){
         return s32Ret;
+    }
 
     pstDevCtx->bSensorStreaming = MPP_FALSE;
     return K1_VI_SUCCESS;
@@ -221,8 +241,9 @@ S32 K1_VI_DeInitSensor(VI_DEV ViDev)
 {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
 
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE)
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstDevCtx = &g_stK1ViCtx.astDevCtx[ViDev];
 
@@ -231,8 +252,9 @@ S32 K1_VI_DeInitSensor(VI_DEV ViDev)
         pstDevCtx->bVcmOpened = MPP_FALSE;
     }
 
-    if (pstDevCtx->bSensorStreaming == MPP_TRUE)
+    if (pstDevCtx->bSensorStreaming == MPP_TRUE){
         (void)K1_VI_StopSensor(ViDev);
+    }
 
     if (pstDevCtx->bSensorOpened == MPP_TRUE && pstDevCtx->pSensorHandle != NULL) {
         (void)SPM_SENSOR_Close(pstDevCtx->pSensorHandle);

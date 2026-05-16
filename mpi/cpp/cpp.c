@@ -39,46 +39,46 @@ typedef enum _CppFrameStateE {
 } CppFrameStateE;
 
 typedef struct _CppPendingRecordS {
-    BOOL           bUsed;
-    CPP_CHN        CppChn;
-    U32            u32FrameId;
-    UL             ulOutBufferId;
+    BOOL bUsed;
+    CPP_CHN CppChn;
+    U32 u32FrameId;
+    UL ulOutBufferId;
     VideoFrameInfo stOutFrame;
     VOID          *pUserData;
-    S32            s32Result;
+    S32 s32Result;
     CppFrameStateE eState;
 } CppPendingRecordS;
 
 typedef struct _CppDoneNodeS {
     BOOL bValid;
-    U32  u32PendingIdx;
+    U32 u32PendingIdx;
 } CppDoneNodeS;
 
 typedef struct _CppDoneQueueS {
-    CppDoneNodeS    astNodes[CPP_DONE_MAX_PER_CHN];
-    U32             u32ReadPos;
-    U32             u32WritePos;
-    U32             u32Count;
+    CppDoneNodeS astNodes[CPP_DONE_MAX_PER_CHN];
+    U32 u32ReadPos;
+    U32 u32WritePos;
+    U32 u32Count;
     pthread_mutex_t stLock;
-    pthread_cond_t  stCond;
+    pthread_cond_t stCond;
 } CppDoneQueueS;
 
 typedef struct _CppGrpCtxS {
-    BOOL             bCreated;
-    BOOL             bStarted;
-    CppGrpAttrS      stGrpAttr;
-    CppChnAttrS      stChnAttr[CPP_MAX_CHN_NUM];
-    BOOL             bChnEnabled[CPP_MAX_CHN_NUM];
+    BOOL bCreated;
+    BOOL bStarted;
+    CppGrpAttrS stGrpAttr;
+    CppChnAttrS stChnAttr[CPP_MAX_CHN_NUM];
+    BOOL bChnEnabled[CPP_MAX_CHN_NUM];
     CppFrameRateCtrlS stFrameRateCtrl[CPP_MAX_CHN_NUM];
-    U32              u32FrameRateSeq[CPP_MAX_CHN_NUM];
-    CppProcCfgS      stProcCfg;
-    CppCallback      pfnCallback;
-    pthread_mutex_t  stPendingLock;
+    U32 u32FrameRateSeq[CPP_MAX_CHN_NUM];
+    CppProcCfgS stProcCfg;
+    CppCallback pfnCallback;
+    pthread_mutex_t stPendingLock;
     CppPendingRecordS astPending[CPP_PENDING_MAX_PER_GRP];
-    CppDoneQueueS    stDoneQueue;
-    UL               ulOutPool;
-    VbPoolCfg        stOutPoolCfg;
-    VideoFrameInfo   stOutFrameTemplate;
+    CppDoneQueueS stDoneQueue;
+    UL ulOutPool;
+    VbPoolCfg stOutPoolCfg;
+    VideoFrameInfo stOutFrameTemplate;
 } CppGrpCtxS;
 
 static BOOL g_bCppInited = MPP_FALSE;
@@ -86,8 +86,9 @@ static CppGrpCtxS g_stCppGrpCtx[CPP_MAX_GRP_NUM];
 
 static U32 cpp_align_up(U32 u32Value, U32 u32Align)
 {
-    if (u32Align == 0U)
+    if (u32Align == 0U){
         return u32Value;
+    }
 
     return (u32Value + u32Align - 1U) & ~(u32Align - 1U);
 }
@@ -100,14 +101,15 @@ static U32 cpp_calc_dwt_plane_length(U32 u32Width, U32 u32Height, U32 u32Level, 
     U32 u32PlaneWidth = ((u32AlignedWidth / u32Divisor) * 10U + 7U) / 8U;
     U32 u32PlaneHeight = (u32AlignedHeight / u32Divisor);
 
-    if (u32Plane != 0U)
+    if (u32Plane != 0U){
         u32PlaneHeight /= 2U;
+    }
 
     return cpp_align_up(u32PlaneWidth * u32PlaneHeight, 4096U);
 }
 
 static VOID cpp_fill_dwt_planes(IMAGE_BUFFER_S *pstImageBuf, U32 u32BaseWidth, U32 u32BaseHeight,
-                                int iFd, void *pBaseVir, U32 *pu32Offset)
+    int iFd, void *pBaseVir, U32 *pu32Offset)
 {
     U32 u32Level;
     IMAGE_BUFFER_PLANE_S *pastDwt[4] = {
@@ -117,8 +119,9 @@ static VOID cpp_fill_dwt_planes(IMAGE_BUFFER_S *pstImageBuf, U32 u32BaseWidth, U
         pstImageBuf->dwt4,
     };
 
-    if ((pstImageBuf == NULL) || (pu32Offset == NULL))
+    if ((pstImageBuf == NULL) || (pu32Offset == NULL)){
         return;
+    }
 
     for (u32Level = 1U; u32Level <= 4U; ++u32Level) {
         IMAGE_BUFFER_PLANE_S *pstPlane = pastDwt[u32Level - 1U];
@@ -226,10 +229,10 @@ static U32 cpp_calc_output_buffer_size(const CppChnAttrS *pstChnAttr)
     switch (pstChnAttr->ePixelFormat) {
     case MPP_PIXEL_FORMAT_NV12:
         return cpp_calc_dwt_plane_length(u32Width, u32Height, 0U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 0U, 1U) + \
-               cpp_calc_dwt_plane_length(u32Width, u32Height, 1U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 1U, 1U) + \
-               cpp_calc_dwt_plane_length(u32Width, u32Height, 2U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 2U, 1U) + \
-               cpp_calc_dwt_plane_length(u32Width, u32Height, 3U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 3U, 1U) + \
-               cpp_calc_dwt_plane_length(u32Width, u32Height, 4U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 4U, 1U);
+                cpp_calc_dwt_plane_length(u32Width, u32Height, 1U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 1U, 1U) + \
+                cpp_calc_dwt_plane_length(u32Width, u32Height, 2U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 2U, 1U) + \
+                cpp_calc_dwt_plane_length(u32Width, u32Height, 3U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 3U, 1U) + \
+                cpp_calc_dwt_plane_length(u32Width, u32Height, 4U, 0U) + cpp_calc_dwt_plane_length(u32Width, u32Height, 4U, 1U);
     case MPP_PIXEL_FORMAT_NV12_P010:
         return u32Width * u32Height * 3U;
     case MPP_PIXEL_FORMAT_RGB_565:
@@ -617,8 +620,8 @@ static S32 cpp_validate_chn_attr(const CppChnAttrS *pstChnAttr)
 }
 
 static VOID cpp_fill_cam_buffer_from_frame(const VideoFrameInfo *pstFrame,
-                                           IMAGE_BUFFER_S *pstImageBuf,
-                                           BOOL bForInput)
+    IMAGE_BUFFER_S *pstImageBuf,
+    BOOL bForInput)
 {
     U32 i;
     U32 u32PlaneOffset = 0;
@@ -654,17 +657,17 @@ static VOID cpp_fill_cam_buffer_from_frame(const VideoFrameInfo *pstFrame,
 
     if ((pstImageBuf->format == PIXEL_FORMAT_NV12_DWT) || (pstImageBuf->format == PIXEL_FORMAT_FBC_DWT)) {
         cpp_fill_dwt_planes(pstImageBuf,
-                            pstImageBuf->size.width,
-                            pstImageBuf->size.height,
-                            pstImageBuf->m.fd,
-                            pstImageBuf->planes[0].virAddr,
-                            &u32PlaneOffset);
+            pstImageBuf->size.width,
+            pstImageBuf->size.height,
+            pstImageBuf->m.fd,
+            pstImageBuf->planes[0].virAddr,
+            &u32PlaneOffset);
     }
 }
 
 static VOID cpp_fill_frame_from_cam_buffer(const IMAGE_BUFFER_S *pstImageBuf,
-                                           const VideoFrameInfo *pstRefFrame,
-                                           VideoFrameInfo *pstFrame)
+    const VideoFrameInfo *pstRefFrame,
+    VideoFrameInfo *pstFrame)
 {
     U32 i;
 
@@ -706,45 +709,45 @@ static VOID cpp_dump_cam_buffer(const char *pszTag, const IMAGE_BUFFER_S *pstIma
     pastDwt[2] = pstImageBuf->dwt3;
     pastDwt[3] = pstImageBuf->dwt4;
 
-        printf("[cpp][%s] frameId=%d ts=%llu fmt=%d type=%d size=%ux%u planes=%u\n",
-           pszTag,
-           pstImageBuf->frameId,
-           (unsigned long long)pstImageBuf->timeStamp,
-           pstImageBuf->format,
-            pstImageBuf->type,
-           pstImageBuf->size.width,
-           pstImageBuf->size.height,
-           pstImageBuf->numPlanes);
+    printf("[cpp][%s] frameId=%d ts=%llu fmt=%d type=%d size=%ux%u planes=%u\n",
+        pszTag,
+        pstImageBuf->frameId,
+        (unsigned long long)pstImageBuf->timeStamp,
+        pstImageBuf->format,
+        pstImageBuf->type,
+        pstImageBuf->size.width,
+        pstImageBuf->size.height,
+        pstImageBuf->numPlanes);
 
     for (i = 0; (i < pstImageBuf->numPlanes) && (i < IMAGE_BUFFER_MAX_PLANES); ++i) {
         printf("[cpp][%s][plane%u] wxh=%ux%u stride=%u scanline=%u len=%u fd=%d vir=%p off=%u\n",
-               pszTag,
-               i,
-               pstImageBuf->planes[i].width,
-               pstImageBuf->planes[i].height,
-               pstImageBuf->planes[i].stride,
-               pstImageBuf->planes[i].scanline,
-               pstImageBuf->planes[i].length,
-               pstImageBuf->planes[i].fd,
-               pstImageBuf->planes[i].virAddr,
-               pstImageBuf->planes[i].offset);
+            pszTag,
+            i,
+            pstImageBuf->planes[i].width,
+            pstImageBuf->planes[i].height,
+            pstImageBuf->planes[i].stride,
+            pstImageBuf->planes[i].scanline,
+            pstImageBuf->planes[i].length,
+            pstImageBuf->planes[i].fd,
+            pstImageBuf->planes[i].virAddr,
+            pstImageBuf->planes[i].offset);
     }
 
     if ((pstImageBuf->format == PIXEL_FORMAT_NV12_DWT) || (pstImageBuf->format == PIXEL_FORMAT_FBC_DWT)) {
         for (u32Level = 0U; u32Level < 4U; ++u32Level) {
             for (i = 0U; i < DWT_MAX_PLANES; ++i) {
                 printf("[cpp][%s][dwt%u][plane%u] wxh=%ux%u stride=%u scanline=%u len=%u fd=%d vir=%p off=%u\n",
-                       pszTag,
-                       u32Level + 1U,
-                       i,
-                       pastDwt[u32Level][i].width,
-                       pastDwt[u32Level][i].height,
-                       pastDwt[u32Level][i].stride,
-                       pastDwt[u32Level][i].scanline,
-                       pastDwt[u32Level][i].length,
-                       pastDwt[u32Level][i].fd,
-                       pastDwt[u32Level][i].virAddr,
-                       pastDwt[u32Level][i].offset);
+                    pszTag,
+                    u32Level + 1U,
+                    i,
+                    pastDwt[u32Level][i].width,
+                    pastDwt[u32Level][i].height,
+                    pastDwt[u32Level][i].stride,
+                    pastDwt[u32Level][i].scanline,
+                    pastDwt[u32Level][i].length,
+                    pastDwt[u32Level][i].fd,
+                    pastDwt[u32Level][i].virAddr,
+                    pastDwt[u32Level][i].offset);
             }
         }
     }
@@ -821,12 +824,12 @@ static int32_t cpp_internal_callback(MPP_CHN_S mppCpp, const IMAGE_BUFFER_S *cpp
     }
 
     printf("[cpp][callback] devId=%u frameId=%d success=%d out_fd=%d out_vir=%p ts=%llu\n",
-           mppCpp.devId,
-           cppBuf->frameId,
-           success,
-           (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1,
-           (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].virAddr : NULL,
-           (unsigned long long)cppBuf->timeStamp);
+        mppCpp.devId,
+        cppBuf->frameId,
+        success,
+        (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1,
+        (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].virAddr : NULL,
+        (unsigned long long)cppBuf->timeStamp);
 
     s32Ret = cpp_check_grp_created((CPP_GRP)mppCpp.devId, &pstGrpCtx);
     if (s32Ret != CPP_SUCCESS) {
@@ -837,16 +840,16 @@ static int32_t cpp_internal_callback(MPP_CHN_S mppCpp, const IMAGE_BUFFER_S *cpp
     pstPending = cpp_pending_find_by_outfd(pstGrpCtx, cppBuf);
     if (pstPending == NULL) {
         printf("[cpp][callback] pending not found by fd: cb_frameId=%d cb_fd=%d\n",
-               cppBuf->frameId,
-               (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1);
+            cppBuf->frameId,
+            (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1);
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
         return CPP_ERR_NOT_EXIST;
     }
 
     printf("[cpp][callback] match by fd: cb_frameId=%d pending_frameId=%u fd=%d\n",
-           cppBuf->frameId,
-           pstPending->u32FrameId,
-           (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1);
+        cppBuf->frameId,
+        pstPending->u32FrameId,
+        (cppBuf->numPlanes > 0U) ? cppBuf->planes[0].fd : -1);
 
     cpp_fill_frame_from_cam_buffer(cppBuf, &pstPending->stOutFrame, &pstPending->stOutFrame);
     pstPending->stOutFrame.ulBufferId = pstPending->ulOutBufferId;
@@ -981,7 +984,7 @@ S32 CPP_SetGrpAttr(CPP_GRP CppGrp, const CppGrpAttrS *pstGrpAttr)
     stCamAttr.mode = (pstGrpAttr->eProcessMode == CPP_PROCESS_MODE_SLICE) ? CPP_GRP_SLICE_MODE : CPP_GRP_FRAME_MODE;
 
     // printf("[cpp] cam_cpp_set_grp_attr grp=%d attr=%p\n", CppGrp, &stCamAttr);
-    //cpp_dump_grp_attr("set_grp_attr", &stCamAttr);
+    // cpp_dump_grp_attr("set_grp_attr", &stCamAttr);
 
     s32Ret = cam_cpp_set_grp_attr((uint32_t)CppGrp, &stCamAttr);
     if (s32Ret != 0) {
@@ -1199,9 +1202,9 @@ S32 CPP_Disable(CPP_GRP CppGrp)
 }
 
 S32 CPP_SendFrame(CPP_GRP CppGrp,
-                  const VideoFrameInfo *pstInFrame,
-                  U32 u32FrameId,
-                  VOID *pUserData)
+    const VideoFrameInfo *pstInFrame,
+    U32 u32FrameId,
+    VOID *pUserData)
 {
     CppGrpCtxS *pstGrpCtx = NULL;
     IMAGE_BUFFER_S stInBuf;
@@ -1283,16 +1286,16 @@ S32 CPP_SendFrame(CPP_GRP CppGrp,
     stInBuf.frameId = (int)u32FrameId;
     stOutBuf.frameId = (int)u32FrameId;
 
-	printf("[cpp][send] frameId=%u in_idx=%u in_buf=%lu in_fd=%lu in_vir=%p out_idx=%u out_buf=%lu out_fd=%lu out_vir=%p\n",
-		   u32FrameId,
-		   pstInFrame->u32Idx,
-		   pstInFrame->ulBufferId,
-           (pstInFrame->stVFrame.u32PlaneNum > 0U) ? (long unsigned int)pstInFrame->stVFrame.u32Fd[0] : (long unsigned int)-1,
-		   (pstInFrame->stVFrame.u32PlaneNum > 0U) ? (void *)pstInFrame->stVFrame.ulPlaneVirAddr[0] : NULL,
-		   stOutFrame.u32Idx,
-		   stOutFrame.ulBufferId,
-           (stOutFrame.stVFrame.u32PlaneNum > 0U) ? (long unsigned int)stOutFrame.stVFrame.u32Fd[0] : (long unsigned int)-1,
-		   (stOutFrame.stVFrame.u32PlaneNum > 0U) ? (void *)stOutFrame.stVFrame.ulPlaneVirAddr[0] : NULL);
+    printf("[cpp][send] frameId=%u in_idx=%u in_buf=%lu in_fd=%lu in_vir=%p out_idx=%u out_buf=%lu out_fd=%lu out_vir=%p\n",
+        u32FrameId,
+        pstInFrame->u32Idx,
+        pstInFrame->ulBufferId,
+        (pstInFrame->stVFrame.u32PlaneNum > 0U) ? (long unsigned int)pstInFrame->stVFrame.u32Fd[0] : (long unsigned int)-1,
+        (pstInFrame->stVFrame.u32PlaneNum > 0U) ? (void *)pstInFrame->stVFrame.ulPlaneVirAddr[0] : NULL,
+        stOutFrame.u32Idx,
+        stOutFrame.ulBufferId,
+        (stOutFrame.stVFrame.u32PlaneNum > 0U) ? (long unsigned int)stOutFrame.stVFrame.u32Fd[0] : (long unsigned int)-1,
+        (stOutFrame.stVFrame.u32PlaneNum > 0U) ? (void *)stOutFrame.stVFrame.ulPlaneVirAddr[0] : NULL);
 
     pthread_mutex_lock(&pstGrpCtx->stPendingLock);
     s32Ret = cpp_pending_alloc(pstGrpCtx, &u32PendingIdx);
@@ -1386,21 +1389,21 @@ S32 CPP_ReleaseFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstVideoFrame)
     pstPending = cpp_pending_find_borrowed(pstGrpCtx, pstVideoFrame);
     if (pstPending == NULL) {
         printf("[cpp][release] pending not found: idx=%u buf=%lu fd=%lu vir=%p\n",
-               pstVideoFrame->u32Idx,
-               pstVideoFrame->ulBufferId,
-               pstVideoFrame->stVFrame.u32Fd[0],
-             (void *)pstVideoFrame->stVFrame.ulPlaneVirAddr[0]);
+            pstVideoFrame->u32Idx,
+            pstVideoFrame->ulBufferId,
+            pstVideoFrame->stVFrame.u32Fd[0],
+            (void *)pstVideoFrame->stVFrame.ulPlaneVirAddr[0]);
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
         return CPP_ERR_NOT_EXIST;
     }
 
     printf("[cpp][release] matched pending: pending_frameId=%u pending_buf=%lu pending_fd=%lu req_idx=%u req_buf=%lu req_fd=%lu\n",
-           pstPending->u32FrameId,
-           pstPending->ulOutBufferId,
-           pstPending->stOutFrame.stVFrame.u32Fd[0],
-           pstVideoFrame->u32Idx,
-           pstVideoFrame->ulBufferId,
-           pstVideoFrame->stVFrame.u32Fd[0]);
+        pstPending->u32FrameId,
+        pstPending->ulOutBufferId,
+        pstPending->stOutFrame.stVFrame.u32Fd[0],
+        pstVideoFrame->u32Idx,
+        pstVideoFrame->ulBufferId,
+        pstVideoFrame->stVFrame.u32Fd[0]);
 
     if (pstPending->ulOutBufferId != 0U) {
         s32Ret = VB_ReleaseBuffer(pstPending->ulOutBufferId);

@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    test_vi_isp_cam_api.c
- * @Date      :    2026-04-28
- * @Brief     :    Standard ISP camera API demo based on MPP VI.
- *
- * This file intentionally keeps the public-facing camera API in the same source
- * as the demo so integrators can copy the small isp_cam_* wrapper into their
- * application or ROS2 node directly.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    test_vi_isp_cam_api.c
+* @Date      :    2026-04-28
+* @Brief     :    Standard ISP camera API demo based on MPP VI.
+*
+* This file intentionally keeps the public-facing camera API in the same source
+* as the demo so integrators can copy the small isp_cam_* wrapper into their
+* application or ROS2 node directly.
+*------------------------------------------------------------------------------
+*/
 
 #include <errno.h>
 #include <inttypes.h>
@@ -37,24 +37,24 @@
 #define ISP_CAM_DEFAULT_FRAME_COUNT  30
 #define ISP_CAM_MAX_PLANES           3
 
-#define ISP_CAM_LOGE(fmt, ...) printf("[isp-cam][ERR] " fmt, ##__VA_ARGS__)
-#define ISP_CAM_LOGI(fmt, ...) printf("[isp-cam][INFO] " fmt, ##__VA_ARGS__)
-#define ISP_CAM_LOGD(fmt, ...) do { if (g_isp_cam_verbose) printf("[isp-cam][DBG] " fmt, ##__VA_ARGS__); } while (0)
+#define ISP_CAM_LOGE(fmt, ...) printf("[isp-cam][ERR] " fmt, ## __VA_ARGS__)
+#define ISP_CAM_LOGI(fmt, ...) printf("[isp-cam][INFO] " fmt, ## __VA_ARGS__)
+#define ISP_CAM_LOGD(fmt, ...) do { if (g_isp_cam_verbose) printf("[isp-cam][DBG] " fmt, ## __VA_ARGS__); } while (0)
 
 static int g_isp_cam_verbose = 0;
 
 typedef struct _IspCamConfig {
-    VI_DEV         viDev;
-    VI_CHN         viChn;
-    U32            sensorWidth;
-    U32            sensorHeight;
-    U32            outputWidth;
-    U32            outputHeight;
-    U32            mipiLaneNum;
-    U32            mbps;
+    VI_DEV viDev;
+    VI_CHN viChn;
+    U32 sensorWidth;
+    U32 sensorHeight;
+    U32 outputWidth;
+    U32 outputHeight;
+    U32 mipiLaneNum;
+    U32 mbps;
     MppPixelFormat pixelFormat;
-    S32            timeoutMs;
-    BOOL           enableMeta;
+    S32 timeoutMs;
+    BOOL enableMeta;
 } IspCamConfig;
 
 typedef struct _IspCamHandle {
@@ -123,17 +123,17 @@ static void isp_cam_dump_config(const IspCamConfig *cfg)
     }
 
     ISP_CAM_LOGI("config: dev=%d chn=%d sensor=%ux%u output=%ux%u lanes=%u mbps=%u fmt=%s timeout=%dms meta=%s\n",
-                 cfg->viDev,
-                 cfg->viChn,
-                 cfg->sensorWidth,
-                 cfg->sensorHeight,
-                 cfg->outputWidth,
-                 cfg->outputHeight,
-                 cfg->mipiLaneNum,
-                 cfg->mbps,
-                 isp_cam_pixel_format_name(cfg->pixelFormat),
-                 cfg->timeoutMs,
-                 cfg->enableMeta ? "on" : "off");
+        cfg->viDev,
+        cfg->viChn,
+        cfg->sensorWidth,
+        cfg->sensorHeight,
+        cfg->outputWidth,
+        cfg->outputHeight,
+        cfg->mipiLaneNum,
+        cfg->mbps,
+        isp_cam_pixel_format_name(cfg->pixelFormat),
+        cfg->timeoutMs,
+        cfg->enableMeta ? "on" : "off");
 }
 
 static S32 isp_cam_open(IspCamHandle *cam, const IspCamConfig *cfg)
@@ -262,9 +262,9 @@ static S32 isp_cam_get_frame(IspCamHandle *cam, IspCamFrame *outFrame, S32 timeo
     }
 
     // frameId = outFrame->frame.u32Idx;
-	
+
     // if (cam->cfg.enableMeta == MPP_TRUE) {
-		
+
     //     ret = VI_QueryFrameMeta(cam->cfg.viDev, cam->cfg.viChn, frameId, &outFrame->meta);
     //     if (ret == 0) {
     //         outFrame->hasMeta = MPP_TRUE;
@@ -336,29 +336,29 @@ static void isp_cam_dump_frame(const IspCamFrame *frame)
     vf = &frame->frame;
     common = &vf->stViFrameInfo.stCommFrameInfo;
     ISP_CAM_LOGI("frame idx=%u pts=%" PRIu64 " size=%ux%u fmt=%s total=%u planes=%u fd0=%u vir0=%p valid0=%u\n",
-                 vf->u32Idx,
-                 (uint64_t)vf->stVFrame.u64PTS,
-                 common->u32Width,
-                 common->u32Height,
-                 isp_cam_pixel_format_name(common->ePixelFormat),
-                 vf->stVFrame.u32TotalSize,
-                 vf->stVFrame.u32PlaneNum,
-                 (unsigned int)vf->stVFrame.u32Fd[0],
-                 (void *)(uintptr_t)vf->stVFrame.ulPlaneVirAddr[0],
-                 vf->stVFrame.u32PlaneSizeValid[0]);
+        vf->u32Idx,
+        (uint64_t)vf->stVFrame.u64PTS,
+        common->u32Width,
+        common->u32Height,
+        isp_cam_pixel_format_name(common->ePixelFormat),
+        vf->stVFrame.u32TotalSize,
+        vf->stVFrame.u32PlaneNum,
+        (unsigned int)vf->stVFrame.u32Fd[0],
+        (void *)(uintptr_t)vf->stVFrame.ulPlaneVirAddr[0],
+        vf->stVFrame.u32PlaneSizeValid[0]);
 
     if (frame->hasMeta == MPP_TRUE) {
         ISP_CAM_LOGI("meta frameId=%u expLine[0]=%u again[0]=%u dgain[0]=%u ispDgain[0]=%u ctemp=%u rgain=%u bgain=%u aeStable=%u awbStable=%u\n",
-                     frame->meta.u32FrameId,
-                     frame->meta.u32ExpLine[0],
-                     frame->meta.u32Again[0],
-                     frame->meta.u32Dgain[0],
-                     frame->meta.u32IspDgain[0],
-                     frame->meta.u32ColorTemp,
-                     frame->meta.u32RGain,
-                     frame->meta.u32BGain,
-                     frame->meta.u8AeStable,
-                     frame->meta.u8AwbStable);
+            frame->meta.u32FrameId,
+            frame->meta.u32ExpLine[0],
+            frame->meta.u32Again[0],
+            frame->meta.u32Dgain[0],
+            frame->meta.u32IspDgain[0],
+            frame->meta.u32ColorTemp,
+            frame->meta.u32RGain,
+            frame->meta.u32BGain,
+            frame->meta.u8AeStable,
+            frame->meta.u8AwbStable);
     }
 }
 

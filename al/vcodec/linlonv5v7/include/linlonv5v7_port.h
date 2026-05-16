@@ -1,17 +1,17 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2024-03-20 19:29:29
- * @LastEditTime: 2024-03-26 09:46:18
- * @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_port.h
- * @Description:
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @Author: David(qiang.fu@spacemit.com)
+* @Date: 2024-03-20 19:29:29
+* @LastEditTime: 2024-03-26 09:46:18
+* @FilePath: \mpp\al\vcodec\v4l2\linlonv5v7\include\linlonv5v7_port.h
+* @Description:
+*/
 
-#ifndef _LINLONV5V7_PORT_H_
-#define _LINLONV5V7_PORT_H_
+#ifndef LINLONV5V7_PORT_H
+#define LINLONV5V7_PORT_H
 
 #include <errno.h>
 #include <linux/videodev2.h>
@@ -32,191 +32,191 @@
 #include "v4l2_utils.h"
 
 /***
- * V4L2_CID_MVE_VIDEO_NALU_FORMAT
- *
- * NALU format of input bitstream buffers for decode.
- *
- * START_CODES:
- * The data stream contains start codes to format the data into packets.
- * Firmware ignores boundaries between data buffers except when one of the flags
- * is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_EOS
- *
- * ONE_NALU_PER_BUFFER:
- * There is at most one logical packet (subframe) per buffer. A packet may
- * consist of multiple buffers. The end of the subframe is signaled by setting
- * one of the flags: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_EOS
- *
- * ONE_BYTE_LENGTH_FIELD/TWO_BYTE_LENGTH_FIELD/FOUR_BYTE_LENGTH_FIELD:
- * Each logical packet (subframe) is preceded by a length field of the indicated
- * size. Firmware ignores boundaries between data buffers except when one of the
- * flags is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
- * MVE_BUFFER_BITSTREAM_FLAG_EOS
- */
+* V4L2_CID_MVE_VIDEO_NALU_FORMAT
+*
+* NALU format of input bitstream buffers for decode.
+*
+* START_CODES:
+* The data stream contains start codes to format the data into packets.
+* Firmware ignores boundaries between data buffers except when one of the flags
+* is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+* MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+* MVE_BUFFER_BITSTREAM_FLAG_EOS
+*
+* ONE_NALU_PER_BUFFER:
+* There is at most one logical packet (subframe) per buffer. A packet may
+* consist of multiple buffers. The end of the subframe is signaled by setting
+* one of the flags: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+* MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+* MVE_BUFFER_BITSTREAM_FLAG_EOS
+*
+* ONE_BYTE_LENGTH_FIELD/TWO_BYTE_LENGTH_FIELD/FOUR_BYTE_LENGTH_FIELD:
+* Each logical packet (subframe) is preceded by a length field of the indicated
+* size. Firmware ignores boundaries between data buffers except when one of the
+* flags is set: MVE_BUFFER_BITSTREAM_FLAG_ENDOFSUBFRAME,
+* MVE_BUFFER_BITSTREAM_FLAG_ENDOFFRAME,
+* MVE_BUFFER_BITSTREAM_FLAG_EOS
+*/
 enum NaluFormat {
-  NALU_FORMAT_START_CODES,
-  NALU_FORMAT_ONE_NALU_PER_BUFFER,
-  NALU_FORMAT_ONE_BYTE_LENGTH_FIELD,
-  NALU_FORMAT_TWO_BYTE_LENGTH_FIELD,
-  NALU_FORMAT_FOUR_BYTE_LENGTH_FIELD
+    NALU_FORMAT_START_CODES,
+    NALU_FORMAT_ONE_NALU_PER_BUFFER,
+    NALU_FORMAT_ONE_BYTE_LENGTH_FIELD,
+    NALU_FORMAT_TWO_BYTE_LENGTH_FIELD,
+    NALU_FORMAT_FOUR_BYTE_LENGTH_FIELD
 };
 
 typedef enum _DIRECTION {
-  INPUT = 0,
-  OUTPUT = 1,
+    INPUT = 0,
+    OUTPUT = 1,
 } DIRECTION;
 
 typedef struct _Port Port;
 
 /**
- * @description: create a port for decode or encode
- * @return {*}: context of port
- */
+* @description: create a port for decode or encode
+* @return {*}: context of port
+*/
 Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc, S32 align,
-                 U32 memtype, U32 buffer_num, MppFrameBufferType buffer_type);
+    U32 memtype, U32 buffer_num, MppFrameBufferType buffer_type);
 
 /**
- * @description: destory the port after using
- * @param {Port} *port: context of the port
- * @return {*}
- */
+* @description: destory the port after using
+* @param {Port} *port: context of the port
+* @return {*}
+*/
 void destoryPort(Port *port);
 
 /**
- * @description: get Buffer by index, linlonv5v7_dec and linlonv5v7_enc use it,
- * in fact, dec and enc should not operate Buffer directly, optimize later
- * @param {Port} *port: context of the port
- * @param {S32} index: index of the Buffer you want
- * @return {*}: context of the Buffer
- */
+* @description: get Buffer by index, linlonv5v7_dec and linlonv5v7_enc use it,
+* in fact, dec and enc should not operate Buffer directly, optimize later
+* @param {Port} *port: context of the port
+* @param {S32} index: index of the Buffer you want
+* @return {*}: context of the Buffer
+*/
 Buffer *getBuffer(Port *port, S32 index);
 
 /**
- * @description: get the buf type of the port
- * @param {Port} *port: context of the port
- * @return {*}: buf type of the port
- */
+* @description: get the buf type of the port
+* @param {Port} *port: context of the port
+* @return {*}: buf type of the port
+*/
 enum v4l2_buf_type getV4l2BufType(Port *port);
 
 /**
- * @description: get fourcc of the port
- * @param {Port} *port: context of the port
- * @return {*}: fourcc of the port
- */
+* @description: get fourcc of the port
+* @param {Port} *port: context of the port
+* @return {*}: fourcc of the port
+*/
 U32 getFormatFourcc(Port *port);
 
 /**
- * @description: enumerate formats the port supports
- * @param {Port} *port: context of the port
- * @return {*}
- */
+* @description: enumerate formats the port supports
+* @param {Port} *port: context of the port
+* @return {*}
+*/
 void enumerateFormats(Port *port);
 
 /**
- * @description: get format of the port
- * @param {Port} *port: context of the port
- * @return {*}: v4l2_format
- */
+* @description: get format of the port
+* @param {Port} *port: context of the port
+* @return {*}: v4l2_format
+*/
 struct v4l2_format getPortFormat(Port *port);
 
 /**
- * @description: try format on the port
- * @param {Port} *port: context of the port
- * @param {v4l2_format} format: v4l2_format that will be tryed
- * @return {*}
- */
+* @description: try format on the port
+* @param {Port} *port: context of the port
+* @param {v4l2_format} format: v4l2_format that will be tryed
+* @return {*}
+*/
 void tryFormat(Port *port, struct v4l2_format format);
 
 /**
- * @description: set format for the port
- * @param {Port} *port: context of the port
- * @param {v4l2_format} format: v4l2_format that will be set
- * @return {*}
- */
+* @description: set format for the port
+* @param {Port} *port: context of the port
+* @param {v4l2_format} format: v4l2_format that will be set
+* @return {*}
+*/
 void setFormat(Port *port, struct v4l2_format format);
 
 /**
- * @description: get/try/set format together for the port
- * @param {Port} *port: context of the port
- * @param {S32} width: width set to driver
- * @param {S32} height: height set to driver
- * @param {U32} pixel_format: pixel format set to driver
- * @param {BOOL} interlaced: whether interlaced
- * @return {*}
- */
+* @description: get/try/set format together for the port
+* @param {Port} *port: context of the port
+* @param {S32} width: width set to driver
+* @param {S32} height: height set to driver
+* @param {U32} pixel_format: pixel format set to driver
+* @param {BOOL} interlaced: whether interlaced
+* @return {*}
+*/
 void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
-                     BOOL interlaced);
+    BOOL interlaced);
 
 /**
- * @description: use for debug
- * @param {v4l2_format} format: v4l2_format to be printed
- * @return {*}
- */
+* @description: use for debug
+* @param {v4l2_format} format: v4l2_format to be printed
+* @return {*}
+*/
 void printFormat(const struct v4l2_format format);
 
 /**
- * @description: get crop info of the port
- * @param {Port} *port: context of the port
- * @return {*}: v4l2_crop
- */
+* @description: get crop info of the port
+* @param {Port} *port: context of the port
+* @return {*}: v4l2_crop
+*/
 struct v4l2_crop getPortCrop(Port *port);
 
 /**
- * @description: allocate buffers for the port
- * @param {Port} *port: context of the port
- * @param {S32} count: num of buffers need to be allocated
- * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
- */
+* @description: allocate buffers for the port
+* @param {Port} *port: context of the port
+* @param {S32} count: num of buffers need to be allocated
+* @return {*}: MPP_OK:successful, !MPP_OK:need to do something
+*/
 S32 allocateBuffers(Port *port, S32 count);
 
 /**
- * @description: free buffers of the port
- * @param {Port} *port: context of the port
- * @return {*}
- */
+* @description: free buffers of the port
+* @param {Port} *port: context of the port
+* @return {*}
+*/
 void freeBuffers(Port *port);
 
 /**
- * @description: get buffer num of the port
- * @param {Port} *port: context of the port
- * @return {*}: num of buffer num
- */
+* @description: get buffer num of the port
+* @param {Port} *port: context of the port
+* @return {*}: num of buffer num
+*/
 U32 getBufferCount(Port *port);
 
 /**
- * @description: queue all buffers to driver
- * @param {Port} *port: context of the port
- * @param {BOOL} eof: end of file
- * @return {*}
- */
+* @description: queue all buffers to driver
+* @param {Port} *port: context of the port
+* @param {BOOL} eof: end of file
+* @return {*}
+*/
 void queueBuffers(Port *port, BOOL eof);
 
 /**
- * @description: queue one buffer of the port to driver
- * @param {Port} *port: context of the port
- * @param {Buffer} *buf: buffer need to be queued
- * @return {*}: MPP_OK:successful, !MPP_OK:need to do something
- */
+* @description: queue one buffer of the port to driver
+* @param {Port} *port: context of the port
+* @param {Buffer} *buf: buffer need to be queued
+* @return {*}: MPP_OK:successful, !MPP_OK:need to do something
+*/
 S32 queueBuffer(Port *port, Buffer *buf);
 
 /**
- * @description: dequeue one buffer from driver
- * @param {Port} *port: context of the port
- * @return {*}: context of the buffer
- */
+* @description: dequeue one buffer from driver
+* @param {Port} *port: context of the port
+* @return {*}: context of the buffer
+*/
 Buffer *dequeueBuffer(Port *port);
 
 /**
- * @description: use for debug, printf the buffer status
- * @param {Port} *port: context of the port
- * @param {v4l2_buffer} buf: buffer need to be printed
- * @param {U8} *prefix
- * @return {*}
- */
+* @description: use for debug, printf the buffer status
+* @param {Port} *port: context of the port
+* @param {v4l2_buffer} buf: buffer need to be printed
+* @param {U8} *prefix
+* @return {*}
+*/
 void printBuffer(Port *port, struct v4l2_buffer buf, const char *prefix);
 
 BOOL handleBuffer(Port *port, BOOL eof, MppData *data);
@@ -224,11 +224,11 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data);
 S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data);
 
 /**
- * @description: handle resolution changed info
- * @param {Port} *port: context of the port
- * @param {BOOL} eof: end of file
- * @return {*}
- */
+* @description: handle resolution changed info
+* @param {Port} *port: context of the port
+* @param {BOOL} eof: end of file
+* @return {*}
+*/
 void handleResolutionChange(Port *port, BOOL eof);
 
 void streamon(Port *port);
@@ -304,4 +304,4 @@ MppFrameBufferType getPortBufferType(Port *port);
 
 void notifySourceChange(Port *port);
 
-#endif /*_LINLONV5V7_PORT_H_*/
+#endif /* LINLONV5V7_PORT_H */

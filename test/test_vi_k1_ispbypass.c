@@ -24,19 +24,19 @@
 #endif
 
 typedef struct _CCIC_DEMO_CONFIG_S {
-    VI_DEV         ViDev;
-    VI_CHN         ViChn;
-    U32            u32Width;
-    U32            u32Height;
-    U32            u32MipiLaneNum;
-    U32            u32Mbps;
-    U32            u32FrameCount;
-    S32            s32TimeoutMs;
+    VI_DEV ViDev;
+    VI_CHN ViChn;
+    U32 u32Width;
+    U32 u32Height;
+    U32 u32MipiLaneNum;
+    U32 u32Mbps;
+    U32 u32FrameCount;
+    S32 s32TimeoutMs;
     MppPixelFormat ePixelFormat;
     const char    *pszDumpPath;
-    BOOL           bDumpLastFrame;
-    ViDevAttrS     stDevAttr;
-    ViChnAttrS     stChnAttr;
+    BOOL bDumpLastFrame;
+    ViDevAttrS stDevAttr;
+    ViChnAttrS stChnAttr;
 } CCIC_DEMO_CONFIG_S;
 
 static void ccic_demo_usage(const char *prog)
@@ -90,23 +90,24 @@ static void ccic_demo_dump_frame_info(const VideoFrameInfo *pstFrame)
 {
     const CommonFrameInfo *pstComm = NULL;
 
-    if (pstFrame == NULL)
+    if (pstFrame == NULL){
         return;
+    }
 
     pstComm = &pstFrame->stViFrameInfo.stCommFrameInfo;
     printf("[ccic-demo] idx=%u pool=%lu buf=%lu pts=%llu size=%ux%u fmt=%d total=%u planes=%u fd0=%lu vir0=%p valid0=%u\n",
-           pstFrame->u32Idx,
-           pstFrame->ulPoolId,
-           pstFrame->ulBufferId,
-           (unsigned long long)pstFrame->stVFrame.u64PTS,
-           pstComm->u32Width,
-           pstComm->u32Height,
-           pstComm->ePixelFormat,
-           pstFrame->stVFrame.u32TotalSize,
-           pstFrame->stVFrame.u32PlaneNum,
-           pstFrame->stVFrame.u32Fd[0],
-           (void *)(uintptr_t)pstFrame->stVFrame.ulPlaneVirAddr[0],
-           pstFrame->stVFrame.u32PlaneSizeValid[0]);
+        pstFrame->u32Idx,
+        pstFrame->ulPoolId,
+        pstFrame->ulBufferId,
+        (unsigned long long)pstFrame->stVFrame.u64PTS,
+        pstComm->u32Width,
+        pstComm->u32Height,
+        pstComm->ePixelFormat,
+        pstFrame->stVFrame.u32TotalSize,
+        pstFrame->stVFrame.u32PlaneNum,
+        pstFrame->stVFrame.u32Fd[0],
+        (void *)(uintptr_t)pstFrame->stVFrame.ulPlaneVirAddr[0],
+        pstFrame->stVFrame.u32PlaneSizeValid[0]);
 }
 
 static S32 ccic_demo_save_frame(const char *pszPath, const VideoFrameInfo *pstFrame)
@@ -114,8 +115,9 @@ static S32 ccic_demo_save_frame(const char *pszPath, const VideoFrameInfo *pstFr
     FILE *fp = NULL;
     U32 u32Plane = 0;
 
-    if (pszPath == NULL || pstFrame == NULL)
+    if (pszPath == NULL || pstFrame == NULL){
         return -1;
+    }
 
     fp = fopen(pszPath, "wb");
     if (fp == NULL) {
@@ -127,8 +129,9 @@ static S32 ccic_demo_save_frame(const char *pszPath, const VideoFrameInfo *pstFr
         const void *pVirAddr = (const void *)(uintptr_t)pstFrame->stVFrame.ulPlaneVirAddr[u32Plane];
         U32 u32WriteSize = pstFrame->stVFrame.u32PlaneSizeValid[u32Plane];
 
-        if (pVirAddr == NULL || u32WriteSize == 0)
+        if (pVirAddr == NULL || u32WriteSize == 0){
             continue;
+        }
 
         if (fwrite(pVirAddr, 1, u32WriteSize, fp) != u32WriteSize) {
             printf("[ccic-demo] fwrite failed: %s plane=%u size=%u\n", pszPath, u32Plane, u32WriteSize);
@@ -144,8 +147,9 @@ static S32 ccic_demo_save_frame(const char *pszPath, const VideoFrameInfo *pstFr
 
 static void ccic_demo_fill_default_config(CCIC_DEMO_CONFIG_S *pstCfg)
 {
-    if (pstCfg == NULL)
+    if (pstCfg == NULL){
         return;
+    }
 
     memset(pstCfg, 0, sizeof(*pstCfg));
     pstCfg->ViDev = CCIC_DEMO_DEV;
@@ -178,19 +182,24 @@ static S32 ccic_demo_parse_args(int argc, char *argv[], CCIC_DEMO_CONFIG_S *pstC
     U32 u32BitDepth = 10;
     MppPixelFormat ePixelFormat;
 
-    if (pstCfg == NULL)
+    if (pstCfg == NULL){
         return -1;
+    }
 
     ccic_demo_fill_default_config(pstCfg);
 
-    if (argc > 1)
+    if (argc > 1){
         pstCfg->u32FrameCount = (U32)atoi(argv[1]);
-    if (argc > 2)
+    }
+    if (argc > 2){
         pstCfg->u32Width = (U32)atoi(argv[2]);
-    if (argc > 3)
+    }
+    if (argc > 3){
         pstCfg->u32Height = (U32)atoi(argv[3]);
-    if (argc > 4)
+    }
+    if (argc > 4){
         u32BitDepth = (U32)atoi(argv[4]);
+    }
     if (argc > 5) {
         pstCfg->pszDumpPath = argv[5];
         pstCfg->bDumpLastFrame = MPP_TRUE;
@@ -274,21 +283,22 @@ static S32 ccic_demo_start_vi(const CCIC_DEMO_CONFIG_S *pstCfg)
     }
 
     printf("[ccic-demo] start ok: dev=%d chn=%d mode=%d size=%ux%u fmt=%s frames=%u timeout=%dms\n",
-           pstCfg->ViDev,
-           pstCfg->ViChn,
-           pstCfg->stDevAttr.eWorkMode,
-           pstCfg->u32Width,
-           pstCfg->u32Height,
-           ccic_demo_pixel_format_name(pstCfg->ePixelFormat),
-           pstCfg->u32FrameCount,
-           pstCfg->s32TimeoutMs);
+        pstCfg->ViDev,
+        pstCfg->ViChn,
+        pstCfg->stDevAttr.eWorkMode,
+        pstCfg->u32Width,
+        pstCfg->u32Height,
+        ccic_demo_pixel_format_name(pstCfg->ePixelFormat),
+        pstCfg->u32FrameCount,
+        pstCfg->s32TimeoutMs);
     return 0;
 }
 
 static void ccic_demo_stop_vi(const CCIC_DEMO_CONFIG_S *pstCfg)
 {
-    if (pstCfg == NULL)
+    if (pstCfg == NULL){
         return;
+    }
 
     (void)VI_DisableChn(pstCfg->ViDev, pstCfg->ViChn);
     (void)VI_DisableDev(pstCfg->ViDev);
@@ -321,8 +331,9 @@ int main(int argc, char *argv[])
     }
 
     s32Ret = ccic_demo_start_vi(&stCfg);
-    if (s32Ret != 0)
+    if (s32Ret != 0){
         return s32Ret;
+    }
 
     for (u32FrameIdx = 0; u32FrameIdx < stCfg.u32FrameCount; ++u32FrameIdx) {
         memset(&stFrame, 0, sizeof(stFrame));
@@ -340,8 +351,9 @@ int main(int argc, char *argv[])
 
         ccic_demo_dump_frame_info(&stFrame);
 
-        if (stCfg.bDumpLastFrame == MPP_TRUE && (u32FrameIdx + 1U) == stCfg.u32FrameCount)
+        if (stCfg.bDumpLastFrame == MPP_TRUE && (u32FrameIdx + 1U) == stCfg.u32FrameCount){
             (void)ccic_demo_save_frame(stCfg.pszDumpPath, &stFrame);
+        }
 
         s32Ret = VI_ReleaseChnFrame(stCfg.ViDev, stCfg.ViChn, &stFrame);
         if (s32Ret != 0) {

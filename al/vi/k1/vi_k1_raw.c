@@ -1,8 +1,8 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*------------------------------------------------------------------------------
+*/
 
 #include "include/vi_k1_defs.h"
 #include "include/vi_k1_ctx.h"
@@ -29,14 +29,15 @@ MppPixelFormat K1_VI_GetRawDumpPixelFormat(ViRawType eRawType)
 
 K1_VI_RAW_CTX_S *K1_VI_GetRawCtx(VI_DEV ViDev, VI_CHN ViChn)
 {
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE){
         return NULL;
+    }
 
     return &g_stK1ViCtx.astRawCtx[ViDev][ViChn];
 }
 
 S32 K1_VI_InitRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx,
-                         const K1_VI_CHN_CTX_S *pstPhyChnCtx)
+    const K1_VI_CHN_CTX_S *pstPhyChnCtx)
 {
     ViChnAttrS stRawAttr;
     MppPixelFormat eRawPixelFormat;
@@ -44,16 +45,19 @@ S32 K1_VI_InitRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx,
     U32 u32AsrChn = 0;
     S32 s32Ret = 0;
 
-    if (pstRawCtx == NULL || pstPhyChnCtx == NULL)
+    if (pstRawCtx == NULL || pstPhyChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     s32Ret = K1_VI_GetSensorRawType(&g_stK1ViCtx.astDevCtx[ViDev], &eRawType);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     eRawPixelFormat = K1_VI_GetRawDumpPixelFormat(eRawType);
-    if (eRawPixelFormat >= MPP_PIXEL_FORMAT_MAX)
+    if (eRawPixelFormat >= MPP_PIXEL_FORMAT_MAX){
         return K1_VI_ERR_NOT_SUPPORT;
+    }
 
     memset(&stRawAttr, 0, sizeof(stRawAttr));
     stRawAttr.eChnType = VI_CHN_TYPE_PHYSICAL;
@@ -62,8 +66,9 @@ S32 K1_VI_InitRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx,
     stRawAttr.u32Height = g_stK1ViCtx.astDevCtx[ViDev].stAttr.u32Height;
 
     s32Ret = K1_VI_GetAsrChnId(ViDev, ViChn, &stRawAttr, &u32AsrChn);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     memset(pstRawCtx, 0, sizeof(*pstRawCtx));
     pstRawCtx->ViDev = ViDev;
@@ -85,22 +90,27 @@ S32 K1_VI_GetRawDumpAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr)
     MppPixelFormat eRawPixelFormat;
     S32 s32Ret = 0;
 
-    if (pstRawAttr == NULL)
+    if (pstRawAttr == NULL){
         return K1_VI_ERR_INVALID_PARAM;
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
+    }
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstPhyChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstPhyChnCtx->bCreated != MPP_TRUE || pstPhyChnCtx->stAttr.eChnType != VI_CHN_TYPE_PHYSICAL)
+    if (pstPhyChnCtx->bCreated != MPP_TRUE || pstPhyChnCtx->stAttr.eChnType != VI_CHN_TYPE_PHYSICAL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     s32Ret = K1_VI_GetSensorRawType(&g_stK1ViCtx.astDevCtx[ViDev], &eRawType);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     eRawPixelFormat = K1_VI_GetRawDumpPixelFormat(eRawType);
-    if (eRawPixelFormat >= MPP_PIXEL_FORMAT_MAX)
+    if (eRawPixelFormat >= MPP_PIXEL_FORMAT_MAX){
         return K1_VI_ERR_NOT_SUPPORT;
+    }
 
     memset(pstRawAttr, 0, sizeof(*pstRawAttr));
     pstRawAttr->eChnType = VI_CHN_TYPE_PHYSICAL;
@@ -112,11 +122,12 @@ S32 K1_VI_GetRawDumpAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr)
 }
 
 S32 K1_VI_ImportRawDumpBuffer(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx,
-                              const VideoFrameInfo *pstFrameInfo,
-                              const IMAGE_BUFFER_S *pstImageBuffer)
+    const VideoFrameInfo *pstFrameInfo,
+    const IMAGE_BUFFER_S *pstImageBuffer)
 {
-    if (pstRawCtx == NULL || pstFrameInfo == NULL || pstImageBuffer == NULL)
+    if (pstRawCtx == NULL || pstFrameInfo == NULL || pstImageBuffer == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstRawCtx->ulVbPool = pstFrameInfo->ulPoolId;
     pstRawCtx->ulBufferId = pstFrameInfo->ulBufferId;
@@ -134,23 +145,29 @@ K1_VI_RAW_CTX_S *K1_VI_GetOrCreateRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn)
     K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
 
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE){
         return NULL;
+    }
 
     pstPhyChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstPhyChnCtx->bCreated != MPP_TRUE)
+    if (pstPhyChnCtx->bCreated != MPP_TRUE){
         return NULL;
-    if (pstPhyChnCtx->stAttr.eChnType != VI_CHN_TYPE_PHYSICAL)
+    }
+    if (pstPhyChnCtx->stAttr.eChnType != VI_CHN_TYPE_PHYSICAL){
         return NULL;
+    }
 
     pstRawCtx = K1_VI_GetRawCtx(ViDev, ViChn);
-    if (pstRawCtx == NULL)
+    if (pstRawCtx == NULL){
         return NULL;
-    if (pstRawCtx->bCreated == MPP_TRUE)
+    }
+    if (pstRawCtx->bCreated == MPP_TRUE){
         return pstRawCtx;
+    }
 
-    if (K1_VI_InitRawDumpCtx(ViDev, ViChn, pstRawCtx, pstPhyChnCtx) != K1_VI_SUCCESS)
+    if (K1_VI_InitRawDumpCtx(ViDev, ViChn, pstRawCtx, pstPhyChnCtx) != K1_VI_SUCCESS){
         return NULL;
+    }
 
     return pstRawCtx;
 }
@@ -159,15 +176,18 @@ S32 K1_VI_StartRawCtx(K1_VI_RAW_CTX_S *pstRawCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstRawCtx == NULL)
+    if (pstRawCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstRawCtx->bEnabled == MPP_TRUE)
+    if (pstRawCtx->bEnabled == MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     s32Ret = ASR_VI_SetCallback(pstRawCtx->u32AsrChn, K1_VI_BufferCallback);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     s32Ret = ASR_VI_EnableBayerDump((U32)pstRawCtx->ViDev);
     if (s32Ret != SUCCESS) {
@@ -182,8 +202,9 @@ S32 K1_VI_StopRawCtx(K1_VI_RAW_CTX_S *pstRawCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstRawCtx == NULL)
+    if (pstRawCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     if (pstRawCtx->bEnabled == MPP_TRUE) {
         ASR_VI_DisableBayerDump((U32)pstRawCtx->ViDev);
@@ -197,8 +218,9 @@ S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstRawCtx == NULL)
+    if (pstRawCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     // info("[rawdump-queue] dev=%d chn=%d asrChn=%u fmt=%d type=%d idx=%d mfd=%d size=%ux%u planes=%d stride0=%u scan0=%u len0=%u pfd0=%d state=%d ext=%d bufId=%lu\n",
     //        pstRawCtx->ViDev,
@@ -222,7 +244,7 @@ S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx)
     s32Ret = ASR_VI_ChnQueueBuffer(pstRawCtx->u32AsrChn, &pstRawCtx->stImageBuffer);
     if (s32Ret != SUCCESS) {
         error("[rawdump-queue] ASR_VI_ChnQueueBuffer failed, asrChn=%u ret=%d\n",
-               pstRawCtx->u32AsrChn, s32Ret);
+            pstRawCtx->u32AsrChn, s32Ret);
         return s32Ret;
     }
 
@@ -232,8 +254,9 @@ S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx)
 
 S32 K1_VI_HandleRawDumpCallback(K1_VI_RAW_CTX_S *pstRawCtx, const VI_IMAGE_BUFFER_S *vi_buffer)
 {
-    if (pstRawCtx == NULL || vi_buffer == NULL)
+    if (pstRawCtx == NULL || vi_buffer == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstRawCtx->stFrameInfo.stVFrame.u64PTS = vi_buffer->timeStamp;
     pstRawCtx->stFrameInfo.stVFrame.u32PrivateData = vi_buffer->frameId;

@@ -1,15 +1,15 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    mux.c
- * @Date      :    2026-04-15
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    MUX module implementation for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    mux.c
+* @Date      :    2026-04-15
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    MUX module implementation for MPP.
+*------------------------------------------------------------------------------
+*/
 
 #include "mux/mux_api.h"
 #include "mux_rtsp_internal.h"
@@ -27,17 +27,17 @@
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 
-#define MUX_LOGE(fmt, ...) fprintf(stderr, "[MUX][ERR] " fmt "\n", ##__VA_ARGS__)
-#define MUX_LOGI(fmt, ...) fprintf(stdout, "[MUX][INF] " fmt "\n", ##__VA_ARGS__)
+#define MUX_LOGE(fmt, ...) fprintf(stderr, "[MUX][ERR] " fmt "\n", ## __VA_ARGS__)
+#define MUX_LOGI(fmt, ...) fprintf(stdout, "[MUX][INF] " fmt "\n", ## __VA_ARGS__)
 
 #define MUX_STATE_IDLE      0
 #define MUX_STATE_CREATED   1
 #define MUX_STATE_RUNNING   2
 
 typedef struct _MuxContext {
-    S32             s32Init;
+    S32 s32Init;
     pthread_mutex_t lock;
-    MuxChannel      astChn[MUX_MAX_CHN];
+    MuxChannel astChn[MUX_MAX_CHN];
 } MuxContext;
 
 static MuxContext g_stMuxCtx = {0};
@@ -53,28 +53,28 @@ static S32 mux_check_chn(S32 s32ChnId)
 static enum AVCodecID mux_codec_to_ffmpeg(MuxCodecType eCodecType)
 {
     switch (eCodecType) {
-        case MUX_CODEC_H264:
-            return AV_CODEC_ID_H264;
-        case MUX_CODEC_H265:
-            return AV_CODEC_ID_HEVC;
-        case MUX_CODEC_MJPEG:
-            return AV_CODEC_ID_MJPEG;
-        default:
-            return AV_CODEC_ID_NONE;
+    case MUX_CODEC_H264:
+        return AV_CODEC_ID_H264;
+    case MUX_CODEC_H265:
+        return AV_CODEC_ID_HEVC;
+    case MUX_CODEC_MJPEG:
+        return AV_CODEC_ID_MJPEG;
+    default:
+        return AV_CODEC_ID_NONE;
     }
 }
 
 static MuxCodecType mux_codec_from_stream(MppStreamCodecType eCodecType)
 {
     switch (eCodecType) {
-        case MPP_STREAM_CODEC_H264:
-            return MUX_CODEC_H264;
-        case MPP_STREAM_CODEC_H265:
-            return MUX_CODEC_H265;
-        case MPP_STREAM_CODEC_MJPEG:
-            return MUX_CODEC_MJPEG;
-        default:
-            return MUX_CODEC_UNKNOWN;
+    case MPP_STREAM_CODEC_H264:
+        return MUX_CODEC_H264;
+    case MPP_STREAM_CODEC_H265:
+        return MUX_CODEC_H265;
+    case MPP_STREAM_CODEC_MJPEG:
+        return MUX_CODEC_MJPEG;
+    default:
+        return MUX_CODEC_UNKNOWN;
     }
 }
 

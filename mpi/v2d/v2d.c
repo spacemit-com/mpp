@@ -1,7 +1,7 @@
 /*
- * SPDX-License-Identifier: Apache-2.0
- * Copyright (C) 2026 Spacemit Co., Ltd.
- */
+* SPDX-License-Identifier: Apache-2.0
+* Copyright (C) 2026 Spacemit Co., Ltd.
+*/
 
 #include <errno.h>
 #include <fcntl.h>
@@ -43,7 +43,7 @@ typedef struct MppV2DJobCtx {
 } MppV2DJobCtx;
 
 static S32 V2D_SurfaceFromVideoFrame(const VideoFrameInfo *frame,
-                          V2DSurface *surface);
+    V2DSurface *surface);
 
 static S32 mpp_v2d_wait_fence(S32 fd, S32 timeout_ms)
 {
@@ -152,10 +152,10 @@ static S32 mpp_v2d_line_get_base_addr(const VideoFrameInfo *frame, U8 **base_add
 }
 
 static S32 mpp_v2d_write_pixel(V2DSurface *dst,
-                       U8 *base_addr,
-                       S32 x,
-                       S32 y,
-                       const V2DFillColor *color)
+    U8 *base_addr,
+    S32 x,
+    S32 y,
+    const V2DFillColor *color)
 {
     U32 offset;
     U32 colorValue;
@@ -199,8 +199,8 @@ static S32 mpp_v2d_write_pixel(V2DSurface *dst,
 }
 
 static S32 mpp_v2d_draw_line_cpu(V2DSurface *dst,
-                     U8 *base_addr,
-                     const V2DLine *line)
+    U8 *base_addr,
+    const V2DLine *line)
 {
     S32 x0;
     S32 y0;
@@ -329,9 +329,9 @@ static S32 mpp_v2d_validate_adv_2layer_frame(const VideoFrameInfo *frame, U32 wi
 }
 
 static S32 mpp_v2d_validate_adv_2layer_frames(const VideoFrameInfo *background_frame,
-                                             const VideoFrameInfo *foreground_frame,
-                                             const V2DArea *foreground_area,
-                                             const VideoFrameInfo *output_frame)
+    const VideoFrameInfo *foreground_frame,
+    const V2DArea *foreground_area,
+    const VideoFrameInfo *output_frame)
 {
     U32 width;
     U32 height;
@@ -386,11 +386,11 @@ static void mpp_v2d_dump_area(const char *name, const V2DArea *rect)
     }
 
     info("%s: x=%d y=%d w=%u h=%u\n",
-           name,
-           rect->u16X,
-           rect->u16Y,
-           rect->u16W,
-           rect->u16H);
+        name,
+        rect->u16X,
+        rect->u16Y,
+        rect->u16W,
+        rect->u16H);
 }
 
 static void mpp_v2d_dump_surface(const char *name, const V2DSurface *surface)
@@ -405,26 +405,26 @@ static void mpp_v2d_dump_surface(const char *name, const V2DSurface *surface)
     }
 
     info("%s: fd=%d format=%d w=%u h=%u stride=%u offset=%d fbc_enable=%u\n",
-           name,
-           surface->s32Fd,
-           surface->enFormat,
-           surface->u16W,
-           surface->u16H,
-           surface->u16Stride,
-           surface->s32Offset,
-           surface->bFbcEnable);
+        name,
+        surface->s32Fd,
+        surface->enFormat,
+        surface->u16W,
+        surface->u16H,
+        surface->u16Stride,
+        surface->s32Offset,
+        surface->bFbcEnable);
     info("%s: phy_y=0x%08x%08x phy_uv=0x%08x%08x solid_enable=%u solid_color=0x%08x\n",
-           name,
-           surface->u32PhyAddrYH,
-           surface->u32PhyAddrYL,
-           surface->u32PhyAddrUvH,
-           surface->u32PhyAddrUvL,
-           surface->stSolidColor.bEnable,
-           surface->stSolidColor.stFillColor.u32ColorValue);
+        name,
+        surface->u32PhyAddrYH,
+        surface->u32PhyAddrYL,
+        surface->u32PhyAddrUvH,
+        surface->u32PhyAddrUvL,
+        surface->stSolidColor.bEnable,
+        surface->stSolidColor.stFillColor.u32ColorValue);
     info("%s: fbc_dec_fd=%d fbc_enc_fd=%d\n",
-           name,
-           surface->stFbcInfo.stFbcDecInfo.s32Fd,
-           surface->stFbcInfo.stFbcEncInfo.s32Fd);
+        name,
+        surface->stFbcInfo.stFbcDecInfo.s32Fd,
+        surface->stFbcInfo.stFbcEncInfo.s32Fd);
 }
 
 static void mpp_v2d_dump_blend_conf(const V2DBlendConf *blend_conf)
@@ -437,34 +437,34 @@ static void mpp_v2d_dump_blend_conf(const V2DBlendConf *blend_conf)
     }
 
     info("blend_conf: blend_cmd=%d mask_cmd=%d bgcolor.color=0x%x bgcolor.format=%d\n",
-           blend_conf->enBlendCmd,
-           blend_conf->enMaskCmd,
-           blend_conf->stBgColor.stFillColor.u32ColorValue,
-           blend_conf->stBgColor.stFillColor.enFormat);
+        blend_conf->enBlendCmd,
+        blend_conf->enMaskCmd,
+        blend_conf->stBgColor.stFillColor.u32ColorValue,
+        blend_conf->stBgColor.stFillColor.enFormat);
     mpp_v2d_dump_area("blend_conf.mask_area", &blend_conf->stBlendMaskArea);
 
-        for (i = 0; i < V2D_INPUT_LAYER_NUM; ++i) {
+    for (i = 0; i < V2D_INPUT_LAYER_NUM; ++i) {
         info("blend_conf.layer[%u]: alpha_source=%d pre_alpha_func=%d global_alpha=%u\n",
-             i,
-             blend_conf->stBlendLayer[i].enBlendAlphaSource,
-             blend_conf->stBlendLayer[i].enBlendPreAlphaFunc,
-             blend_conf->stBlendLayer[i].u8GlobalAlpha);
+            i,
+            blend_conf->stBlendLayer[i].enBlendAlphaSource,
+            blend_conf->stBlendLayer[i].enBlendPreAlphaFunc,
+            blend_conf->stBlendLayer[i].u8GlobalAlpha);
         info("blend_conf.layer[%u]: src_color_factor=%d dst_color_factor=%d src_alpha_factor=%d dst_alpha_factor=%d\n",
-             i,
-             blend_conf->stBlendLayer[i].stBlendFactor.enSrcColorFactor,
-             blend_conf->stBlendLayer[i].stBlendFactor.enDstColorFactor,
-             blend_conf->stBlendLayer[i].stBlendFactor.enSrcAlphaFactor,
-             blend_conf->stBlendLayer[i].stBlendFactor.enDstAlphaFactor);
+            i,
+            blend_conf->stBlendLayer[i].stBlendFactor.enSrcColorFactor,
+            blend_conf->stBlendLayer[i].stBlendFactor.enDstColorFactor,
+            blend_conf->stBlendLayer[i].stBlendFactor.enSrcAlphaFactor,
+            blend_conf->stBlendLayer[i].stBlendFactor.enDstAlphaFactor);
         info("blend_conf.layer[%u]: rop2_color=%d rop2_alpha=%d\n",
-             i,
-             blend_conf->stBlendLayer[i].stRop2Code.enColorRop2Code,
-             blend_conf->stBlendLayer[i].stRop2Code.enAlphaRop2Code);
+            i,
+            blend_conf->stBlendLayer[i].stRop2Code.enColorRop2Code,
+            blend_conf->stBlendLayer[i].stRop2Code.enAlphaRop2Code);
         info("blend_conf.layer[%u].blend_area: x=%d y=%d w=%u h=%u\n",
-             i,
-             blend_conf->stBlendLayer[i].stBlendArea.u16X,
-             blend_conf->stBlendLayer[i].stBlendArea.u16Y,
-             blend_conf->stBlendLayer[i].stBlendArea.u16W,
-             blend_conf->stBlendLayer[i].stBlendArea.u16H);
+            i,
+            blend_conf->stBlendLayer[i].stBlendArea.u16X,
+            blend_conf->stBlendLayer[i].stBlendArea.u16Y,
+            blend_conf->stBlendLayer[i].stBlendArea.u16W,
+            blend_conf->stBlendLayer[i].stBlendArea.u16H);
     }
 }
 
@@ -476,11 +476,11 @@ static void mpp_v2d_dump_palette(const V2DPalette *palette)
     }
 
     // info("palette: alp=%u color0=0x%08x color1=0x%08x color2=0x%08x color3=0x%08x\n",
-    // 	   palette->alp,
-    // 	   palette->color0,
-    // 	   palette->color1,
-    // 	   palette->color2,
-    // 	   palette->color3);
+    //     palette->alp,
+    //     palette->color0,
+    //     palette->color1,
+    //     palette->color2,
+    //     palette->color3);
 }
 
 static S32 mpp_v2d_submit_task(MppV2DJobCtx *job, MppV2DTaskNode *node)
@@ -551,8 +551,8 @@ static MppV2DJobCtx *mpp_v2d_job_from_handle(V2DHandle handle)
 }
 
 static S32 mpp_v2d_append_task(MppV2DJobCtx *job,
-                               MppV2DTaskType type,
-                               MppV2DTaskNode **out_node)
+    MppV2DTaskType type,
+    MppV2DTaskNode **out_node)
 {
     MppV2DTaskNode *node;
 
@@ -748,9 +748,9 @@ S32 V2D_CancelJob(V2DHandle handle)
 }
 
 S32 V2D_AddFillTask(V2DHandle handle,
-                    VideoFrameInfo *pstDstFrame,
-                    V2DArea *pstDstRect,
-                    V2DFillColor *pstFillColor)
+    VideoFrameInfo *pstDstFrame,
+    V2DArea *pstDstRect,
+    V2DFillColor *pstFillColor)
 {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
@@ -783,11 +783,11 @@ S32 V2D_AddFillTask(V2DHandle handle,
 }
 
 S32 V2D_AddBitblitTask(V2DHandle handle,
-                        const VideoFrameInfo *pstSrcFrame,
-                        V2DArea *pstSrcRect,
-                        VideoFrameInfo *pstDstFrame,
-                        V2DArea *pstDstRect,
-                        V2DCscMode eCscMode)
+    const VideoFrameInfo *pstSrcFrame,
+    V2DArea *pstSrcRect,
+    VideoFrameInfo *pstDstFrame,
+    V2DArea *pstDstRect,
+    V2DCscMode eCscMode)
 {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
@@ -822,21 +822,21 @@ S32 V2D_AddBitblitTask(V2DHandle handle,
 }
 
 S32 V2D_AddBlendTask(V2DHandle handle,
-                         const VideoFrameInfo *pstBackgroundFrame,
-                         V2DArea *pstBackgroundRect,
-                         const VideoFrameInfo *pstForegroundFrame,
-                         V2DArea *pstForegroundRect,
-                         const VideoFrameInfo *pstMaskFrame,
-                         V2DArea *pstMaskRect,
-                         VideoFrameInfo *pstDstFrame,
-                         V2DArea *pstDstRect,
-                         V2DBlendConf *pstBlendConf,
-                         V2DRotateAngle eForeRotate,
-                         V2DRotateAngle eBackRotate,
-                         V2DCscMode eForeCscMode,
-                         V2DCscMode eBackCscMode,
-                         V2DPalette *pstPalette,
-                         V2DDither eDither)
+    const VideoFrameInfo *pstBackgroundFrame,
+    V2DArea *pstBackgroundRect,
+    const VideoFrameInfo *pstForegroundFrame,
+    V2DArea *pstForegroundRect,
+    const VideoFrameInfo *pstMaskFrame,
+    V2DArea *pstMaskRect,
+    VideoFrameInfo *pstDstFrame,
+    V2DArea *pstDstRect,
+    V2DBlendConf *pstBlendConf,
+    V2DRotateAngle eForeRotate,
+    V2DRotateAngle eBackRotate,
+    V2DCscMode eForeCscMode,
+    V2DCscMode eBackCscMode,
+    V2DPalette *pstPalette,
+    V2DDither eDither)
 {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
@@ -850,12 +850,12 @@ S32 V2D_AddBlendTask(V2DHandle handle,
     V2DSurface *maskSurface = NULL;
 
     // info("V2D_AddBlendTask: handle=0x%llx fore_rotate=%d back_rotate=%d fore_csc_mode=%d back_csc_mode=%d dither=%d\n",
-    // 	   (unsigned long long)handle,
-    // 	   fore_rotate,
-    // 	   back_rotate,
-    // 	   fore_csc_mode,
-    // 	   back_csc_mode,
-    // 	   dither);
+    //     (unsigned long long)handle,
+    //     fore_rotate,
+    //     back_rotate,
+    //     fore_csc_mode,
+    //     back_csc_mode,
+    //     dither);
     // mpp_v2d_dump_surface("background", background);
     // mpp_v2d_dump_area("background_rect", background_rect);
     // mpp_v2d_dump_surface("dst", dst);
@@ -938,8 +938,8 @@ S32 V2D_AddBlendTask(V2DHandle handle,
 }
 
 S32 V2D_DrawLine(V2DHandle handle,
-             VideoFrameInfo *pstDstFrame,
-             V2DLine *pstLine)
+    VideoFrameInfo *pstDstFrame,
+    V2DLine *pstLine)
 {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
@@ -995,10 +995,10 @@ S32 V2D_DrawLine(V2DHandle handle,
 }
 
 S32 V2D_DrawRect(V2DHandle handle,
-             VideoFrameInfo *pstDstFrame,
-             V2DArea *pstRect,
-             V2DFillColor *pstColor,
-             U32 u32LineWidth)
+    VideoFrameInfo *pstDstFrame,
+    V2DArea *pstRect,
+    V2DFillColor *pstColor,
+    U32 u32LineWidth)
 {
     V2DSurface dst;
     V2DLine line;
@@ -1065,9 +1065,9 @@ S32 V2D_DrawRect(V2DHandle handle,
 }
 
 S32 V2D_ConvertFrame(V2DHandle handle,
-                     const VideoFrameInfo *pstSrcFrame,
-                     VideoFrameInfo *pstDstFrame,
-                     V2DCscMode eCscMode)
+    const VideoFrameInfo *pstSrcFrame,
+    VideoFrameInfo *pstDstFrame,
+    V2DCscMode eCscMode)
 {
     V2DArea srcRect;
     V2DArea dstRect;
@@ -1091,17 +1091,17 @@ S32 V2D_ConvertFrame(V2DHandle handle,
     dstRect.u16H = pstDstFrame->stCommFrameInfo.u32Height;
 
     return V2D_AddBitblitTask(handle,
-                     pstSrcFrame,
-                     &srcRect,
-                     pstDstFrame,
-                     &dstRect,
-                     eCscMode);
+        pstSrcFrame,
+        &srcRect,
+        pstDstFrame,
+        &dstRect,
+        eCscMode);
 }
 
 S32 V2D_ScaleFrame(V2DHandle handle,
-                   const VideoFrameInfo *pstSrcFrame,
-                   VideoFrameInfo *pstDstFrame,
-                   V2DCscMode eCscMode)
+    const VideoFrameInfo *pstSrcFrame,
+    VideoFrameInfo *pstDstFrame,
+    V2DCscMode eCscMode)
 {
     V2DArea srcRect;
     V2DArea dstRect;
@@ -1120,17 +1120,17 @@ S32 V2D_ScaleFrame(V2DHandle handle,
     dstRect.u16H = pstDstFrame->stCommFrameInfo.u32Height;
 
     return V2D_AddBitblitTask(handle,
-                     pstSrcFrame,
-                     &srcRect,
-                     pstDstFrame,
-                     &dstRect,
-                     eCscMode);
+        pstSrcFrame,
+        &srcRect,
+        pstDstFrame,
+        &dstRect,
+        eCscMode);
 }
 
 S32 V2D_RotateFrame(V2DHandle handle,
-                const VideoFrameInfo *pstSrcFrame,
-                VideoFrameInfo *pstDstFrame,
-                V2DRotateAngle eRotate)
+    const VideoFrameInfo *pstSrcFrame,
+    VideoFrameInfo *pstDstFrame,
+    V2DRotateAngle eRotate)
 {
     V2DArea srcRect;
     V2DArea dstRect;
@@ -1153,28 +1153,28 @@ S32 V2D_RotateFrame(V2DHandle handle,
     blendConf.stBlendLayer[0].stBlendArea = dstRect;
 
     return V2D_AddBlendTask(handle,
-                      pstSrcFrame,
-                      &srcRect,
-                      NULL,
-                      NULL,
-                      NULL,
-                      NULL,
-                      pstDstFrame,
-                      &dstRect,
-                      &blendConf,
-                      V2D_ROT_0,
-                      eRotate,
-                      V2D_CSC_MODE_BUTT,
-                      V2D_CSC_MODE_BUTT,
-                      NULL,
-                      V2D_NO_DITHER);
+        pstSrcFrame,
+        &srcRect,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        pstDstFrame,
+        &dstRect,
+        &blendConf,
+        V2D_ROT_0,
+        eRotate,
+        V2D_CSC_MODE_BUTT,
+        V2D_CSC_MODE_BUTT,
+        NULL,
+        V2D_NO_DITHER);
 }
 
 S32 V2D_Adv2Layers(V2DHandle handle,
-                       const VideoFrameInfo *pstBackgroundFrame,
-                       const VideoFrameInfo *pstForegroundFrame,
-                       const V2DArea *pstForegroundArea,
-                       VideoFrameInfo *pstOutputFrame)
+    const VideoFrameInfo *pstBackgroundFrame,
+    const VideoFrameInfo *pstForegroundFrame,
+    const V2DArea *pstForegroundArea,
+    VideoFrameInfo *pstOutputFrame)
 {
     U32 width;
     U32 height;
@@ -1192,10 +1192,10 @@ S32 V2D_Adv2Layers(V2DHandle handle,
     height = pstBackgroundFrame->stCommFrameInfo.u32Height;
 
     /* reference flow:
-     *   background: NV12, full screen, no CSC
-     *   foreground: BGRA8888, blended in caller specified area, CSC to YUV
-     *   output    : NV12
-     */
+    *   background: NV12, full screen, no CSC
+    *   foreground: BGRA8888, blended in caller specified area, CSC to YUV
+    *   output    : NV12
+    */
 
     backgroundRect.u16X = 0;
     backgroundRect.u16Y = 0;
@@ -1221,19 +1221,19 @@ S32 V2D_Adv2Layers(V2DHandle handle,
     blendConf.stBlendLayer[1].stBlendFactor.enDstColorFactor = V2D_BLEND_ONE_MINUS_SRC_ALPHA;
 
     return V2D_AddBlendTask(handle,
-                      pstBackgroundFrame,
-                      &backgroundRect,
-                      pstForegroundFrame,
-                      &foregroundRect,
-                      NULL,
-                      NULL,
-                      pstOutputFrame,
-                      &dstRect,
-                      &blendConf,
-                      V2D_ROT_0,
-                      V2D_ROT_0,
-                      V2D_CSC_MODE_RGB_2_BT709NARROW,
-                      V2D_CSC_MODE_BUTT,
-                      NULL,
-                      V2D_NO_DITHER);
+        pstBackgroundFrame,
+        &backgroundRect,
+        pstForegroundFrame,
+        &foregroundRect,
+        NULL,
+        NULL,
+        pstOutputFrame,
+        &dstRect,
+        &blendConf,
+        V2D_ROT_0,
+        V2D_ROT_0,
+        V2D_CSC_MODE_RGB_2_BT709NARROW,
+        V2D_CSC_MODE_BUTT,
+        NULL,
+        V2D_NO_DITHER);
 }

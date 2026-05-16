@@ -1,15 +1,15 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    demux.c
- * @Date      :    2026-04-15
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    DEMUX module implementation for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    demux.c
+* @Date      :    2026-04-15
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    DEMUX module implementation for MPP.
+*------------------------------------------------------------------------------
+*/
 
 #include "demux/demux_api.h"
 
@@ -33,8 +33,8 @@ extern "C" {
 }
 #endif
 
-#define DEMUX_LOGE(fmt, ...) fprintf(stderr, "[DEMUX][ERR] " fmt "\n", ##__VA_ARGS__)
-#define DEMUX_LOGI(fmt, ...) fprintf(stdout, "[DEMUX][INF] " fmt "\n", ##__VA_ARGS__)
+#define DEMUX_LOGE(fmt, ...) fprintf(stderr, "[DEMUX][ERR] " fmt "\n", ## __VA_ARGS__)
+#define DEMUX_LOGI(fmt, ...) fprintf(stdout, "[DEMUX][INF] " fmt "\n", ## __VA_ARGS__)
 
 #define DEMUX_STATE_IDLE      0
 #define DEMUX_STATE_CREATED   1
@@ -45,37 +45,37 @@ extern "C" {
 
 typedef struct _DemuxPsCache {
     U8  *pu8Vps;
-    U32  u32VpsLen;
+    U32 u32VpsLen;
     U8  *pu8Sps;
-    U32  u32SpsLen;
+    U32 u32SpsLen;
     U8  *pu8Pps;
-    U32  u32PpsLen;
+    U32 u32PpsLen;
 } DemuxPsCache;
 
 typedef struct _DemuxChannel {
-    S32                  s32Created;
-    S32                  s32State;
-    S32                  s32Stop;
-    S32                  s32ThreadAlive;
-    S32                  s32ChnId;
-    pthread_t            thread;
-    pthread_mutex_t      lock;
-    DemuxChnAttr         stAttr;
-    DemuxStreamInfo      stStreamInfo;
-    DemuxPacketCallback  pfnCb;
+    S32 s32Created;
+    S32 s32State;
+    S32 s32Stop;
+    S32 s32ThreadAlive;
+    S32 s32ChnId;
+    pthread_t thread;
+    pthread_mutex_t lock;
+    DemuxChnAttr stAttr;
+    DemuxStreamInfo stStreamInfo;
+    DemuxPacketCallback pfnCb;
     VOID                *pCbPriv;
-    MppNode              stSrcNode;
+    MppNode stSrcNode;
     AVFormatContext     *pstFmt;
     AVBSFContext        *pstBsf;
-    S32                  s32VideoIndex;
-    S64                  s64IoDeadlineMs;
-    DemuxPsCache         stPs;
+    S32 s32VideoIndex;
+    S64 s64IoDeadlineMs;
+    DemuxPsCache stPs;
 } DemuxChannel;
 
 typedef struct _DemuxContext {
-    S32             s32Init;
+    S32 s32Init;
     pthread_mutex_t lock;
-    DemuxChannel    astChn[DEMUX_MAX_CHN];
+    DemuxChannel astChn[DEMUX_MAX_CHN];
 } DemuxContext;
 
 static DemuxContext g_stDemuxCtx = {0};
@@ -167,14 +167,14 @@ static VOID demux_set_opt_us(AVDictionary **ppDict, const CHAR *pszKey, U32 u32M
 static S32 demux_codec_from_ffmpeg(enum AVCodecID eCodecId)
 {
     switch (eCodecId) {
-        case AV_CODEC_ID_H264:
-            return DEMUX_CODEC_H264;
-        case AV_CODEC_ID_HEVC:
-            return DEMUX_CODEC_H265;
-        case AV_CODEC_ID_MJPEG:
-            return DEMUX_CODEC_MJPEG;
-        default:
-            return DEMUX_CODEC_UNKNOWN;
+    case AV_CODEC_ID_H264:
+        return DEMUX_CODEC_H264;
+    case AV_CODEC_ID_HEVC:
+        return DEMUX_CODEC_H265;
+    case AV_CODEC_ID_MJPEG:
+        return DEMUX_CODEC_MJPEG;
+    default:
+        return DEMUX_CODEC_UNKNOWN;
     }
 }
 
@@ -312,7 +312,7 @@ static VOID demux_cache_h264_extradata(const AVCodecParameters *pstPar, DemuxPsC
 }
 
 static VOID demux_make_packet_with_ps(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32Size,
-                                      DemuxPacket *pstPkt, U8 **ppu8Out, U32 *pu32OutLen)
+    DemuxPacket *pstPkt, U8 **ppu8Out, U32 *pu32OutLen)
 {
     U32 total = 0;
     U8 *pu8Buf;
@@ -436,8 +436,8 @@ static S32 demux_deliver_packet(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32
     stPkt.u32Width = pstChn->stStreamInfo.u32Width;
     stPkt.u32Height = pstChn->stStreamInfo.u32Height;
     stPkt.u64PTS = (s64Pts == AV_NOPTS_VALUE) ? 0 : (U64)av_rescale_q(s64Pts,
-                    pstChn->pstFmt->streams[pstChn->s32VideoIndex]->time_base,
-                    (AVRational){1, (int)DEMUX_TIME_BASE_US});
+        pstChn->pstFmt->streams[pstChn->s32VideoIndex]->time_base,
+        (AVRational){1, (int)DEMUX_TIME_BASE_US});
 
     if (stPkt.eCodecType == DEMUX_CODEC_H264 && u32Size > 4) {
         U8 type = pu8Data[4] & 0x1f;
@@ -596,8 +596,8 @@ static VOID *demux_thread_proc(VOID *arg)
 
         demux_open_bsf(pstChn);
         DEMUX_LOGI("channel %d connected: %ux%u fps=%u codec=%d", pstChn->s32ChnId,
-                   pstChn->stStreamInfo.u32Width, pstChn->stStreamInfo.u32Height,
-                   pstChn->stStreamInfo.u32Fps, pstChn->stStreamInfo.eCodecType);
+            pstChn->stStreamInfo.u32Width, pstChn->stStreamInfo.u32Height,
+            pstChn->stStreamInfo.u32Fps, pstChn->stStreamInfo.eCodecType);
 
         while (!pstChn->s32Stop) {
             pstChn->s64IoDeadlineMs = demux_now_ms() + (long long)pstChn->stAttr.u32RwTimeoutMs + 500LL;

@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    sys_types.h
- * @Date      :    2026-3-16
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Media Interface for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    sys_types.h
+* @Date      :    2026-3-16
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    Media Interface for MPP.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __SYS_TYPE_H__
-#define __SYS_TYPE_H__
+#ifndef SYS_TYPE_H
+#define SYS_TYPE_H
 
 #include "type.h"
 
@@ -51,9 +51,9 @@ typedef enum _ModId {
 } ModId;
 
 typedef struct _MppNode {
-    ModId    eModId;
-    S32      s32DevId;
-    S32      s32ChnId;
+    ModId eModId;
+    S32 s32DevId;
+    S32 s32ChnId;
 } MppNode;
 
 typedef enum _MppPayloadType {
@@ -88,14 +88,14 @@ typedef enum _MppStreamCodecType {
 
 typedef struct _StreamBufferInfo {
     const U8          *pu8Addr;
-    U32                u32Size;
-    BOOL               bKeyFrame;
-    BOOL               bEndOfStream;
+    U32 u32Size;
+    BOOL bKeyFrame;
+    BOOL bEndOfStream;
     MppStreamCodecType eCodecType;
-    U64                u64PTS;
-    U32                u32Width;
-    U32                u32Height;
-    UL                 ulPrivate;
+    U64 u64PTS;
+    U32 u32Width;
+    U32 u32Height;
+    UL ulPrivate;
 } StreamBufferInfo;
 
 

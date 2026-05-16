@@ -1,13 +1,13 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @Description: MppRingBuffer - circular buffer implementation
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @Description: MppRingBuffer - circular buffer implementation
+*/
 
-#ifndef _RINGBUFFER_H_
-#define _RINGBUFFER_H_
+#ifndef RINGBUFFER_H
+#define RINGBUFFER_H
 
 #include <stdio.h>
 #include <stdlib.h>

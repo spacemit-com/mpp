@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    venc_api.c
- * @Date      :    2026-04-19
- * @Brief     :    VENC new public API implementation.
- *                 Wraps the old context-based venc.c (venc_ctx_*) into
- *                 channel-ID-based API defined in venc_api.h / venc_type.h.
- *                 Each channel owns one MppVencCtx internally.
- *                 Thread-safe via per-channel mutex.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    venc_api.c
+* @Date      :    2026-04-19
+* @Brief     :    VENC new public API implementation.
+*                 Wraps the old context-based venc.c (venc_ctx_*) into
+*                 channel-ID-based API defined in venc_api.h / venc_type.h.
+*                 Each channel owns one MppVencCtx internally.
+*                 Thread-safe via per-channel mutex.
+*------------------------------------------------------------------------------
+*/
 
 #define ENABLE_DEBUG 0
 
@@ -43,40 +43,40 @@ typedef enum _VencChnState {
 } VencChnState;
 
 typedef struct _VencChnCtx {
-    BOOL            bUsed;
-    VencChnState    eState;
-    VencChnAttr     stAttr;
+    BOOL bUsed;
+    VencChnState eState;
+    VencChnAttr stAttr;
     MppVencCtx     *pOldCtx;
     pthread_mutex_t lock;
-    S32             s32ChnId;
+    S32 s32ChnId;
 
     /* frame input thread: receives bound frames via SYS_RecvFrame */
-    pthread_t       frameInputTid;
-    BOOL            bFrameInputRun;
-    BOOL            bBound;         /**< TRUE if SYS_RecvFrame got data */
-    BOOL            bBoundSink;     /**< TRUE if SYS_SendStream got data */
+    pthread_t frameInputTid;
+    BOOL bFrameInputRun;
+    BOOL bBound;                    /**< TRUE if SYS_RecvFrame got data */
+    BOOL bBoundSink;                /**< TRUE if SYS_SendStream got data */
 
     /* Task thread: sole consumer of venc_ctx_request_output_stream; pushes
-     *  same StreamBufferInfo to SYS_SendStream and to the queue for VENC_GetStream;
-     *  buffer is returned to the encoder only in VENC_ReleaseStream. */
-    pthread_t       taskTid;
-    BOOL            bTaskRun;
+    *  same StreamBufferInfo to SYS_SendStream and to the queue for VENC_GetStream;
+    *  buffer is returned to the encoder only in VENC_ReleaseStream. */
+    pthread_t taskTid;
+    BOOL bTaskRun;
 
     /* Stream output queue: task enqueues, VENC_GetStream dequeues (shared packet) */
     #define VENC_STREAM_QUEUE_SIZE  16
     StreamBufferInfo astStreamQueue[VENC_STREAM_QUEUE_SIZE];
-    U32             u32QueueHead;   /* GetStream reads from here */
-    U32             u32QueueTail;   /* task writes here */
-    U32             u32QueueCount;
+    U32 u32QueueHead;               /* GetStream reads from here */
+    U32 u32QueueTail;               /* task writes here */
+    U32 u32QueueCount;
     pthread_mutex_t queueLock;
-    pthread_cond_t  queueNotEmpty;
-    pthread_cond_t  queueNotFull;
+    pthread_cond_t queueNotEmpty;
+    pthread_cond_t queueNotFull;
 } VencChnCtx;
 
 /* ======================== Global State ======================== */
 
-static BOOL         g_bVencInited = MPP_FALSE;
-static VencChnCtx   g_stChn[VENC_MAX_CHN];
+static BOOL g_bVencInited = MPP_FALSE;
+static VencChnCtx g_stChn[VENC_MAX_CHN];
 static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
 /* ======================== Helpers ======================== */
@@ -87,10 +87,10 @@ static inline BOOL venc_chn_valid(S32 s32ChnId)
 }
 
 /**
- * @brief Convert public VencChnAttr to old MppVencCtx parameters.
- */
+* @brief Convert public VencChnAttr to old MppVencCtx parameters.
+*/
 static void venc_attr_to_old_para(const VencChnAttr *pstAttr,
-                                  MppVencCtx *pOldCtx)
+    MppVencCtx *pOldCtx)
 {
     pOldCtx->eCodecType = CODEC_V4L2_LINLONV5V7;
 
@@ -183,8 +183,8 @@ static void venc_attr_to_old_para(const VencChnAttr *pstAttr,
 }
 
 /**
- * @brief Fill StreamBufferInfo from MppPacket output.
- */
+* @brief Fill StreamBufferInfo from MppPacket output.
+*/
 static void venc_fill_stream_info(MppPacket *pPacket, StreamBufferInfo *pstOut)
 {
     memset(pstOut, 0, sizeof(*pstOut));
@@ -199,10 +199,10 @@ static void venc_fill_stream_info(MppPacket *pPacket, StreamBufferInfo *pstOut)
 /* ======================== Task & Recycle Threads ======================== */
 
 /**
- * @brief Task thread: continuously polls encoded stream from encoder, sends
- *        a copy to bound sinks via SYS_SendStream, then enqueues the same
- *        packet for VENC_GetStream; VENC_ReleaseStream returns the buffer.
- */
+* @brief Task thread: continuously polls encoded stream from encoder, sends
+*        a copy to bound sinks via SYS_SendStream, then enqueues the same
+*        packet for VENC_GetStream; VENC_ReleaseStream returns the buffer.
+*/
 static void *venc_task_thread(void *arg)
 {
     VencChnCtx *pChn = (VencChnCtx *)arg;
@@ -226,9 +226,10 @@ static void *venc_task_thread(void *arg)
 
         /* Allocate buffer for encoded output */
         S32 allocSize = pChn->pOldCtx->stVencPara.nWidth *
-                        pChn->pOldCtx->stVencPara.nHeight;
-        if (allocSize <= 0)
+            pChn->pOldCtx->stVencPara.nHeight;
+        if (allocSize <= 0){
             allocSize = 1280 * 720;
+        }
         if (PACKET_Alloc(pPacket, allocSize) != MPP_OK) {
             PACKET_Free(pPacket);
             usleep(1000);
@@ -244,7 +245,7 @@ static void *venc_task_thread(void *arg)
         }
 
         /* Successfully got encoded output; recycle one input buffer so the
-         * encoder can accept more frames when the pool is full. */
+        * encoder can accept more frames when the pool is full. */
         venc_ctx_return_input_frame(pChn->pOldCtx, NULL);
 
         /* Fill StreamBufferInfo and send to bound sinks */
@@ -258,7 +259,7 @@ static void *venc_task_thread(void *arg)
                     pChn->bBoundSink = MPP_FALSE;
                 }
                 /* SYS_SendStream failure is non-fatal; still enqueue for
-                 * VENC_GetStream below. */
+                * VENC_GetStream below. */
             } else if (!pChn->bBoundSink && ret == 0) {
                 pChn->bBoundSink = MPP_TRUE;
                 info("task thread: chn %d bound sink active", s32ChnId);
@@ -267,21 +268,21 @@ static void *venc_task_thread(void *arg)
 
         if (pChn->bBoundSink) {
             /* Bind mode: downstream already consumed the data via
-             * SYS_SendStream (which does memcpy into DMA buf).
-             * Return the CAPTURE buffer to the encoder immediately
-             * so it can keep producing output. */
+            * SYS_SendStream (which does memcpy into DMA buf).
+            * Return the CAPTURE buffer to the encoder immediately
+            * so it can keep producing output. */
             venc_ctx_return_output_stream(pChn->pOldCtx, pSrcData);
             PACKET_Free(pPacket);
             continue;
         }
 
         /* Non-bind mode: queue for VENC_GetStream;
-         * VENC_ReleaseStream returns the buffer. */
+        * VENC_ReleaseStream returns the buffer. */
         stStream.ulPrivate = (UL)pPacket;
 
         pthread_mutex_lock(&pChn->queueLock);
         while (pChn->u32QueueCount >= VENC_STREAM_QUEUE_SIZE &&
-               pChn->bTaskRun) {
+            pChn->bTaskRun) {
             pthread_cond_wait(&pChn->queueNotFull, &pChn->queueLock);
         }
         if (!pChn->bTaskRun) {
@@ -359,10 +360,10 @@ static void venc_stop_threads(VencChnCtx *pChn)
 /* ======================== Frame Input Thread ======================== */
 
 /**
- * @brief  Thread: receive VB frame buffers from bound source via SYS_RecvFrame,
- *         encode each frame, and output stream via VENC_RecvStream path.
- *         Runs when VENC channel is enabled; stops on disable.
- */
+* @brief  Thread: receive VB frame buffers from bound source via SYS_RecvFrame,
+*         encode each frame, and output stream via VENC_RecvStream path.
+*         Runs when VENC channel is enabled; stops on disable.
+*/
 static void *venc_frame_input_task(void *arg)
 {
     VencChnCtx *pChn = (VencChnCtx *)arg;
@@ -391,7 +392,7 @@ static void *venc_frame_input_task(void *arg)
         if (!pChn->bBound) {
             pChn->bBound = MPP_TRUE;
             info("frame input task: chn %d bound, frame input active",
-                 s32ChnId);
+                s32ChnId);
         }
 
         /* Get VideoFrameInfo from VB buffer handle */
@@ -400,7 +401,7 @@ static void *venc_frame_input_task(void *arg)
         ret = VB_GetFrameInfo(ulBuff, &stFrame);
         if (ret != 0) {
             error("frame input task: VB_GetFrameInfo failed %d, chn %d",
-                  ret, s32ChnId);
+                ret, s32ChnId);
             VB_ReleaseBuffer(ulBuff);
             continue;
         }
@@ -427,8 +428,8 @@ static void *venc_frame_input_task(void *arg)
         }
 
         U32 nPlanes = stFrame.stVFrame.u32PlaneNum;
-        if (nPlanes == 0) nPlanes = 1;
-        if (nPlanes > FRAME_MAX_PLANE) nPlanes = FRAME_MAX_PLANE;
+        if (nPlanes == 0){nPlanes = 1;}
+        if (nPlanes > FRAME_MAX_PLANE){nPlanes = FRAME_MAX_PLANE;}
         FRAME_SetDataUsedNum(pFrame, (S32)nPlanes);
 
         for (U32 i = 0; i < nPlanes; i++) {
@@ -438,7 +439,7 @@ static void *venc_frame_input_task(void *arg)
             }
             if (stFrame.stVFrame.ulPlaneVirAddr[i]) {
                 FRAME_SetDataPointer(pFrame, (S32)i,
-                                     (U8 *)(stFrame.stVFrame.ulPlaneVirAddr[i]));
+                    (U8 *)(stFrame.stVFrame.ulPlaneVirAddr[i]));
             }
         }
 
@@ -449,7 +450,7 @@ static void *venc_frame_input_task(void *arg)
             ret = venc_ctx_send_input_frame(pChn->pOldCtx, pSinkData);
             if (ret != MPP_OK) {
                 error("frame input task: send_input_frame failed %d, chn %d",
-                      ret, s32ChnId);
+                    ret, s32ChnId);
             }
         }
         pthread_mutex_unlock(&pChn->lock);
@@ -514,8 +515,8 @@ S32 VENC_Exit(VOID)
 
 S32 VENC_CreateChn(S32 s32ChnId, const VencChnAttr *pstAttr)
 {
-    if (!pstAttr) return ERR_VENC_NULL_PTR;
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!pstAttr){return ERR_VENC_NULL_PTR;}
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -547,7 +548,7 @@ S32 VENC_CreateChn(S32 s32ChnId, const VencChnAttr *pstAttr)
 
 S32 VENC_DestroyChn(S32 s32ChnId)
 {
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -574,7 +575,7 @@ S32 VENC_DestroyChn(S32 s32ChnId)
 
 S32 VENC_EnableChn(S32 s32ChnId)
 {
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -604,7 +605,7 @@ S32 VENC_EnableChn(S32 s32ChnId)
     pthread_mutex_unlock(&pChn->lock);
 
     if (pthread_create(&pChn->frameInputTid, NULL,
-                       venc_frame_input_task, pChn) != 0) {
+        venc_frame_input_task, pChn) != 0) {
         error("failed to create frame input thread for chn %d", s32ChnId);
         pthread_mutex_lock(&pChn->lock);
         pChn->bFrameInputRun = MPP_FALSE;
@@ -632,7 +633,7 @@ S32 VENC_EnableChn(S32 s32ChnId)
 
 S32 VENC_DisableChn(S32 s32ChnId)
 {
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -667,8 +668,8 @@ S32 VENC_DisableChn(S32 s32ChnId)
 
 S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutMs)
 {
-    if (!pstFrame) return ERR_VENC_NULL_PTR;
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!pstFrame){return ERR_VENC_NULL_PTR;}
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -705,8 +706,8 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
 
     /* Set dma-buf fd or virtual address for each plane */
     U32 nPlanes = pstFrame->stVFrame.u32PlaneNum;
-    if (nPlanes == 0) nPlanes = 1;
-    if (nPlanes > FRAME_MAX_PLANE) nPlanes = FRAME_MAX_PLANE;
+    if (nPlanes == 0){nPlanes = 1;}
+    if (nPlanes > FRAME_MAX_PLANE){nPlanes = FRAME_MAX_PLANE;}
     FRAME_SetDataUsedNum(pFrame, (S32)nPlanes);
 
     for (U32 i = 0; i < nPlanes; i++) {
@@ -716,22 +717,22 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
         }
         if (pstFrame->stVFrame.ulPlaneVirAddr[i]) {
             FRAME_SetDataPointer(pFrame, (S32)i,
-                                 (U8 *)(pstFrame->stVFrame.ulPlaneVirAddr[i]));
+                (U8 *)(pstFrame->stVFrame.ulPlaneVirAddr[i]));
         }
     }
 
     MppData *pSinkData = FRAME_GetBaseData(pFrame);
 
     /* Send frame to encoder (V4L2 QBUF on OUTPUT port).
-     * The linlonv5v7 encoder is fully async: hardware encodes the frame
-     * after QBUF, and the encoded result appears on the CAPTURE port.
-     * venc_task_thread polls the CAPTURE port for output.
-     *
-     * Do NOT call return_input_frame here — it would poll(POLLOUT,0)
-     * and potentially DQBUF the buffer before hardware finishes encoding,
-     * causing the CAPTURE port to never produce output.
-     * Input buffers are recycled by return_input_frame only when the
-     * buffer pool is exhausted (nInputQueuedNum >= ENCODER_INPUT_BUF_NUM). */
+    * The linlonv5v7 encoder is fully async: hardware encodes the frame
+    * after QBUF, and the encoded result appears on the CAPTURE port.
+    * venc_task_thread polls the CAPTURE port for output.
+    *
+    * Do NOT call return_input_frame here — it would poll(POLLOUT,0)
+    * and potentially DQBUF the buffer before hardware finishes encoding,
+    * causing the CAPTURE port to never produce output.
+    * Input buffers are recycled by return_input_frame only when the
+    * buffer pool is exhausted (nInputQueuedNum >= ENCODER_INPUT_BUF_NUM). */
     S32 ret = venc_ctx_send_input_frame(pChn->pOldCtx, pSinkData);
 
     FRAME_Destory(pFrame);
@@ -741,10 +742,10 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
 }
 
 S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream,
-                    U32 u32TimeoutMs)
+    U32 u32TimeoutMs)
 {
-    if (!pstStream) return ERR_VENC_NULL_PTR;
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!pstStream){return ERR_VENC_NULL_PTR;}
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -755,8 +756,8 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream,
     }
 
     /* If a downstream module is bound to this VENC channel (via SYS_Bind),
-     * the encoded stream is forwarded through SYS_SendStream automatically.
-     * Manual GetStream is not allowed in this case. */
+    * the encoded stream is forwarded through SYS_SendStream automatically.
+    * Manual GetStream is not allowed in this case. */
     if (pChn->bBoundSink) {
         error("chn %d has bound sink, VENC_GetStream not allowed", s32ChnId);
         pthread_mutex_unlock(&pChn->lock);
@@ -765,14 +766,15 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream,
     pthread_mutex_unlock(&pChn->lock);
 
     /*
-     * The task thread is the only path that calls venc_ctx_request_output_stream.
-     * The same MppPacket is queued here for zero-copy; VENC_ReleaseStream
-     * returns the buffer to the HW after SYS_SendStream and the app are done.
-     */
+    * The task thread is the only path that calls venc_ctx_request_output_stream.
+    * The same MppPacket is queued here for zero-copy; VENC_ReleaseStream
+    * returns the buffer to the HW after SYS_SendStream and the app are done.
+    */
     pthread_mutex_lock(&pChn->queueLock);
     for (;;) {
-        if (pChn->u32QueueCount > 0)
+        if (pChn->u32QueueCount > 0){
             break;
+        }
         if (!pChn->bTaskRun) {
             pthread_mutex_unlock(&pChn->queueLock);
             return ERR_VENC_NO_STREAM;
@@ -794,7 +796,7 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream,
                 ts.tv_nsec -= 1000000000L;
             }
             if (pthread_cond_timedwait(&pChn->queueNotEmpty, &pChn->queueLock,
-                                        &ts) == ETIMEDOUT) {
+                &ts) == ETIMEDOUT) {
                 pthread_mutex_unlock(&pChn->queueLock);
                 return ERR_VENC_TIMEOUT;
             }
@@ -826,7 +828,7 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream,
             MppPacket *pPacket = (MppPacket *)pstStream->ulPrivate;
             if (pChn->bUsed && pPacket) {
                 venc_ctx_return_output_stream(pChn->pOldCtx,
-                                              PACKET_GetBaseData(pPacket));
+                    PACKET_GetBaseData(pPacket));
                 PACKET_Free(pPacket);
             }
         }
@@ -840,8 +842,8 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream,
 
 S32 VENC_ReleaseStream(S32 s32ChnId, const StreamBufferInfo *pstStream)
 {
-    if (!pstStream) return ERR_VENC_NULL_PTR;
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!pstStream){return ERR_VENC_NULL_PTR;}
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -865,8 +867,8 @@ S32 VENC_ReleaseStream(S32 s32ChnId, const StreamBufferInfo *pstStream)
 
 S32 VENC_QueryStatus(S32 s32ChnId, VencChnStatus *pstStatus)
 {
-    if (!pstStatus) return ERR_VENC_NULL_PTR;
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!pstStatus){return ERR_VENC_NULL_PTR;}
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -886,7 +888,7 @@ S32 VENC_QueryStatus(S32 s32ChnId, VencChnStatus *pstStatus)
 
 S32 VENC_Flush(S32 s32ChnId)
 {
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -904,7 +906,7 @@ S32 VENC_Flush(S32 s32ChnId)
 
 S32 VENC_Reset(S32 s32ChnId)
 {
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
@@ -922,8 +924,8 @@ S32 VENC_Reset(S32 s32ChnId)
 
 S32 VENC_SetParam(S32 s32ChnId, MppVencCmd cmd, void *pPara)
 {
-    if (!pPara) return ERR_VENC_NULL_PTR;
-    if (!venc_chn_valid(s32ChnId)) return ERR_VENC_INVALID_CHN;
+    if (!pPara){return ERR_VENC_NULL_PTR;}
+    if (!venc_chn_valid(s32ChnId)){return ERR_VENC_INVALID_CHN;}
 
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);

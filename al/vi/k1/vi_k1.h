@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    vi_k1.h
- * @Date      :    2026-3-26
- * @Author    :    SPACEMIT
- * @Brief     :    K1 platform VI adaptation layer internal declarations.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    vi_k1.h
+* @Date      :    2026-3-26
+* @Author    :    SPACEMIT
+* @Brief     :    K1 platform VI adaptation layer internal declarations.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __AL_VI_K1_H__
-#define __AL_VI_K1_H__
+#ifndef VI_K1_H
+#define VI_K1_H
 
 #include "vi_type.h"
 #include "sys_type.h"
@@ -41,23 +41,23 @@ S32 K1_VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrame
 S32 K1_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn);
 S32 K1_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn);
 S32 K1_VI_SetExternalBufPool(VI_DEV ViDev, VI_CHN ViChn,
-							 UL ulPoolId, U32 u32BufCnt,
-							 const UL *paulBufferId,
-							 const VideoFrameInfo *pastFrameInfo,
-							 const IMAGE_BUFFER_S *pastImageBuffer);
+    UL ulPoolId, U32 u32BufCnt,
+    const UL *paulBufferId,
+    const VideoFrameInfo *pastFrameInfo,
+    const IMAGE_BUFFER_S *pastImageBuffer);
 S32 K1_VI_DequeueDoneBuffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec);
 S32 K1_VI_QueueBufferByIndex(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index);
 S32 K1_VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn);
 S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
 S32 K1_VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame);
 S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev,
-							  VI_CHN ViChn,
-							  UL ulPoolId,
-							  UL ulBufferId,
-							  const VideoFrameInfo *pstFrameInfo,
-							  const IMAGE_BUFFER_S *pstImageBuffer,
-							  const U8 *pu8RawVirAddr,
-							  U32 u32RawSize);
+    VI_CHN ViChn,
+    UL ulPoolId,
+    UL ulBufferId,
+    const VideoFrameInfo *pstFrameInfo,
+    const IMAGE_BUFFER_S *pstImageBuffer,
+    const U8 *pu8RawVirAddr,
+    U32 u32RawSize);
 S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
 S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
 
@@ -67,4 +67,4 @@ S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
 #endif
 #endif /* __cplusplus */
 
-#endif /* __AL_VI_K1_H__ */
+#endif /* VI_K1_H */

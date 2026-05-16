@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    demux_type.h
- * @Date      :    2026-04-15
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    DEMUX module type definitions for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    demux_type.h
+* @Date      :    2026-04-15
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    DEMUX module type definitions for MPP.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __DEMUX_TYPE_H__
-#define __DEMUX_TYPE_H__
+#ifndef DEMUX_TYPE_H
+#define DEMUX_TYPE_H
 
 #include "sys/type.h"
 #include "sys/sys_type.h"
@@ -59,52 +59,52 @@ typedef enum _DemuxCodecType {
 /* ======================== 结构体 ======================== */
 
 /**
- * @brief 解封装后的流信息（连接成功后可查询）
- */
+* @brief 解封装后的流信息（连接成功后可查询）
+*/
 typedef struct _DemuxStreamInfo {
-    DemuxCodecType  eCodecType;
-    U32             u32Width;
-    U32             u32Height;
-    U32             u32Fps;
+    DemuxCodecType eCodecType;
+    U32 u32Width;
+    U32 u32Height;
+    U32 u32Fps;
 } DemuxStreamInfo;
 
 /**
- * @brief 解封装输出的编码包（Annex-B 格式）
- *        数据指针仅在回调期间有效
- */
+* @brief 解封装输出的编码包（Annex-B 格式）
+*        数据指针仅在回调期间有效
+*/
 typedef struct _DemuxPacket {
     const U8       *pu8Data;
-    U32             u32Size;
-    BOOL            bKeyFrame;
-    DemuxCodecType  eCodecType;
-    U64             u64PTS;            /* 微秒 */
-    U32             u32Width;
-    U32             u32Height;
+    U32 u32Size;
+    BOOL bKeyFrame;
+    DemuxCodecType eCodecType;
+    U64 u64PTS;                        /* 微秒 */
+    U32 u32Width;
+    U32 u32Height;
 } DemuxPacket;
 
 /**
- * @brief 编码包回调原型
- * @param s32ChnId  通道号
- * @param pstPkt    编码包（仅回调期间有效）
- * @param pPriv     用户私有数据
- * @return 0 继续，非 0 停止
- */
+* @brief 编码包回调原型
+* @param s32ChnId  通道号
+* @param pstPkt    编码包（仅回调期间有效）
+* @param pPriv     用户私有数据
+* @return 0 继续，非 0 停止
+*/
 typedef S32 (*DemuxPacketCallback)(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv);
 
 /**
- * @brief DEMUX 通道属性
- */
+* @brief DEMUX 通道属性
+*/
 typedef struct _DemuxChnAttr {
-    DemuxInputType  eInputType;
-    CHAR            szUrl[DEMUX_URL_MAX_LEN];
-    BOOL            bPreferTcp;            /* RTSP over TCP */
-    BOOL            bLowLatency;           /* nobuffer / reorder_queue_size=0 */
-    U32             u32OpenTimeoutMs;      /* 打开超时 ms */
-    U32             u32RwTimeoutMs;        /* 读写超时 ms */
-    U32             u32ReconnectMs;        /* 断线重连间隔 ms */
-    U32             u32AnalyzeDurationMs;  /* 流分析时长 ms, 0=默认 */
-    U32             u32ProbeSizeBytes;     /* 探测大小, 0=默认 */
-    BOOL            bInjectPS;             /* IDR 前注入 VPS/SPS/PPS */
+    DemuxInputType eInputType;
+    CHAR szUrl[DEMUX_URL_MAX_LEN];
+    BOOL bPreferTcp;                       /* RTSP over TCP */
+    BOOL bLowLatency;                      /* nobuffer / reorder_queue_size=0 */
+    U32 u32OpenTimeoutMs;                  /* 打开超时 ms */
+    U32 u32RwTimeoutMs;                    /* 读写超时 ms */
+    U32 u32ReconnectMs;                    /* 断线重连间隔 ms */
+    U32 u32AnalyzeDurationMs;              /* 流分析时长 ms, 0=默认 */
+    U32 u32ProbeSizeBytes;                 /* 探测大小, 0=默认 */
+    BOOL bInjectPS;                        /* IDR 前注入 VPS/SPS/PPS */
 } DemuxChnAttr;
 
 #ifdef __cplusplus
@@ -113,4 +113,4 @@ typedef struct _DemuxChnAttr {
 #endif
 #endif /* __cplusplus */
 
-#endif /* __DEMUX_TYPE_H__ */
+#endif /* DEMUX_TYPE_H */

@@ -1,26 +1,26 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_multiproc.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Multi-process tests for SYS + VB modules.
- *                 Uses fork() to verify cross-process shared memory,
- *                 DMA buffer sharing via pidfd_getfd, zero-copy SendFrame/RecvFrame,
- *                 and concurrent multi-process stress.
- *
- * Build:
- *   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
- *       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
- *       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
- *       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
- *       test_multiproc.c -o test_multiproc -lrt
- *
- * Run:
- *   ./test_multiproc
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_multiproc.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    Multi-process tests for SYS + VB modules.
+*                 Uses fork() to verify cross-process shared memory,
+*                 DMA buffer sharing via pidfd_getfd, zero-copy SendFrame/RecvFrame,
+*                 and concurrent multi-process stress.
+*
+* Build:
+*   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
+*       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
+*       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
+*       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
+*       test_multiproc.c -o test_multiproc -lrt
+*
+* Run:
+*   ./test_multiproc
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -37,23 +37,23 @@
 #include "vb_api.h"
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while (0)
 
 /* Shared between parent and child via mmap'd anonymous page */
 typedef struct {
-    UL   pool_id;
-    UL   buf_handle;
-    U64  export_token;
-    U64  phy_addr;
-    int  child_ready;
-    int  parent_done;
+    UL pool_id;
+    UL buf_handle;
+    U64 export_token;
+    U64 phy_addr;
+    int child_ready;
+    int parent_done;
 } SharedTestData;
 
 static SharedTestData *alloc_shared_data(void)
 {
     SharedTestData *sd = mmap(NULL, sizeof(SharedTestData),
-                               PROT_READ | PROT_WRITE,
-                               MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     assert(sd != MAP_FAILED);
     memset(sd, 0, sizeof(*sd));
     return sd;
@@ -66,11 +66,11 @@ static void free_shared_data(SharedTestData *sd)
 
 /* ======================== Test 1: Cross-Process Pool Access ======================== */
 /*
- * Parent: SYS_Init, VB_Init, CreatePool, GetBuffer, Export -> fork child.
- * Child:  SYS_Init (attach), VB_Init (attach), Import, verify phy addr matches,
- *         write to buffer, ReleaseBuffer.
- * Parent: wait for child, verify buffer content, ReleaseBuffer, DestroyPool.
- */
+* Parent: SYS_Init, VB_Init, CreatePool, GetBuffer, Export -> fork child.
+* Child:  SYS_Init (attach), VB_Init (attach), Import, verify phy addr matches,
+*         write to buffer, ReleaseBuffer.
+* Parent: wait for child, verify buffer content, ReleaseBuffer, DestroyPool.
+*/
 static void test_cross_process_pool(void)
 {
     const char *name = "cross_process_pool";
@@ -130,7 +130,7 @@ static void test_cross_process_pool(void)
         ret = VB_GetPhyAddr(imported, &child_phy);
         if (ret != 0 || child_phy != sd->phy_addr) {
             fprintf(stderr, "child: phy mismatch parent=0x%lx child=0x%lx\n",
-                    (unsigned long)sd->phy_addr, (unsigned long)child_phy);
+                (unsigned long)sd->phy_addr, (unsigned long)child_phy);
             _exit(2);
         }
 
@@ -146,7 +146,7 @@ static void test_cross_process_pool(void)
         unsigned char *p = (unsigned char *)child_vir;
         if (p[0] != 0xDE || p[4095] != 0xDE) {
             fprintf(stderr, "child: pattern mismatch: [0]=0x%02x [4095]=0x%02x\n",
-                    p[0], p[4095]);
+                p[0], p[4095]);
             _exit(4);
         }
 
@@ -173,8 +173,9 @@ static void test_cross_process_pool(void)
 
     /* Verify child's written pattern (same physical memory) */
     unsigned char *pp = (unsigned char *)vir;
-    if (pp[0] != 0xAB || pp[4095] != 0xAB)
+    if (pp[0] != 0xAB || pp[4095] != 0xAB){
         TEST_FAIL(name, "child's write not visible in parent");
+    }
 
     /* Cleanup */
     ret = VB_Unexport(sd->buf_handle);
@@ -193,9 +194,9 @@ static void test_cross_process_pool(void)
 
 /* ======================== Test 2: Zero-Copy SendFrame/RecvFrame ======================== */
 /*
- * Parent: bind VI->VENC, create pool, get buffer, SendFrame.
- * Child:  SYS_Init (attach), RecvFrame, verify handle and phy addr, ReleaseBuffer.
- */
+* Parent: bind VI->VENC, create pool, get buffer, SendFrame.
+* Child:  SYS_Init (attach), RecvFrame, verify handle and phy addr, ReleaseBuffer.
+*/
 static void test_sendrecv_frame(void)
 {
     const char *name = "sendrecv_frame";
@@ -266,17 +267,17 @@ static void test_sendrecv_frame(void)
             recv_frame.stVFrame.u32PlaneSizeValid[0] != 2048 ||
             recv_frame.ulBufferId != recv_buf) {
             fprintf(stderr, "child: frame info mismatch pts=%llu total=%u planes=%u valid0=%u buf=%lu/%lu\n",
-                    (unsigned long long)recv_frame.stVFrame.u64PTS,
-                    recv_frame.stVFrame.u32TotalSize,
-                    recv_frame.stVFrame.u32PlaneNum,
-                    recv_frame.stVFrame.u32PlaneSizeValid[0],
-                    recv_frame.ulBufferId,
-                    recv_buf);
+                (unsigned long long)recv_frame.stVFrame.u64PTS,
+                recv_frame.stVFrame.u32TotalSize,
+                recv_frame.stVFrame.u32PlaneNum,
+                recv_frame.stVFrame.u32PlaneSizeValid[0],
+                recv_frame.ulBufferId,
+                recv_buf);
             _exit(3);
         }
         if (recv_frame.stVFrame.ulPlaneVirAddr[0] == 0 || recv_frame.stVFrame.u32Fd[0] == 0) {
             fprintf(stderr, "child: frame local addr/fd not auto-filled vir=%lu fd=%lu\n",
-                    recv_frame.stVFrame.ulPlaneVirAddr[0], recv_frame.stVFrame.u32Fd[0]);
+                recv_frame.stVFrame.ulPlaneVirAddr[0], recv_frame.stVFrame.u32Fd[0]);
             _exit(4);
         }
 
@@ -285,7 +286,7 @@ static void test_sendrecv_frame(void)
         ret = VB_GetPhyAddr(recv_buf, &recv_phy);
         if (ret != 0 || recv_phy != sd->phy_addr) {
             fprintf(stderr, "child: phy mismatch send=0x%lx recv=0x%lx\n",
-                    (unsigned long)sd->phy_addr, (unsigned long)recv_phy);
+                (unsigned long)sd->phy_addr, (unsigned long)recv_phy);
             _exit(5);
         }
 
@@ -299,7 +300,7 @@ static void test_sendrecv_frame(void)
         unsigned char *p = (unsigned char *)recv_vir;
         if (p[0] != 0xCC || p[2047] != 0xCC) {
             fprintf(stderr, "child: data mismatch [0]=0x%02x [2047]=0x%02x\n",
-                    p[0], p[2047]);
+                p[0], p[2047]);
             _exit(7);
         }
 
@@ -345,9 +346,9 @@ static void test_sendrecv_frame(void)
 
 /* ======================== Test 3: Multi-Process Stress ======================== */
 /*
- * Parent creates pool. Fork N children, each does get/release in a loop.
- * Wait for all children. Verify pool is clean, destroy.
- */
+* Parent creates pool. Fork N children, each does get/release in a loop.
+* Wait for all children. Verify pool is clean, destroy.
+*/
 static void test_multiproc_stress(void)
 {
     const char *name = "multiproc_stress";
@@ -392,8 +393,9 @@ static void test_multiproc_stress(void)
                 usleep(100 + (c * 17) % 200);
 
                 ret = VB_ReleaseBuffer(buf);
-                if (ret != 0)
+                if (ret != 0){
                     errors++;
+                }
             }
 
             VB_Exit();
@@ -414,13 +416,15 @@ static void test_multiproc_stress(void)
         }
     }
 
-    if (any_failed)
+    if (any_failed){
         TEST_FAIL(name, "one or more children had errors");
+    }
 
     /* Pool should be fully free now */
     ret = VB_DestroyPool(pool_id);
-    if (ret != 0)
+    if (ret != 0){
         TEST_FAIL(name, "destroy failed after stress — possible leak");
+    }
 
     VB_Exit();
     SYS_Exit();
@@ -430,9 +434,9 @@ static void test_multiproc_stress(void)
 
 /* ======================== Test 4: Physical Address is Real ======================== */
 /*
- * Verify that VB buffers have real CMA physical addresses (phy != vir).
- * Also verify MmzAlloc returns real physical addresses.
- */
+* Verify that VB buffers have real CMA physical addresses (phy != vir).
+* Also verify MmzAlloc returns real physical addresses.
+*/
 static void test_real_phy_addr(void)
 {
     const char *name = "real_phy_addr";
@@ -464,12 +468,15 @@ static void test_real_phy_addr(void)
     assert(ret == 0);
     printf("  VB: phy=0x%lx vir=%p\n", (unsigned long)phy, vir);
 
-    if (phy == 0)
+    if (phy == 0){
         TEST_FAIL(name, "VB phy addr is 0");
-    if (vir == NULL)
+    }
+    if (vir == NULL){
         TEST_FAIL(name, "VB vir addr is NULL");
-    if (phy == (U64)(uintptr_t)vir)
+    }
+    if (phy == (U64)(uintptr_t)vir){
         TEST_FAIL(name, "VB phy == vir (not real CMA)");
+    }
 
     VB_ReleaseBuffer(buf);
     VB_DestroyPool(pool_id);
@@ -482,12 +489,15 @@ static void test_real_phy_addr(void)
 
     printf("  MMZ: phy=0x%lx vir=%p\n", (unsigned long)mmz_phy, mmz_vir);
 
-    if (mmz_phy == 0)
+    if (mmz_phy == 0){
         TEST_FAIL(name, "MMZ phy addr is 0");
-    if (mmz_vir == NULL)
+    }
+    if (mmz_vir == NULL){
         TEST_FAIL(name, "MMZ vir addr is NULL");
-    if (mmz_phy == (U64)(uintptr_t)mmz_vir)
+    }
+    if (mmz_phy == (U64)(uintptr_t)mmz_vir){
         TEST_FAIL(name, "MMZ phy == vir (not real CMA)");
+    }
 
     ret = SYS_MmzFree(mmz_phy, mmz_vir);
     assert(ret == 0);

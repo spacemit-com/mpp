@@ -1,8 +1,8 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*------------------------------------------------------------------------------
+*/
 #include <stdio.h>
 #include "include/vi_k1_defs.h"
 #include "include/vi_k1_ctx.h"
@@ -44,16 +44,18 @@ static PIXEL_FORMAT_E K1_VI_ToAsrImagePixelFormat(MppPixelFormat ePixelFormat)
 
 static U32 K1_VI_AlignUp(U32 u32Value, U32 u32Align)
 {
-    if (u32Align == 0)
+    if (u32Align == 0){
         return u32Value;
+    }
 
     return (u32Value + u32Align - 1U) & ~(u32Align - 1U);
 }
 
 static U32 K1_VI_GetStrideAlign(const ViChnAttrS *pstChnAttr)
 {
-    if (pstChnAttr == NULL)
+    if (pstChnAttr == NULL){
         return K1_VI_DEFAULT_ALIGN;
+    }
 
     switch (pstChnAttr->eStrideAlign) {
     case VI_STRIDE_ALIGN_16:
@@ -77,8 +79,9 @@ static U32 K1_VI_CalcDwtPlaneLength(U32 u32Width, U32 u32Height, U32 u32Level, U
     U32 u32PlaneWidth = ((u32AlignedWidth / u32Divisor) * 10U + 7U) / 8U;
     U32 u32PlaneHeight = (u32AlignedHeight / u32Divisor);
 
-    if (u32Plane != 0U)
+    if (u32Plane != 0U){
         u32PlaneHeight /= 2U;
+    }
 
     return K1_VI_AlignUp(u32PlaneWidth * u32PlaneHeight, 4096U);
 }
@@ -97,7 +100,7 @@ static U32 K1_VI_CalcDwtTotalSize(U32 u32Width, U32 u32Height)
 }
 
 static VOID K1_VI_FillDwtPlanes(IMAGE_BUFFER_S *pstImageBuffer, U32 u32BaseWidth, U32 u32BaseHeight,
-                                int iFd, void *pBaseVir, U32 *pu32Offset)
+    int iFd, void *pBaseVir, U32 *pu32Offset)
 {
     U32 u32Level = 0;
     IMAGE_BUFFER_PLANE_S *pastDwt[4] = {
@@ -124,7 +127,7 @@ static VOID K1_VI_FillDwtPlanes(IMAGE_BUFFER_S *pstImageBuffer, U32 u32BaseWidth
             pstPlane[u32Plane].scanline = u32PlaneHeight;
             pstPlane[u32Plane].offset = *pu32Offset;
             pstPlane[u32Plane].length = u32Length;
-            pstPlane[u32Plane].virAddr = (pBaseVir != NULL) ? ((char *)pBaseVir + *pu32Offset) : NULL;	
+            pstPlane[u32Plane].virAddr = (pBaseVir != NULL) ? ((char *)pBaseVir + *pu32Offset) : NULL;
             pstPlane[u32Plane].fd = iFd;
             *pu32Offset += u32Length;
         }
@@ -132,16 +135,17 @@ static VOID K1_VI_FillDwtPlanes(IMAGE_BUFFER_S *pstImageBuffer, U32 u32BaseWidth
 }
 
 S32 K1_VI_ImportExternalBufPool(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx,
-                             UL ulPoolId, U32 u32BufCnt,
-                             const UL *paulBufferId,
-                             const VideoFrameInfo *pastFrameInfo,
-                             const IMAGE_BUFFER_S *pastImageBuffer)
+    UL ulPoolId, U32 u32BufCnt,
+    const UL *paulBufferId,
+    const VideoFrameInfo *pastFrameInfo,
+    const IMAGE_BUFFER_S *pastImageBuffer)
 {
     U32 i = 0;
 
     if (pstChnCtx == NULL || paulBufferId == NULL || pastFrameInfo == NULL ||
-        pastImageBuffer == NULL || u32BufCnt == 0 || u32BufCnt > K1_VI_MAX_BUF_CNT)
+        pastImageBuffer == NULL || u32BufCnt == 0 || u32BufCnt > K1_VI_MAX_BUF_CNT){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstChnCtx->ulVbPool = ulPoolId;
     pstChnCtx->u32BufCnt = u32BufCnt;
@@ -171,12 +175,14 @@ K1_VI_BUF_NODE_S *K1_VI_FindBufNodeByBufferId(K1_VI_CHN_CTX_S *pstChnCtx, UL ulB
 {
     U32 i = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return NULL;
+    }
 
     for (i = 0; i < pstChnCtx->u32BufCnt; i++) {
-        if (pstChnCtx->astBufNode[i].bValid == MPP_TRUE && pstChnCtx->astBufNode[i].ulBufferId == ulBufferId)
+        if (pstChnCtx->astBufNode[i].bValid == MPP_TRUE && pstChnCtx->astBufNode[i].ulBufferId == ulBufferId){
             return &pstChnCtx->astBufNode[i];
+        }
     }
 
     return NULL;
@@ -186,8 +192,9 @@ K1_VI_BUF_NODE_S *K1_VI_FindBufNodeByImageBuffer(K1_VI_CHN_CTX_S *pstChnCtx, con
 {
     U32 i = 0;
 
-    if (pstChnCtx == NULL || pstImageBuffer == NULL)
+    if (pstChnCtx == NULL || pstImageBuffer == NULL){
         return NULL;
+    }
 
     for (i = 0; i < pstChnCtx->u32BufCnt; i++) {
         if (pstChnCtx->astBufNode[i].bValid == MPP_TRUE &&
@@ -203,8 +210,9 @@ K1_VI_BUF_NODE_S *K1_VI_GetIdleBufNode(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     U32 i = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return NULL;
+    }
 
     for (i = 0; i < pstChnCtx->u32BufCnt; i++) {
         if (pstChnCtx->astBufNode[i].bValid == MPP_TRUE &&
@@ -218,19 +226,22 @@ K1_VI_BUF_NODE_S *K1_VI_GetIdleBufNode(K1_VI_CHN_CTX_S *pstChnCtx)
 
 K1_VI_BUF_NODE_S *K1_VI_GetBufNodeByIndex(K1_VI_CHN_CTX_S *pstChnCtx, U32 u32Index)
 {
-    if (pstChnCtx == NULL || u32Index >= pstChnCtx->u32BufCnt)
+    if (pstChnCtx == NULL || u32Index >= pstChnCtx->u32BufCnt){
         return NULL;
+    }
 
-    if (pstChnCtx->astBufNode[u32Index].bValid != MPP_TRUE)
+    if (pstChnCtx->astBufNode[u32Index].bValid != MPP_TRUE){
         return NULL;
+    }
 
     return &pstChnCtx->astBufNode[u32Index];
 }
 
 S32 K1_VI_DonePush(K1_VI_CHN_CTX_S *pstChnCtx, U32 u32Index)
 {
-    if (pstChnCtx == NULL || pstChnCtx->u32DoneNum >= K1_VI_MAX_BUF_CNT)
+    if (pstChnCtx == NULL || pstChnCtx->u32DoneNum >= K1_VI_MAX_BUF_CNT){
         return K1_VI_ERR_BUSY;
+    }
 
     pstChnCtx->au32DoneQueue[pstChnCtx->u32DoneTail] = u32Index;
     pstChnCtx->u32DoneTail = (pstChnCtx->u32DoneTail + 1U) % K1_VI_MAX_BUF_CNT;
@@ -240,8 +251,9 @@ S32 K1_VI_DonePush(K1_VI_CHN_CTX_S *pstChnCtx, U32 u32Index)
 
 S32 K1_VI_DonePop(K1_VI_CHN_CTX_S *pstChnCtx, U32 *pu32Index)
 {
-    if (pstChnCtx == NULL || pu32Index == NULL || pstChnCtx->u32DoneNum == 0)
+    if (pstChnCtx == NULL || pu32Index == NULL || pstChnCtx->u32DoneNum == 0){
         return K1_VI_ERR_BUSY;
+    }
 
     *pu32Index = pstChnCtx->au32DoneQueue[pstChnCtx->u32DoneHead];
     pstChnCtx->u32DoneHead = (pstChnCtx->u32DoneHead + 1U) % K1_VI_MAX_BUF_CNT;
@@ -253,8 +265,9 @@ VOID K1_VI_DestroyOutBufPool(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     U32 i = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return;
+    }
 
     for (i = 0; i < pstChnCtx->u32BufCnt; i++) {
         if (pstChnCtx->astBufNode[i].bValid == MPP_TRUE) {
@@ -271,8 +284,9 @@ VOID K1_VI_DestroyOutBufPool(K1_VI_CHN_CTX_S *pstChnCtx)
 
 VOID K1_VI_UpdateBufNodeMeta(K1_VI_BUF_NODE_S *pstBufNode, const VI_IMAGE_BUFFER_S *vi_buffer)
 {
-    if (pstBufNode == NULL || vi_buffer == NULL)
+    if (pstBufNode == NULL || vi_buffer == NULL){
         return;
+    }
 
     pstBufNode->stFrameInfo.stVFrame.u64PTS = vi_buffer->timeStamp;
     pstBufNode->stFrameInfo.stVFrame.u32PrivateData = (U32)vi_buffer->frameId;
@@ -286,26 +300,29 @@ S32 K1_VI_QueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
 {
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL || pstBufNode == NULL)
+    if (pstChnCtx == NULL || pstBufNode == NULL){
         return K1_VI_ERR_INVALID_PARAM;
-    if (pstBufNode->bValid != MPP_TRUE)
+    }
+    if (pstBufNode->bValid != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstBufNode->stImageBuffer.type = 2;
 
-	//info("Queueing buffer node index %u with buffer ID %lu for VI channel context...\n", pstBufNode->u32Index, pstBufNode->ulBufferId);
-	// info("pstChnCtx->ulVbPool: %lu\n", pstChnCtx->ulVbPool);
-	// info("pstChnCtx->u32AsrChn: %u\n", pstChnCtx->u32AsrChn);
+    // info("Queueing buffer node index %u with buffer ID %lu for VI channel context...\n", pstBufNode->u32Index, pstBufNode->ulBufferId);
+    // info("pstChnCtx->ulVbPool: %lu\n", pstChnCtx->ulVbPool);
+    // info("pstChnCtx->u32AsrChn: %u\n", pstChnCtx->u32AsrChn);
 
-	// info("test_buffer_prepare: buffer fd %d, width %d, height %d, stride %d\n", pstBufNode->stImageBuffer.m.fd,pstBufNode->stImageBuffer.planes[0].width, pstBufNode->stImageBuffer.planes[0].height, pstBufNode->stImageBuffer.planes[0].stride);
+    // info("test_buffer_prepare: buffer fd %d, width %d, height %d, stride %d\n", pstBufNode->stImageBuffer.m.fd,pstBufNode->stImageBuffer.planes[0].width, pstBufNode->stImageBuffer.planes[0].height, pstBufNode->stImageBuffer.planes[0].stride);
     // info("test_buffer_prepare: type %d, format %d\n", pstBufNode->stImageBuffer.type, pstBufNode->stImageBuffer.format);
     // info("test_buffer_prepare: buffer plane0 size %d plane1 size %d\n", pstBufNode->stImageBuffer.planes[0].length, pstBufNode->stImageBuffer.planes[1].length);
     // info("test_buffer_prepare: buffer plane0 virAddr %p plane1 virAddr %p\n", pstBufNode->stImageBuffer.planes[0].virAddr, pstBufNode->stImageBuffer.planes[1].virAddr);
 
-	// info("test_buffer_prepare: buffer width %d, height %d, format %d\n", pstBufNode->stImageBuffer.size.width, pstBufNode->stImageBuffer.size.height, pstBufNode->stImageBuffer.format);
+    // info("test_buffer_prepare: buffer width %d, height %d, format %d\n", pstBufNode->stImageBuffer.size.width, pstBufNode->stImageBuffer.size.height, pstBufNode->stImageBuffer.format);
     s32Ret = ASR_VI_ChnQueueBuffer(pstChnCtx->u32AsrChn, &pstBufNode->stImageBuffer);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     pstBufNode->enState = K1_VI_BUF_STATE_IN_HW;
     return K1_VI_SUCCESS;
@@ -316,23 +333,27 @@ S32 K1_VI_QueueAllBuffers(K1_VI_CHN_CTX_S *pstChnCtx)
     U32 i = 0;
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     for (i = 0; i < pstChnCtx->u32BufCnt; i++) {
 
-		//info("Queueing buffer %u for VI channel context...\n", i);
+        // info("Queueing buffer %u for VI channel context...\n", i);
         K1_VI_BUF_NODE_S *pstBufNode = &pstChnCtx->astBufNode[i];
 
-        if (pstBufNode->bValid != MPP_TRUE)
+        if (pstBufNode->bValid != MPP_TRUE){
             continue;
+        }
 
-        if (pstBufNode->enState != K1_VI_BUF_STATE_IDLE)
+        if (pstBufNode->enState != K1_VI_BUF_STATE_IDLE){
             continue;
+        }
 
         s32Ret = K1_VI_QueueBufNode(pstChnCtx, pstBufNode);
-        if (s32Ret != K1_VI_SUCCESS)
+        if (s32Ret != K1_VI_SUCCESS){
             return s32Ret;
+        }
     }
 
     return K1_VI_SUCCESS;

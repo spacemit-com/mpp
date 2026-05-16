@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    vi_type.h
- * @Date      :    2026-3-24
- * @Author    :    SPACEMIT
- * @Brief     :    VI type definitions for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    vi_type.h
+* @Date      :    2026-3-24
+* @Author    :    SPACEMIT
+* @Brief     :    VI type definitions for MPP.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __VI_TYPE_H__
-#define __VI_TYPE_H__
+#ifndef VI_TYPE_H
+#define VI_TYPE_H
 
 #include "type.h"
 #include "vb_type.h"
@@ -31,19 +31,19 @@ extern "C" {
 #define VI_MAX_PHY_CHN_NUM  4
 #define VI_MAX_RAW_CHN_NUM  4
 
-#define VI_MIN_WIDTH        64 //待定
-#define VI_MIN_HEIGHT       64	//待定
-#define VI_MAX_WIDTH        3864 //待定
-#define VI_MAX_HEIGHT       2192 //待定
+#define VI_MIN_WIDTH        64 // 待定
+#define VI_MIN_HEIGHT       64  // 待定
+#define VI_MAX_WIDTH        3864 // 待定
+#define VI_MAX_HEIGHT       2192 // 待定
 
 typedef S32 VI_DEV;
 typedef S32 VI_CHN;
 
 typedef enum _ViWorkMode {
     VI_WORK_MODE_INVALID = -1,
-    VI_WORK_MODE_ONLINE = 0, //从sensor获取数据
+    VI_WORK_MODE_ONLINE = 0, // 从sensor获取数据
     VI_WORK_MODE_OFFLINE, // 从ddr 获取数据
-    VI_WORK_MODE_ISP_BYPASS, //不走isp，直接从ccic 取raw图出来
+    VI_WORK_MODE_ISP_BYPASS, // 不走isp，直接从ccic 取raw图出来
     VI_WORK_MODE_MAX
 } ViWorkMode;
 
@@ -82,33 +82,33 @@ typedef enum _ViStrideAlignE {
 } ViStrideAlignE;
 
 typedef struct _ViDevAttrS {
-    ViWorkMode     eWorkMode;
-    U32             u32Width;
-    U32             u32Height;
-    U32             u32MipiLaneNum;
-    U32       		u32mbps;//保留 or 去掉都可 配置mipi 速率
-    BOOL            bCapture2Preview;
+    ViWorkMode eWorkMode;
+    U32 u32Width;
+    U32 u32Height;
+    U32 u32MipiLaneNum;
+    U32 u32mbps;            // 保留 or 去掉都可 配置mipi 速率
+    BOOL bCapture2Preview;
 } ViDevAttrS;
 
 typedef struct _ViChnAttrS {
-    ViChnType          eChnType;
-    MppPixelFormat      ePixelFormat;
-    U32                 u32Width;
-    U32                 u32Height;
-    BOOL				bMirror;
-    BOOL				bFlip;
-    ViRotateModeE       eRotateMode;
-    BOOL                bCropEnable;
-    U32                 u32CropX;
-    U32                 u32CropY;
-    U32                 u32CropWidth;
-    U32                 u32CropHeight;
-    ViStrideAlignE      eStrideAlign;
+    ViChnType eChnType;
+    MppPixelFormat ePixelFormat;
+    U32 u32Width;
+    U32 u32Height;
+    BOOL bMirror;
+    BOOL bFlip;
+    ViRotateModeE eRotateMode;
+    BOOL bCropEnable;
+    U32 u32CropX;
+    U32 u32CropY;
+    U32 u32CropWidth;
+    U32 u32CropHeight;
+    ViStrideAlignE eStrideAlign;
 } ViChnAttrS;
 
 typedef struct _ViBayerReadAttr {
     BOOL bGenTiming;
-    S32  s32FrmRate;
+    S32 s32FrmRate;
 } ViBayerReadAttr;
 
 typedef struct _ViFrameRateCtrlS {
@@ -122,4 +122,4 @@ typedef struct _ViFrameRateCtrlS {
 #endif
 #endif /* __cplusplus */
 
-#endif /* __VI_TYPE_H__ */
+#endif /* VI_TYPE_H */

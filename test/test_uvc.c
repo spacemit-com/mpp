@@ -1,32 +1,32 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_uvc.c
- * @Date      :    2026-4-15
- * @Brief     :    Unit tests for UVC module.
- *                 Covers: init/exit, create/destroy device, dev attr,
- *                 enable/disable dev, chn attr, enable/disable chn,
- *                 effect attr, error paths.
- *
- *                 NOTE: These tests exercise the API logic and state machine
- *                 only. V4L2 calls will fail unless a real UVC camera is
- *                 attached at the configured device node. Tests that require
- *                 hardware are guarded and will SKIP gracefully.
- *
- * Build (standalone):
- *   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra \
- *       -I../../include/sys -I../../include/uvc \
- *       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
- *       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
- *       ../../mpi/uvc/uvc.c \
- *       test_uvc.c -o test_uvc -lrt
- *
- * Run:
- *   ./test_uvc              # run all tests
- *   ./test_uvc /dev/video0  # run hw tests against a real device
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_uvc.c
+* @Date      :    2026-4-15
+* @Brief     :    Unit tests for UVC module.
+*                 Covers: init/exit, create/destroy device, dev attr,
+*                 enable/disable dev, chn attr, enable/disable chn,
+*                 effect attr, error paths.
+*
+*                 NOTE: These tests exercise the API logic and state machine
+*                 only. V4L2 calls will fail unless a real UVC camera is
+*                 attached at the configured device node. Tests that require
+*                 hardware are guarded and will SKIP gracefully.
+*
+* Build (standalone):
+*   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra \
+*       -I../../include/sys -I../../include/uvc \
+*       ../../mpi/sys/sys.c ../../mpi/sys/vb.c \
+*       ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
+*       ../../mpi/uvc/uvc.c \
+*       test_uvc.c -o test_uvc -lrt
+*
+* Run:
+*   ./test_uvc              # run all tests
+*   ./test_uvc /dev/video0  # run hw tests against a real device
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -45,8 +45,8 @@
 /* ======================== Helpers ======================== */
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
-#define TEST_SKIP(name, msg) do { printf("[SKIP] %s: %s\n", (name), (msg)); return; } while(0)
+#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while (0)
+#define TEST_SKIP(name, msg) do { printf("[SKIP] %s: %s\n", (name), (msg)); return; } while (0)
 
 static const char *g_devNode = "/dev/video13";
 static BOOL g_hasHw = MPP_FALSE;
@@ -249,7 +249,7 @@ static void test_state_machine(void)
     assert(ret != 0);
 
     /* enable chn before dev enabled should fail (needs hw, but dev not enabled
-       so the check happens before V4L2 calls) */
+        so the check happens before V4L2 calls) */
     fill_default_chn_attr(&chnAttr);
     ret = UVC_SetChnAttr(dev, 0, &chnAttr);
     assert(ret == 0);
@@ -318,8 +318,9 @@ static void test_hw_full_pipeline(void)
     UvcChnAttr chnAttr;
     UvcEffectAttr effect;
 
-    if (!g_hasHw)
+    if (!g_hasHw){
         TEST_SKIP(name, "no UVC device found");
+    }
 
     ret = UVC_Init();
     assert(ret == 0);
@@ -428,8 +429,9 @@ static void test_getframe_save_file(void)
     const S32 s32Timeout = 3000; /* 3s timeout */
     const U32 u32SaveCnt = 5;    /* save 5 frames */
 
-    if (!g_hasHw)
+    if (!g_hasHw){
         TEST_SKIP(name, "no UVC device found");
+    }
 
     ret = UVC_Init();
     assert(ret == 0);
@@ -485,16 +487,18 @@ static void test_getframe_save_file(void)
     effect.s32Hue            = 100;
     effect.s32Sharpness       = 100;
     ret = UVC_SetEffectAttr(dev, &effect);
-    if (ret != 0)
+    if (ret != 0){
         printf("  [WARN] SetEffectAttr failed (ret=%d), colors may be off\n", ret);
-    else
+    }else{
         printf("  [INFO] SetEffectAttr OK: AWB=on, AE=on, sat=%d\n", effect.s32Saturation);
+    }
 
     for (U32 i = 0; i < u32WarmUpCnt; i++) {
         memset(&frame, 0, sizeof(frame));
         ret = UVC_GetFrame(dev, 0, &frame, s32Timeout);
-        if (ret == 0)
+        if (ret == 0){
             UVC_ReleaseFrame(dev, 0, &frame);
+        }
     }
 
     /* --- Capture frames and save to files --- */
@@ -514,19 +518,19 @@ static void test_getframe_save_file(void)
         /* build filename: uvc_frame_<seq>_<W>x<H>.<ext> */
         char filename[256];
         snprintf(filename, sizeof(filename), "uvc_frame_%u_%ux%u.%s",
-                 frame.stVFrame.u32FrameFlag,
-                 frame.stCommFrameInfo.u32Width,
-                 frame.stCommFrameInfo.u32Height,
-                 get_format_ext(frame.stCommFrameInfo.ePixelFormat));
+            frame.stVFrame.u32FrameFlag,
+            frame.stCommFrameInfo.u32Width,
+            frame.stCommFrameInfo.u32Height,
+            get_format_ext(frame.stCommFrameInfo.ePixelFormat));
 
         FILE *fp = fopen(filename, "wb");
         if (fp) {
             size_t written = fwrite((void *)frame.stVFrame.ulPlaneVirAddr[0], 1,
-                                    frame.stVFrame.u32PlaneSizeValid[0], fp);
+                frame.stVFrame.u32PlaneSizeValid[0], fp);
             fclose(fp);
             printf("  [INFO] Saved frame #%u -> %s (%u bytes, wrote %zu)\n",
-                   frame.stVFrame.u32FrameFlag, filename,
-                   frame.stVFrame.u32PlaneSizeValid[0], written);
+                frame.stVFrame.u32FrameFlag, filename,
+                frame.stVFrame.u32PlaneSizeValid[0], written);
             assert(written == frame.stVFrame.u32PlaneSizeValid[0]);
         } else {
             printf("  [WARN] Failed to open %s: %s\n", filename, strerror(errno));
@@ -595,14 +599,15 @@ static void test_exit_force_cleanup(void)
 
 int main(int argc, char *argv[])
 {
-    if (argc > 1)
+    if (argc > 1){
         g_devNode = argv[1];
+    }
 
     check_hw();
 
     printf("=== UVC Module Tests ===\n");
     printf("Device node: %s (%s)\n\n",
-           g_devNode, g_hasHw ? "found" : "not found, hw tests will skip");
+        g_devNode, g_hasHw ? "found" : "not found, hw tests will skip");
 
     /* initialize VB module for buffer management */
     S32 vbRet = SYS_Init();
@@ -619,7 +624,7 @@ int main(int argc, char *argv[])
     // test_exit_force_cleanup();
 
     /* hardware tests */
-    //test_hw_full_pipeline();
+    // test_hw_full_pipeline();
     test_getframe_save_file();
 
     printf("\n=== All tests passed ===\n");

@@ -1,23 +1,23 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_uvc_vdec.c
- * @Date      :    2026-4-19
- * @Brief     :    Integration test: UVC capture → VDEC decode → VENC encode → MUX RTSP.
- *                 Captures MJPEG from UVC, decodes to NV12, re-encodes to H.264,
- *                 pushes via RTSP. Runs continuously until Ctrl+C.
- *                 VENC task thread automatically sends encoded stream to MUX
- *                 via SYS_SendStream (bound VENC src → MUX sink).
- *
- *                 NOTE: Requires a real UVC camera. Skips if device missing.
- *
- * Run:
- *   ./test_uvc_vdec
- *   ./test_uvc_vdec /dev/video0
- *   ./test_uvc_vdec /dev/video0 rtsp://0.0.0.0:8554/live
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_uvc_vdec.c
+* @Date      :    2026-4-19
+* @Brief     :    Integration test: UVC capture → VDEC decode → VENC encode → MUX RTSP.
+*                 Captures MJPEG from UVC, decodes to NV12, re-encodes to H.264,
+*                 pushes via RTSP. Runs continuously until Ctrl+C.
+*                 VENC task thread automatically sends encoded stream to MUX
+*                 via SYS_SendStream (bound VENC src → MUX sink).
+*
+*                 NOTE: Requires a real UVC camera. Skips if device missing.
+*
+* Run:
+*   ./test_uvc_vdec
+*   ./test_uvc_vdec /dev/video0
+*   ./test_uvc_vdec /dev/video0 rtsp://0.0.0.0:8554/live
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -40,13 +40,13 @@
 /* ======================== Helpers ======================== */
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
-#define TEST_SKIP(name, msg) do { printf("[SKIP] %s: %s\n", (name), (msg)); return; } while(0)
+#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while (0)
+#define TEST_SKIP(name, msg) do { printf("[SKIP] %s: %s\n", (name), (msg)); return; } while (0)
 
 static const char *g_devNode    = "/dev/video13";
 static const char *g_rtspUrl    = "rtsp://10.0.90.125:8554/live";
-static BOOL        g_hasHw      = MPP_FALSE;
-static U32         g_warmUpCnt  = 30;
+static BOOL g_hasHw      = MPP_FALSE;
+static U32 g_warmUpCnt  = 30;
 
 static volatile S32 g_running   = 1;
 
@@ -70,8 +70,9 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
     const char *name = "uvc_vdec_venc_mux_pipeline";
     S32 ret;
 
-    if (!g_hasHw)
+    if (!g_hasHw){
         TEST_SKIP(name, "no UVC device found");
+    }
 
     /* --- Init modules --- */
     ret = UVC_Init();
@@ -225,8 +226,9 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
     for (U32 i = 0; i < g_warmUpCnt; i++) {
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, uvcTimeout);
-        if (ret == 0)
+        if (ret == 0){
             UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
+        }
     }
 
     /* --- Main loop: UVC → VDEC → VENC (continuous until Ctrl+C) --- */
@@ -240,7 +242,7 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, uvcTimeout);
         if (ret != 0) {
-            if (!g_running) break;
+            if (!g_running){break;}
             continue;
         }
 
@@ -273,12 +275,15 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
         memset(&decFrame, 0, sizeof(decFrame));
 
         ret = VDEC_GetFrame(vdecChn, &decFrame, vdecTimeout);
-        if (ret == ERR_VDEC_NO_FRAME)
+        if (ret == ERR_VDEC_NO_FRAME){
             continue;
-        if (ret == ERR_VDEC_EOS)
+        }
+        if (ret == ERR_VDEC_EOS){
             break;
-        if (ret != ERR_VDEC_OK)
+        }
+        if (ret != ERR_VDEC_OK){
             continue;
+        }
 
         /* Send decoded frame to VENC */
         decFrame.eFrameType = FRAME_TYPE_VENC;
@@ -340,20 +345,23 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
     VDEC_Exit();
     UVC_Exit();
 
-    if (u32Done > 0)
+    if (u32Done > 0){
         TEST_PASS(name);
-    else
+    }else{
         TEST_FAIL(name, "no frames through pipeline");
+    }
 }
 
 /* ======================== Main ======================== */
 
 int main(int argc, char *argv[])
 {
-    if (argc > 1)
+    if (argc > 1){
         g_devNode = argv[1];
-    if (argc > 2)
+    }
+    if (argc > 2){
         g_rtspUrl = argv[2];
+    }
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);

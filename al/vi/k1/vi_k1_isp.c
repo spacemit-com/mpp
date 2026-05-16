@@ -1,15 +1,15 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    vi_k1_isp.c
- * @Date      :    2026-3-28
- * @Author    :    SPACEMIT
- * @Brief     :    K1 VI ISP lifecycle helpers.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    vi_k1_isp.c
+* @Date      :    2026-3-28
+* @Author    :    SPACEMIT
+* @Brief     :    K1 VI ISP lifecycle helpers.
+*------------------------------------------------------------------------------
+*/
 
 #include "include/vi_k1_defs.h"
 #include "include/vi_k1_ctx.h"
@@ -20,13 +20,13 @@
 #include <stdlib.h>
 
 typedef struct _K1_VI_OFFLINE_CFG_VIEW_S {
-    BOOL               bConfigured;
-    BOOL               bStarted;
-    VI_DEV             ViDev;
-    VI_CHN             ViChn;
+    BOOL bConfigured;
+    BOOL bStarted;
+    VI_DEV ViDev;
+    VI_CHN ViChn;
     U8                *pu8RawVirAddr;
-    U32                u32RawSize;
-    ISP_PUB_ATTR_S     stPubAttr;
+    U32 u32RawSize;
+    ISP_PUB_ATTR_S stPubAttr;
     ISP_OFFLINE_ATTR_S stOfflineAttr;
 } K1_VI_OFFLINE_CFG_VIEW_S;
 
@@ -34,8 +34,9 @@ extern const VOID *K1_VI_OfflineGetCfg(VI_DEV ViDev);
 
 static VOID K1_VI_ResetMetaCache(K1_VI_CHN_CTX_S *pstChnCtx)
 {
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return;
+    }
 
     memset(pstChnCtx->astMetaCache, 0, sizeof(pstChnCtx->astMetaCache));
     pstChnCtx->u32MetaWritePos = 0;
@@ -46,18 +47,21 @@ S32 K1_VI_CreateIspFrameInfoPool(K1_VI_CHN_CTX_S *pstChnCtx)
     U32 i;
     U32 u32FrameInfoSize;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     u32FrameInfoSize = (U32)sizeof(FRAME_INFO_S) + (U32)ASR_ISP_GetFwFrameInfoSize();
-    if (u32FrameInfoSize == 0U)
+    if (u32FrameInfoSize == 0U){
         u32FrameInfoSize = (U32)sizeof(FRAME_INFO_S);
+    }
 
     for (i = 0; i < K1_VI_META_CACHE_DEPTH; ++i) {
         K1_VI_ISP_FRAMEINFO_NODE_S *pstNode = &pstChnCtx->astIspFrameInfoNode[i];
 
-        if (pstNode->bAllocated == MPP_TRUE)
+        if (pstNode->bAllocated == MPP_TRUE){
             continue;
+        }
 
         memset(pstNode, 0, sizeof(*pstNode));
         pstNode->stImageBuffer.numPlanes = 1;
@@ -81,8 +85,9 @@ VOID K1_VI_DestroyIspFrameInfoPool(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     U32 i;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return;
+    }
 
     for (i = 0; i < K1_VI_META_CACHE_DEPTH; ++i) {
         K1_VI_ISP_FRAMEINFO_NODE_S *pstNode = &pstChnCtx->astIspFrameInfoNode[i];
@@ -99,12 +104,14 @@ S32 K1_VI_QueueIspFrameInfoBuffer(K1_VI_CHN_CTX_S *pstChnCtx, IMAGE_BUFFER_S *ps
 {
     S32 s32Ret;
 
-    if (pstChnCtx == NULL || pstFrameInfoBuf == NULL)
+    if (pstChnCtx == NULL || pstFrameInfoBuf == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     s32Ret = ASR_ISP_QueueFrameinfoBuffer(pstChnCtx->u32IspPipeline, pstFrameInfoBuf);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     return K1_VI_SUCCESS;
 }
@@ -114,17 +121,20 @@ S32 K1_VI_QueueAllIspFrameInfoBuffers(K1_VI_CHN_CTX_S *pstChnCtx)
     U32 i;
     S32 s32Ret;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     for (i = 0; i < K1_VI_META_CACHE_DEPTH; ++i) {
         K1_VI_ISP_FRAMEINFO_NODE_S *pstNode = &pstChnCtx->astIspFrameInfoNode[i];
-        if (pstNode->bAllocated != MPP_TRUE)
+        if (pstNode->bAllocated != MPP_TRUE){
             continue;
+        }
 
         s32Ret = K1_VI_QueueIspFrameInfoBuffer(pstChnCtx, &pstNode->stImageBuffer);
-        if (s32Ret != K1_VI_SUCCESS)
+        if (s32Ret != K1_VI_SUCCESS){
             return s32Ret;
+        }
     }
 
     return K1_VI_SUCCESS;
@@ -135,8 +145,9 @@ static VOID K1_VI_MetaCacheInsert(K1_VI_CHN_CTX_S *pstChnCtx, const FRAME_INFO_S
     K1_VI_FRAME_META_NODE_S *pstNode = NULL;
     U32 u32Pos;
 
-    if (pstChnCtx == NULL || pstFrameInfo == NULL)
+    if (pstChnCtx == NULL || pstFrameInfo == NULL){
         return;
+    }
 
     u32Pos = pstChnCtx->u32MetaWritePos % K1_VI_META_CACHE_DEPTH;
     pstNode = &pstChnCtx->astMetaCache[u32Pos];
@@ -148,13 +159,14 @@ static VOID K1_VI_MetaCacheInsert(K1_VI_CHN_CTX_S *pstChnCtx, const FRAME_INFO_S
 
     pstChnCtx->u32MetaWritePos = (pstChnCtx->u32MetaWritePos + 1U) % K1_VI_META_CACHE_DEPTH;
 
-	//info("[debug] MetaCacheInsert: frameId=%u stored at pos=%u\n", pstNode->u32FrameId, u32Pos);
+    // info("[debug] MetaCacheInsert: frameId=%u stored at pos=%u\n", pstNode->u32FrameId, u32Pos);
 }
 
 static VOID K1_VI_FillPublicFrameMeta(const FRAME_INFO_S *pstSrc, ViFrameMetaInfo *pstDst)
 {
-    if (pstSrc == NULL || pstDst == NULL)
+    if (pstSrc == NULL || pstDst == NULL){
         return;
+    }
 
     memset(pstDst, 0, sizeof(*pstDst));
 
@@ -182,20 +194,23 @@ static VOID K1_VI_FillPublicFrameMeta(const FRAME_INFO_S *pstSrc, ViFrameMetaInf
 }
 
 static S32 K1_VI_MetaCacheQuery(const K1_VI_CHN_CTX_S *pstChnCtx,
-                                U32 u32FrameId,
-                                ViFrameMetaInfo *pstFrameInfo)
+    U32 u32FrameId,
+    ViFrameMetaInfo *pstFrameInfo)
 {
     U32 i;
 
-    if (pstChnCtx == NULL || pstFrameInfo == NULL)
+    if (pstChnCtx == NULL || pstFrameInfo == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     for (i = 0; i < K1_VI_META_CACHE_DEPTH; ++i) {
         const K1_VI_FRAME_META_NODE_S *pstNode = &pstChnCtx->astMetaCache[i];
-        if (pstNode->bValid != MPP_TRUE)
+        if (pstNode->bValid != MPP_TRUE){
             continue;
-        if (pstNode->u32FrameId != u32FrameId)
+        }
+        if (pstNode->u32FrameId != u32FrameId){
             continue;
+        }
 
         K1_VI_FillPublicFrameMeta(&pstNode->stFrameInfo, pstFrameInfo);
         return K1_VI_SUCCESS;
@@ -213,14 +228,17 @@ int32_t K1_VI_IspFrameInfoCallback(uint32_t pipelineID, void *pstFrameinfoBuf)
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     int32_t s32Ret;
 
-    if (pstFrameinfoBuf == NULL)
+    if (pstFrameinfoBuf == NULL){
         return K1_VI_ERR_INVALID_PARAM;
-    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
+    }
+    if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstBuffer = (IMAGE_BUFFER_S *)pstFrameinfoBuf;
-    if (pstBuffer->planes[0].virAddr == NULL)
+    if (pstBuffer->planes[0].virAddr == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstMeta = (FRAME_INFO_S *)pstBuffer->planes[0].virAddr;
     pstChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
@@ -235,8 +253,9 @@ int32_t K1_VI_IspFrameInfoCallback(uint32_t pipelineID, void *pstFrameinfoBuf)
     }
 
     s32Ret = ASR_ISP_QueueFrameinfoBuffer(pipelineID, pstBuffer);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     return K1_VI_SUCCESS;
 }
@@ -245,22 +264,26 @@ S32 K1_VI_QueryFrameMeta(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, ViFrameMeta
 {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
+    if (g_stK1ViCtx.bInit != MPP_TRUE){
         return K1_VI_ERR_NOT_INIT;
-    if (pstFrameInfo == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
+    }
+    if (pstFrameInfo == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstChnCtx->bCreated != MPP_TRUE || pstChnCtx->bEnabled != MPP_TRUE)
+    if (pstChnCtx->bCreated != MPP_TRUE || pstChnCtx->bEnabled != MPP_TRUE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     return K1_VI_MetaCacheQuery(pstChnCtx, u32FrameId, pstFrameInfo);
 }
 
 static S32 K1_VI_ToCamRawType(ViRawType eRawType, CAM_SENSOR_RAWTYPE_E *penRawType)
 {
-    if (penRawType == NULL)
+    if (penRawType == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     switch (eRawType) {
     case VI_RAW_TYPE_8BIT:
@@ -283,15 +306,16 @@ static S32 K1_VI_ToCamRawType(ViRawType eRawType, CAM_SENSOR_RAWTYPE_E *penRawTy
 }
 
 static S32 K1_VI_GetOfflineIspInitAttr(const K1_VI_DEV_CTX_S *pstDevCtx,
-                                       ISP_PUB_ATTR_S *pstPubAttr,
-                                       ISP_OFFLINE_ATTR_S *pstOfflineAttr)
+    ISP_PUB_ATTR_S *pstPubAttr,
+    ISP_OFFLINE_ATTR_S *pstOfflineAttr)
 {
     const K1_VI_OFFLINE_CFG_VIEW_S *pstOfflineCfg = NULL;
     CAM_SENSOR_RAWTYPE_E enRawType;
     S32 s32Ret;
 
-    if (pstDevCtx == NULL || pstPubAttr == NULL || pstOfflineAttr == NULL)
+    if (pstDevCtx == NULL || pstPubAttr == NULL || pstOfflineAttr == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstOfflineCfg = (const K1_VI_OFFLINE_CFG_VIEW_S *)K1_VI_OfflineGetCfg((VI_DEV)(pstDevCtx - g_stK1ViCtx.astDevCtx));
     if (pstOfflineCfg != NULL && pstOfflineCfg->bConfigured == MPP_TRUE) {
@@ -310,8 +334,9 @@ static S32 K1_VI_GetOfflineIspInitAttr(const K1_VI_DEV_CTX_S *pstDevCtx,
     s32Ret = K1_VI_ToCamRawType(
         pstDevCtx->eOfflineRawType != VI_RAW_TYPE_UNKNOWN ? pstDevCtx->eOfflineRawType : VI_RAW_TYPE_12BIT,
         &enRawType);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
     pstPubAttr->enRawType = enRawType;
 
     memset(pstOfflineAttr, 0, sizeof(*pstOfflineAttr));
@@ -342,8 +367,9 @@ S32 K1_VI_ToIspBayerPattern(U32 u32BayerPattern, ISP_BAYER_PATTERN_E *penBayerPa
         return K1_VI_ERR_INVALID_PARAM;
     }
 
-    if (penBayerPattern != NULL)
+    if (penBayerPattern != NULL){
         *penBayerPattern = enPattern;
+    }
 
     return K1_VI_SUCCESS;
 }
@@ -359,22 +385,26 @@ S32 K1_VI_InitIsp(K1_VI_CHN_CTX_S *pstChnCtx)
     ViRawType eRawType;
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspInit == MPP_TRUE)
+    if (pstChnCtx->bIspInit == MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     pstDevCtx = &g_stK1ViCtx.astDevCtx[pstChnCtx->ViDev];
-    if (pstDevCtx->bSensorInfoValid != MPP_TRUE || pstDevCtx->pstSensorCfg == NULL)
+    if (pstDevCtx->bSensorInfoValid != MPP_TRUE || pstDevCtx->pstSensorCfg == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstDevAttr = &pstDevCtx->stAttr;
     pstChnCtx->u32IspPipeline = (U32)pstChnCtx->ViDev;
 
     s32Ret = K1_VI_ToIspBayerPattern((U32)pstDevCtx->pstSensorCfg->pattern, &enBayerPattern);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     memset(&stIspPubAttr, 0, sizeof(stIspPubAttr));
     stIspPubAttr.stInputSize.width = pstDevAttr->u32Width;
@@ -384,8 +414,9 @@ S32 K1_VI_InitIsp(K1_VI_CHN_CTX_S *pstChnCtx)
     stIspPubAttr.enBayerFmt = enBayerPattern;
 
     s32Ret = K1_VI_GetSensorRawType(pstDevCtx, &eRawType);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     switch (eRawType) {
     case VI_RAW_TYPE_8BIT:
@@ -406,65 +437,76 @@ S32 K1_VI_InitIsp(K1_VI_CHN_CTX_S *pstChnCtx)
 
     s32Ret = ASR_ISP_Construct(pstChnCtx->u32IspPipeline);
 
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     memset(&stSensorAttr, 0, sizeof(stSensorAttr));
     stSensorAttr.u32SensorId = (U32)pstChnCtx->ViDev;
     s32Ret = ASR_ISP_RegSensorCallBack(pstChnCtx->u32IspPipeline, &stSensorAttr, &pstDevCtx->stSensorOps);
-	//info("%s: ASR_ISP_RegSensorCallBack firmwareId %d, sensorId %d, ret = %d\n", __func__, pstChnCtx->u32IspPipeline, stSensorAttr.u32SensorId, s32Ret);
-    if (s32Ret != SUCCESS)
+    // info("%s: ASR_ISP_RegSensorCallBack firmwareId %d, sensorId %d, ret = %d\n", __func__, pstChnCtx->u32IspPipeline, stSensorAttr.u32SensorId, s32Ret);
+    if (s32Ret != SUCCESS){
         goto fail_destruct;
+    }
 
     if (memcmp(&pstDevCtx->stAfOps, &(ISP_AF_MOTOR_REGISTER_S){0}, sizeof(pstDevCtx->stAfOps)) != 0) {
         s32Ret = ASR_ISP_RegAfMotorCallBack(pstChnCtx->u32IspPipeline, &pstDevCtx->stAfOps);
-        if (s32Ret != SUCCESS)
+        if (s32Ret != SUCCESS){
             goto fail_unreg_sensor;
+        }
     }
 
     s32Ret = ASR_ISP_SetPubAttr(pstChnCtx->u32IspPipeline, CAM_ISP_CH_ID_PREVIEW, &stIspPubAttr);
-	// info("%s: ASR_ISP_SetPubAttr firmwareId %d, CH_ID_PREVIEW, input %dx%d, output %dx%d, bayerFmt %d, rawType %d, ret = %d\n",
-	// 	   __func__, pstChnCtx->u32IspPipeline, stIspPubAttr.stInputSize.width, stIspPubAttr.stInputSize.height,
-	// 	   stIspPubAttr.stOutSize.width, stIspPubAttr.stOutSize.height, stIspPubAttr.enBayerFmt, stIspPubAttr.enRawType, s32Ret);
-    if (s32Ret != SUCCESS)
+    // info("%s: ASR_ISP_SetPubAttr firmwareId %d, CH_ID_PREVIEW, input %dx%d, output %dx%d, bayerFmt %d, rawType %d, ret = %d\n",
+    //     __func__, pstChnCtx->u32IspPipeline, stIspPubAttr.stInputSize.width, stIspPubAttr.stInputSize.height,
+    //     stIspPubAttr.stOutSize.width, stIspPubAttr.stOutSize.height, stIspPubAttr.enBayerFmt, stIspPubAttr.enRawType, s32Ret);
+    if (s32Ret != SUCCESS){
         goto fail_unreg_sensor;
+    }
 
     s32Ret = ASR_ISP_SetChHwPipeID(pstChnCtx->u32IspPipeline, CAM_ISP_CH_ID_PREVIEW,
-                                   pstChnCtx->u32IspPipeline == 0 ? ISP_HW_PIPE_ID_ID_0 : ISP_HW_PIPE_ID_ID_1);
-	// info("%s: ASR_ISP_SetChHwPipeID firmwareId %d, CH_ID_PREVIEW, pipeID %d, ret = %d\n",
+        pstChnCtx->u32IspPipeline == 0 ? ISP_HW_PIPE_ID_ID_0 : ISP_HW_PIPE_ID_ID_1);
+    // info("%s: ASR_ISP_SetChHwPipeID firmwareId %d, CH_ID_PREVIEW, pipeID %d, ret = %d\n",
     //        __func__, pstChnCtx->u32IspPipeline, pstChnCtx->u32IspPipeline == 0 ? ISP_HW_PIPE_ID_ID_0 : ISP_HW_PIPE_ID_ID_1, s32Ret);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_unreg_sensor;
+    }
 
     s32Ret = ASR_ISP_SetFrameinfoCallback(pstChnCtx->u32IspPipeline, K1_VI_IspFrameInfoCallback);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_unreg_sensor;
+    }
 
     s32Ret = K1_VI_CreateIspFrameInfoPool(pstChnCtx);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         goto fail_unreg_sensor;
+    }
 
     s32Ret = K1_VI_QueueAllIspFrameInfoBuffers(pstChnCtx);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         goto fail_destroy_frameinfo_pool;
+    }
 
     memset(&stTuningAttr, 0, sizeof(stTuningAttr));
     s32Ret = ASR_ISP_SetTuningParams(pstChnCtx->u32IspPipeline, &stTuningAttr);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_unreg_sensor;
+    }
 
     s32Ret = ASR_ISP_SetFps(pstChnCtx->u32IspPipeline,
-                            (int)pstDevCtx->pstSensorCfg->minFps,
-                            (int)pstDevCtx->pstSensorCfg->maxFps);
-	// info("%s: ASR_ISP_SetFps %d, minFps: %f, maxFps: %f, ret = %d\n", __func__, pstChnCtx->u32IspPipeline, pstDevCtx->pstSensorCfg->minFps,
-	// 	   pstDevCtx->pstSensorCfg->maxFps, s32Ret);
+        (int)pstDevCtx->pstSensorCfg->minFps,
+        (int)pstDevCtx->pstSensorCfg->maxFps);
+    // info("%s: ASR_ISP_SetFps %d, minFps: %f, maxFps: %f, ret = %d\n", __func__, pstChnCtx->u32IspPipeline, pstDevCtx->pstSensorCfg->minFps,
+    //     pstDevCtx->pstSensorCfg->maxFps, s32Ret);
 
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_unreg_sensor;
+    }
 
     s32Ret = ASR_ISP_Init(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_unreg_sensor;
+    }
 
     pstChnCtx->bIspInit = MPP_TRUE;
     return K1_VI_SUCCESS;
@@ -487,22 +529,26 @@ S32 K1_VI_InitOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx)
     ViDevAttrS *pstDevAttr = NULL;
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspInit == MPP_TRUE)
+    if (pstChnCtx->bIspInit == MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     pstDevCtx = &g_stK1ViCtx.astDevCtx[pstChnCtx->ViDev];
-    if (pstDevCtx->stAttr.eWorkMode != VI_WORK_MODE_OFFLINE)
+    if (pstDevCtx->stAttr.eWorkMode != VI_WORK_MODE_OFFLINE){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
     pstDevAttr = &pstDevCtx->stAttr;
     pstChnCtx->u32IspPipeline = (U32)pstChnCtx->ViDev;
 
     s32Ret = K1_VI_GetOfflineIspInitAttr(pstDevCtx, &stIspPubAttr, &stOfflineAttr);
-    if (s32Ret != K1_VI_SUCCESS)
+    if (s32Ret != K1_VI_SUCCESS){
         return s32Ret;
+    }
 
     stIspPubAttr.stInputSize.width = pstDevAttr->u32Width;
     stIspPubAttr.stInputSize.height = pstDevAttr->u32Height;
@@ -510,33 +556,38 @@ S32 K1_VI_InitOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx)
     stIspPubAttr.stOutSize.height = pstChnCtx->stAttr.u32Height;
 
     s32Ret = ASR_ISP_Construct(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     memset(&stTuningAttr, 0, sizeof(stTuningAttr));
     stTuningAttr.camScene = CAM_ISP_SCENE_PREVIEW;
     (void)ASR_ISP_SetTuningParams(pstChnCtx->u32IspPipeline, &stTuningAttr);
 
     s32Ret = ASR_ISP_SetPubAttr(pstChnCtx->u32IspPipeline, CAM_ISP_CH_ID_PREVIEW, &stIspPubAttr);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_destruct;
+    }
 
     s32Ret = ASR_ISP_SetChHwPipeID(pstChnCtx->u32IspPipeline, CAM_ISP_CH_ID_PREVIEW,
-                                   pstChnCtx->u32IspPipeline == 0 ? ISP_HW_PIPE_ID_ID_0 : ISP_HW_PIPE_ID_ID_1);
-    if (s32Ret != SUCCESS)
+        pstChnCtx->u32IspPipeline == 0 ? ISP_HW_PIPE_ID_ID_0 : ISP_HW_PIPE_ID_ID_1);
+    if (s32Ret != SUCCESS){
         goto fail_destruct;
+    }
 
     // s32Ret = ASR_ISP_SetFrameinfoCallback(pstChnCtx->u32IspPipeline, K1_VI_IspFrameInfoCallback);
     // if (s32Ret != SUCCESS)
     //     goto fail_destruct;
 
     s32Ret = ASR_ISP_EnableOfflineMode(pstChnCtx->u32IspPipeline, 1, &stOfflineAttr);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_destruct;
+    }
 
     s32Ret = ASR_ISP_Init(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         goto fail_destruct;
+    }
 
     pstChnCtx->bIspInit = MPP_TRUE;
     return K1_VI_SUCCESS;
@@ -551,21 +602,25 @@ S32 K1_VI_DeInitIsp(K1_VI_CHN_CTX_S *pstChnCtx)
     ISP_SENSOR_ATTR_S stSensorAttr;
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspInit != MPP_TRUE)
+    if (pstChnCtx->bIspInit != MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     if (pstChnCtx->bIspStreaming == MPP_TRUE) {
         s32Ret = K1_VI_StopIsp(pstChnCtx);
-        if (s32Ret != K1_VI_SUCCESS)
+        if (s32Ret != K1_VI_SUCCESS){
             return s32Ret;
+        }
     }
 
     s32Ret = ASR_ISP_DeInit(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     K1_VI_DestroyIspFrameInfoPool(pstChnCtx);
 
@@ -574,8 +629,9 @@ S32 K1_VI_DeInitIsp(K1_VI_CHN_CTX_S *pstChnCtx)
     (void)ASR_ISP_UnRegSensorCallBack(pstChnCtx->u32IspPipeline, &stSensorAttr);
 
     s32Ret = ASR_ISP_Destruct(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     pstChnCtx->bIspInit = MPP_FALSE;
     return K1_VI_SUCCESS;
@@ -585,25 +641,30 @@ S32 K1_VI_DeInitOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspInit != MPP_TRUE)
+    if (pstChnCtx->bIspInit != MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     if (pstChnCtx->bIspStreaming == MPP_TRUE) {
         s32Ret = K1_VI_StopOfflineIsp(pstChnCtx);
-        if (s32Ret != K1_VI_SUCCESS)
+        if (s32Ret != K1_VI_SUCCESS){
             return s32Ret;
+        }
     }
 
     s32Ret = ASR_ISP_DeInit(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     s32Ret = ASR_ISP_Destruct(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     pstChnCtx->bIspInit = MPP_FALSE;
     return K1_VI_SUCCESS;
@@ -613,15 +674,18 @@ S32 K1_VI_StartIsp(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspStreaming == MPP_TRUE)
+    if (pstChnCtx->bIspStreaming == MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     s32Ret = ASR_ISP_Streamon(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     pstChnCtx->bIspStreaming = MPP_TRUE;
     return K1_VI_SUCCESS;
@@ -631,15 +695,18 @@ S32 K1_VI_StartOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspStreaming == MPP_TRUE)
+    if (pstChnCtx->bIspStreaming == MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     s32Ret = ASR_ISP_Streamon(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     pstChnCtx->bIspStreaming = MPP_TRUE;
     return K1_VI_SUCCESS;
@@ -649,21 +716,25 @@ S32 K1_VI_StopIsp(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspStreaming != MPP_TRUE)
+    if (pstChnCtx->bIspStreaming != MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     pstChnCtx->bIspStreaming = MPP_FALSE;
 
     s32Ret = ASR_ISP_FlushFrameinfoBuffer(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     s32Ret = ASR_ISP_Streamoff(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     return K1_VI_SUCCESS;
 }
@@ -672,21 +743,25 @@ S32 K1_VI_StopOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx)
 {
     S32 s32Ret = 0;
 
-    if (pstChnCtx == NULL)
+    if (pstChnCtx == NULL){
         return K1_VI_ERR_INVALID_PARAM;
+    }
 
-    if (pstChnCtx->bIspStreaming != MPP_TRUE)
+    if (pstChnCtx->bIspStreaming != MPP_TRUE){
         return K1_VI_SUCCESS;
+    }
 
     pstChnCtx->bIspStreaming = MPP_FALSE;
 
     s32Ret = ASR_ISP_FlushFrameinfoBuffer(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     s32Ret = ASR_ISP_Streamoff(pstChnCtx->u32IspPipeline);
-    if (s32Ret != SUCCESS)
+    if (s32Ret != SUCCESS){
         return s32Ret;
+    }
 
     return K1_VI_SUCCESS;
 }

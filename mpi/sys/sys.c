@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    sys.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    System module implementation for MPP.
- *                 Multi-process safe via POSIX shared memory.
- *                 PTS (monotonic clock), Bind graph, DMA heap MmzAlloc,
- *                 SendFrame/RecvFrame zero-copy channel queue.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    sys.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    System module implementation for MPP.
+*                 Multi-process safe via POSIX shared memory.
+*                 PTS (monotonic clock), Bind graph, DMA heap MmzAlloc,
+*                 SendFrame/RecvFrame zero-copy channel queue.
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -41,11 +41,11 @@ extern "C" {
 /* ======================== Log Macros ======================== */
 
 #define SYS_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[SYS][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "[SYS][ERR] %s:%d " fmt "\n", __func__, __LINE__, ## __VA_ARGS__)
 #define SYS_LOG_WARN(fmt, ...) \
-    fprintf(stderr, "[SYS][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "[SYS][WARN] %s:%d " fmt "\n", __func__, __LINE__, ## __VA_ARGS__)
 #define SYS_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[SYS][INFO] " fmt "\n", ##__VA_ARGS__)
+        fprintf(stdout, "[SYS][INFO] " fmt "\n", ## __VA_ARGS__)
 
 /* ======================== Robust mutex helper ======================== */
 
@@ -73,8 +73,8 @@ static U64 sys_get_mono_ns(void)
 static BOOL sys_node_equal(const MppNode *a, const MppNode *b)
 {
     return (a->eModId == b->eModId &&
-            a->s32DevId == b->s32DevId &&
-            a->s32ChnId == b->s32ChnId);
+        a->s32DevId == b->s32DevId &&
+        a->s32ChnId == b->s32ChnId);
 }
 
 static S32 sys_find_bind_idx(MppSharedMem *shm, const MppNode *src, const MppNode *sink)
@@ -129,8 +129,9 @@ static VOID sys_reset_stream_queue(MppStreamQueue *q)
 static SysMapRecord *sys_alloc_map_record(MppSharedMem *shm)
 {
     for (U32 i = 0; i < MPP_MAX_MAP; i++) {
-        if (!shm->maps[i].used)
+        if (!shm->maps[i].used){
             return &shm->maps[i];
+        }
     }
     return NULL;
 }
@@ -138,8 +139,9 @@ static SysMapRecord *sys_alloc_map_record(MppSharedMem *shm)
 static SysMapRecord *sys_find_map_by_vir(MppSharedMem *shm, void *vir_addr)
 {
     for (U32 i = 0; i < MPP_MAX_MAP; i++) {
-        if (shm->maps[i].used && shm->maps[i].vir_addr == vir_addr)
+        if (shm->maps[i].used && shm->maps[i].vir_addr == vir_addr){
             return &shm->maps[i];
+        }
     }
     return NULL;
 }
@@ -190,7 +192,7 @@ S32 SYS_Init(VOID)
     memset(shm->binds, 0, sizeof(shm->binds));
     memset(shm->maps, 0, sizeof(shm->maps));
     /* Note: stream_queues are already initialized by shm_init_all() with
-     * proper PTHREAD_PROCESS_SHARED mutexes/conds — do NOT memset them here */
+    * proper PTHREAD_PROCESS_SHARED mutexes/conds — do NOT memset them here */
     shm->sys_inited = 1;
     pthread_mutex_unlock(&shm->pts_lock);
 
@@ -224,8 +226,8 @@ S32 SYS_Exit(VOID)
     for (U32 i = 0; i < MPP_MAX_BIND; i++) {
         if (shm->binds[i].state == SYS_BIND_ACTIVE) {
             SYS_LOG_WARN("bind [mod%d dev%d chn%d]->[mod%d dev%d chn%d] still active at exit",
-                         shm->binds[i].src.eModId, shm->binds[i].src.s32DevId, shm->binds[i].src.s32ChnId,
-                         shm->binds[i].sink.eModId, shm->binds[i].sink.s32DevId, shm->binds[i].sink.s32ChnId);
+                shm->binds[i].src.eModId, shm->binds[i].src.s32DevId, shm->binds[i].src.s32ChnId,
+                shm->binds[i].sink.eModId, shm->binds[i].sink.s32DevId, shm->binds[i].sink.s32ChnId);
             shm->binds[i].state = SYS_BIND_FREE;
         }
     }
@@ -238,7 +240,7 @@ S32 SYS_Exit(VOID)
         SysMapRecord *r = &shm->maps[i];
         if (r->used && r->owner_pid == getpid()) {
             SYS_LOG_WARN("leaked map: type=%d phy=0x%llx vir=%p size=%u",
-                         r->type, (unsigned long long)r->phy_addr, r->vir_addr, r->size);
+                r->type, (unsigned long long)r->phy_addr, r->vir_addr, r->size);
             if (r->dma_fd >= 0) {
                 dma_free_buf(r->dma_fd, r->vir_addr, r->size);
             }
@@ -273,7 +275,7 @@ S32 SYS_Bind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
     if (pstSrcNode->eModId <= 0 || pstSrcNode->eModId >= MPP_ID_MAX ||
         pstSinkNode->eModId <= 0 || pstSinkNode->eModId >= MPP_ID_MAX) {
         SYS_LOG_ERR("invalid module id: src=%d sink=%d",
-                     pstSrcNode->eModId, pstSinkNode->eModId);
+            pstSrcNode->eModId, pstSinkNode->eModId);
         return SYS_ERR_INVAL;
     }
 
@@ -320,9 +322,9 @@ S32 SYS_Bind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
     pthread_rwlock_unlock(&shm->bind_lock);
 
     SYS_LOG_INFO("SYS_Bind: [mod%d dev%d chn%d]->[mod%d dev%d chn%d] slot=%u",
-                 pstSrcNode->eModId, pstSrcNode->s32DevId, pstSrcNode->s32ChnId,
-                 pstSinkNode->eModId, pstSinkNode->s32DevId, pstSinkNode->s32ChnId,
-                 slot_idx);
+        pstSrcNode->eModId, pstSrcNode->s32DevId, pstSrcNode->s32ChnId,
+        pstSinkNode->eModId, pstSinkNode->s32DevId, pstSinkNode->s32ChnId,
+        slot_idx);
     return SYS_ERR_OK;
 }
 
@@ -354,8 +356,8 @@ S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
     pthread_rwlock_unlock(&shm->bind_lock);
 
     SYS_LOG_INFO("SYS_UnBind: [mod%d dev%d chn%d]->[mod%d dev%d chn%d]",
-                 pstSrcNode->eModId, pstSrcNode->s32DevId, pstSrcNode->s32ChnId,
-                 pstSinkNode->eModId, pstSinkNode->s32DevId, pstSinkNode->s32ChnId);
+        pstSrcNode->eModId, pstSrcNode->s32DevId, pstSrcNode->s32ChnId,
+        pstSinkNode->eModId, pstSinkNode->s32DevId, pstSinkNode->s32ChnId);
     return SYS_ERR_OK;
 }
 
@@ -424,30 +426,30 @@ S32 SYS_SyncPTS(U64 u64PTSBase)
 S32 SYS_Mmap(U64 u64PhyAddr, U32 u32Size)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
-    if (u32Size == 0) return SYS_ERR_INVAL;
+    if (!shm || !shm->sys_inited){return SYS_ERR_NOT_INIT;}
+    if (u32Size == 0){return SYS_ERR_INVAL;}
 
     SYS_LOG_WARN("SYS_Mmap: phy=0x%llx size=%u (stub — use DMA heap via MmzAlloc)",
-                 (unsigned long long)u64PhyAddr, u32Size);
+        (unsigned long long)u64PhyAddr, u32Size);
     return SYS_ERR_OK;
 }
 
 S32 SYS_MmapCache(U64 u64PhyAddr, U32 u32Size)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
-    if (u32Size == 0) return SYS_ERR_INVAL;
+    if (!shm || !shm->sys_inited){return SYS_ERR_NOT_INIT;}
+    if (u32Size == 0){return SYS_ERR_INVAL;}
 
     SYS_LOG_WARN("SYS_MmapCache: phy=0x%llx size=%u (stub — use DMA heap via MmzAlloc)",
-                 (unsigned long long)u64PhyAddr, u32Size);
+        (unsigned long long)u64PhyAddr, u32Size);
     return SYS_ERR_OK;
 }
 
 S32 SYS_Munmap(VOID *pVirAddr, U32 u32Size)
 {
-    if (!pVirAddr) return SYS_ERR_INVAL;
+    if (!pVirAddr){return SYS_ERR_INVAL;}
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
+    if (!shm || !shm->sys_inited){return SYS_ERR_NOT_INIT;}
 
     SYS_LOG_WARN("SYS_Munmap: vir=%p size=%u (stub)", pVirAddr, u32Size);
     return SYS_ERR_OK;
@@ -455,9 +457,9 @@ S32 SYS_Munmap(VOID *pVirAddr, U32 u32Size)
 
 S32 SYS_MflushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size)
 {
-    if (!pVirAddr) return SYS_ERR_INVAL;
+    if (!pVirAddr){return SYS_ERR_INVAL;}
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
+    if (!shm || !shm->sys_inited){return SYS_ERR_NOT_INIT;}
 
     (void)u64PhyAddr;
     (void)u32Size;
@@ -467,7 +469,7 @@ S32 SYS_MflushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size)
 /* ======================== MMZ Alloc (DMA Heap) ======================== */
 
 S32 SYS_MmzAlloc(U64 *pu64PhyAddr, VOID **ppVirAddr,
-                  const CHAR *sMb, const CHAR *sZone, U32 u32Len)
+    const CHAR *sMb, const CHAR *sZone, U32 u32Len)
 {
     MppSharedMem *shm = mpp_shm_get();
 
@@ -511,13 +513,13 @@ S32 SYS_MmzAlloc(U64 *pu64PhyAddr, VOID **ppVirAddr,
     *ppVirAddr   = vir;
 
     SYS_LOG_INFO("SYS_MmzAlloc: mb=%s zone=%s len=%u phy=0x%llx vir=%p fd=%d",
-                 sMb ? sMb : "(null)", sZone ? sZone : "(default)",
-                 u32Len, (unsigned long long)phy, vir, fd);
+        sMb ? sMb : "(null)", sZone ? sZone : "(default)",
+        u32Len, (unsigned long long)phy, vir, fd);
     return SYS_ERR_OK;
 }
 
 S32 SYS_MmzAlloc_Cached(U64 *pu64PhyAddr, VOID **ppVirAddr,
-                         const CHAR *sMb, const CHAR *sZone, U32 u32Len)
+    const CHAR *sMb, const CHAR *sZone, U32 u32Len)
 {
     MppSharedMem *shm = mpp_shm_get();
 
@@ -561,8 +563,8 @@ S32 SYS_MmzAlloc_Cached(U64 *pu64PhyAddr, VOID **ppVirAddr,
     *ppVirAddr   = vir;
 
     SYS_LOG_INFO("SYS_MmzAlloc_Cached: mb=%s zone=%s len=%u phy=0x%llx vir=%p fd=%d",
-                 sMb ? sMb : "(null)", sZone ? sZone : "(default)",
-                 u32Len, (unsigned long long)phy, vir, fd);
+        sMb ? sMb : "(null)", sZone ? sZone : "(default)",
+        u32Len, (unsigned long long)phy, vir, fd);
     return SYS_ERR_OK;
 }
 
@@ -632,20 +634,21 @@ S32 SYS_MmzFree(U64 u64PhyAddr, VOID *pVirAddr)
     dma_free_buf(fd, vir, size);
 
     SYS_LOG_INFO("SYS_MmzFree: phy=0x%llx vir=%p fd=%d",
-                 (unsigned long long)u64PhyAddr, pVirAddr, fd);
+        (unsigned long long)u64PhyAddr, pVirAddr, fd);
     return SYS_ERR_OK;
 }
 
 /* ======================== SendFrame / RecvFrame ======================== */
 
 static S32 sys_build_frame_info_from_buffer(const MppNode *pstSrc, UL ulBuff,
-                                            VideoFrameInfo *pstFrameInfo)
+    VideoFrameInfo *pstFrameInfo)
 {
     U64 u64CurPts = 0;
     S32 s32Ret = 0;
 
-    if (!pstSrc || ulBuff == 0 || !pstFrameInfo)
+    if (!pstSrc || ulBuff == 0 || !pstFrameInfo){
         return SYS_ERR_INVAL;
+    }
 
     memset(pstFrameInfo, 0, sizeof(*pstFrameInfo));
     s32Ret = VB_GetFrameInfo(ulBuff, pstFrameInfo);
@@ -655,11 +658,12 @@ static S32 sys_build_frame_info_from_buffer(const MppNode *pstSrc, UL ulBuff,
     }
 
     pstFrameInfo->ulBufferId = ulBuff;
-    if (pstFrameInfo->eModId == 0)
+    if (pstFrameInfo->eModId == 0){
         pstFrameInfo->eModId = pstSrc->eModId;
+    }
 
     /* Commercial data path behavior: if producer did not stamp PTS, stamp it
-     * at SYS ingress so downstream modules always receive a usable timestamp. */
+    * at SYS ingress so downstream modules always receive a usable timestamp. */
     if (pstFrameInfo->stVFrame.u64PTS == 0 && SYS_GetCurPTS(&u64CurPts) == SYS_ERR_OK) {
         pstFrameInfo->stVFrame.u64PTS = u64CurPts;
         (void)VB_SetBufferPTS(ulBuff, u64CurPts);
@@ -685,8 +689,9 @@ S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff)
     }
 
     s32FrameRet = sys_build_frame_info_from_buffer(pstSrc, ulBuff, &stFrameInfo);
-    if (s32FrameRet != SYS_ERR_OK)
+    if (s32FrameRet != SYS_ERR_OK){
         return s32FrameRet;
+    }
 
     /* Find all binds where src matches — fan-out to all sinks */
     pthread_rwlock_rdlock(&shm->bind_lock);
@@ -694,14 +699,15 @@ S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff)
     BOOL found = MPP_FALSE;
     for (U32 i = 0; i < MPP_MAX_BIND; i++) {
         SysBindEntry *e = &shm->binds[i];
-        if (e->state != SYS_BIND_ACTIVE || !sys_node_equal(&e->src, pstSrc))
+        if (e->state != SYS_BIND_ACTIVE || !sys_node_equal(&e->src, pstSrc)){
             continue;
+        }
 
         found = MPP_TRUE;
         MppChanQueue *q = &shm->queues[i];
 
         /* Add a reference for the sink — zero-copy semantics:
-         * sender keeps its ref, each sink gets an additional ref. */
+        * sender keeps its ref, each sink gets an additional ref. */
         extern S32 VB_RefAdd(UL ulBufHandle);
         S32 ref_ret = VB_RefAdd(ulBuff);
         if (ref_ret != 0) {
@@ -779,7 +785,7 @@ S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs)
 
         while (q->count == 0) {
             int r = pthread_cond_timedwait(&q->not_empty, &q->lock, &ts);
-            if (r == ETIMEDOUT) break;
+            if (r == ETIMEDOUT){break;}
             if (r == EOWNERDEAD) {
                 pthread_mutex_consistent(&q->lock);
                 break;
@@ -948,7 +954,7 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
 
     /* Map the DMA buffer into this process to read the payload */
     dma_vir = mmap(NULL, entry->dma_size, PROT_READ, MAP_SHARED,
-                   entry->dma_fd, 0);
+        entry->dma_fd, 0);
     if (dma_vir == MAP_FAILED) {
         SYS_LOG_ERR("mmap DMA fd=%d failed: %s", entry->dma_fd, strerror(errno));
         pthread_mutex_unlock(&q->lock);
@@ -1010,8 +1016,8 @@ VOID SYS_DumpStatus(VOID)
         SysBindEntry *e = &shm->binds[i];
         if (e->state == SYS_BIND_ACTIVE) {
             printf("    [%u] mod%d.dev%d.chn%d -> mod%d.dev%d.chn%d\n",
-                   i, e->src.eModId, e->src.s32DevId, e->src.s32ChnId,
-                   e->sink.eModId, e->sink.s32DevId, e->sink.s32ChnId);
+                i, e->src.eModId, e->src.s32DevId, e->src.s32ChnId,
+                e->sink.eModId, e->sink.s32DevId, e->sink.s32ChnId);
         }
     }
     pthread_rwlock_unlock(&shm->bind_lock);
@@ -1025,13 +1031,14 @@ VOID SYS_DumpStatus(VOID)
             SysMapRecord *r = &shm->maps[i];
             if (r->used) {
                 printf("    [%u] %s phy=0x%llx vir=%p size=%u fd=%d pid=%d\n",
-                       i, type_str[r->type], (unsigned long long)r->phy_addr,
-                       r->vir_addr, r->size, r->dma_fd, r->owner_pid);
+                    i, type_str[r->type], (unsigned long long)r->phy_addr,
+                    r->vir_addr, r->size, r->dma_fd, r->owner_pid);
                 cnt++;
             }
         }
-        if (cnt == 0)
+        if (cnt == 0){
             printf("    (none)\n");
+        }
     }
     pthread_mutex_unlock(&shm->map_lock);
     printf("================================\n\n");

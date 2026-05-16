@@ -1,14 +1,14 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @Description: Legacy VENC context API (venc_ctx_*). Internal header used by
- *               venc.c and venc_api.c. External users should use venc_api.h.
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @Description: Legacy VENC context API (venc_ctx_*). Internal header used by
+*               venc.c and venc_api.c. External users should use venc_api.h.
+*/
 
-#ifndef _MPP_VENC_H_
-#define _MPP_VENC_H_
+#ifndef VENC_H
+#define VENC_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,10 +23,10 @@ extern "C" {
 #include "venc_type.h"
 
 typedef struct _MppVencCtx {
-  MppProcessNode pNode;
-  MppModuleType eCodecType;
-  MppVencPara stVencPara;
-  MppModule *pModule;
+    MppProcessNode pNode;
+    MppModuleType eCodecType;
+    MppVencPara stVencPara;
+    MppModule *pModule;
 } MppVencCtx;
 
 MppVencCtx *venc_ctx_create(void);
@@ -61,7 +61,7 @@ S32 venc_ctx_reset(MppVencCtx *ctx);
 S32 handle_venc_data(ALBaseContext *base_context, MppData *sink_data);
 
 S32 process_venc_data(ALBaseContext *base_context, MppData *sink_data,
-                      MppData *src_data);
+    MppData *src_data);
 
 S32 get_venc_result_sync(ALBaseContext *base_context, MppData *src_data);
 
@@ -73,4 +73,4 @@ S32 return_venc_result(ALBaseContext *base_context, MppData *src_data);
 }
 #endif
 
-#endif /* _MPP_VENC_H_ */
+#endif /* VENC_H */

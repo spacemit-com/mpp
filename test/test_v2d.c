@@ -1,20 +1,20 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    v2d_vb_demo.c
- * @Brief     :    Example: allocate source and destination buffers from VB,
- *                 then run a V2D scale or format-convert job selected by CLI.
- *
- * Notes:
- *   1. This is a demo executable, not a CTest case, because it depends on
- *      `/dev/v2d_dev` and real V2D hardware.
- *   2. Source buffer uses NV12 (`./vi_phy0_first_frame.yuv`) and destination
- *      buffer also uses NV12.
- *   3. The example intentionally uses VB_SetFrameInfo + VB_GetFrameInfo so the
- *      V2D helper can obtain fd/stride/size metadata from VB.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    v2d_vb_demo.c
+* @Brief     :    Example: allocate source and destination buffers from VB,
+*                 then run a V2D scale or format-convert job selected by CLI.
+*
+* Notes:
+*   1. This is a demo executable, not a CTest case, because it depends on
+*      `/dev/v2d_dev` and real V2D hardware.
+*   2. Source buffer uses NV12 (`./vi_phy0_first_frame.yuv`) and destination
+*      buffer also uses NV12.
+*   3. The example intentionally uses VB_SetFrameInfo + VB_GetFrameInfo so the
+*      V2D helper can obtain fd/stride/size metadata from VB.
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -59,8 +59,8 @@ typedef struct DEMO_CONFIG_S {
     MppPixelFormat dst_format;
 } DEMO_CONFIG_S;
 
-#define DEMO_LOG(fmt, ...)  printf("[v2d_vb_demo] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[v2d_vb_demo][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...)  printf("[v2d_vb_demo] " fmt "\n", ## __VA_ARGS__)
+#define DEMO_FAIL(fmt, ...) do { printf("[v2d_vb_demo][FAIL] " fmt "\n", ## __VA_ARGS__); return -1; } while (0)
 
 static void demo_print_usage(const char *prog)
 {
@@ -68,7 +68,7 @@ static void demo_print_usage(const char *prog)
     printf("  %s scale [input_file src_width src_height output_file dst_width dst_height]\n", prog);
     printf("  %s convert [input_file src_width src_height output_file]\n", prog);
     printf("  %s rotate [input_file src_width src_height output_file]\n", prog);
-        printf("  %s adv2layers [background_nv12 foreground_bgra width height output_file [fg_x fg_y fg_w fg_h]]\n", prog);
+    printf("  %s adv2layers [background_nv12 foreground_bgra width height output_file [fg_x fg_y fg_w fg_h]]\n", prog);
     printf("\nscale defaults:\n");
     printf("  input_file  : %s\n", DEMO_INPUT_FILE);
     printf("  src_width   : %u\n", DEFAULT_SRC_WIDTH);
@@ -92,16 +92,16 @@ static void demo_print_usage(const char *prog)
     printf("  width       : %u\n", DEFAULT_SRC_WIDTH);
     printf("  height      : %u\n", DEFAULT_SRC_HEIGHT);
     printf("  output_file : %s\n", DEMO_OUTPUT_FILE_BLEND);
-	printf("  fg_x        : %d\n", (int)(DEFAULT_SRC_WIDTH / 4U));
-	printf("  fg_y        : %d\n", (int)(DEFAULT_SRC_HEIGHT / 4U));
-	printf("  fg_w        : %u\n", DEFAULT_SRC_WIDTH / 2U);
-	printf("  fg_h        : %u\n", DEFAULT_SRC_HEIGHT / 2U);
+    printf("  fg_x        : %d\n", (int)(DEFAULT_SRC_WIDTH / 4U));
+    printf("  fg_y        : %d\n", (int)(DEFAULT_SRC_HEIGHT / 4U));
+    printf("  fg_w        : %u\n", DEFAULT_SRC_WIDTH / 2U);
+    printf("  fg_h        : %u\n", DEFAULT_SRC_HEIGHT / 2U);
     printf("\nExample:\n");
     printf("  %s scale input.yuv 1920 1080 output.yuv 640 480\n", prog);
     printf("  %s convert input.yuv 1920 1080 output.bgra\n", prog);
     printf("  %s rotate input.yuv 1920 1080 output.yuv\n", prog);
     printf("  %s adv2layers bg.yuv fg.bgra 1920 1080 output.yuv\n", prog);
-        printf("  %s adv2layers bg.yuv fg.bgra 1920 1080 output.yuv 100 200 320 180\n", prog);
+    printf("  %s adv2layers bg.yuv fg.bgra 1920 1080 output.yuv 100 200 320 180\n", prog);
 }
 
 static int demo_parse_mode(const char *mode_str, DEMO_MODE_E *mode)
@@ -337,7 +337,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
 
     base = plane0;
     expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] +
-                    (size_t)frame->stVFrame.u32PlaneSize[1];
+        (size_t)frame->stVFrame.u32PlaneSize[1];
 
     fp = fopen(input_file, "rb");
     if (fp == NULL) {
@@ -357,8 +357,8 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
 
     if (plane1 != (plane0 + frame->stVFrame.u32PlaneSize[0])) {
         memcpy(plane1,
-               base + frame->stVFrame.u32PlaneSize[0],
-               frame->stVFrame.u32PlaneSize[1]);
+            base + frame->stVFrame.u32PlaneSize[0],
+            frame->stVFrame.u32PlaneSize[1]);
     }
 
     return 0;
@@ -425,15 +425,15 @@ static int demo_dump_nv12_file_as(const VideoFrameInfo *frame, const char *file_
     }
 
     write_size = fwrite(plane0,
-                        1,
-                        frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1],
-                        fp);
+        1,
+        frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1],
+        fp);
     fclose(fp);
 
     if (write_size != frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]) {
         DEMO_LOG("write output file size mismatch, got=%zu expect=%u",
-                 write_size,
-                 frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]);
+            write_size,
+            frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]);
         return -1;
     }
 
@@ -483,20 +483,23 @@ static void demo_reset_nv12_frame(VideoFrameInfo *frame)
     void *plane0;
     void *plane1;
 
-    if (frame == NULL)
+    if (frame == NULL){
         return;
+    }
 
     plane0 = (void *)frame->stVFrame.ulPlaneVirAddr[0];
     plane1 = (void *)frame->stVFrame.ulPlaneVirAddr[1];
 
-    if (plane0 != NULL)
+    if (plane0 != NULL){
         memset(plane0, 0, frame->stVFrame.u32PlaneSize[0]);
-    if (plane1 != NULL)
+    }
+    if (plane1 != NULL){
         memset(plane1, 0x80, frame->stVFrame.u32PlaneSize[1]);
+    }
 }
 
 static int demo_prepare_pool(UL *pool_id, ModId mod_id, MppPixelFormat pixel_format,
-                             U32 width, U32 height)
+    U32 width, U32 height)
 {
     VbPoolCfg cfg;
     VideoFrameInfo frame_info;
@@ -593,8 +596,8 @@ static int demo_prepare_frame_from_buffer(UL buffer, VideoFrameInfo *frame)
 }
 
 static int demo_run_scale(const DEMO_CONFIG_S *config,
-                          const VideoFrameInfo *src_frame,
-                          VideoFrameInfo *dst_frame)
+    const VideoFrameInfo *src_frame,
+    VideoFrameInfo *dst_frame)
 {
     V2DHandle handle = 0;
     S32 ret;
@@ -630,8 +633,8 @@ static int demo_run_scale(const DEMO_CONFIG_S *config,
 }
 
 static int demo_run_convert(const DEMO_CONFIG_S *config,
-                            const VideoFrameInfo *src_frame,
-                            VideoFrameInfo *dst_frame)
+    const VideoFrameInfo *src_frame,
+    VideoFrameInfo *dst_frame)
 {
     void *plane0;
     V2DHandle handle = 0;
@@ -679,9 +682,9 @@ static int demo_run_convert(const DEMO_CONFIG_S *config,
 }
 
 static int demo_run_adv2layers(const DEMO_CONFIG_S *config,
-                               const VideoFrameInfo *background_frame,
-                               const VideoFrameInfo *foreground_frame,
-                               VideoFrameInfo *dst_frame)
+    const VideoFrameInfo *background_frame,
+    const VideoFrameInfo *foreground_frame,
+    VideoFrameInfo *dst_frame)
 {
     V2DHandle handle = 0;
     S32 ret;
@@ -717,8 +720,8 @@ static int demo_run_adv2layers(const DEMO_CONFIG_S *config,
 }
 
 static int demo_run_rotate(const DEMO_CONFIG_S *config,
-                          const VideoFrameInfo *src_frame,
-                          VideoFrameInfo *dst_frame)
+    const VideoFrameInfo *src_frame,
+    VideoFrameInfo *dst_frame)
 {
     V2DHandle handle = 0;
     S32 ret;
@@ -776,18 +779,18 @@ int main(int argc, char *argv[])
     }
 
     DEMO_LOG("Mode: %s",
-             (config.enMode == DEMO_MODE_SCALE) ? "scale" :
-             (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
-             (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
+        (config.enMode == DEMO_MODE_SCALE) ? "scale" :
+        (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
+        (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
     DEMO_LOG("Configuration: src=%ux%u dst=%ux%u", config.src_width, config.src_height, config.dst_width, config.dst_height);
     DEMO_LOG("Input: %s", config.input_file);
     if (config.enMode == DEMO_MODE_ADV2LAYERS) {
         DEMO_LOG("Overlay: %s", config.overlay_file);
-            DEMO_LOG("Foreground area: x=%d y=%d w=%u h=%u",
-                     config.foreground_area.u16X,
-                     config.foreground_area.u16Y,
-                     config.foreground_area.u16W,
-                     config.foreground_area.u16H);
+        DEMO_LOG("Foreground area: x=%d y=%d w=%u h=%u",
+            config.foreground_area.u16X,
+            config.foreground_area.u16Y,
+            config.foreground_area.u16W,
+            config.foreground_area.u16H);
     }
     DEMO_LOG("Output: %s", config.output_file);
 
@@ -803,17 +806,17 @@ int main(int argc, char *argv[])
     }
 
     if (demo_prepare_pool(&src_pool, MPP_ID_SYS, MPP_PIXEL_FORMAT_NV12,
-                          config.src_width, config.src_height) != 0) {
+        config.src_width, config.src_height) != 0) {
         goto EXIT;
     }
     if (config.enMode == DEMO_MODE_ADV2LAYERS) {
         if (demo_prepare_pool(&overlay_pool, MPP_ID_SYS, MPP_PIXEL_FORMAT_BGRA,
-                              config.src_width, config.src_height) != 0) {
+            config.src_width, config.src_height) != 0) {
             goto EXIT;
         }
     }
     if (demo_prepare_pool(&dst_pool, MPP_ID_SYS, config.dst_format,
-                          config.dst_width, config.dst_height) != 0) {
+        config.dst_width, config.dst_height) != 0) {
         goto EXIT;
     }
 
@@ -895,9 +898,9 @@ int main(int argc, char *argv[])
     }
 
     DEMO_LOG("V2D %s experiment finished",
-             (config.enMode == DEMO_MODE_SCALE) ? "scale" :
-             (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
-             (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
+        (config.enMode == DEMO_MODE_SCALE) ? "scale" :
+        (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
+        (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
     DEMO_LOG("input file: %s", config.input_file);
     DEMO_LOG("output file: %s", config.output_file);
     DEMO_LOG("src=%ux%u dst=%ux%u", config.src_width, config.src_height, config.dst_width, config.dst_height);

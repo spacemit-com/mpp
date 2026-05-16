@@ -1,26 +1,26 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    sample_uvc_vdec_venc_rtsp.c
- * @Date      :    2026-04-28
- * @Brief     :    Sample: UVC capture → VDEC decode → VENC encode → RTSP (MUX).
- *
- *                 Two modes:
- *                   manual (default) – same pull as sample_uvc_vdec_venc.c, but
- *                                      H.264 goes to MUX_SendPacket (RTSP server)
- *                   bind   (--bind)  – SYS_Bind(UVC→VDEC, VDEC→VENC),
- *                                      VENC_GetStream → MUX_SendPacket
- *
- * Run:
- *   ./sample_uvc_vdec_venc_rtsp
- *   ./sample_uvc_vdec_venc_rtsp --bind
- *   ./sample_uvc_vdec_venc_rtsp /dev/video0 rtsp://0.0.0.0:8554/live
- *   ./sample_uvc_vdec_venc_rtsp --bind /dev/video13 rtsp://0.0.0.0:8554/live
- *
- * Play (example): ffplay rtsp://127.0.0.1:8554/live
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    sample_uvc_vdec_venc_rtsp.c
+* @Date      :    2026-04-28
+* @Brief     :    Sample: UVC capture → VDEC decode → VENC encode → RTSP (MUX).
+*
+*                 Two modes:
+*                   manual (default) – same pull as sample_uvc_vdec_venc.c, but
+*                                      H.264 goes to MUX_SendPacket (RTSP server)
+*                   bind   (--bind)  – SYS_Bind(UVC→VDEC, VDEC→VENC),
+*                                      VENC_GetStream → MUX_SendPacket
+*
+* Run:
+*   ./sample_uvc_vdec_venc_rtsp
+*   ./sample_uvc_vdec_venc_rtsp --bind
+*   ./sample_uvc_vdec_venc_rtsp /dev/video0 rtsp://0.0.0.0:8554/live
+*   ./sample_uvc_vdec_venc_rtsp --bind /dev/video13 rtsp://0.0.0.0:8554/live
+*
+* Play (example): ffplay rtsp://127.0.0.1:8554/live
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -51,7 +51,7 @@
 
 static const char *g_devNode   = "/dev/video13";
 static const char *g_rtspUrl   = "rtsp://10.0.90.148:8554/live";
-static S32         g_bindMode  = 0;
+static S32 g_bindMode  = 0;
 
 static volatile S32 g_running = 1;
 
@@ -65,8 +65,9 @@ static S32 mux_send_enc_stream(S32 muxChn, const StreamBufferInfo *pstStream)
 {
     MuxPacket muxPkt;
 
-    if (!pstStream->pu8Addr || pstStream->u32Size == 0)
+    if (!pstStream->pu8Addr || pstStream->u32Size == 0){
         return -1;
+    }
 
     memset(&muxPkt, 0, sizeof(muxPkt));
     muxPkt.pu8Data    = pstStream->pu8Addr;
@@ -194,8 +195,9 @@ static S32 run_manual(void)
     for (U32 i = 0; i < SAMPLE_WARMUP_COUNT; i++) {
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, 3000);
-        if (ret == 0)
+        if (ret == 0){
             UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
+        }
     }
 
     U32 u32MuxPkts = 0;
@@ -204,8 +206,9 @@ static S32 run_manual(void)
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, 3000);
         if (ret != 0) {
-            if (!g_running)
+            if (!g_running){
                 break;
+            }
             continue;
         }
 
@@ -227,39 +230,48 @@ static S32 run_manual(void)
         ret = VDEC_SendStream(vdecChn, &stream, 0);
         UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
 
-        if (ret != 0 && ret != ERR_VDEC_EOS)
+        if (ret != 0 && ret != ERR_VDEC_EOS){
             continue;
+        }
 
         VideoFrameInfo decFrame;
         memset(&decFrame, 0, sizeof(decFrame));
         ret = VDEC_GetFrame(vdecChn, &decFrame, 1000);
-        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT)
+        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT){
             continue;
-        if (ret == ERR_VDEC_EOS)
+        }
+        if (ret == ERR_VDEC_EOS){
             break;
-        if (ret != ERR_VDEC_OK)
+        }
+        if (ret != ERR_VDEC_OK){
             continue;
+        }
 
         decFrame.eFrameType = FRAME_TYPE_VENC;
         ret = VENC_SendFrame(vencChn, &decFrame, 0);
         VDEC_ReleaseFrame(vdecChn, decFrame.ulBufferId);
 
-        if (ret != 0)
+        if (ret != 0){
             continue;
+        }
 
         StreamBufferInfo encStream;
         memset(&encStream, 0, sizeof(encStream));
         ret = VENC_GetStream(vencChn, &encStream, 1000);
-        if (ret == ERR_VENC_NO_STREAM || ret == ERR_VENC_TIMEOUT)
+        if (ret == ERR_VENC_NO_STREAM || ret == ERR_VENC_TIMEOUT){
             continue;
-        if (ret == ERR_VENC_EOS)
+        }
+        if (ret == ERR_VENC_EOS){
             break;
-        if (ret != ERR_VENC_OK)
+        }
+        if (ret != ERR_VENC_OK){
             continue;
+        }
 
         ret = mux_send_enc_stream(muxChn, &encStream);
-        if (ret != 0)
+        if (ret != 0){
             printf("  [WARN] MUX_SendPacket ret=%d\n", ret);
+        }
 
         VENC_ReleaseStream(vencChn, &encStream);
         u32MuxPkts++;
@@ -267,7 +279,7 @@ static S32 run_manual(void)
             MuxChnStat st;
             if (MUX_GetChnStat(muxChn, &st) == 0) {
                 printf("  [INFO] mux pkts=%u  clients=%u\n",
-                       u32MuxPkts, st.u32ActiveClients);
+                    u32MuxPkts, st.u32ActiveClients);
             }
         }
     }
@@ -440,18 +452,21 @@ static S32 run_bind(void)
         memset(&encStream, 0, sizeof(encStream));
 
         ret = VENC_GetStream(vencChn, &encStream, 3000);
-        if (ret == ERR_VENC_NO_STREAM || ret == ERR_VENC_TIMEOUT)
+        if (ret == ERR_VENC_NO_STREAM || ret == ERR_VENC_TIMEOUT){
             continue;
-        if (ret == ERR_VENC_EOS)
+        }
+        if (ret == ERR_VENC_EOS){
             break;
+        }
         if (ret != ERR_VENC_OK) {
             printf("  [WARN] VENC_GetStream ret=%d\n", ret);
             continue;
         }
 
         ret = mux_send_enc_stream(muxChn, &encStream);
-        if (ret != 0)
+        if (ret != 0){
             printf("  [WARN] MUX_SendPacket ret=%d\n", ret);
+        }
 
         VENC_ReleaseStream(vencChn, &encStream);
         u32MuxPkts++;
@@ -459,7 +474,7 @@ static S32 run_bind(void)
             MuxChnStat st;
             if (MUX_GetChnStat(muxChn, &st) == 0) {
                 printf("  [INFO] mux pkts=%u  clients=%u\n",
-                       u32MuxPkts, st.u32ActiveClients);
+                    u32MuxPkts, st.u32ActiveClients);
             }
         }
     }
@@ -503,36 +518,38 @@ int main(int argc, char *argv[])
         if (strcmp(argv[argIdx], "--bind") == 0) {
             g_bindMode = 1;
         } else if (strcmp(argv[argIdx], "--help") == 0 ||
-                   strcmp(argv[argIdx], "-h") == 0) {
+            strcmp(argv[argIdx], "-h") == 0) {
             printf("Usage: %s [OPTIONS] [devNode] [rtspUrl]\n\n"
-                   "  UVC capture -> VDEC -> VENC -> RTSP (Annex-B H.264).\n\n"
-                   "Options:\n"
-                   "  --bind    Use SYS_Bind (UVC→VDEC→VENC).\n"
-                   "  -h        This help.\n\n"
-                   "Positional:\n"
-                   "  devNode   UVC device (default: %s)\n"
-                   "  rtspUrl   MUX listen URL (default: %s)\n\n"
-                   "Example playback:\n"
-                   "  ffplay rtsp://127.0.0.1:8554/live\n",
-                   argv[0], g_devNode, g_rtspUrl);
+                "  UVC capture -> VDEC -> VENC -> RTSP (Annex-B H.264).\n\n"
+                "Options:\n"
+                "  --bind    Use SYS_Bind (UVC→VDEC→VENC).\n"
+                "  -h        This help.\n\n"
+                "Positional:\n"
+                "  devNode   UVC device (default: %s)\n"
+                "  rtspUrl   MUX listen URL (default: %s)\n\n"
+                "Example playback:\n"
+                "  ffplay rtsp://127.0.0.1:8554/live\n",
+                argv[0], g_devNode, g_rtspUrl);
             return 0;
         }
         argIdx++;
     }
-    if (argIdx < argc)
+    if (argIdx < argc){
         g_devNode = argv[argIdx++];
-    if (argIdx < argc)
+    }
+    if (argIdx < argc){
         g_rtspUrl = argv[argIdx++];
+    }
 
     signal(SIGINT,  sig_handler);
     signal(SIGTERM, sig_handler);
 
     printf("=== Sample: UVC → VDEC → VENC → RTSP (%s) ===\n",
-           g_bindMode ? "bind" : "manual");
+        g_bindMode ? "bind" : "manual");
     printf("  Device : %s\n", g_devNode);
     printf("  RTSP   : %s\n", g_rtspUrl);
     printf("  Video  : %ux%u @ %u fps, %u bps H.264\n\n",
-           SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_FPS, SAMPLE_BITRATE);
+        SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_FPS, SAMPLE_BITRATE);
 
     S32 ret = SYS_Init();
     assert(ret == 0);

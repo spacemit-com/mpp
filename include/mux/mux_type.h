@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    mux_type.h
- * @Date      :    2026-04-15
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    MUX module type definitions for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    mux_type.h
+* @Date      :    2026-04-15
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    MUX module type definitions for MPP.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __MUX_TYPE_H__
-#define __MUX_TYPE_H__
+#ifndef MUX_TYPE_H
+#define MUX_TYPE_H
 
 #include "sys/type.h"
 #include "sys/sys_type.h"
@@ -51,34 +51,34 @@ typedef enum _MuxCodecType {
 } MuxCodecType;
 
 typedef struct _MuxStreamAttr {
-    MuxCodecType    eCodecType;
-    U32             u32Width;
-    U32             u32Height;
-    U32             u32Fps;
-    U32             u32BitrateKbps;
+    MuxCodecType eCodecType;
+    U32 u32Width;
+    U32 u32Height;
+    U32 u32Fps;
+    U32 u32BitrateKbps;
 } MuxStreamAttr;
 
 typedef struct _MuxPacket {
     const U8       *pu8Data;
-    U32             u32Size;
-    BOOL            bKeyFrame;
-    MuxCodecType    eCodecType;
-    U64             u64PTS;            /* 微秒 */
+    U32 u32Size;
+    BOOL bKeyFrame;
+    MuxCodecType eCodecType;
+    U64 u64PTS;                        /* 微秒 */
 } MuxPacket;
 
 typedef struct _MuxChnAttr {
-    MuxOutputType   eOutputType;
-    CHAR            szUrl[MUX_URL_MAX_LEN];
-    MuxStreamAttr   stStreamAttr;
-    BOOL            bPreferTcp;
-    U32             u32MaxDelayMs;
+    MuxOutputType eOutputType;
+    CHAR szUrl[MUX_URL_MAX_LEN];
+    MuxStreamAttr stStreamAttr;
+    BOOL bPreferTcp;
+    U32 u32MaxDelayMs;
 } MuxChnAttr;
 
 typedef struct _MuxChnStat {
-    U32             u32ActiveClients;
-    U64             u64TotalPkts;
-    U64             u64TotalBytes;
-    S32             s32State;          /* 0=idle, 1=created, 2=running */
+    U32 u32ActiveClients;
+    U64 u64TotalPkts;
+    U64 u64TotalBytes;
+    S32 s32State;                      /* 0=idle, 1=created, 2=running */
 } MuxChnStat;
 
 #ifdef __cplusplus
@@ -87,4 +87,4 @@ typedef struct _MuxChnStat {
 #endif
 #endif /* __cplusplus */
 
-#endif /* __MUX_TYPE_H__ */
+#endif /* MUX_TYPE_H */

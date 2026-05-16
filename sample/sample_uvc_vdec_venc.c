@@ -1,25 +1,25 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    sample_uvc_vdec_venc.c
- * @Date      :    2026-04-24
- * @Brief     :    Sample: UVC capture → VDEC decode → VENC encode → save H.264.
- *
- *                 Two modes:
- *                   manual (default) – UVC_GetFrame → VDEC_SendStream →
- *                                      VDEC_GetFrame → VENC_SendFrame →
- *                                      VENC_GetStream → write file
- *                   bind   (--bind)  – SYS_Bind(UVC→VDEC, VDEC→VENC),
- *                                      only VENC_GetStream is called manually
- *
- * Run:
- *   ./sample_uvc_vdec_venc                              # manual mode
- *   ./sample_uvc_vdec_venc --bind                       # bind mode
- *   ./sample_uvc_vdec_venc /dev/video0 ./out.h264       # manual, custom args
- *   ./sample_uvc_vdec_venc --bind /dev/video0 ./out.h264
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    sample_uvc_vdec_venc.c
+* @Date      :    2026-04-24
+* @Brief     :    Sample: UVC capture → VDEC decode → VENC encode → save H.264.
+*
+*                 Two modes:
+*                   manual (default) – UVC_GetFrame → VDEC_SendStream →
+*                                      VDEC_GetFrame → VENC_SendFrame →
+*                                      VENC_GetStream → write file
+*                   bind   (--bind)  – SYS_Bind(UVC→VDEC, VDEC→VENC),
+*                                      only VENC_GetStream is called manually
+*
+* Run:
+*   ./sample_uvc_vdec_venc                              # manual mode
+*   ./sample_uvc_vdec_venc --bind                       # bind mode
+*   ./sample_uvc_vdec_venc /dev/video0 ./out.h264       # manual, custom args
+*   ./sample_uvc_vdec_venc --bind /dev/video0 ./out.h264
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -51,7 +51,7 @@
 
 static const char *g_devNode  = "/dev/video13";
 static const char *g_outFile  = "./output.h264";
-static S32         g_bindMode = 0;
+static S32 g_bindMode = 0;
 
 static volatile S32 g_running = 1;
 
@@ -65,8 +65,9 @@ static void sig_handler(int sig)
 
 static S32 write_stream(FILE *fp, const StreamBufferInfo *pstStream, U32 u32Idx)
 {
-    if (!pstStream->pu8Addr || pstStream->u32Size == 0)
+    if (!pstStream->pu8Addr || pstStream->u32Size == 0){
         return -1;
+    }
 
     size_t written = fwrite(pstStream->pu8Addr, 1, pstStream->u32Size, fp);
     if (written != pstStream->u32Size) {
@@ -75,8 +76,8 @@ static S32 write_stream(FILE *fp, const StreamBufferInfo *pstStream, U32 u32Idx)
     }
 
     printf("  [SAVE] frame %04u: %u bytes  key=%d  pts=%llu\n",
-           u32Idx, pstStream->u32Size, pstStream->bKeyFrame,
-           (unsigned long long)pstStream->u64PTS);
+        u32Idx, pstStream->u32Size, pstStream->bKeyFrame,
+        (unsigned long long)pstStream->u64PTS);
     return 0;
 }
 
@@ -187,14 +188,15 @@ static S32 run_manual(void)
     for (U32 i = 0; i < SAMPLE_WARMUP_COUNT; i++) {
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, 3000);
-        if (ret == 0)
+        if (ret == 0){
             UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
+        }
     }
 
     /* --- Main loop: UVC → VDEC → VENC → file --- */
     U32 u32Saved = 0;
     printf("  [INFO] Pipeline running (manual), saving %u frames to %s\n",
-           SAMPLE_SAVE_COUNT, g_outFile);
+        SAMPLE_SAVE_COUNT, g_outFile);
 
     while (g_running && u32Saved < SAMPLE_SAVE_COUNT) {
 
@@ -202,7 +204,7 @@ static S32 run_manual(void)
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, 3000);
         if (ret != 0) {
-            if (!g_running) break;
+            if (!g_running){break;}
             continue;
         }
 
@@ -226,26 +228,29 @@ static S32 run_manual(void)
         printf("  [DBG ] VDEC_SendStream ret=%d size=%u\n", ret, stream.u32Size);
         UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
 
-        if (ret != 0 && ret != ERR_VDEC_EOS)
+        if (ret != 0 && ret != ERR_VDEC_EOS){
             continue;
+        }
 
         /* 3. Get decoded NV12 frame from VDEC */
         VideoFrameInfo decFrame;
         memset(&decFrame, 0, sizeof(decFrame));
         ret = VDEC_GetFrame(vdecChn, &decFrame, 1000);
         printf("  [DBG ] VDEC_GetFrame ret=%d bufferId=%lu w=%u h=%u planes=%u"
-               " virAddr[0]=%lu sizeValid[0]=%u\n",
-               ret,
-               (unsigned long)decFrame.ulBufferId,
-               decFrame.stVdecFrameInfo.stCommFrameInfo.u32Width,
-               decFrame.stVdecFrameInfo.stCommFrameInfo.u32Height,
-               decFrame.stVFrame.u32PlaneNum,
-               (unsigned long)decFrame.stVFrame.ulPlaneVirAddr[0],
-               decFrame.stVFrame.u32PlaneSizeValid[0]);
-        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT)
+            " virAddr[0]=%lu sizeValid[0]=%u\n",
+            ret,
+            (unsigned long)decFrame.ulBufferId,
+            decFrame.stVdecFrameInfo.stCommFrameInfo.u32Width,
+            decFrame.stVdecFrameInfo.stCommFrameInfo.u32Height,
+            decFrame.stVFrame.u32PlaneNum,
+            (unsigned long)decFrame.stVFrame.ulPlaneVirAddr[0],
+            decFrame.stVFrame.u32PlaneSizeValid[0]);
+        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT){
             continue;
-        if (ret == ERR_VDEC_EOS)
+        }
+        if (ret == ERR_VDEC_EOS){
             break;
+        }
         if (ret != ERR_VDEC_OK) {
             printf("  [WARN] VDEC_GetFrame ret=%d\n", ret);
             continue;
@@ -268,10 +273,12 @@ static S32 run_manual(void)
         memset(&encStream, 0, sizeof(encStream));
         ret = VENC_GetStream(vencChn, &encStream, 1000);
         printf("  [DBG ] VENC_GetStream ret=%d size=%u\n", ret, encStream.u32Size);
-        if (ret == ERR_VENC_NO_STREAM || ret == ERR_VENC_TIMEOUT)
+        if (ret == ERR_VENC_NO_STREAM || ret == ERR_VENC_TIMEOUT){
             continue;
-        if (ret == ERR_VENC_EOS)
+        }
+        if (ret == ERR_VENC_EOS){
             break;
+        }
         if (ret != ERR_VENC_OK) {
             printf("  [WARN] VENC_GetStream ret=%d\n", ret);
             continue;
@@ -422,7 +429,7 @@ static S32 run_bind(void)
         goto bind_cleanup_venc;
     }
     printf("  [INFO] SYS_Bind: UVC(dev=%d,chn=%d) → VDEC(chn=%d) OK\n",
-           uvcDev, uvcChn, vdecChn);
+        uvcDev, uvcChn, vdecChn);
 
     ret = SYS_Bind(&stVdecSrc, &stVencSink);
     if (ret != 0) {
@@ -431,12 +438,12 @@ static S32 run_bind(void)
         goto bind_cleanup_venc;
     }
     printf("  [INFO] SYS_Bind: VDEC(chn=%d) → VENC(chn=%d) OK\n",
-           vdecChn, vencChn);
+        vdecChn, vencChn);
 
     /* --- Main loop: read encoded H.264 from VENC --- */
     U32 u32Saved = 0;
     printf("  [INFO] Pipeline running (bind), saving %u frames to %s\n",
-           SAMPLE_SAVE_COUNT, g_outFile);
+        SAMPLE_SAVE_COUNT, g_outFile);
 
     while (g_running && u32Saved < SAMPLE_SAVE_COUNT) {
         StreamBufferInfo encStream;
@@ -501,36 +508,38 @@ int main(int argc, char *argv[])
         if (strcmp(argv[argIdx], "--bind") == 0) {
             g_bindMode = 1;
         } else if (strcmp(argv[argIdx], "--help") == 0 ||
-                   strcmp(argv[argIdx], "-h") == 0) {
+            strcmp(argv[argIdx], "-h") == 0) {
             printf("Usage: %s [OPTIONS] [devNode] [outFile]\n\n"
-                   "  UVC capture -> VDEC decode -> VENC encode -> save H.264.\n\n"
-                   "Options:\n"
-                   "  --bind    Use SYS_Bind mode (UVC->VDEC->VENC automatic delivery).\n"
-                   "            Default is manual mode.\n"
-                   "  -h,--help Show this help message.\n\n"
-                   "Positional:\n"
-                   "  devNode   UVC device node  (default: %s)\n"
-                   "  outFile   Output H.264 file (default: %s)\n\n"
-                   "Examples:\n"
-                   "  %s\n"
-                   "  %s --bind\n"
-                   "  %s --bind /dev/video0 ./out.h264\n",
-                   argv[0], g_devNode, g_outFile,
-                   argv[0], argv[0], argv[0]);
+                "  UVC capture -> VDEC decode -> VENC encode -> save H.264.\n\n"
+                "Options:\n"
+                "  --bind    Use SYS_Bind mode (UVC->VDEC->VENC automatic delivery).\n"
+                "            Default is manual mode.\n"
+                "  -h,--help Show this help message.\n\n"
+                "Positional:\n"
+                "  devNode   UVC device node  (default: %s)\n"
+                "  outFile   Output H.264 file (default: %s)\n\n"
+                "Examples:\n"
+                "  %s\n"
+                "  %s --bind\n"
+                "  %s --bind /dev/video0 ./out.h264\n",
+                argv[0], g_devNode, g_outFile,
+                argv[0], argv[0], argv[0]);
             return 0;
         }
         argIdx++;
     }
-    if (argIdx < argc)
+    if (argIdx < argc){
         g_devNode = argv[argIdx++];
-    if (argIdx < argc)
+    }
+    if (argIdx < argc){
         g_outFile = argv[argIdx++];
+    }
 
     signal(SIGINT,  sig_handler);
     signal(SIGTERM, sig_handler);
 
     printf("=== Sample: UVC → VDEC → VENC (%s) → H.264 ===\n",
-           g_bindMode ? "Bind" : "Manual");
+        g_bindMode ? "Bind" : "Manual");
     printf("  Device : %s\n", g_devNode);
     printf("  Output : %s\n", g_outFile);
     printf("  Size   : %ux%u @ %u fps\n", SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_FPS);

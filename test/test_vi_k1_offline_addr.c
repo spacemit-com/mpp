@@ -16,13 +16,14 @@
 #define OFFLINE_ADDR_DEMO_DEFAULT_OUT_FMT  MPP_PIXEL_FORMAT_NV12
 
 static S32 offline_addr_demo_dump_plane(const char *pszPath,
-                                        const void *pVirAddr,
-                                        U32 u32Size)
+    const void *pVirAddr,
+    U32 u32Size)
 {
     FILE *fp = NULL;
 
-    if (pszPath == NULL || pVirAddr == NULL || u32Size == 0)
+    if (pszPath == NULL || pVirAddr == NULL || u32Size == 0){
         return -1;
+    }
 
     fp = fopen(pszPath, "wb");
     if (fp == NULL) {
@@ -52,8 +53,9 @@ static S32 offline_addr_demo_dump_nv12_yuv(const VideoFrameInfo *pstFrame)
     U32 u32UVStride = 0;
     U32 y = 0;
 
-    if (pstFrame == NULL)
+    if (pstFrame == NULL){
         return -1;
+    }
 
     u32Width = pstFrame->stViFrameInfo.stCommFrameInfo.u32Width;
     u32Height = pstFrame->stViFrameInfo.stCommFrameInfo.u32Height;
@@ -62,22 +64,23 @@ static S32 offline_addr_demo_dump_nv12_yuv(const VideoFrameInfo *pstFrame)
     u32YStride = pstFrame->stVFrame.u32PlaneStride[0];
     u32UVStride = pstFrame->stVFrame.u32PlaneStride[1];
 
-    if (pu8Y == NULL || pu8UV == NULL || u32Width == 0 || u32Height == 0)
+    if (pu8Y == NULL || pu8UV == NULL || u32Width == 0 || u32Height == 0){
         return -1;
+    }
 
     if (u32YStride < u32Width || u32UVStride < u32Width) {
         printf("invalid NV12 stride, yStride=%u uvStride=%u width=%u\n",
-               u32YStride,
-               u32UVStride,
-               u32Width);
+            u32YStride,
+            u32UVStride,
+            u32Width);
         return -1;
     }
 
     (void)snprintf(szPath,
-                   sizeof(szPath),
-                   "offline_addr_frame_%ux%u_nv12.yuv",
-                   u32Width,
-                   u32Height);
+        sizeof(szPath),
+        "offline_addr_frame_%ux%u_nv12.yuv",
+        u32Width,
+        u32Height);
 
     fp = fopen(szPath, "wb");
     if (fp == NULL) {
@@ -111,29 +114,33 @@ static S32 offline_addr_demo_dump_frame(const VideoFrameInfo *pstFrame)
     char szPath[256] = {0};
     U32 i = 0;
 
-    if (pstFrame == NULL)
+    if (pstFrame == NULL){
         return -1;
+    }
 
-    if (pstFrame->stViFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_NV12)
+    if (pstFrame->stViFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_NV12){
         return offline_addr_demo_dump_nv12_yuv(pstFrame);
+    }
 
     for (i = 0; i < pstFrame->stVFrame.u32PlaneNum; ++i) {
         const void *pVirAddr = (const void *)(uintptr_t)pstFrame->stVFrame.ulPlaneVirAddr[i];
         U32 u32Size = pstFrame->stVFrame.u32PlaneSizeValid[i];
 
-        if (pVirAddr == NULL || u32Size == 0)
+        if (pVirAddr == NULL || u32Size == 0){
             continue;
+        }
 
         (void)snprintf(szPath,
-                       sizeof(szPath),
-                       "offline_addr_frame_%ux%u_fmt%d_plane%u.bin",
-                       pstFrame->stViFrameInfo.stCommFrameInfo.u32Width,
-                       pstFrame->stViFrameInfo.stCommFrameInfo.u32Height,
-                       pstFrame->stViFrameInfo.stCommFrameInfo.ePixelFormat,
-                       i);
+            sizeof(szPath),
+            "offline_addr_frame_%ux%u_fmt%d_plane%u.bin",
+            pstFrame->stViFrameInfo.stCommFrameInfo.u32Width,
+            pstFrame->stViFrameInfo.stCommFrameInfo.u32Height,
+            pstFrame->stViFrameInfo.stCommFrameInfo.ePixelFormat,
+            i);
 
-        if (offline_addr_demo_dump_plane(szPath, pVirAddr, u32Size) != 0)
+        if (offline_addr_demo_dump_plane(szPath, pVirAddr, u32Size) != 0){
             return -1;
+        }
 
         printf("dumped plane%u to %s, vir=%p size=%u\n", i, szPath, pVirAddr, u32Size);
     }
@@ -143,20 +150,21 @@ static S32 offline_addr_demo_dump_frame(const VideoFrameInfo *pstFrame)
 
 static void offline_addr_demo_print_frame_meta(const ViFrameMetaInfo *pstMeta)
 {
-    if (pstMeta == NULL)
+    if (pstMeta == NULL){
         return;
+    }
 
     printf("frame meta: frameId=%u aeStable=%u awbStable=%u ct=%u expTime=[%u,%u,%u] again=[%u,%u,%u]\n",
-           pstMeta->u32FrameId,
-           pstMeta->u8AeStable,
-           pstMeta->u8AwbStable,
-           pstMeta->u32ColorTemp,
-           pstMeta->u32ExpTime[0],
-           pstMeta->u32ExpTime[1],
-           pstMeta->u32ExpTime[2],
-           pstMeta->u32Again[0],
-           pstMeta->u32Again[1],
-           pstMeta->u32Again[2]);
+        pstMeta->u32FrameId,
+        pstMeta->u8AeStable,
+        pstMeta->u8AwbStable,
+        pstMeta->u32ColorTemp,
+        pstMeta->u32ExpTime[0],
+        pstMeta->u32ExpTime[1],
+        pstMeta->u32ExpTime[2],
+        pstMeta->u32Again[0],
+        pstMeta->u32Again[1],
+        pstMeta->u32Again[2]);
 }
 
 static void offline_addr_demo_usage(const char *prog)
@@ -168,16 +176,17 @@ static void offline_addr_demo_usage(const char *prog)
 }
 
 static S32 offline_addr_demo_load_file_to_buffer(const char *pszRawFile,
-                                                 U8 **ppu8RawBuf,
-                                                 U32 *pu32RawSize)
+    U8 **ppu8RawBuf,
+    U32 *pu32RawSize)
 {
     FILE *fp = NULL;
     long s32FileSize = 0;
     U8 *pu8RawBuf = NULL;
     size_t uReadSize = 0;
 
-    if (pszRawFile == NULL || ppu8RawBuf == NULL || pu32RawSize == NULL)
+    if (pszRawFile == NULL || ppu8RawBuf == NULL || pu32RawSize == NULL){
         return -1;
+    }
 
     fp = fopen(pszRawFile, "rb");
     if (fp == NULL) {
@@ -244,10 +253,12 @@ int main(int argc, char *argv[])
     }
 
     pszRawFile = argv[1];
-    if (argc > 2)
+    if (argc > 2){
         u32Width = (U32)atoi(argv[2]);
-    if (argc > 3)
+    }
+    if (argc > 3){
         u32Height = (U32)atoi(argv[3]);
+    }
 
     memset(&stDevAttr, 0, sizeof(stDevAttr));
     memset(&stChnAttr, 0, sizeof(stChnAttr));
@@ -255,8 +266,9 @@ int main(int argc, char *argv[])
     memset(&stFrameMeta, 0, sizeof(stFrameMeta));
 
     s32Ret = offline_addr_demo_load_file_to_buffer(pszRawFile, &pu8RawBuf, &u32RawSize);
-    if (s32Ret != 0)
+    if (s32Ret != 0){
         return s32Ret;
+    }
 
     s32Ret = SYS_Init();
     if (s32Ret != 0) {
@@ -315,34 +327,34 @@ int main(int argc, char *argv[])
     }
 
     s32Ret = VI_OfflineSetInputAddr(OFFLINE_ADDR_DEMO_DEV,
-                                    OFFLINE_ADDR_DEMO_PHY_CHN,
-                                    pu8RawBuf,
-                                    u32RawSize);
+        OFFLINE_ADDR_DEMO_PHY_CHN,
+        pu8RawBuf,
+        u32RawSize);
     if (s32Ret != 0) {
         printf("VI_OfflineSetInputAddr failed, ret=%d\n", s32Ret);
         goto disable_chn;
     }
 
-    sleep(1); //可换成实际帧率配置对应的延时 ，避免拿不到帧退出
+    sleep(1); // 可换成实际帧率配置对应的延时 ，避免拿不到帧退出
 
 
     s32Ret = VI_GetChnFrame(OFFLINE_ADDR_DEMO_DEV,
-                            OFFLINE_ADDR_DEMO_PHY_CHN,
-                            &stFrame,
-                            OFFLINE_ADDR_DEMO_TIMEOUT_MS);
+        OFFLINE_ADDR_DEMO_PHY_CHN,
+        &stFrame,
+        OFFLINE_ADDR_DEMO_TIMEOUT_MS);
     if (s32Ret != 0) {
         printf("VI_GetChnFrame failed, ret=%d\n", s32Ret);
         goto disable_chn;
     }
 
     printf("offline addr frame received: %ux%u fmt=%d pts=%llu vir0=0x%llx srcBuf=%p srcSize=%u\n",
-           stFrame.stViFrameInfo.stCommFrameInfo.u32Width,
-           stFrame.stViFrameInfo.stCommFrameInfo.u32Height,
-           stFrame.stViFrameInfo.stCommFrameInfo.ePixelFormat,
-           (unsigned long long)stFrame.stVFrame.u64PTS,
-           (unsigned long long)stFrame.stVFrame.ulPlaneVirAddr[0],
-           pu8RawBuf,
-           u32RawSize);
+        stFrame.stViFrameInfo.stCommFrameInfo.u32Width,
+        stFrame.stViFrameInfo.stCommFrameInfo.u32Height,
+        stFrame.stViFrameInfo.stCommFrameInfo.ePixelFormat,
+        (unsigned long long)stFrame.stVFrame.u64PTS,
+        (unsigned long long)stFrame.stVFrame.ulPlaneVirAddr[0],
+        pu8RawBuf,
+        u32RawSize);
 
     // s32Ret = VI_QueryFrameMeta(OFFLINE_ADDR_DEMO_DEV,
     //                            OFFLINE_ADDR_DEMO_PHY_CHN,
@@ -355,8 +367,9 @@ int main(int argc, char *argv[])
     //            stFrame.stVFrame.u32PrivateData,
     //            s32Ret);
 
-    if (offline_addr_demo_dump_frame(&stFrame) != 0)
+    if (offline_addr_demo_dump_frame(&stFrame) != 0){
         printf("offline addr frame dump failed\n");
+    }
 
     (void)VI_ReleaseChnFrame(OFFLINE_ADDR_DEMO_DEV, OFFLINE_ADDR_DEMO_PHY_CHN, &stFrame);
 disable_chn:

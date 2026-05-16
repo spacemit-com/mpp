@@ -1,15 +1,15 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    mpp_shm.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    POSIX shared memory control plane implementation.
- *                 First process creates and initializes; others attach.
- *                 All PTHREAD_PROCESS_SHARED primitives are set up here.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    mpp_shm.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    POSIX shared memory control plane implementation.
+*                 First process creates and initializes; others attach.
+*                 All PTHREAD_PROCESS_SHARED primitives are set up here.
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -26,9 +26,9 @@
 #include "sys/mpp_shm.h"
 
 #define SHM_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[SHM][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "[SHM][ERR] %s:%d " fmt "\n", __func__, __LINE__, ## __VA_ARGS__)
 #define SHM_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[SHM][INFO] " fmt "\n", ##__VA_ARGS__)
+        fprintf(stdout, "[SHM][INFO] " fmt "\n", ## __VA_ARGS__)
 
 static MppSharedMem *g_shm = NULL;
 static int g_shm_fd = -1;
@@ -68,16 +68,16 @@ static S32 shm_init_rwlock(pthread_rwlock_t *rw)
 
 static S32 shm_init_pool_locks(VbPoolShm *pool)
 {
-    if (shm_init_mutex(&pool->lock) != 0)  return -1;
-    if (shm_init_cond(&pool->cond) != 0)   return -1;
+    if (shm_init_mutex(&pool->lock) != 0){return -1;}
+    if (shm_init_cond(&pool->cond) != 0){return -1;}
     return 0;
 }
 
 static S32 shm_init_queue(MppChanQueue *q)
 {
-    if (shm_init_mutex(&q->lock) != 0)      return -1;
-    if (shm_init_cond(&q->not_empty) != 0)  return -1;
-    if (shm_init_cond(&q->not_full) != 0)   return -1;
+    if (shm_init_mutex(&q->lock) != 0){return -1;}
+    if (shm_init_cond(&q->not_empty) != 0){return -1;}
+    if (shm_init_cond(&q->not_full) != 0){return -1;}
     q->head = 0;
     q->tail = 0;
     q->count = 0;
@@ -86,9 +86,9 @@ static S32 shm_init_queue(MppChanQueue *q)
 
 static S32 shm_init_stream_queue(MppStreamQueue *q)
 {
-    if (shm_init_mutex(&q->lock) != 0)      return -1;
-    if (shm_init_cond(&q->not_empty) != 0)  return -1;
-    if (shm_init_cond(&q->not_full) != 0)   return -1;
+    if (shm_init_mutex(&q->lock) != 0){return -1;}
+    if (shm_init_cond(&q->not_empty) != 0){return -1;}
+    if (shm_init_cond(&q->not_full) != 0){return -1;}
     q->head = 0;
     q->tail = 0;
     q->count = 0;
@@ -194,12 +194,12 @@ S32 mpp_shm_init(void)
     }
 
     MppSharedMem *shm = (MppSharedMem *)mmap(NULL, sizeof(MppSharedMem),
-                                              PROT_READ | PROT_WRITE,
-                                              MAP_SHARED, fd, 0);
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED, fd, 0);
     if (shm == MAP_FAILED) {
         SHM_LOG_ERR("mmap failed: %s", strerror(errno));
         close(fd);
-        if (created) shm_unlink(MPP_SHM_NAME);
+        if (created){shm_unlink(MPP_SHM_NAME);}
         return -1;
     }
 
@@ -214,7 +214,7 @@ S32 mpp_shm_init(void)
         /* attach — verify magic/version and bump ref */
         if (shm->magic != MPP_SHM_MAGIC || shm->version != MPP_SHM_VERSION) {
             SHM_LOG_ERR("bad shm header magic=0x%08X version=%u (expected magic=0x%08X version=%u)",
-                        shm->magic, shm->version, MPP_SHM_MAGIC, MPP_SHM_VERSION);
+                shm->magic, shm->version, MPP_SHM_MAGIC, MPP_SHM_VERSION);
             munmap(shm, sizeof(MppSharedMem));
             close(fd);
             return -1;
@@ -231,8 +231,9 @@ S32 mpp_shm_init(void)
 
 S32 mpp_shm_detach(void)
 {
-    if (!g_shm)
+    if (!g_shm){
         return -1;
+    }
 
     int ref = atomic_fetch_sub(&g_shm->proc_ref, 1);
 

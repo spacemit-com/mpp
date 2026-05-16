@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2025-2026 SPACEMIT Limited
- * All Rights Reserved.
- */
+* Copyright (C) 2025-2026 SPACEMIT Limited
+* All Rights Reserved.
+*/
 
-#ifndef __MPP_IMAGE_BUFFER_H__
-#define __MPP_IMAGE_BUFFER_H__
+#ifndef IMAGE_BUFFER_H
+#define IMAGE_BUFFER_H
 
 #include <stdint.h>
 #include "type.h"
@@ -87,4 +87,4 @@ typedef struct spmIMAGE_BUFFER_S {
 }
 #endif
 
-#endif /* __MPP_IMAGE_BUFFER_H__ */
+#endif /* IMAGE_BUFFER_H */

@@ -1,13 +1,13 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @Description: DmaBufWrapper - DMA buffer allocation and management
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @Description: DmaBufWrapper - DMA buffer allocation and management
+*/
 
-#ifndef _DMABUF_WRAPPER_H_
-#define _DMABUF_WRAPPER_H_
+#ifndef DMABUFWRAPPER_H
+#define DMABUFWRAPPER_H
 
 #include <errno.h>
 #include <fcntl.h>
@@ -26,20 +26,20 @@
 #include "v4l2_utils.h"
 
 typedef enum _DMAHEAP {
-  DMA_HEAP_CMA = 0,
-  DMA_HEAP_SYSTEM = 1,
+    DMA_HEAP_CMA = 0,
+    DMA_HEAP_SYSTEM = 1,
 } DMAHEAP;
 
 typedef struct _DmaBuf {
-  S32 nFd;
-  S32 nSize;
-  void *pVaddr;
+    S32 nFd;
+    S32 nSize;
+    void *pVaddr;
 } DmaBuf;
 
 typedef struct _DmaBufWrapper {
-  S32 nDmaHeapFd;
-  DmaBuf sDmaBuf;
-  U32 bEnableUnfreeDmaBufDebug;
+    S32 nDmaHeapFd;
+    DmaBuf sDmaBuf;
+    U32 bEnableUnfreeDmaBufDebug;
 } DmaBufWrapper;
 
 DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap);
@@ -49,4 +49,4 @@ RETURN freeDmaBuf(DmaBufWrapper *context);
 S32 getDmaHeapFd(DmaBufWrapper *context);
 void destoryDmaBufWrapper(DmaBufWrapper *context);
 
-#endif /*_DMABUF_WRAPPER_H_*/
+#endif /* DMABUFWRAPPER_H */

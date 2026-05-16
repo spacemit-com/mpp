@@ -1,22 +1,22 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_sys.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Minimal test for SYS module: PTS, Bind/UnBind, MmzAlloc/Free.
- *
- * Build:
- *   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
- *       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
- *       ../../mpi/sys/sys.c ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
- *       test_sys.c -o test_sys -lrt
- *
- * Run:
- *   ./test_sys
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_sys.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    Minimal test for SYS module: PTS, Bind/UnBind, MmzAlloc/Free.
+*
+* Build:
+*   gcc -std=c11 -D_GNU_SOURCE -pthread -Wall -Wextra -Werror \
+*       -Wno-unused-variable -Wno-unused-function -I../../include/sys \
+*       ../../mpi/sys/sys.c ../../mpi/sys/mpp_shm.c ../../mpi/sys/dma_alloc.c \
+*       test_sys.c -o test_sys -lrt
+*
+* Run:
+*   ./test_sys
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -30,7 +30,7 @@
 #include "sys_api.h"
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while (0)
 
 /* ======================== Test 1: Init / Exit ======================== */
 static void test_init_exit(void)
@@ -74,21 +74,24 @@ static void test_pts(void)
 
     ret = SYS_GetCurPTS(&pts2);
     assert(ret == 0);
-    if (pts2 < 1000000)
+    if (pts2 < 1000000){
         TEST_FAIL(name, "PTS should be >= base after InitPTSBase");
+    }
 
     /* small sleep to verify monotonicity */
     usleep(10000);  /* 10ms */
 
     ret = SYS_GetCurPTS(&pts3);
     assert(ret == 0);
-    if (pts3 <= pts2)
+    if (pts3 <= pts2){
         TEST_FAIL(name, "PTS should be monotonically increasing");
+    }
 
     /* verify delta is reasonable (~10ms = ~10000us, allow 5-50ms range) */
     U64 delta = pts3 - pts2;
-    if (delta < 5000 || delta > 50000)
+    if (delta < 5000 || delta > 50000){
         TEST_FAIL(name, "PTS delta unreasonable for 10ms sleep");
+    }
 
     /* SyncPTS — reset to a new anchor */
     ret = SYS_SyncPTS(5000000);
@@ -97,13 +100,15 @@ static void test_pts(void)
     U64 pts4 = 0;
     ret = SYS_GetCurPTS(&pts4);
     assert(ret == 0);
-    if (pts4 < 5000000)
+    if (pts4 < 5000000){
         TEST_FAIL(name, "PTS should be >= new sync base");
+    }
 
     /* null ptr should fail */
     ret = SYS_GetCurPTS(NULL);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "null ptr should fail");
+    }
 
     ret = SYS_Exit();
     assert(ret == 0);
@@ -129,8 +134,9 @@ static void test_bind(void)
 
     /* duplicate bind should fail */
     ret = SYS_Bind(&src, &sink);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "duplicate bind should fail");
+    }
 
     /* bind another pair */
     MppNode src2  = { .eModId = MPP_ID_VDEC, .s32DevId = 0, .s32ChnId = 0 };
@@ -149,8 +155,9 @@ static void test_bind(void)
 
     /* double unbind should fail */
     ret = SYS_UnBind(&src, &sink);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "double unbind should fail");
+    }
 
     /* unbind remaining */
     ret = SYS_UnBind(&src2, &sink2);
@@ -160,11 +167,13 @@ static void test_bind(void)
 
     /* null ptr should fail */
     ret = SYS_Bind(NULL, &sink);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "null src should fail");
+    }
     ret = SYS_Bind(&src, NULL);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "null sink should fail");
+    }
 
     ret = SYS_Exit();
     assert(ret == 0);
@@ -186,22 +195,26 @@ static void test_mmz(void)
     /* allocate non-cached */
     ret = SYS_MmzAlloc(&phy1, &vir1, "test_block", NULL, 4096);
     assert(ret == 0);
-    if (phy1 == 0 || vir1 == NULL)
+    if (phy1 == 0 || vir1 == NULL){
         TEST_FAIL(name, "MmzAlloc returned null");
+    }
 
     /* verify physical address is real (not same as virtual) */
-    if (phy1 == (U64)(uintptr_t)vir1)
+    if (phy1 == (U64)(uintptr_t)vir1){
         TEST_FAIL(name, "phy should differ from vir (real CMA)");
+    }
 
     /* allocate cached */
     ret = SYS_MmzAlloc_Cached(&phy2, &vir2, "test_cached", "zone0", 8192);
     assert(ret == 0);
-    if (phy2 == 0 || vir2 == NULL)
+    if (phy2 == 0 || vir2 == NULL){
         TEST_FAIL(name, "MmzAlloc_Cached returned null");
+    }
 
     /* two allocations should have different physical addresses */
-    if (phy1 == phy2)
+    if (phy1 == phy2){
         TEST_FAIL(name, "two allocations have same phy addr");
+    }
 
     /* write and read back to verify memory is usable */
     memset(vir1, 0xAA, 4096);
@@ -209,10 +222,12 @@ static void test_mmz(void)
 
     unsigned char *p1 = (unsigned char *)vir1;
     unsigned char *p2 = (unsigned char *)vir2;
-    if (p1[0] != 0xAA || p1[4095] != 0xAA)
+    if (p1[0] != 0xAA || p1[4095] != 0xAA){
         TEST_FAIL(name, "non-cached memory readback failed");
-    if (p2[0] != 0xBB || p2[8191] != 0xBB)
+    }
+    if (p2[0] != 0xBB || p2[8191] != 0xBB){
         TEST_FAIL(name, "cached memory readback failed");
+    }
 
     /* flush cache (no-op in user-space, but should return OK) */
     ret = SYS_MmzFlushCache(phy2, vir2, 8192);
@@ -229,13 +244,15 @@ static void test_mmz(void)
 
     /* double free should fail */
     ret = SYS_MmzFree(phy1, vir1);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "double MmzFree should fail");
+    }
 
     /* zero-length alloc should fail */
     ret = SYS_MmzAlloc(&phy1, &vir1, NULL, NULL, 0);
-    if (ret == 0)
+    if (ret == 0){
         TEST_FAIL(name, "zero-length alloc should fail");
+    }
 
     ret = SYS_Exit();
     assert(ret == 0);

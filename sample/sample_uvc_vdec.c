@@ -1,22 +1,22 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    sample_uvc_vdec.c
- * @Date      :    2026-04-24
- * @Brief     :    Sample: UVC capture → VDEC decode → save NV12 frames.
- *
- *                 Two modes:
- *                   manual (default) – UVC_GetFrame → VDEC_SendStream → VDEC_GetFrame
- *                   bind   (--bind)  – SYS_Bind(UVC→VDEC), data flows automatically
- *
- * Run:
- *   ./sample_uvc_vdec                              # manual mode
- *   ./sample_uvc_vdec --bind                       # bind mode
- *   ./sample_uvc_vdec /dev/video0 ./output         # manual, custom dev & dir
- *   ./sample_uvc_vdec --bind /dev/video0 ./output  # bind, custom dev & dir
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    sample_uvc_vdec.c
+* @Date      :    2026-04-24
+* @Brief     :    Sample: UVC capture → VDEC decode → save NV12 frames.
+*
+*                 Two modes:
+*                   manual (default) – UVC_GetFrame → VDEC_SendStream → VDEC_GetFrame
+*                   bind   (--bind)  – SYS_Bind(UVC→VDEC), data flows automatically
+*
+* Run:
+*   ./sample_uvc_vdec                              # manual mode
+*   ./sample_uvc_vdec --bind                       # bind mode
+*   ./sample_uvc_vdec /dev/video0 ./output         # manual, custom dev & dir
+*   ./sample_uvc_vdec --bind /dev/video0 ./output  # bind, custom dev & dir
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -45,7 +45,7 @@
 
 static const char *g_devNode  = "/dev/video13";
 static const char *g_outDir   = "./nv12_output";
-static S32         g_bindMode = 0;  /* 0 = manual, 1 = bind */
+static S32 g_bindMode = 0;          /* 0 = manual, 1 = bind */
 
 static volatile S32 g_running = 1;
 
@@ -58,17 +58,18 @@ static void sig_handler(int sig)
 /* ======================== Save NV12 Frame ======================== */
 
 /**
- * @brief  Save one NV12 frame to a raw file.
- *         File name: <outDir>/frame_NNNN_WxH.nv12
- */
+* @brief  Save one NV12 frame to a raw file.
+*         File name: <outDir>/frame_NNNN_WxH.nv12
+*/
 static S32 save_nv12_frame(const VideoFrameInfo *pFrame, U32 u32Idx,
-                           const char *outDir)
+    const char *outDir)
 {
     U32 w = pFrame->stVdecFrameInfo.stCommFrameInfo.u32Width;
     U32 h = pFrame->stVdecFrameInfo.stCommFrameInfo.u32Height;
     U32 stride = pFrame->stVFrame.u32PlaneStride[0];
-    if (stride == 0)
+    if (stride == 0){
         stride = w;
+    }
 
     char path[512];
     snprintf(path, sizeof(path), "%s/frame_%04u_%ux%u.nv12", outDir, u32Idx, w, h);
@@ -84,8 +85,9 @@ static S32 save_nv12_frame(const VideoFrameInfo *pFrame, U32 u32Idx,
     for (U32 i = 0; i < nPlanes && i < FRAME_MAX_PLANE; i++) {
         const void *pData = (const void *)pFrame->stVFrame.ulPlaneVirAddr[i];
         U32 size = pFrame->stVFrame.u32PlaneSizeValid[i];
-        if (!pData || size == 0)
+        if (!pData || size == 0){
             continue;
+        }
         fwrite(pData, 1, size, fp);
     }
 
@@ -97,12 +99,13 @@ static S32 save_nv12_frame(const VideoFrameInfo *pFrame, U32 u32Idx,
 /* ======================== Save MJPEG Frame ======================== */
 
 static void save_mjpeg_frame(const VideoFrameInfo *pFrame, U32 u32Idx,
-                             const char *outDir)
+    const char *outDir)
 {
     const void *pData = (const void *)pFrame->stVFrame.ulPlaneVirAddr[0];
     U32 size = pFrame->stVFrame.u32PlaneSizeValid[0];
-    if (!pData || size == 0)
+    if (!pData || size == 0){
         return;
+    }
 
     char path[512];
     snprintf(path, sizeof(path), "%s/uvc_%04u.mjpeg", outDir, u32Idx);
@@ -200,22 +203,23 @@ static S32 run_uvc_vdec_manual(void)
     for (U32 i = 0; i < SAMPLE_WARMUP_COUNT; i++) {
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, 3000);
-        if (ret == 0)
+        if (ret == 0){
             UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
+        }
     }
 
     /* --- Main loop: UVC → VDEC → save NV12 --- */
     U32 u32Saved = 0;
     U32 u32UvcSaved = 0;
     printf("  [INFO] Capturing and decoding, will save %u frames to %s\n",
-           SAMPLE_SAVE_COUNT, g_outDir);
+        SAMPLE_SAVE_COUNT, g_outDir);
 
     while (g_running && u32Saved < SAMPLE_SAVE_COUNT) {
         /* Get MJPEG frame from UVC */
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, 3000);
         if (ret != 0) {
-            if (!g_running) break;
+            if (!g_running){break;}
             continue;
         }
 
@@ -245,8 +249,9 @@ static S32 run_uvc_vdec_manual(void)
         printf("  [DBG ] VDEC_SendStream ret=%d size=%u\n", ret, stream.u32Size);
         UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
 
-        if (ret != 0 && ret != ERR_VDEC_EOS)
+        if (ret != 0 && ret != ERR_VDEC_EOS){
             continue;
+        }
 
         /* Receive decoded NV12 frame */
         VideoFrameInfo decFrame;
@@ -254,20 +259,23 @@ static S32 run_uvc_vdec_manual(void)
 
         ret = VDEC_GetFrame(vdecChn, &decFrame, 1000);
         printf("  [DBG ] VDEC_GetFrame ret=%d bufferId=%lu w=%u h=%u planes=%u"
-               " virAddr[0]=%lu sizeValid[0]=%u\n",
-               ret,
-               (unsigned long)decFrame.ulBufferId,
-               decFrame.stVdecFrameInfo.stCommFrameInfo.u32Width,
-               decFrame.stVdecFrameInfo.stCommFrameInfo.u32Height,
-               decFrame.stVFrame.u32PlaneNum,
-               (unsigned long)decFrame.stVFrame.ulPlaneVirAddr[0],
-               decFrame.stVFrame.u32PlaneSizeValid[0]);
-        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT)
+            " virAddr[0]=%lu sizeValid[0]=%u\n",
+            ret,
+            (unsigned long)decFrame.ulBufferId,
+            decFrame.stVdecFrameInfo.stCommFrameInfo.u32Width,
+            decFrame.stVdecFrameInfo.stCommFrameInfo.u32Height,
+            decFrame.stVFrame.u32PlaneNum,
+            (unsigned long)decFrame.stVFrame.ulPlaneVirAddr[0],
+            decFrame.stVFrame.u32PlaneSizeValid[0]);
+        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT){
             continue;
-        if (ret == ERR_VDEC_EOS)
+        }
+        if (ret == ERR_VDEC_EOS){
             break;
-        if (ret != ERR_VDEC_OK)
+        }
+        if (ret != ERR_VDEC_OK){
             continue;
+        }
 
         /* Save decoded frame to file */
         save_nv12_frame(&decFrame, u32Saved, g_outDir);
@@ -384,12 +392,12 @@ static S32 run_uvc_vdec_bind(void)
         goto bind_teardown_uvc_chn;
     }
     printf("  [INFO] SYS_Bind: UVC(dev=%d,chn=%d) → VDEC(chn=%d) OK\n",
-           uvcDev, uvcChn, vdecChn);
+        uvcDev, uvcChn, vdecChn);
 
     /* --- Main loop: read decoded frames from VDEC --- */
     U32 u32Saved = 0;
     printf("  [INFO] Waiting for decoded frames (bind mode), will save %u to %s\n",
-           SAMPLE_SAVE_COUNT, g_outDir);
+        SAMPLE_SAVE_COUNT, g_outDir);
 
     while (g_running && u32Saved < SAMPLE_SAVE_COUNT) {
         VideoFrameInfo decFrame;
@@ -410,10 +418,10 @@ static S32 run_uvc_vdec_bind(void)
         }
 
         printf("  [DBG ] decoded frame: w=%u h=%u planes=%u pts=%llu\n",
-               decFrame.stVdecFrameInfo.stCommFrameInfo.u32Width,
-               decFrame.stVdecFrameInfo.stCommFrameInfo.u32Height,
-               decFrame.stVFrame.u32PlaneNum,
-               (unsigned long long)decFrame.stVFrame.u64PTS);
+            decFrame.stVdecFrameInfo.stCommFrameInfo.u32Width,
+            decFrame.stVdecFrameInfo.stCommFrameInfo.u32Height,
+            decFrame.stVFrame.u32PlaneNum,
+            (unsigned long long)decFrame.stVFrame.u64PTS);
 
         save_nv12_frame(&decFrame, u32Saved, g_outDir);
         u32Saved++;
@@ -450,39 +458,41 @@ int main(int argc, char *argv[])
     /* Parse args: [--bind] [--help] [devNode] [outDir] */
     S32 argIdx = 1;
     while (argIdx < argc && argv[argIdx][0] == '-') {
-        if (strcmp(argv[argIdx], "--bind") == 0)
+        if (strcmp(argv[argIdx], "--bind") == 0){
             g_bindMode = 1;
-        else if (strcmp(argv[argIdx], "--help") == 0 ||
-                 strcmp(argv[argIdx], "-h") == 0) {
+        }else if (strcmp(argv[argIdx], "--help") == 0 ||
+            strcmp(argv[argIdx], "-h") == 0) {
             printf("Usage: %s [OPTIONS] [devNode] [outDir]\n\n"
-                   "  UVC capture -> VDEC decode -> save NV12 frames.\n\n"
-                   "Options:\n"
-                   "  --bind    Use SYS_Bind mode (UVC->VDEC automatic stream delivery).\n"
-                   "            Default is manual mode (UVC_GetFrame -> VDEC_SendStream).\n"
-                   "  -h,--help Show this help message.\n\n"
-                   "Positional:\n"
-                   "  devNode   UVC device node  (default: %s)\n"
-                   "  outDir    Output directory  (default: %s)\n\n"
-                   "Examples:\n"
-                   "  %s\n"
-                   "  %s --bind\n"
-                   "  %s --bind /dev/video0 ./output\n",
-                   argv[0], g_devNode, g_outDir,
-                   argv[0], argv[0], argv[0]);
+                "  UVC capture -> VDEC decode -> save NV12 frames.\n\n"
+                "Options:\n"
+                "  --bind    Use SYS_Bind mode (UVC->VDEC automatic stream delivery).\n"
+                "            Default is manual mode (UVC_GetFrame -> VDEC_SendStream).\n"
+                "  -h,--help Show this help message.\n\n"
+                "Positional:\n"
+                "  devNode   UVC device node  (default: %s)\n"
+                "  outDir    Output directory  (default: %s)\n\n"
+                "Examples:\n"
+                "  %s\n"
+                "  %s --bind\n"
+                "  %s --bind /dev/video0 ./output\n",
+                argv[0], g_devNode, g_outDir,
+                argv[0], argv[0], argv[0]);
             return 0;
         }
         argIdx++;
     }
-    if (argIdx < argc)
+    if (argIdx < argc){
         g_devNode = argv[argIdx++];
-    if (argIdx < argc)
+    }
+    if (argIdx < argc){
         g_outDir = argv[argIdx++];
+    }
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
     printf("=== Sample: UVC → %s → VDEC → Save NV12 ===\n",
-           g_bindMode ? "Bind" : "Manual");
+        g_bindMode ? "Bind" : "Manual");
     printf("  Device : %s\n", g_devNode);
     printf("  Output : %s\n", g_outDir);
     printf("  Frames : %u\n\n", SAMPLE_SAVE_COUNT);

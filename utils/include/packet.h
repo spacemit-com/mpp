@@ -1,13 +1,13 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @Description: MppPacket - carrier for stream data (before decode / after encode)
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @Description: MppPacket - carrier for stream data (before decode / after encode)
+*/
 
-#ifndef _MPP_PACKET_H_
-#define _MPP_PACKET_H_
+#ifndef PACKET_H
+#define PACKET_H
 
 #include "data.h"
 #include "type.h"
@@ -53,4 +53,4 @@ void PACKET_Destory(MppPacket *packet);
 };
 #endif
 
-#endif /*_MPP_PACKET_H_*/
+#endif /* PACKET_H */

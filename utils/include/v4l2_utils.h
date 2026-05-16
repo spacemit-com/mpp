@@ -1,11 +1,11 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*/
 
-#ifndef _MPP_V4L2_UTILS_H_
-#define _MPP_V4L2_UTILS_H_
+#ifndef V4L2_UTILS_H
+#define V4L2_UTILS_H
 
 #include <linux/videodev2.h>
 
@@ -13,13 +13,13 @@
 #include "type.h"
 
 typedef enum _DeviceType {
-  DECODER = 0,
-  ENCODER = 1,
+    DECODER = 0,
+    ENCODER = 1,
 } DeviceType;
 
 typedef struct _DeviceInfo {
-  S32 device_num;
-  DeviceType type;
+    S32 device_num;
+    DeviceType type;
 } DeviceInfo;
 
 BOOL check_v4l2();
@@ -28,7 +28,7 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type);
 S32 find_v4l2_encoder(U8 *device_path, S32 coding_type);
 S32 mpp_v4l2_set_ctrl(S32 fd, S32 id, S32 val);
 S32 mpp_v4l2_get_format(S32 fd, struct v4l2_format *fmt,
-                        enum v4l2_buf_type buf_type);
+    enum v4l2_buf_type buf_type);
 S32 mpp_v4l2_set_format(S32 fd, struct v4l2_format *fmt);
 S32 mpp_v4l2_try_format(S32 fd, struct v4l2_format *fmt);
 S32 mpp_v4l2_subscribe_event(S32 fd, struct v4l2_event_subscription *sub);
@@ -43,4 +43,4 @@ S32 mpp_v4l2_map_memory(S32 fd, const struct v4l2_buffer *buf, U8 *user_ptr[8]);
 void mpp_v4l2_unmap_memory(const struct v4l2_buffer *buf, U8 *user_ptr[8]);
 void show_buffer_info(const struct v4l2_buffer *p);
 
-#endif /*_MPP_V4L2_UTILS_H_*/
+#endif /* V4L2_UTILS_H */

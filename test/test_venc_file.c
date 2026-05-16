@@ -1,21 +1,21 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_venc_file.c
- * @Date      :    2026-04-30
- * @Brief     :    File-based VENC single-module test.
- *                 Read one NV12 frame from file, encode to H.264 or MJPEG,
- *                 then write encoded stream to output file.
- *
- * Usage:
- *   ./test_venc_file <input_nv12> <width> <height> <output_file> [codec] [frames]
- *
- * Examples:
- *   ./test_venc_file ./test/assets/vi_phy0_last_frame.yuv 1920 1080 ./out.h264 h264 1
- *   ./test_venc_file ./test/assets/vi_phy0_last_frame.yuv 1920 1080 ./out.jpg mjpeg 1
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_venc_file.c
+* @Date      :    2026-04-30
+* @Brief     :    File-based VENC single-module test.
+*                 Read one NV12 frame from file, encode to H.264 or MJPEG,
+*                 then write encoded stream to output file.
+*
+* Usage:
+*   ./test_venc_file <input_nv12> <width> <height> <output_file> [codec] [frames]
+*
+* Examples:
+*   ./test_venc_file ./test/assets/vi_phy0_last_frame.yuv 1920 1080 ./out.h264 h264 1
+*   ./test_venc_file ./test/assets/vi_phy0_last_frame.yuv 1920 1080 ./out.jpg mjpeg 1
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -39,10 +39,10 @@
 static void usage(const char *prog)
 {
     fprintf(stderr,
-            "Usage: %s <input_nv12> <width> <height> <output_file> [codec] [frames]\n"
-            "  codec : h264 | h265 | mjpeg (default: h264)\n"
-            "  frames: number of times to feed the same frame (default: 1)\n",
-            prog);
+        "Usage: %s <input_nv12> <width> <height> <output_file> [codec] [frames]\n"
+        "  codec : h264 | h265 | mjpeg (default: h264)\n"
+        "  frames: number of times to feed the same frame (default: 1)\n",
+        prog);
 }
 
 static U32 align_up(U32 value, U32 align)
@@ -52,12 +52,15 @@ static U32 align_up(U32 value, U32 align)
 
 static MppStreamCodecType parse_codec(const char *codec)
 {
-    if (codec == NULL || strcmp(codec, "h264") == 0)
+    if (codec == NULL || strcmp(codec, "h264") == 0){
         return MPP_STREAM_CODEC_H264;
-    if (strcmp(codec, "h265") == 0)
+    }
+    if (strcmp(codec, "h265") == 0){
         return MPP_STREAM_CODEC_H265;
-    if (strcmp(codec, "mjpeg") == 0 || strcmp(codec, "jpeg") == 0)
+    }
+    if (strcmp(codec, "mjpeg") == 0 || strcmp(codec, "jpeg") == 0){
         return MPP_STREAM_CODEC_MJPEG;
+    }
     return MPP_STREAM_CODEC_UNKNOWN;
 }
 
@@ -80,14 +83,16 @@ static int load_nv12_frame(FILE *fp, U8 *dst, U32 width, U32 height, U32 stride)
     U8 *base = dst;
 
     for (y = 0; y < y_rows; ++y) {
-        if (fread(base + (size_t)y * stride, 1, row_bytes, fp) != row_bytes)
+        if (fread(base + (size_t)y * stride, 1, row_bytes, fp) != row_bytes){
             return -1;
+        }
     }
 
     base += (size_t)stride * height;
     for (y = 0; y < uv_rows; ++y) {
-        if (fread(base + (size_t)y * stride, 1, row_bytes, fp) != row_bytes)
+        if (fread(base + (size_t)y * stride, 1, row_bytes, fp) != row_bytes){
             return -1;
+        }
     }
 
     return 0;
@@ -129,10 +134,12 @@ int main(int argc, char *argv[])
     width = (U32)strtoul(argv[2], NULL, 10);
     height = (U32)strtoul(argv[3], NULL, 10);
     output_path = argv[4];
-    if (argc > 5)
+    if (argc > 5){
         codec_arg = argv[5];
-    if (argc > 6)
+    }
+    if (argc > 6){
         frames = (U32)strtoul(argv[6], NULL, 10);
+    }
     if (width == 0 || height == 0 || frames == 0) {
         usage(argv[0]);
         return 1;
@@ -290,7 +297,7 @@ int main(int argc, char *argv[])
     chn_enabled = MPP_TRUE;
 
     printf("[INFO] VENC file test: %s %ux%u -> %s (%s), frames=%u\n",
-           input_path, width, height, output_path, codec_name(codec), frames);
+        input_path, width, height, output_path, codec_name(codec), frames);
 
     for (U32 i = 0; i < frames; ++i) {
         frame_info.u32Idx = i;
@@ -316,8 +323,8 @@ int main(int argc, char *argv[])
         }
 
         printf("[INFO] encoded frame %u: size=%u key=%d pts=%llu\n",
-               i, stream.u32Size, stream.bKeyFrame,
-               (unsigned long long)stream.u64PTS);
+            i, stream.u32Size, stream.bKeyFrame,
+            (unsigned long long)stream.u64PTS);
         VENC_ReleaseStream(venc_chn, &stream);
         encoded++;
     }
@@ -325,10 +332,10 @@ int main(int argc, char *argv[])
     printf("[INFO] done, encoded %u frame(s)\n", encoded);
 
     /* NOTE:
-     * Board-side SYS_Exit/VB_Exit cleanup path is currently unstable and may
-     * trigger SIGBUS even for reference programs. To prioritize functional
-     * codec verification, intentionally skip full teardown here.
-     */
+    * Board-side SYS_Exit/VB_Exit cleanup path is currently unstable and may
+    * trigger SIGBUS even for reference programs. To prioritize functional
+    * codec verification, intentionally skip full teardown here.
+    */
     fclose(fin);
     fclose(fout);
     return 0;
@@ -346,9 +353,11 @@ fail_sys:
     (void)vb_inited;
     (void)sys_inited;
 fail:
-    if (fin)
+    if (fin){
         fclose(fin);
-    if (fout)
+    }
+    if (fout){
         fclose(fout);
+    }
     return 1;
 }

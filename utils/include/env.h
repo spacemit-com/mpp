@@ -1,11 +1,11 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- */
+* Copyright 2022-2023 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*/
 
-#ifndef __MPP_ENV_H__
-#define __MPP_ENV_H__
+#ifndef ENV_H
+#define ENV_H
 
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -26,4 +26,4 @@ S32 mpp_env_set_str(const char *name, char *value);
 }
 #endif
 
-#endif /*__MPP_ENV_H__*/
+#endif /* ENV_H */

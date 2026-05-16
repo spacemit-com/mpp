@@ -1,15 +1,15 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    mux_rtp.c
- * @Date      :    2026-04-15
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    RTP packetizer for MUX RTSP server.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    mux_rtp.c
+* @Date      :    2026-04-15
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    RTP packetizer for MUX RTSP server.
+*------------------------------------------------------------------------------
+*/
 
 #include "mux_rtsp_internal.h"
 
@@ -46,7 +46,7 @@ static S32 mux_rtsp_send_all(S32 s32Fd, const U8 *pu8Data, U32 u32Len)
 }
 
 static S32 mux_rtsp_send_rtp_raw(MuxRtspClient *pstClient, const U8 *pu8Pkt, U32 u32PktLen,
-                                 BOOL bInterleaved, U8 u8Channel)
+    BOOL bInterleaved, U8 u8Channel)
 {
     if (bInterleaved) {
         U8 hdr[4];
@@ -64,8 +64,8 @@ static S32 mux_rtsp_send_rtp_raw(MuxRtspClient *pstClient, const U8 *pu8Pkt, U32
     }
 
     if (sendto(pstClient->s32RtpSock, pu8Pkt, u32PktLen, 0,
-               (const struct sockaddr *)&pstClient->stClientRtpAddr,
-               sizeof(pstClient->stClientRtpAddr)) < 0) {
+        (const struct sockaddr *)&pstClient->stClientRtpAddr,
+        sizeof(pstClient->stClientRtpAddr)) < 0) {
         return -1;
     }
     return 0;
@@ -108,7 +108,7 @@ static const U8 *mux_find_start_code(const U8 *pu8Data, U32 u32Size, U32 *pu32Pr
 }
 
 static S32 mux_rtp_send_h264_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstClient,
-                                  const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker)
+    const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker)
 {
     U8 au8Pkt[1600];
     U32 hdrLen;
@@ -117,7 +117,7 @@ static S32 mux_rtp_send_h264_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
         hdrLen = mux_rtp_build_header(au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bMarker, 96);
         memcpy(au8Pkt + hdrLen, pu8Nalu, u32NaluLen);
         return mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + u32NaluLen,
-                                     pstClient->bInterleaved, pstClient->u8RtpChannel);
+            pstClient->bInterleaved, pstClient->u8RtpChannel);
     }
 
     {
@@ -140,7 +140,7 @@ static S32 mux_rtp_send_h264_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
             memcpy(au8Pkt + hdrLen + 2, pu8Nalu + offset, chunk);
 
             if (mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + 2 + chunk,
-                                      pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
+                pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
                 return -1;
             }
             bStart = MPP_FALSE;
@@ -152,7 +152,7 @@ static S32 mux_rtp_send_h264_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
 }
 
 static S32 mux_rtp_send_h265_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstClient,
-                                  const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker)
+    const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker)
 {
     U8 au8Pkt[1600];
     U32 hdrLen;
@@ -161,7 +161,7 @@ static S32 mux_rtp_send_h265_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
         hdrLen = mux_rtp_build_header(au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bMarker, 96);
         memcpy(au8Pkt + hdrLen, pu8Nalu, u32NaluLen);
         return mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + u32NaluLen,
-                                     pstClient->bInterleaved, pstClient->u8RtpChannel);
+            pstClient->bInterleaved, pstClient->u8RtpChannel);
     }
 
     {
@@ -188,7 +188,7 @@ static S32 mux_rtp_send_h265_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
             memcpy(au8Pkt + hdrLen + 3, pu8Nalu + offset, chunk);
 
             if (mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + 3 + chunk,
-                                      pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
+                pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
                 return -1;
             }
             bStart = MPP_FALSE;
@@ -200,7 +200,7 @@ static S32 mux_rtp_send_h265_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
 }
 
 S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient,
-                              const MuxPacket *pstPkt)
+    const MuxPacket *pstPkt)
 {
     const U8 *cur = pstPkt->pu8Data;
     U32 left = pstPkt->u32Size;
@@ -263,9 +263,9 @@ S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient
 }
 
 /*
- * Extract SPS/PPS/VPS from Annex-B bitstream and cache into MuxRtspServer.
- * Called on every keyframe so the server always has the latest parameter sets.
- */
+* Extract SPS/PPS/VPS from Annex-B bitstream and cache into MuxRtspServer.
+* Called on every keyframe so the server always has the latest parameter sets.
+*/
 VOID mux_rtsp_cache_param_sets(MuxRtspServer *pstServer, const MuxPacket *pstPkt)
 {
     const U8 *cur;

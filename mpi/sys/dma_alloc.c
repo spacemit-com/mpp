@@ -1,15 +1,15 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    dma_alloc.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    DMA heap CMA allocator implementation.
- *                 Uses /dev/dma_heap/linux,cma for real physical contiguous
- *                 memory. Physical address assigned from CMA base (debugfs).
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    dma_alloc.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    DMA heap CMA allocator implementation.
+*                 Uses /dev/dma_heap/linux,cma for real physical contiguous
+*                 memory. Physical address assigned from CMA base (debugfs).
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -37,7 +37,7 @@ struct dma_heap_allocation_data {
 };
 
 #define DMA_HEAP_IOCTL_ALLOC \
-    _IOWR('H', 0x0, struct dma_heap_allocation_data)
+        _IOWR('H', 0x0, struct dma_heap_allocation_data)
 
 /* From linux/dma-buf.h */
 struct dma_buf_sync {
@@ -58,9 +58,9 @@ struct dma_buf_sync {
 #define PAGE_SIZE_4K   4096
 
 #define DMA_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[DMA][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "[DMA][ERR] %s:%d " fmt "\n", __func__, __LINE__, ## __VA_ARGS__)
 #define DMA_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[DMA][INFO] " fmt "\n", ##__VA_ARGS__)
+        fprintf(stdout, "[DMA][INFO] " fmt "\n", ## __VA_ARGS__)
 
 /* ======================== State ======================== */
 
@@ -70,25 +70,26 @@ static U64 g_cma_next = 0;      /* next assignable physical address */
 
 /* ======================== CMA base discovery ======================== */
 /*
- * DMA-buf CMA pages use remap_pfn_range() and do NOT appear in
- * /proc/self/pagemap.  Instead we read the CMA base PFN from
- * debugfs and assign monotonic physical addresses from that range.
- *
- * The assigned addresses may not match the kernel's exact CMA bitmap
- * positions, but they are:
- *   - within the real CMA physical range
- *   - unique per allocation
- *   - consistent across processes (stored in shared-memory block metadata)
- *   - different from any virtual address
- *
- * For hardware DMA programming the kernel driver obtains the real
- * physical address via dma_buf_map_attachment(); userspace physical
- * addresses are for identity/debugging only.
- */
+* DMA-buf CMA pages use remap_pfn_range() and do NOT appear in
+* /proc/self/pagemap.  Instead we read the CMA base PFN from
+* debugfs and assign monotonic physical addresses from that range.
+*
+* The assigned addresses may not match the kernel's exact CMA bitmap
+* positions, but they are:
+*   - within the real CMA physical range
+*   - unique per allocation
+*   - consistent across processes (stored in shared-memory block metadata)
+*   - different from any virtual address
+*
+* For hardware DMA programming the kernel driver obtains the real
+* physical address via dma_buf_map_attachment(); userspace physical
+* addresses are for identity/debugging only.
+*/
 static S32 cma_discover_base(void)
 {
-    if (g_cma_base != 0)
+    if (g_cma_base != 0){
         return 0;
+    }
 
     int fd = open("/sys/kernel/debug/cma/linux,cma/base_pfn", O_RDONLY);
     if (fd < 0) {
@@ -131,9 +132,10 @@ static U64 cma_assign_phy(U32 alloc_size)
 
 S32 dma_alloc_init(void)
 {
-    if (g_heap_fd >= 0)
+    if (g_heap_fd >= 0){
         return 0; /* already open */
 
+    }
     g_heap_fd = open(DMA_HEAP_PATH, O_RDWR);
     if (g_heap_fd < 0) {
         DMA_LOG_ERR("open %s: %s", DMA_HEAP_PATH, strerror(errno));
@@ -208,10 +210,12 @@ S32 dma_alloc_buf(U32 size, int *p_fd, U64 *p_phy, void **p_vir)
 void dma_free_buf(int fd, void *vir, U32 size)
 {
     U32 alloc_size = (size + PAGE_SIZE_4K - 1) & ~(PAGE_SIZE_4K - 1);
-    if (vir)
+    if (vir){
         munmap(vir, alloc_size);
-    if (fd >= 0)
+    }
+    if (fd >= 0){
         close(fd);
+    }
 }
 
 S32 dma_sync_buf(int fd, U32 flags)
@@ -229,12 +233,13 @@ S32 dma_sync_buf(int fd, U32 flags)
 
 S32 dma_get_phy(void *vir, U64 *p_phy)
 {
-    if (!vir || !p_phy)
+    if (!vir || !p_phy){
         return -1;
+    }
     /* Physical address is assigned at allocation time and stored in
-     * the VbBlockShm metadata. This function cannot recover the
-     * physical address from an arbitrary virtual address alone.
-     * Return error — callers should use the stored phy_addr. */
+    * the VbBlockShm metadata. This function cannot recover the
+    * physical address from an arbitrary virtual address alone.
+    * Return error — callers should use the stored phy_addr. */
     DMA_LOG_ERR("dma_get_phy: not supported — use stored phy_addr from block metadata");
     return -1;
 }

@@ -1,20 +1,20 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    test_vdec_file.c
- * @Date      :    2026-04-30
- * @Brief     :    File-based VDEC single-module test.
- *                 Read one compressed JPEG/H.264 elementary stream from file,
- *                 decode it, then write the first decoded frame to NV12 file.
- *
- * Usage:
- *   ./test_vdec_file <input_stream> <width> <height> <output_nv12> [codec]
- *
- * Examples:
- *   ./test_vdec_file ./test/assets/1920x1080.jpg 1920 1080 ./dec_out_nv12.yuv mjpeg
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    test_vdec_file.c
+* @Date      :    2026-04-30
+* @Brief     :    File-based VDEC single-module test.
+*                 Read one compressed JPEG/H.264 elementary stream from file,
+*                 decode it, then write the first decoded frame to NV12 file.
+*
+* Usage:
+*   ./test_vdec_file <input_stream> <width> <height> <output_nv12> [codec]
+*
+* Examples:
+*   ./test_vdec_file ./test/assets/1920x1080.jpg 1920 1080 ./dec_out_nv12.yuv mjpeg
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -33,19 +33,22 @@
 static void usage(const char *prog)
 {
     fprintf(stderr,
-            "Usage: %s <input_stream> <width> <height> <output_nv12> [codec]\n"
-            "  codec : mjpeg | h264 | h265 (default: mjpeg)\n",
-            prog);
+        "Usage: %s <input_stream> <width> <height> <output_nv12> [codec]\n"
+        "  codec : mjpeg | h264 | h265 (default: mjpeg)\n",
+        prog);
 }
 
 static MppStreamCodecType parse_codec(const char *codec)
 {
-    if (codec == NULL || strcmp(codec, "mjpeg") == 0 || strcmp(codec, "jpeg") == 0)
+    if (codec == NULL || strcmp(codec, "mjpeg") == 0 || strcmp(codec, "jpeg") == 0){
         return MPP_STREAM_CODEC_MJPEG;
-    if (strcmp(codec, "h264") == 0)
+    }
+    if (strcmp(codec, "h264") == 0){
         return MPP_STREAM_CODEC_H264;
-    if (strcmp(codec, "h265") == 0)
+    }
+    if (strcmp(codec, "h265") == 0){
         return MPP_STREAM_CODEC_H265;
+    }
     return MPP_STREAM_CODEC_UNKNOWN;
 }
 
@@ -55,32 +58,37 @@ static int save_nv12_frame(FILE *fp, const VideoFrameInfo *frame)
     U32 width, height, stride;
     U32 y;
 
-    if (frame == NULL || frame->stVFrame.ulPlaneVirAddr[0] == 0)
+    if (frame == NULL || frame->stVFrame.ulPlaneVirAddr[0] == 0){
         return -1;
+    }
 
     width = frame->stVdecFrameInfo.stCommFrameInfo.u32Width;
     height = frame->stVdecFrameInfo.stCommFrameInfo.u32Height;
     stride = frame->stVFrame.u32PlaneStride[0];
-    if (stride == 0)
+    if (stride == 0){
         stride = width;
+    }
 
     base = (const U8 *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[0];
     for (y = 0; y < height; ++y) {
-        if (fwrite(base + (size_t)y * stride, 1, width, fp) != width)
+        if (fwrite(base + (size_t)y * stride, 1, width, fp) != width){
             return -1;
+        }
     }
 
     if (frame->stVFrame.u32PlaneNum > 1 && frame->stVFrame.ulPlaneVirAddr[1] != 0) {
         const U8 *uv = (const U8 *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[1];
         for (y = 0; y < height / 2U; ++y) {
-            if (fwrite(uv + (size_t)y * stride, 1, width, fp) != width)
+            if (fwrite(uv + (size_t)y * stride, 1, width, fp) != width){
                 return -1;
+            }
         }
     } else {
         const U8 *uv = base + (size_t)stride * height;
         for (y = 0; y < height / 2U; ++y) {
-            if (fwrite(uv + (size_t)y * stride, 1, width, fp) != width)
+            if (fwrite(uv + (size_t)y * stride, 1, width, fp) != width){
                 return -1;
+            }
         }
     }
 
@@ -119,8 +127,9 @@ int main(int argc, char *argv[])
     width = (U32)strtoul(argv[2], NULL, 10);
     height = (U32)strtoul(argv[3], NULL, 10);
     output_path = argv[4];
-    if (argc > 5)
+    if (argc > 5){
         codec_arg = argv[5];
+    }
 
     if (width == 0 || height == 0) {
         usage(argv[0]);
@@ -217,7 +226,7 @@ int main(int argc, char *argv[])
     stream.u32Height = height;
 
     printf("[INFO] VDEC file test: %s -> %s, codec=%s, size=%ld\n",
-           input_path, output_path, codec_arg, file_size);
+        input_path, output_path, codec_arg, file_size);
 
     ret = VDEC_SendStream(chn, &stream, 3000);
     if (ret != 0) {
@@ -233,11 +242,11 @@ int main(int argc, char *argv[])
     }
 
     printf("[INFO] decoded frame: %ux%u planes=%u stride=%u pts=%llu\n",
-           frame.stVdecFrameInfo.stCommFrameInfo.u32Width,
-           frame.stVdecFrameInfo.stCommFrameInfo.u32Height,
-           frame.stVFrame.u32PlaneNum,
-           frame.stVFrame.u32PlaneStride[0],
-           (unsigned long long)frame.stVFrame.u64PTS);
+        frame.stVdecFrameInfo.stCommFrameInfo.u32Width,
+        frame.stVdecFrameInfo.stCommFrameInfo.u32Height,
+        frame.stVFrame.u32PlaneNum,
+        frame.stVFrame.u32PlaneStride[0],
+        (unsigned long long)frame.stVFrame.u64PTS);
 
     if (save_nv12_frame(fout, &frame) != 0) {
         fprintf(stderr, "save_nv12_frame failed\n");
@@ -264,11 +273,14 @@ out_sys:
     (void)vb_inited;
     (void)sys_inited;
 out:
-    if (stream_buf)
+    if (stream_buf){
         free(stream_buf);
-    if (fin)
+    }
+    if (fin){
         fclose(fin);
-    if (fout)
+    }
+    if (fout){
         fclose(fout);
+    }
     return rc;
 }

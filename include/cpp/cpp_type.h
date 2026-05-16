@@ -1,18 +1,18 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
- *
- * @File      :    cpp_type.h
- * @Date      :    2026-4-10
- * @Author    :    SPACEMIT
- * @Brief     :    CPP type definitions for MPP.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+* Use of this source code is governed by a BSD-style license
+* that can be found in the LICENSE file.
+*
+* @File      :    cpp_type.h
+* @Date      :    2026-4-10
+* @Author    :    SPACEMIT
+* @Brief     :    CPP type definitions for MPP.
+*------------------------------------------------------------------------------
+*/
 
-#ifndef __CPP_TYPE_H__
-#define __CPP_TYPE_H__
+#ifndef CPP_TYPE_H
+#define CPP_TYPE_H
 
 #include "type.h"
 #include "vb_type.h"
@@ -61,16 +61,16 @@ typedef enum _CppCallbackEvent {
 } CppCallbackEvent;
 
 typedef struct _CppGrpAttrS {
-    U32            u32Width;
-    U32            u32Height;
+    U32 u32Width;
+    U32 u32Height;
     MppPixelFormat ePixelFormat;
     CppProcessMode eProcessMode;
 } CppGrpAttrS;
 
 typedef struct _CppChnAttrS {
-    BOOL           bEnable;
-    U32            u32Width;
-    U32            u32Height;
+    BOOL bEnable;
+    U32 u32Width;
+    U32 u32Height;
     MppPixelFormat ePixelFormat;
 } CppChnAttrS;
 
@@ -91,16 +91,16 @@ typedef struct _CppProcCfgS {
 typedef struct _CppBufferPairS {
     const VideoFrameInfo *pstInFrame;
     const VideoFrameInfo *pstOutFrame;
-    U32                   u32FrameId;
+    U32 u32FrameId;
     VOID                 *pUserData;
 } CppBufferPairS;
 
 typedef struct _CppCallbackInfoS {
-    CppCallbackEvent  eEvent;
-    CPP_GRP           CppGrp;
-    CPP_CHN           CppChn;
-    S32               s32FrameId;
-    S32               s32Result;
+    CppCallbackEvent eEvent;
+    CPP_GRP CppGrp;
+    CPP_CHN CppChn;
+    S32 s32FrameId;
+    S32 s32Result;
     const VideoFrameInfo *pstInFrame;
     const VideoFrameInfo *pstOutFrame;
     VOID             *pUserData;
@@ -114,4 +114,4 @@ typedef VOID (*CppCallback)(const CppCallbackInfoS *pstCbInfo);
 #endif
 #endif /* __cplusplus */
 
-#endif /* __CPP_TYPE_H__ */
+#endif /* CPP_TYPE_H */

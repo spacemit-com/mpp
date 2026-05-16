@@ -1,16 +1,16 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    vb.c
- * @Date      :    2026-3-26
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Video Buffer module — multi-process, DMA heap backed.
- *                 Pool/block metadata lives in POSIX shared memory.
- *                 Each block is a CMA dma-buf allocated via /dev/dma_heap.
- *                 Cross-process access via pidfd_getfd().
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    vb.c
+* @Date      :    2026-3-26
+* @Author    :    rmwei(rongmin.wei@spacemit.com)
+* @Brief     :    Video Buffer module — multi-process, DMA heap backed.
+*                 Pool/block metadata lives in POSIX shared memory.
+*                 Each block is a CMA dma-buf allocated via /dev/dma_heap.
+*                 Cross-process access via pidfd_getfd().
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -53,7 +53,7 @@ extern "C" {
 
 /* Handle encoding: [31:16] = pool_id (1-based), [15:0] = blk_idx (0-based) */
 #define VB_HANDLE_ENCODE(pool_id, blk_idx) \
-    (((UL)(pool_id) << 16) | ((UL)(blk_idx) & 0xFFFF))
+        (((UL)(pool_id) << 16) | ((UL)(blk_idx) & 0xFFFF))
 #define VB_HANDLE_TO_POOL(h)  ((U32)((h) >> 16))
 #define VB_HANDLE_TO_BLK(h)   ((U32)((h) & 0xFFFF))
 
@@ -64,35 +64,35 @@ extern "C" {
 /* ======================== Log Macros ======================== */
 
 #define VB_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[VB][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "[VB][ERR] %s:%d " fmt "\n", __func__, __LINE__, ## __VA_ARGS__)
 #define VB_LOG_WARN(fmt, ...) \
-    fprintf(stderr, "[VB][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+        fprintf(stderr, "[VB][WARN] %s:%d " fmt "\n", __func__, __LINE__, ## __VA_ARGS__)
 #define VB_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[VB][INFO] " fmt "\n", ##__VA_ARGS__)
+        fprintf(stdout, "[VB][INFO] " fmt "\n", ## __VA_ARGS__)
 
 typedef struct _VideoFrameFmt {
-    MppPixelFormat    ePixelFormat;
+    MppPixelFormat ePixelFormat;
     CHAR             *cName;
-    U8                u8DataPlanes;
-    U8                u8WidthDepth[FRAME_MAX_PLANE];
-    U8                u8HeightDepth[FRAME_MAX_PLANE];
+    U8 u8DataPlanes;
+    U8 u8WidthDepth[FRAME_MAX_PLANE];
+    U8 u8HeightDepth[FRAME_MAX_PLANE];
 } VideoFrameFmt;
 
 /* ======================== Process-Local Mapping ======================== */
 /*
- * Each process needs its own fd and virtual address for each block.
- * The owner process gets these during dma_alloc_buf().
- * Other processes obtain them via pidfd_getfd().
- */
+* Each process needs its own fd and virtual address for each block.
+* The owner process gets these during dma_alloc_buf().
+* Other processes obtain them via pidfd_getfd().
+*/
 
 #define VB_LOCAL_MAP_MAX  4096
 
 typedef struct _VbLocalEntry {
-    UL       handle;        /* VB handle (0 = unused) */
-    int      local_fd;      /* dma-buf fd in this process */
+    UL handle;              /* VB handle (0 = unused) */
+    int local_fd;           /* dma-buf fd in this process */
     void    *local_vir;     /* mmap'd virtual address in this process */
-    U32      size;          /* mapped size (page-aligned) */
-    BOOL     is_owner;      /* did this process allocate it? */
+    U32 size;               /* mapped size (page-aligned) */
+    BOOL is_owner;          /* did this process allocate it? */
 } VbLocalEntry;
 
 static VbLocalEntry g_local_map[VB_LOCAL_MAP_MAX];
@@ -356,8 +356,9 @@ static VideoFrameFmt g_stVideoFrameFmt[] = {
 static VbLocalEntry *vb_local_find(UL handle)
 {
     for (U32 i = 0; i < VB_LOCAL_MAP_MAX; i++) {
-        if (g_local_map[i].handle == handle)
+        if (g_local_map[i].handle == handle){
             return &g_local_map[i];
+        }
     }
     return NULL;
 }
@@ -365,21 +366,23 @@ static VbLocalEntry *vb_local_find(UL handle)
 static VbLocalEntry *vb_local_alloc(void)
 {
     for (U32 i = 0; i < VB_LOCAL_MAP_MAX; i++) {
-        if (g_local_map[i].handle == 0)
+        if (g_local_map[i].handle == 0){
             return &g_local_map[i];
+        }
     }
     return NULL;
 }
 
 static void vb_local_free_entry(VbLocalEntry *ent)
 {
-    if (!ent) return;
+    if (!ent){return;}
     if (ent->local_vir) {
         U32 alloc_size = (ent->size + 4095) & ~4095u;
         munmap(ent->local_vir, alloc_size);
     }
-    if (ent->local_fd >= 0)
+    if (ent->local_fd >= 0){
         close(ent->local_fd);
+    }
     memset(ent, 0, sizeof(*ent));
 }
 
@@ -395,10 +398,10 @@ static int vb_pidfd_getfd(int pidfd, int target_fd)
 }
 
 /*
- * Get a local fd+vir for a block, creating one if needed.
- * If this process is the owner, the entry already exists.
- * Otherwise, use pidfd_getfd to get the dma-buf fd from the owner.
- */
+* Get a local fd+vir for a block, creating one if needed.
+* If this process is the owner, the entry already exists.
+* Otherwise, use pidfd_getfd to get the dma-buf fd from the owner.
+*/
 static S32 vb_ensure_local_mapping(VbBlockShm *blk, VbLocalEntry **out)
 {
     pthread_mutex_lock(&g_local_lock);
@@ -437,7 +440,7 @@ static S32 vb_ensure_local_mapping(VbBlockShm *blk, VbLocalEntry **out)
         close(pidfd);
         if (local_fd < 0) {
             VB_LOG_ERR("pidfd_getfd(pid=%d, fd=%d): %s",
-                       blk->owner_pid, blk->owner_fd, strerror(errno));
+                blk->owner_pid, blk->owner_fd, strerror(errno));
             pthread_mutex_unlock(&g_local_lock);
             return VB_ERR_NOT_FOUND;
         }
@@ -445,12 +448,13 @@ static S32 vb_ensure_local_mapping(VbBlockShm *blk, VbLocalEntry **out)
 
     /* mmap the dma-buf fd */
     local_vir = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
-                     MAP_SHARED, local_fd, 0);
+        MAP_SHARED, local_fd, 0);
     if (local_vir == MAP_FAILED) {
         VB_LOG_ERR("mmap dma-buf fd=%d size=%u: %s",
-                   local_fd, alloc_size, strerror(errno));
-        if (blk->owner_pid != my_pid)
+            local_fd, alloc_size, strerror(errno));
+        if (blk->owner_pid != my_pid){
             close(local_fd);
+        }
         pthread_mutex_unlock(&g_local_lock);
         return VB_ERR_NOMEM;
     }
@@ -483,10 +487,10 @@ static int vb_mutex_lock(pthread_mutex_t *mtx)
 static VbPoolShm *vb_get_pool(U32 pool_id)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm) return NULL;
-    if (pool_id == 0 || pool_id > MPP_MAX_POOL) return NULL;
+    if (!shm){return NULL;}
+    if (pool_id == 0 || pool_id > MPP_MAX_POOL){return NULL;}
     VbPoolShm *pool = &shm->pools[pool_id - 1];
-    if (pool->state == VB_POOL_FREE) return NULL;
+    if (pool->state == VB_POOL_FREE){return NULL;}
     return pool;
 }
 
@@ -496,10 +500,10 @@ static VbBlockShm *vb_get_block(UL handle, VbPoolShm **out_pool)
     U32 blk_idx = VB_HANDLE_TO_BLK(handle);
 
     VbPoolShm *pool = vb_get_pool(pool_id);
-    if (!pool) return NULL;
-    if (blk_idx >= pool->blk_cnt) return NULL;
+    if (!pool){return NULL;}
+    if (blk_idx >= pool->blk_cnt){return NULL;}
 
-    if (out_pool) *out_pool = pool;
+    if (out_pool){*out_pool = pool;}
     return &pool->blocks[blk_idx];
 }
 
@@ -536,7 +540,7 @@ static S32 vb_pool_alloc_blocks(VbPoolShm *pool)
                 VbBlockShm *prev = &pool->blocks[j];
                 pthread_mutex_lock(&g_local_lock);
                 VbLocalEntry *ent = vb_local_find(prev->handle);
-                if (ent) vb_local_free_entry(ent);
+                if (ent){vb_local_free_entry(ent);}
                 pthread_mutex_unlock(&g_local_lock);
                 prev->state = VB_BLK_FREE;
             }
@@ -682,7 +686,7 @@ S32 VB_Exit(VOID)
     }
 
     /* Only clean up process-local state. Do NOT destroy shared pools —
-     * other processes may still be using them. */
+    * other processes may still be using them. */
 
     /* clean up local map */
     pthread_mutex_lock(&g_local_lock);
@@ -712,12 +716,12 @@ UL VB_CreatePool(VbPoolCfg *pstVbPoolCfg)
     }
     if (pstVbPoolCfg->u32BufSize == 0 || pstVbPoolCfg->u32BufCnt == 0) {
         VB_LOG_ERR("invalid config: size=%u cnt=%u",
-                   pstVbPoolCfg->u32BufSize, pstVbPoolCfg->u32BufCnt);
+            pstVbPoolCfg->u32BufSize, pstVbPoolCfg->u32BufCnt);
         return VB_INVALID_HANDLE;
     }
     if (pstVbPoolCfg->u32BufCnt > MPP_MAX_BLK) {
         VB_LOG_ERR("buf_cnt %u exceeds max %u",
-                   pstVbPoolCfg->u32BufCnt, MPP_MAX_BLK);
+            pstVbPoolCfg->u32BufCnt, MPP_MAX_BLK);
         return VB_INVALID_HANDLE;
     }
 
@@ -756,8 +760,8 @@ UL VB_CreatePool(VbPoolCfg *pstVbPoolCfg)
     pthread_rwlock_unlock(&shm->vb_lock);
 
     VB_LOG_INFO("VB_CreatePool: id=%u blk_size=%u blk_cnt=%u phy[0]=0x%llx",
-                pool->id, pool->cfg.u32BufSize, pool->cfg.u32BufCnt,
-                (unsigned long long)pool->blocks[0].phy_addr);
+        pool->id, pool->cfg.u32BufSize, pool->cfg.u32BufCnt,
+        (unsigned long long)pool->blocks[0].phy_addr);
     return (UL)pool->id;
 }
 
@@ -794,7 +798,7 @@ S32 VB_DestroyPool(UL ulPool)
         int rc = atomic_load(&pool->blocks[i].ref_cnt);
         if (rc > 0) {
             VB_LOG_ERR("pool %u blk %u ref_cnt=%d, cannot destroy",
-                       pool_id, i, rc);
+                pool_id, i, rc);
             pthread_mutex_unlock(&pool->lock);
             pthread_rwlock_unlock(&shm->vb_lock);
             return VB_ERR_BUSY;
@@ -807,8 +811,8 @@ S32 VB_DestroyPool(UL ulPool)
 
     pthread_mutex_unlock(&pool->lock);
     /* NOTE: do NOT destroy the mutex/cond — they live in shared memory
-     * and are pre-initialized. They will be reused when the slot is
-     * allocated again. */
+    * and are pre-initialized. They will be reused when the slot is
+    * allocated again. */
 
     shm->pool_cnt--;
     pthread_rwlock_unlock(&shm->vb_lock);
@@ -854,7 +858,7 @@ UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs)
 
         if (u32TimeoutMs == (U32)-1) {
             while (pool->free_head == VB_FREE_LIST_END &&
-                   pool->state == VB_POOL_ACTIVE) {
+                pool->state == VB_POOL_ACTIVE) {
                 pthread_cond_wait(&pool->cond, &pool->lock);
             }
         } else {
@@ -867,9 +871,9 @@ UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs)
                 ts.tv_nsec -= 1000000000L;
             }
             while (pool->free_head == VB_FREE_LIST_END &&
-                   pool->state == VB_POOL_ACTIVE) {
+                pool->state == VB_POOL_ACTIVE) {
                 int rc = pthread_cond_timedwait(&pool->cond, &pool->lock, &ts);
-                if (rc == ETIMEDOUT) break;
+                if (rc == ETIMEDOUT){break;}
             }
         }
 
@@ -892,8 +896,9 @@ UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs)
 
     pool->free_cnt--;
     pool->used_cnt++;
-    if (pool->free_cnt < pool->min_free)
+    if (pool->free_cnt < pool->min_free){
         pool->min_free = pool->free_cnt;
+    }
 
     pthread_mutex_unlock(&pool->lock);
 
@@ -909,8 +914,8 @@ S32 VB_ReleaseBuffer(UL ulBuff)
     MppSharedMem *shm = mpp_shm_get();
     VbPoolShm *pool = NULL;
 
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -937,8 +942,9 @@ S32 VB_ReleaseBuffer(UL ulBuff)
         /* free non-owner local mappings */
         pthread_mutex_lock(&g_local_lock);
         VbLocalEntry *ent = vb_local_find(ulBuff);
-        if (ent && !ent->is_owner)
+        if (ent && !ent->is_owner){
             vb_local_free_entry(ent);
+        }
         pthread_mutex_unlock(&g_local_lock);
 
         vb_return_block(pool, blk);
@@ -954,8 +960,8 @@ S32 VB_RefAdd(UL ulBuff)
 {
     MppSharedMem *shm = mpp_shm_get();
 
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -986,8 +992,8 @@ S32 VB_RefSub(UL ulBuff)
 S32 VB_SetBufferPTS(UL ulBuff, U64 u64PTS)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -996,8 +1002,9 @@ S32 VB_SetBufferPTS(UL ulBuff, U64 u64PTS)
         return VB_ERR_NOT_FOUND;
     }
     blk->pts = u64PTS;
-    if (blk->frame_info_set)
+    if (blk->frame_info_set){
         blk->frame_info.stVFrame.u64PTS = u64PTS;
+    }
     pthread_rwlock_unlock(&shm->vb_lock);
     return VB_ERR_OK;
 }
@@ -1007,8 +1014,8 @@ S32 VB_UpdateBufferFrameInfo(UL ulBuff, const VideoFrameInfo *pstFrameInfo)
     MppSharedMem *shm = mpp_shm_get();
     VbPoolShm *pool = NULL;
 
-    if (ulBuff == VB_INVALID_HANDLE || !pstFrameInfo) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE || !pstFrameInfo){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, &pool);
@@ -1020,8 +1027,9 @@ S32 VB_UpdateBufferFrameInfo(UL ulBuff, const VideoFrameInfo *pstFrameInfo)
     blk->frame_info = *pstFrameInfo;
     blk->frame_info.ulPoolId = (UL)pool->id;
     blk->frame_info.ulBufferId = blk->handle;
-    if (blk->frame_info.u32Idx == 0)
+    if (blk->frame_info.u32Idx == 0){
         blk->frame_info.u32Idx = blk->blk_idx;
+    }
     blk->pts = blk->frame_info.stVFrame.u64PTS;
     blk->frame_info_set = 1;
 
@@ -1032,8 +1040,8 @@ S32 VB_UpdateBufferFrameInfo(UL ulBuff, const VideoFrameInfo *pstFrameInfo)
 S32 VB_SetFrameInfo(UL ulPool, VideoFrameInfo *pstFrameInfo)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (!pstFrameInfo) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!pstFrameInfo){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbPoolShm *pool = vb_get_pool((U32)ulPool);
@@ -1061,8 +1069,8 @@ S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
     U32 u32Offset = 0;
     U32 i = 0;
 
-    if (!pstFrameInfo) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!pstFrameInfo){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     blk = vb_get_block(ulBuff, &pool);
@@ -1083,17 +1091,22 @@ S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
     }
     pstFrameInfo->ulPoolId   = (UL)pool->id;
     pstFrameInfo->ulBufferId = blk->handle;
-    if (pstFrameInfo->u32Idx == 0)
+    if (pstFrameInfo->u32Idx == 0){
         pstFrameInfo->u32Idx = blk->blk_idx;
+    }
     pstFrameInfo->stVFrame.u64PTS = blk->pts;
-    if (pstFrameInfo->stVFrame.u32TotalSize == 0)
+    if (pstFrameInfo->stVFrame.u32TotalSize == 0){
         pstFrameInfo->stVFrame.u32TotalSize = blk->size;
-    if (pstFrameInfo->stVFrame.u32PlaneNum == 0)
+    }
+    if (pstFrameInfo->stVFrame.u32PlaneNum == 0){
         pstFrameInfo->stVFrame.u32PlaneNum = 1;
-    if (pstFrameInfo->stVFrame.u32PlaneSize[0] == 0)
+    }
+    if (pstFrameInfo->stVFrame.u32PlaneSize[0] == 0){
         pstFrameInfo->stVFrame.u32PlaneSize[0] = pstFrameInfo->stVFrame.u32TotalSize;
-    if (pstFrameInfo->stVFrame.u32PlaneSizeValid[0] == 0)
+    }
+    if (pstFrameInfo->stVFrame.u32PlaneSizeValid[0] == 0){
         pstFrameInfo->stVFrame.u32PlaneSizeValid[0] = pstFrameInfo->stVFrame.u32PlaneSize[0];
+    }
     u64PhyAddr = blk->phy_addr;
     u32BlkSize = blk->size;
 
@@ -1103,16 +1116,21 @@ S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
     if (vb_ensure_local_mapping(blk, &ent) == VB_ERR_OK && ent != NULL) {
         u32Offset = 0;
         for (i = 0; i < pstFrameInfo->stVFrame.u32PlaneNum && i < FRAME_MAX_PLANE; i++) {
-            if (u32Offset >= u32BlkSize)
+            if (u32Offset >= u32BlkSize){
                 break;
-            if (pstFrameInfo->stVFrame.u64PlanePhyAddr[i] == 0)
+            }
+            if (pstFrameInfo->stVFrame.u64PlanePhyAddr[i] == 0){
                 pstFrameInfo->stVFrame.u64PlanePhyAddr[i] = u64PhyAddr + u32Offset;
-            if (ent->local_vir)
+            }
+            if (ent->local_vir){
                 pstFrameInfo->stVFrame.ulPlaneVirAddr[i] = (UL)((uintptr_t)ent->local_vir + u32Offset);
-            if (ent->local_fd >= 0)
+            }
+            if (ent->local_fd >= 0){
                 pstFrameInfo->stVFrame.u32Fd[i] = (UL)ent->local_fd;
-            if (pstFrameInfo->stVFrame.u32PlaneSizeValid[i] == 0)
+            }
+            if (pstFrameInfo->stVFrame.u32PlaneSizeValid[i] == 0){
                 pstFrameInfo->stVFrame.u32PlaneSizeValid[i] = pstFrameInfo->stVFrame.u32PlaneSize[i];
+            }
             u32Offset += pstFrameInfo->stVFrame.u32PlaneSize[i];
         }
     }
@@ -1122,19 +1140,19 @@ S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
 
 /* ======================== Cross-Process Export/Import ======================== */
 /*
- * With shared memory, all processes see the same pool/block metadata.
- * Export marks the block as exported (adds a ref).
- * Import in another process: handle is already valid in shared memory,
- * the importer just needs to pidfd_getfd to get a local dma-buf fd.
- * Token = handle (globally unique in shared memory).
- */
+* With shared memory, all processes see the same pool/block metadata.
+* Export marks the block as exported (adds a ref).
+* Import in another process: handle is already valid in shared memory,
+* the importer just needs to pidfd_getfd to get a local dma-buf fd.
+* Token = handle (globally unique in shared memory).
+*/
 
 S32 VB_Export(UL ulBuff, U64 *pu64Token)
 {
     MppSharedMem *shm = mpp_shm_get();
 
-    if (ulBuff == VB_INVALID_HANDLE || !pu64Token) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE || !pu64Token){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -1160,7 +1178,7 @@ S32 VB_Export(UL ulBuff, U64 *pu64Token)
     pthread_rwlock_unlock(&shm->vb_lock);
 
     VB_LOG_INFO("VB_Export: handle=0x%lx token=0x%llx",
-                ulBuff, (unsigned long long)*pu64Token);
+        ulBuff, (unsigned long long)*pu64Token);
     return VB_ERR_OK;
 }
 
@@ -1169,9 +1187,9 @@ S32 VB_Import(U64 u64Token, UL *pulBuff)
     MppSharedMem *shm = mpp_shm_get();
     UL handle = (UL)u64Token;
 
-    if (!pulBuff) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
-    if (handle == VB_INVALID_HANDLE) return VB_ERR_INVAL;
+    if (!pulBuff){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
+    if (handle == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -1196,7 +1214,7 @@ S32 VB_Import(U64 u64Token, UL *pulBuff)
     vb_ensure_local_mapping(blk, &ent);
 
     VB_LOG_INFO("VB_Import: token=0x%llx handle=0x%lx",
-                (unsigned long long)u64Token, handle);
+        (unsigned long long)u64Token, handle);
     return VB_ERR_OK;
 }
 
@@ -1204,8 +1222,8 @@ S32 VB_Unexport(UL ulBuff)
 {
     MppSharedMem *shm = mpp_shm_get();
 
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -1231,8 +1249,8 @@ S32 VB_Unexport(UL ulBuff)
 S32 VB_GetPhyAddr(UL ulBuff, U64 *pu64PhyAddr)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (!pu64PhyAddr || ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!pu64PhyAddr || ulBuff == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -1248,8 +1266,8 @@ S32 VB_GetPhyAddr(UL ulBuff, U64 *pu64PhyAddr)
 S32 VB_GetVirAddr(UL ulBuff, void **ppVirAddr)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (!ppVirAddr || ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!ppVirAddr || ulBuff == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -1261,7 +1279,7 @@ S32 VB_GetVirAddr(UL ulBuff, void **ppVirAddr)
 
     VbLocalEntry *ent = NULL;
     S32 ret = vb_ensure_local_mapping(blk, &ent);
-    if (ret != 0) return ret;
+    if (ret != 0){return ret;}
     *ppVirAddr = ent->local_vir;
     return VB_ERR_OK;
 }
@@ -1269,8 +1287,8 @@ S32 VB_GetVirAddr(UL ulBuff, void **ppVirAddr)
 S32 VB_GetDmaBufFd(UL ulBuff, S32 *ps32Fd)
 {
     MppSharedMem *shm = mpp_shm_get();
-    if (!ps32Fd || ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!ps32Fd || ulBuff == VB_INVALID_HANDLE){return VB_ERR_INVAL;}
+    if (!shm || !shm->vb_inited){return VB_ERR_NOT_INIT;}
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -1282,7 +1300,7 @@ S32 VB_GetDmaBufFd(UL ulBuff, S32 *ps32Fd)
 
     VbLocalEntry *ent = NULL;
     S32 ret = vb_ensure_local_mapping(blk, &ent);
-    if (ret != 0) return ret;
+    if (ret != 0){return ret;}
     *ps32Fd = ent->local_fd;
     return VB_ERR_OK;
 }
@@ -1294,7 +1312,7 @@ S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo)
     CommonFrameInfo *pstCommFrameInfo = NULL;
     U32 i = 0, u32TotalSize = 0;
 
-    if (!pstFrameInfo) return VB_ERR_INVAL;
+    if (!pstFrameInfo){return VB_ERR_INVAL;}
 
     pstCommFrameInfo = &pstFrameInfo->stCommFrameInfo;
 
@@ -1315,11 +1333,11 @@ S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo)
     pstVFrame = &pstFrameInfo->stVFrame;
     for (i = 0; i < pstVideoFmt->u8DataPlanes; ++i) {
         pstVFrame->u32PlaneStride[i] =
-                ALIGNUP((pstCommFrameInfo->u32Width * pstVideoFmt->u8WidthDepth[i] + 7) >> 3,
-                    pstCommFrameInfo->u32Align);
+            ALIGNUP((pstCommFrameInfo->u32Width * pstVideoFmt->u8WidthDepth[i] + 7) >> 3,
+            pstCommFrameInfo->u32Align);
         pstVFrame->u32PlaneSizeValid[i] = pstVFrame->u32PlaneStride[i] *
-                ALIGNUP(pstCommFrameInfo->u32Height, pstCommFrameInfo->u32Align) *
-                pstVideoFmt->u8HeightDepth[i] / 8;
+            ALIGNUP(pstCommFrameInfo->u32Height, pstCommFrameInfo->u32Align) *
+            pstVideoFmt->u8HeightDepth[i] / 8;
         pstVFrame->u32PlaneSize[i] = ALIGNUP(pstVFrame->u32PlaneSizeValid[i], PAGE_SIZE);
         u32TotalSize += pstVFrame->u32PlaneSize[i];
     }
@@ -1352,29 +1370,30 @@ VOID VB_DumpPools(VOID)
 
     for (U32 i = 0; i < MPP_MAX_POOL; i++) {
         VbPoolShm *pool = &shm->pools[i];
-        if (pool->state == VB_POOL_FREE)
+        if (pool->state == VB_POOL_FREE){
             continue;
+        }
 
         printf("\n  Pool[%u]  id=%u  state=%s\n", i, pool->id,
-               pool_state_str[pool->state]);
+            pool_state_str[pool->state]);
         printf("    buf_size=%u  buf_cnt=%u  mod=%d\n",
-               pool->cfg.u32BufSize, pool->cfg.u32BufCnt,
-               pool->cfg.eModId);
+            pool->cfg.u32BufSize, pool->cfg.u32BufCnt,
+            pool->cfg.eModId);
         printf("    free=%u  used=%u  min_free=%u\n",
-               pool->free_cnt, pool->used_cnt, pool->min_free);
+            pool->free_cnt, pool->used_cnt, pool->min_free);
 
         printf("    Blocks:\n");
         printf("      %5s %10s %5s %5s %4s %18s %8s %6s\n",
-               "idx", "handle", "state", "ref", "exp", "phy_addr", "pid", "fd");
+            "idx", "handle", "state", "ref", "exp", "phy_addr", "pid", "fd");
         for (U32 j = 0; j < pool->blk_cnt; j++) {
             VbBlockShm *blk = &pool->blocks[j];
             int rc = atomic_load(&blk->ref_cnt);
             printf("      %5u 0x%08lx %5s %5d %4u 0x%016llx %8d %6d\n",
-                   blk->blk_idx, blk->handle,
-                   blk_state_str[blk->state], rc,
-                   blk->exported,
-                   (unsigned long long)blk->phy_addr,
-                   blk->owner_pid, blk->owner_fd);
+                blk->blk_idx, blk->handle,
+                blk_state_str[blk->state], rc,
+                blk->exported,
+                (unsigned long long)blk->phy_addr,
+                blk->owner_pid, blk->owner_fd);
         }
     }
 

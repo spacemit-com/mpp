@@ -1,19 +1,19 @@
 /*
- *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- *
- * @File      :    v2d_draw_demo.c
- * @Brief     :    Example: load one NV12 frame from file, create one V2D job,
- *                 draw a rectangle, then submit by EndJob and dump result.
- *
- * Notes:
- *   1. This demo shows the standard BeginJob -> Draw -> EndJob flow.
- *   2. Current V2D_DrawLine implementation still uses CPU backend internally,
- *      but external usage is unified as V2D job mode.
- *   3. Current V2D_DrawLine implementation only supports NV12/NV21 and
- *      line_width == 1, so this demo uses NV12 input/output.
- *------------------------------------------------------------------------------
- */
+*------------------------------------------------------------------------------
+* Copyright 2025-2026 SPACEMIT. All rights reserved.
+*
+* @File      :    v2d_draw_demo.c
+* @Brief     :    Example: load one NV12 frame from file, create one V2D job,
+*                 draw a rectangle, then submit by EndJob and dump result.
+*
+* Notes:
+*   1. This demo shows the standard BeginJob -> Draw -> EndJob flow.
+*   2. Current V2D_DrawLine implementation still uses CPU backend internally,
+*      but external usage is unified as V2D job mode.
+*   3. Current V2D_DrawLine implementation only supports NV12/NV21 and
+*      line_width == 1, so this demo uses NV12 input/output.
+*------------------------------------------------------------------------------
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -32,8 +32,8 @@
 #define DEMO_WIDTH        1920U
 #define DEMO_HEIGHT       1080U
 
-#define DEMO_LOG(fmt, ...)  printf("[v2d_draw_demo] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[v2d_draw_demo][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...)  printf("[v2d_draw_demo] " fmt "\n", ## __VA_ARGS__)
+#define DEMO_FAIL(fmt, ...) do { printf("[v2d_draw_demo][FAIL] " fmt "\n", ## __VA_ARGS__); return -1; } while (0)
 
 typedef struct DEMO_CONFIG_S {
     const char *input_file;
@@ -393,13 +393,13 @@ int main(int argc, char *argv[])
     }
 
     DEMO_LOG("draw done: input=%s output=%s rect=(%u,%u,%u,%u) yuv=0x%08x",
-             config.input_file,
-             config.output_file,
-             config.rect_x,
-             config.rect_y,
-             config.rect_w,
-             config.rect_h,
-             config.yuv_color);
+        config.input_file,
+        config.output_file,
+        config.rect_x,
+        config.rect_y,
+        config.rect_w,
+        config.rect_h,
+        config.yuv_color);
 
     VB_ReleaseBuffer(buffer);
     VB_DestroyPool(pool);
