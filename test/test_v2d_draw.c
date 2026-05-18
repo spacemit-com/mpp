@@ -198,25 +198,33 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     return 0;
 }
 
-static int demo_prepare_nv12_pool(UL *pool_id, U32 width, U32 height)
+/*
+ * Allocate an NV12 VB pool, grab one buffer from it, and fill out the
+ * VideoFrameInfo so V2D can consume it directly (UVC-style flow).
+ */
+static int demo_prepare_nv12_pool(UL *pool_id, VideoFrameInfo *frame, U32 width, U32 height)
 {
     VbPoolCfg cfg;
-    VideoFrameInfo frame_info;
+    UL buffer = 0UL;
     U32 stride;
+    U32 y_size;
     U32 total_size;
+    void *vir_addr = NULL;
+    S32 dma_buf_fd = -1;
     S32 ret;
 
-    if (pool_id == NULL) {
+    if ((pool_id == NULL) || (frame == NULL)) {
         return -1;
     }
 
     stride = width;
-    total_size = (stride * height * 3U) / 2U;
+    y_size = stride * height;
+    total_size = y_size + (y_size / 2U);
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.u32BufSize = total_size;
-    cfg.u32BufCnt = 2;
-    cfg.eModId = MPP_ID_SYS;
+    cfg.u32BufCnt = 1U;
+    cfg.eModId = MPP_ID_V2D;
     cfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
 
     *pool_id = VB_CreatePool(&cfg);
@@ -225,59 +233,57 @@ static int demo_prepare_nv12_pool(UL *pool_id, U32 width, U32 height)
         return -1;
     }
 
-    memset(&frame_info, 0, sizeof(frame_info));
-    frame_info.eFrameType = FRAME_TYPE_COMMON;
-    frame_info.eModId = MPP_ID_SYS;
-    frame_info.stCommFrameInfo.u32Width = width;
-    frame_info.stCommFrameInfo.u32Height = height;
-    frame_info.stCommFrameInfo.u32Align = 1U;
-    frame_info.stCommFrameInfo.ePixelFormat = MPP_PIXEL_FORMAT_NV12;
-    frame_info.stCommFrameInfo.eCompressMode = COMPRESS_MODE_NONE;
-    frame_info.stCommFrameInfo.eColorSpace = COLOR_SPACE_BT601;
-    frame_info.stVFrame.u32PlaneNum = 2U;
-    frame_info.stVFrame.u32PlaneStride[0] = stride;
-    frame_info.stVFrame.u32PlaneStride[1] = stride;
-    frame_info.stVFrame.u32PlaneSize[0] = stride * height;
-    frame_info.stVFrame.u32PlaneSize[1] = (stride * height) / 2U;
-    frame_info.stVFrame.u32PlaneSizeValid[0] = frame_info.stVFrame.u32PlaneSize[0];
-    frame_info.stVFrame.u32PlaneSizeValid[1] = frame_info.stVFrame.u32PlaneSize[1];
-    frame_info.stVFrame.u32TotalSize = total_size;
-
-    ret = VB_SetFrameInfo(*pool_id, &frame_info);
-    if (ret != 0) {
-        DEMO_LOG("VB_SetFrameInfo failed, ret=%d", ret);
-        VB_DestroyPool(*pool_id);
-        *pool_id = 0UL;
-        return -1;
+    /* Acquire one buffer from the pool and resolve its fd / virtual address. */
+    buffer = VB_GetBuffer(*pool_id, 0);
+    if (buffer == 0UL) {
+        DEMO_LOG("VB_GetBuffer failed");
+        goto err_destroy_pool;
     }
+
+    ret = VB_GetDmaBufFd(buffer, &dma_buf_fd);
+    if ((ret != 0) || (dma_buf_fd < 0)) {
+        DEMO_LOG("VB_GetDmaBufFd failed, ret=%d fd=%d", ret, dma_buf_fd);
+        goto err_release_buf;
+    }
+
+    ret = VB_GetVirAddr(buffer, &vir_addr);
+    if ((ret != 0) || (vir_addr == NULL)) {
+        DEMO_LOG("VB_GetVirAddr failed, ret=%d", ret);
+        goto err_release_buf;
+    }
+
+    /* Fill VideoFrameInfo in one shot (UVC-style). */
+    memset(frame, 0, sizeof(*frame));
+    frame->eFrameType = FRAME_TYPE_COMMON;
+    frame->eModId = MPP_ID_V2D;
+    frame->ulPoolId = *pool_id;
+    frame->ulBufferId = buffer;
+
+    frame->stCommFrameInfo.u32Width = width;
+    frame->stCommFrameInfo.u32Height = height;
+    frame->stCommFrameInfo.ePixelFormat = MPP_PIXEL_FORMAT_NV12;
+
+    frame->stVFrame.u32PlaneNum = 2U;
+    frame->stVFrame.u32PlaneStride[0] = stride;
+    frame->stVFrame.u32PlaneStride[1] = stride;
+    frame->stVFrame.u32PlaneSize[0] = y_size;
+    frame->stVFrame.u32PlaneSize[1] = y_size / 2U;
+    frame->stVFrame.u32PlaneSizeValid[0] = y_size;
+    frame->stVFrame.u32PlaneSizeValid[1] = y_size / 2U;
+    frame->stVFrame.u32TotalSize = total_size;
+    frame->stVFrame.u32Fd[0] = (UL)dma_buf_fd;
+    frame->stVFrame.u32Fd[1] = (UL)dma_buf_fd;
+    frame->stVFrame.ulPlaneVirAddr[0] = (UL)vir_addr;
+    frame->stVFrame.ulPlaneVirAddr[1] = (UL)vir_addr + y_size;
 
     return 0;
-}
 
-static int demo_prepare_frame_from_buffer(UL buffer, VideoFrameInfo *frame)
-{
-    S32 ret;
-
-    if ((buffer == 0UL) || (frame == NULL)) {
-        return -1;
-    }
-
-    ret = VB_GetFrameInfo(buffer, frame);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetDmaBufFd(buffer, (S32 *)&frame->stVFrame.u32Fd[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetVirAddr(buffer, (void **)&frame->stVFrame.ulPlaneVirAddr[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    return 0;
+err_release_buf:
+    VB_ReleaseBuffer(buffer);
+err_destroy_pool:
+    VB_DestroyPool(*pool_id);
+    *pool_id = 0UL;
+    return -1;
 }
 
 static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
@@ -455,7 +461,6 @@ int main(int argc, char *argv[])
 {
     S32 ret;
     UL pool = 0UL;
-    UL buffer = 0UL;
     VideoFrameInfo frame;
     DEMO_CONFIG_S config;
 
@@ -477,25 +482,8 @@ int main(int argc, char *argv[])
         DEMO_FAIL("VB_Init failed, ret=%d", ret);
     }
 
-    if (demo_prepare_nv12_pool(&pool, config.width, config.height) != 0) {
+    if (demo_prepare_nv12_pool(&pool, &frame, config.width, config.height) != 0) {
         goto EXIT;
-    }
-
-    buffer = VB_GetBuffer(pool, 0);
-    if (buffer == 0UL) {
-        DEMO_LOG("VB_GetBuffer failed");
-        goto EXIT;
-    }
-
-    if (demo_prepare_frame_from_buffer(buffer, &frame) != 0) {
-        DEMO_LOG("prepare frame from buffer failed");
-        goto EXIT;
-    }
-
-    if (frame.stVFrame.u32PlaneNum > 1U) {
-        frame.stVFrame.u32Fd[1] = frame.stVFrame.u32Fd[0];
-        frame.stVFrame.ulPlaneVirAddr[1] =
-            frame.stVFrame.ulPlaneVirAddr[0] + frame.stVFrame.u32PlaneSize[0];
     }
 
     if (demo_load_nv12_file(&frame, config.input_file) != 0) {
@@ -532,15 +520,15 @@ int main(int argc, char *argv[])
                  config.yuv_color);
     }
 
-    VB_ReleaseBuffer(buffer);
+    VB_ReleaseBuffer(frame.ulBufferId);
     VB_DestroyPool(pool);
     VB_Exit();
     SYS_Exit();
     return 0;
 
 EXIT:
-    if (buffer != 0UL) {
-        VB_ReleaseBuffer(buffer);
+    if (frame.ulBufferId != 0UL) {
+        VB_ReleaseBuffer(frame.ulBufferId);
     }
     if (pool != 0UL) {
         VB_DestroyPool(pool);

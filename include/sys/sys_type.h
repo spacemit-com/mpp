@@ -46,6 +46,7 @@ typedef enum _ModId {
     MPP_ID_MUX   = 8,
     MPP_ID_DEMUX = 9,
     MPP_ID_UVC   = 10,
+    MPP_ID_V2D   = 11,
 
     MPP_ID_MAX,
 } ModId;

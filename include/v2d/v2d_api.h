@@ -63,46 +63,36 @@ S32 V2D_DrawCircle(V2DHandle handle,
 
 S32 V2D_DrawMask(V2DHandle handle,
                 const VideoFrameInfo *pstBackgroundFrame,
-                const V2DArea *pstBackgroundRect,
                 const VideoFrameInfo *pstForegroundFrame,
-                const V2DArea *pstForegroundRect,
                 const VideoFrameInfo *pstMaskFrame,
-                const V2DArea *pstMaskRect,
-                VideoFrameInfo *pstDstFrame,
-                const V2DArea *pstDstRect);
+                VideoFrameInfo *pstDstFrame);
 
 S32 V2D_Adv2Layers(V2DHandle handle,
                     const VideoFrameInfo *pstBackgroundFrame,
                     const VideoFrameInfo *pstForegroundFrame,
-                    const V2DArea *pstForegroundArea,
                     VideoFrameInfo *pstOutputFrame);
 
 S32 V2D_ConvertFrame(V2DHandle handle,
                     const VideoFrameInfo *pstSrcFrame,
-                    VideoFrameInfo *pstDstFrame,
-                    V2DCscMode eCscMode);
+                    VideoFrameInfo *pstDstFrame);
 
 S32 V2D_RotateFrame(V2DHandle handle,
                     const VideoFrameInfo *pstSrcFrame,
                     VideoFrameInfo *pstDstFrame,
                     V2DRotateAngle eRotate);
 
-S32 V2D_ScaleFrame(V2DHandle handle,
+S32 V2D_ResizeFrame(V2DHandle handle,
                     const VideoFrameInfo *pstSrcFrame,
-                    VideoFrameInfo *pstDstFrame,
-                    V2DCscMode eCscMode);
+                    VideoFrameInfo *pstDstFrame);
 
 S32 V2D_BorderFill(V2DHandle handle,
                     const VideoFrameInfo *pstSrcFrame,
-                    const V2DArea *pstSrcRect,
                     VideoFrameInfo *pstDstFrame,
-                    const V2DArea *pstDstRect,
                     U32 u32Top,
                     U32 u32Bottom,
                     U32 u32Left,
                     U32 u32Right,
-                    const V2DFillColor *pstBorderColor,
-                    V2DCscMode eCscMode);
+                    const V2DFillColor *pstBorderColor);
 
 #ifdef __cplusplus
 }

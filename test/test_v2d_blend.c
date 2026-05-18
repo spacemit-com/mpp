@@ -115,108 +115,112 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     return 0;
 }
 
+/*
+ * Allocate a VB pool, grab one buffer from it, and fill out the
+ * VideoFrameInfo so V2D can consume it directly (UVC-style flow).
+ */
 static int demo_prepare_pool(UL *pool_id,
+                             VideoFrameInfo *frame,
                              ModId mod_id,
                              MppPixelFormat pixel_format,
                              U32 width,
                              U32 height)
 {
     VbPoolCfg cfg;
-    VideoFrameInfo frame_info;
-    U32 stride;
-    U32 total_size;
-    U32 y_size;
+    UL buffer = 0UL;
     S32 ret;
+    U32 stride;
+    U32 y_size;
+    U32 total_size;
+    U32 plane_num;
+    void *vir_addr = NULL;
+    S32 dma_buf_fd = -1;
 
-    if (pool_id == NULL) {
+    if ((pool_id == NULL) || (frame == NULL)) {
         return -1;
     }
-
-    memset(&cfg, 0, sizeof(cfg));
-    memset(&frame_info, 0, sizeof(frame_info));
 
     if (pixel_format == MPP_PIXEL_FORMAT_NV12) {
         stride = width;
         y_size = stride * height;
         total_size = y_size + (y_size / 2U);
-        frame_info.stVFrame.u32PlaneNum = 2U;
-        frame_info.stVFrame.u32PlaneStride[0] = stride;
-        frame_info.stVFrame.u32PlaneStride[1] = stride;
-        frame_info.stVFrame.u32PlaneSize[0] = y_size;
-        frame_info.stVFrame.u32PlaneSize[1] = y_size / 2U;
-        frame_info.stVFrame.u32PlaneSizeValid[0] = y_size;
-        frame_info.stVFrame.u32PlaneSizeValid[1] = y_size / 2U;
+        plane_num = 2U;
     } else if (pixel_format == MPP_PIXEL_FORMAT_RGBA) {
         stride = width * 4U;
-        total_size = stride * height;
-        frame_info.stVFrame.u32PlaneNum = 1U;
-        frame_info.stVFrame.u32PlaneStride[0] = stride;
-        frame_info.stVFrame.u32PlaneSize[0] = total_size;
-        frame_info.stVFrame.u32PlaneSizeValid[0] = total_size;
+        y_size = stride * height;
+        total_size = y_size;
+        plane_num = 1U;
     } else {
+        DEMO_LOG("unsupported format in demo, format=%d", pixel_format);
         return -1;
     }
 
-    cfg.u32BufCnt = 1U;
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.u32BufCnt = 1U;   /* single-shot demo: one buffer per pool, bound to `frame` */
     cfg.u32BufSize = total_size;
     cfg.eModId = mod_id;
     cfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
 
     *pool_id = VB_CreatePool(&cfg);
     if (*pool_id == 0UL) {
+        DEMO_LOG("VB_CreatePool failed, mod=%d format=%d", mod_id, pixel_format);
         return -1;
     }
 
-    frame_info.eFrameType = FRAME_TYPE_COMMON;
-    frame_info.eModId = mod_id;
-    frame_info.stCommFrameInfo.u32Width = width;
-    frame_info.stCommFrameInfo.u32Height = height;
-    frame_info.stCommFrameInfo.u32Align = 1U;
-    frame_info.stCommFrameInfo.ePixelFormat = pixel_format;
-    frame_info.stCommFrameInfo.eCompressMode = COMPRESS_MODE_NONE;
-    frame_info.stCommFrameInfo.eColorSpace = COLOR_SPACE_BT709;
-    frame_info.stVFrame.u32TotalSize = total_size;
+    /* Acquire one buffer from the pool and resolve its fd / virtual address. */
+    buffer = VB_GetBuffer(*pool_id, 0);
+    if (buffer == 0UL) {
+        DEMO_LOG("VB_GetBuffer failed, mod=%d", mod_id);
+        goto err_destroy_pool;
+    }
 
-    ret = VB_SetFrameInfo(*pool_id, &frame_info);
-    if (ret != 0) {
-        VB_DestroyPool(*pool_id);
-        *pool_id = 0UL;
-        return -1;
+    ret = VB_GetDmaBufFd(buffer, &dma_buf_fd);
+    if ((ret != 0) || (dma_buf_fd < 0)) {
+        DEMO_LOG("VB_GetDmaBufFd failed, ret=%d fd=%d", ret, dma_buf_fd);
+        goto err_release_buf;
+    }
+
+    ret = VB_GetVirAddr(buffer, &vir_addr);
+    if ((ret != 0) || (vir_addr == NULL)) {
+        DEMO_LOG("VB_GetVirAddr failed, ret=%d", ret);
+        goto err_release_buf;
+    }
+
+    /* Fill VideoFrameInfo in one shot (UVC-style). */
+    memset(frame, 0, sizeof(*frame));
+    frame->eFrameType = FRAME_TYPE_COMMON;
+    frame->eModId = mod_id;
+    frame->ulPoolId = *pool_id;
+    frame->ulBufferId = buffer;
+
+    frame->stCommFrameInfo.u32Width = width;
+    frame->stCommFrameInfo.u32Height = height;
+    frame->stCommFrameInfo.ePixelFormat = pixel_format;
+
+    frame->stVFrame.u32PlaneNum = plane_num;
+    frame->stVFrame.u32PlaneStride[0] = stride;
+    frame->stVFrame.u32PlaneSize[0] = y_size;
+    frame->stVFrame.u32PlaneSizeValid[0] = y_size;
+    frame->stVFrame.u32TotalSize = total_size;
+    frame->stVFrame.u32Fd[0] = (UL)dma_buf_fd;
+    frame->stVFrame.ulPlaneVirAddr[0] = (UL)vir_addr;
+
+    if (plane_num > 1U) {
+        frame->stVFrame.u32PlaneStride[1] = stride;
+        frame->stVFrame.u32PlaneSize[1] = y_size / 2U;
+        frame->stVFrame.u32PlaneSizeValid[1] = y_size / 2U;
+        frame->stVFrame.u32Fd[1] = (UL)dma_buf_fd;
+        frame->stVFrame.ulPlaneVirAddr[1] = (UL)vir_addr + y_size;
     }
 
     return 0;
-}
 
-static int demo_prepare_frame_from_buffer(UL buffer, VideoFrameInfo *frame)
-{
-    S32 ret;
-
-    if (buffer == 0UL || frame == NULL) {
-        return -1;
-    }
-
-    ret = VB_GetFrameInfo(buffer, frame);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetDmaBufFd(buffer, (S32 *)&frame->stVFrame.u32Fd[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetVirAddr(buffer, (void **)&frame->stVFrame.ulPlaneVirAddr[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    if (frame->stVFrame.u32PlaneNum > 1U) {
-        frame->stVFrame.u32Fd[1] = frame->stVFrame.u32Fd[0];
-        frame->stVFrame.ulPlaneVirAddr[1] =
-            frame->stVFrame.ulPlaneVirAddr[0] + frame->stVFrame.u32PlaneSize[0];
-    }
-
-    return 0;
+err_release_buf:
+    VB_ReleaseBuffer(buffer);
+err_destroy_pool:
+    VB_DestroyPool(*pool_id);
+    *pool_id = 0UL;
+    return -1;
 }
 
 static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
@@ -255,8 +259,6 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
                frame->stVFrame.u32PlaneSize[1]);
     }
 
-    frame->stVFrame.u32PlaneSizeValid[0] = frame->stVFrame.u32PlaneSize[0];
-    frame->stVFrame.u32PlaneSizeValid[1] = frame->stVFrame.u32PlaneSize[1];
     return 0;
 }
 
@@ -291,8 +293,6 @@ int main(int argc, char *argv[])
     V2DHandle handle = 0;
     UL src_pool = 0UL;
     UL dst_pool = 0UL;
-    UL src_buf = 0UL;
-    UL dst_buf = 0UL;
     V2DArea src_rect;
     V2DArea dst_rect;
     V2DBlendConf blend_conf;
@@ -323,30 +323,13 @@ int main(int argc, char *argv[])
         DEMO_FAIL("VB_Init failed, ret=%d", ret);
     }
 
-    if (demo_prepare_pool(&src_pool, MPP_ID_SYS, MPP_PIXEL_FORMAT_NV12,
+    if (demo_prepare_pool(&src_pool, &src_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_NV12,
                           config.src_width, config.src_height) != 0) {
         goto EXIT;
     }
 
-    if (demo_prepare_pool(&dst_pool, MPP_ID_SYS, MPP_PIXEL_FORMAT_RGBA,
+    if (demo_prepare_pool(&dst_pool, &dst_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_RGBA,
                           config.dst_width, config.dst_height) != 0) {
-        goto EXIT;
-    }
-
-    src_buf = VB_GetBuffer(src_pool, 0);
-    dst_buf = VB_GetBuffer(dst_pool, 0);
-    if ((src_buf == 0UL) || (dst_buf == 0UL)) {
-        DEMO_LOG("VB_GetBuffer failed, src=0x%lx dst=0x%lx", src_buf, dst_buf);
-        goto EXIT;
-    }
-
-    if (demo_prepare_frame_from_buffer(src_buf, &src_frame) != 0) {
-        DEMO_LOG("prepare src frame failed");
-        goto EXIT;
-    }
-
-    if (demo_prepare_frame_from_buffer(dst_buf, &dst_frame) != 0) {
-        DEMO_LOG("prepare dst frame failed");
         goto EXIT;
     }
 
@@ -354,8 +337,6 @@ int main(int argc, char *argv[])
         DEMO_LOG("load NV12 file failed: %s", config.input_file);
         goto EXIT;
     }
-
-    memset((void *)(uintptr_t)dst_frame.stVFrame.ulPlaneVirAddr[0], 0, dst_frame.stVFrame.u32PlaneSize[0]);
 
     memset(&src_rect, 0, sizeof(src_rect));
     src_rect.u16X = 0;
@@ -397,13 +378,8 @@ int main(int argc, char *argv[])
         }
     }
     if (ret != 0) {
-		DEMO_LOG("V2D_AddBlendTask failed, ret=%d", ret);
+        DEMO_LOG("V2D_AddBlendTask failed, ret=%d", ret);
         goto EXIT;
-    }
-
-    dst_frame.stVFrame.u32PlaneSizeValid[0] = dst_frame.stVFrame.u32PlaneSize[0];
-    if (dst_frame.stVFrame.u32PlaneNum > 1U) {
-        dst_frame.stVFrame.u32PlaneSizeValid[1] = dst_frame.stVFrame.u32PlaneSize[1];
     }
 
     if (demo_dump_rgba_file(&dst_frame, config.output_file) != 0) {
@@ -414,11 +390,11 @@ int main(int argc, char *argv[])
     DEMO_LOG("transform finished successfully");
 
 EXIT:
-    if (src_buf != 0UL) {
-        VB_ReleaseBuffer(src_buf);
+    if (src_frame.ulBufferId != 0UL) {
+        VB_ReleaseBuffer(src_frame.ulBufferId);
     }
-    if (dst_buf != 0UL) {
-        VB_ReleaseBuffer(dst_buf);
+    if (dst_frame.ulBufferId != 0UL) {
+        VB_ReleaseBuffer(dst_frame.ulBufferId);
     }
     if (src_pool != 0UL) {
         VB_DestroyPool(src_pool);
