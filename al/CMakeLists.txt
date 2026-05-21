@@ -10,4 +10,5 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/include/sys)
 
 add_subdirectory(vi/k1)
+add_subdirectory(vi/k3)
 add_subdirectory(vcodec)

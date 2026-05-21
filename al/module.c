@@ -103,6 +103,7 @@ FIND_PLUGIN(VO_SDL2, vo_sdl2, vo_sdl2_plugin)
 FIND_PLUGIN(VO_FILE, vo_file, vo_file_plugin)
 FIND_PLUGIN(VI_V4L2, vi_v4l2, vi_v4l2_plugin)
 FIND_PLUGIN(VI_K1_CAM, vi_k1_cam, vi_k1_cam_plugin)
+FIND_PLUGIN(VI_K3_CAM, vi_k3_cam, vi_k3_cam_plugin)
 FIND_PLUGIN(VI_FILE, vi_file, vi_file_plugin)
 
 #define CHECK_LIBRARY(TYPE, type, name, path1, path2) \
@@ -151,6 +152,7 @@ CHECK_LIBRARY(VO_SDL2, vo_sdl2, SDL2-2.0, /, /)
 CHECK_LIBRARY(VO_FILE, vo_file, c, /, /)
 CHECK_LIBRARY(VI_V4L2, vi_v4l2, c, /, /)
 CHECK_LIBRARY(VI_K1_CAM, vi_k1_cam, c, /, /)
+CHECK_LIBRARY(VI_K3_CAM, vi_k3_cam, c, /, /)
 CHECK_LIBRARY(VI_FILE, vi_file, c, /, /)
 
 #define CHECKMODULE_BY_TYPE(TYPE, type) \
@@ -246,6 +248,10 @@ MppModule*  module_init(MppModuleType module_type)
     else if(VI_K1_CAM == module_type)
     {
         CHECKMODULE_BY_TYPE(VI_K1_CAM, vi_k1_cam);
+    }
+    else if(VI_K3_CAM == module_type)
+    {
+        CHECKMODULE_BY_TYPE(VI_K3_CAM, vi_k3_cam);
     }
     else if(VI_FILE == module_type)
     {

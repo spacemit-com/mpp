@@ -62,6 +62,7 @@ static BOOL mpi_vi_is_valid_dev_chn(VI_DEV ViDev, VI_CHN ViChn)
 #define MODULE_TAG "mpp_vi"
 
 static MppModule *g_pViModule = NULL;
+static BOOL g_bViK3CamMode = MPP_FALSE;
 static S32 (*vi_init_func)(VOID) = NULL;
 static S32 (*vi_deinit_func)(VOID) = NULL;
 static S32 (*vi_set_dev_attr_func)(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) = NULL;
@@ -96,7 +97,9 @@ static S32 (*vi_attach_bind_sink_func)(VI_DEV ViDev, VI_CHN ViChn, const MppNode
 static S32 (*vi_detach_bind_sink_func)(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) = NULL;
 static S32 (*vi_set_external_buf_pool_func)(VI_DEV ViDev, VI_CHN ViChn,
     UL ulPoolId, U32 u32BufCnt, const UL *paulBufferId,
-    const VideoFrameInfo *pastFrameInfo, const ImageBuffer *pastImageBuffer) = NULL;
+    const VideoFrameInfo *pastFrameInfo) = NULL;
+
+static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn);
 
 static S32 mpi_vi_find_buffer_index(const MpiViChnBufCtx *pstBufCtx, UL ulBufferId)
 {
@@ -220,7 +223,7 @@ static S32 mpi_vi_prepare_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn)
         return s32Ret;
     }
 
-    s32Ret = vi_set_rawdump_buf_func(ViDev, ViChn, &pstRawCtx->stFrameInfo, &pstRawCtx->stImageBuffer);
+        s32Ret = vi_set_rawdump_buf_func(ViDev, ViChn, &pstRawCtx->stFrameInfo, &pstRawCtx->stImageBuffer);
     if (s32Ret != MPP_OK) {
         error("rawdump import buffer to al failed, dev=%d chn=%d ret=%d", ViDev, ViChn, s32Ret);
         mpi_vi_destroy_rawdump_ctx(ViDev, ViChn);
@@ -305,7 +308,7 @@ static S32 mpi_vi_drain_done_buffers(VI_DEV ViDev, VI_CHN ViChn, S32 s32MilliSec
         s32WaitMs = 0;
     }
 
-    return (s32Ret == MPI_VI_ERR_BUSY) ? MPP_OK : s32Ret;
+    return (s32Ret == MPI_VI_ERR_BUSY ) ? MPP_OK : s32Ret;
 }
 
 static VOID mpi_vi_reset_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn)
@@ -439,7 +442,13 @@ static S32 vi_load_plugin(VOID)
     if (g_pViModule != NULL)
         return MPP_OK;
 
-    g_pViModule = module_init(VI_K1_CAM);
+    g_pViModule = module_init(VI_K3_CAM);
+    if (g_pViModule != NULL)
+        g_bViK3CamMode = MPP_TRUE;
+    else {
+        g_pViModule = module_init(VI_K1_CAM);
+        g_bViK3CamMode = MPP_FALSE;
+    }
     if (g_pViModule == NULL) {
         error("module_init failed for VI_K1_CAM");
         return MPP_INIT_FAILED;
@@ -476,7 +485,7 @@ static S32 vi_load_plugin(VOID)
     vi_offline_set_input_addr_func = (S32 (*)(VI_DEV, VI_CHN, UL, UL, const VideoFrameInfo *, const ImageBuffer *, const U8 *, U32))dlsym(handle, "al_vi_offline_set_input_addr");
     vi_attach_bind_sink_func = (S32 (*)(VI_DEV, VI_CHN, const MppNode *))dlsym(handle, "al_vi_attach_bind_sink");
     vi_detach_bind_sink_func = (S32 (*)(VI_DEV, VI_CHN, const MppNode *))dlsym(handle, "al_vi_detach_bind_sink");
-    vi_set_external_buf_pool_func = (S32 (*)(VI_DEV, VI_CHN, UL, U32, const UL *, const VideoFrameInfo *, const ImageBuffer *))dlsym(handle, "al_vi_set_external_buf_pool");
+    vi_set_external_buf_pool_func = (S32 (*)(VI_DEV, VI_CHN, UL, U32, const UL *, const VideoFrameInfo *))dlsym(handle, "al_vi_set_external_buf_pool");
 
     if (vi_init_func == NULL || vi_deinit_func == NULL || vi_set_dev_attr_func == NULL ||
         vi_get_dev_attr_func == NULL || vi_enable_dev_func == NULL || vi_disable_dev_func == NULL ||
@@ -643,8 +652,7 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
         pstBufCtx->ulPoolId,
         pstBufCtx->u32BufCnt,
         pstBufCtx->aulBufferId,
-        pstBufCtx->astFrameInfo,
-        pstBufCtx->astImageBuffer);
+        pstBufCtx->astFrameInfo);
     if (s32Ret != MPP_OK) {
         mpi_vi_destroy_chn_buf_ctx(ViDev, ViChn);
         return s32Ret;

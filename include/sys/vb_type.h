@@ -197,6 +197,13 @@ typedef enum _MppPixelFormat {
     MPP_PIXEL_FORMAT_H264,
     MPP_PIXEL_FORMAT_MJPEG,
 
+    /***
+     * MIPI CSI-2 RAW10 packed (5 bytes per 4 pixels), no stride padding.
+     * Used by K3 raw bayer capture path so the VB pool matches V4L2
+     * sizeimage exactly (= width * 5 / 4 * height).
+     */
+    MPP_PIXEL_FORMAT_RGB_BAYER_10BITS_PACKED,
+
     MPP_PIXEL_FORMAT_MAX,
 } MppPixelFormat;
 

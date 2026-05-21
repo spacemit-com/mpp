@@ -182,6 +182,16 @@ S32 MPI_VI_CalcFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameI
         pstFrameInfo->stVFrame.u32PlaneSizeValid[0] = pstFrameInfo->stVFrame.u32PlaneSize[0];
         pstFrameInfo->stVFrame.u32TotalSize = pstFrameInfo->stVFrame.u32PlaneSize[0];
         break;
+    case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS_PACKED:
+        /* MIPI CSI-2 RAW10 packed: every 4 pixels share 5 bytes, no padding.
+         * Matches the V4L2 'pBAA' fourcc sizeimage = (width * 5 / 4) * height. */
+        pstFrameInfo->stVFrame.u32PlaneNum = 1;
+        pstFrameInfo->stVFrame.u32PlaneStride[0] =
+            ((u32Width / 4U) + ((u32Width % 4U) ? 1U : 0U)) * 5U;
+        pstFrameInfo->stVFrame.u32PlaneSize[0] = pstFrameInfo->stVFrame.u32PlaneStride[0] * u32Height;
+        pstFrameInfo->stVFrame.u32PlaneSizeValid[0] = pstFrameInfo->stVFrame.u32PlaneSize[0];
+        pstFrameInfo->stVFrame.u32TotalSize = pstFrameInfo->stVFrame.u32PlaneSize[0];
+        break;
     default:
         return MPI_VI_ERR_NOT_SUPPORT;
     }
@@ -221,6 +231,11 @@ S32 MPI_VI_CalcRawDumpFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *ps
     case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
         u32Stride = (((u32Width / 12U) + ((u32Width % 12U) ? 1U : 0U)) * 16U);
         u32Size = MPI_VI_RAW10_DUMP_SIZE(u32Width, u32Height);
+        break;
+    case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS_PACKED:
+        /* MIPI CSI-2 RAW10 packed: 5 bytes per 4 pixels, matches V4L2 sizeimage. */
+        u32Stride = ((u32Width / 4U) + ((u32Width % 4U) ? 1U : 0U)) * 5U;
+        u32Size = u32Stride * u32Height;
         break;
     case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
         u32Stride = (((u32Width / 10U) + ((u32Width % 10U) ? 1U : 0U)) * 16U);

@@ -40,6 +40,7 @@ typedef enum _MppModuleType {
   VI_V4L2,
   VI_K1_CAM,
   VI_FILE,
+  VI_K3_CAM,
   VI_MAX,
 
   VPS_AUTO = 300,
