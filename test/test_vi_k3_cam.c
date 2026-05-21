@@ -22,7 +22,7 @@
 #define K3_CAM_DEFAULT_HEIGHT 1080
 #define K3_CAM_DEFAULT_LANES  4
 #define K3_CAM_DEFAULT_MBPS   800
-#define K3_CAM_TIMEOUT_MS     30
+#define K3_CAM_TIMEOUT_MS     33
 #define K3_CAM_FRAME_COUNT    100
 #define K3_CAM_SAVE_PATH      "./frames.raw"
 
@@ -163,7 +163,7 @@ int main(int argc, char **argv)
     }
 
     printf("started capture path for %s\n", dev);
-	usleep(30000); // Allow some time for the camera to start streaming
+    usleep(30000); // Allow some time for the camera to start streaming
 
     FILE *save_fp = fopen(K3_CAM_SAVE_PATH, "wb");
     if (save_fp == NULL) {
@@ -178,14 +178,13 @@ int main(int argc, char **argv)
             break;
         }
         dump_frame(&frame, i);
-        if (save_fp != NULL)
-            (void)save_frame(save_fp, &frame, i);
+        // if (save_fp != NULL)
+        //     (void)save_frame(save_fp, &frame, i);
         ret = VI_ReleaseChnFrame(K3_CAM_DEV, K3_CAM_CHN, &frame);
         if (ret != 0) {
             printf("VI_ReleaseChnFrame failed on frame %u: %d\n", i, ret);
             break;
         }
-		//usleep(30000); // Sleep 30ms between frames
     }
 
     if (save_fp != NULL) {

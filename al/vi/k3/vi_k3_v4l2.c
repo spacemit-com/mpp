@@ -89,7 +89,7 @@ S32 K3_V4L2_Open(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx)
 
     dev = k3_devnode();
     pstCtx->s32Fd = open(dev, O_RDWR | O_NONBLOCK, 0);
-	info("K3_V4L2_Open: open %s, fd=%d\n", dev, pstCtx->s32Fd);
+    info("K3_V4L2_Open: open %s, fd=%d\n", dev, pstCtx->s32Fd);
     if (pstCtx->s32Fd < 0) {
         error("K3_V4L2_Open: open(%s) failed, errno=%d (%s)\n",
             dev, errno, strerror(errno));
@@ -344,7 +344,6 @@ S32 K3_V4L2_DQBuf_Wait(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx,
         return k3_errno_to_err(K3_VI_ERR_SELECT);
     }
 
-	printf("K3_V4L2_DQBuf_Wait: select ready, fd=%d\n", pstCtx->s32Fd);
     /* DQBUF */
     memset(&vbuf, 0, sizeof(vbuf));
     vbuf.buf.type     = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;

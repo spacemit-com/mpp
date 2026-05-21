@@ -293,16 +293,16 @@ S32 K1_VI_QueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
 
     pstBufNode->stImageBuffer.type = 2;
 
-	//info("Queueing buffer node index %u with buffer ID %lu for VI channel context...\n", pstBufNode->u32Index, pstBufNode->ulBufferId);
-	// info("pstChnCtx->ulVbPool: %lu\n", pstChnCtx->ulVbPool);
-	// info("pstChnCtx->u32AsrChn: %u\n", pstChnCtx->u32AsrChn);
+    //info("Queueing buffer node index %u with buffer ID %lu for VI channel context...\n", pstBufNode->u32Index, pstBufNode->ulBufferId);
+    // info("pstChnCtx->ulVbPool: %lu\n", pstChnCtx->ulVbPool);
+    // info("pstChnCtx->u32AsrChn: %u\n", pstChnCtx->u32AsrChn);
 
-	// info("test_buffer_prepare: buffer fd %d, width %d, height %d, stride %d\n", pstBufNode->stImageBuffer.m.fd,pstBufNode->stImageBuffer.planes[0].width, pstBufNode->stImageBuffer.planes[0].height, pstBufNode->stImageBuffer.planes[0].stride);
+    // info("test_buffer_prepare: buffer fd %d, width %d, height %d, stride %d\n", pstBufNode->stImageBuffer.m.fd,pstBufNode->stImageBuffer.planes[0].width, pstBufNode->stImageBuffer.planes[0].height, pstBufNode->stImageBuffer.planes[0].stride);
     // info("test_buffer_prepare: type %d, format %d\n", pstBufNode->stImageBuffer.type, pstBufNode->stImageBuffer.format);
     // info("test_buffer_prepare: buffer plane0 size %d plane1 size %d\n", pstBufNode->stImageBuffer.planes[0].length, pstBufNode->stImageBuffer.planes[1].length);
     // info("test_buffer_prepare: buffer plane0 virAddr %p plane1 virAddr %p\n", pstBufNode->stImageBuffer.planes[0].virAddr, pstBufNode->stImageBuffer.planes[1].virAddr);
 
-	// info("test_buffer_prepare: buffer width %d, height %d, format %d\n", pstBufNode->stImageBuffer.size.width, pstBufNode->stImageBuffer.size.height, pstBufNode->stImageBuffer.format);
+    // info("test_buffer_prepare: buffer width %d, height %d, format %d\n", pstBufNode->stImageBuffer.size.width, pstBufNode->stImageBuffer.size.height, pstBufNode->stImageBuffer.format);
     s32Ret = ASR_VI_ChnQueueBuffer(pstChnCtx->u32AsrChn, &pstBufNode->stImageBuffer);
     if (s32Ret != SUCCESS)
         return s32Ret;
@@ -321,7 +321,7 @@ S32 K1_VI_QueueAllBuffers(K1_VI_CHN_CTX_S *pstChnCtx)
 
     for (i = 0; i < pstChnCtx->u32BufCnt; i++) {
 
-		//info("Queueing buffer %u for VI channel context...\n", i);
+        //info("Queueing buffer %u for VI channel context...\n", i);
         K1_VI_BUF_NODE_S *pstBufNode = &pstChnCtx->astBufNode[i];
 
         if (pstBufNode->bValid != MPP_TRUE)
@@ -336,4 +336,55 @@ S32 K1_VI_QueueAllBuffers(K1_VI_CHN_CTX_S *pstChnCtx)
     }
 
     return K1_VI_SUCCESS;
+}
+
+/*
+ * Convert a VideoFrameInfo (filled by MPI CreateOutBufPool) to K1's native
+ * IMAGE_BUFFER_S.  MPI guarantees that ulPlaneVirAddr[0] and u32Fd[0] are
+ * already populated before this is called.
+ */
+VOID K1_VI_FillImageBufferFromVideoFrame(const VideoFrameInfo *fi, IMAGE_BUFFER_S *ib)
+{
+    U32 i;
+    U32 u32Offset = 0;
+    void *pBaseVir;
+    int iFd;
+
+    if (fi == NULL || ib == NULL)
+        return;
+
+    memset(ib, 0, sizeof(*ib));
+    ib->size.width  = fi->stViFrameInfo.stCommFrameInfo.u32Width;
+    ib->size.height = fi->stViFrameInfo.stCommFrameInfo.u32Height;
+    ib->format      = (int)K1_VI_ToAsrImagePixelFormat(
+                          fi->stViFrameInfo.stCommFrameInfo.ePixelFormat);
+    ib->numPlanes   = fi->stVFrame.u32PlaneNum;
+
+    pBaseVir = (void *)fi->stVFrame.ulPlaneVirAddr[0];
+    iFd      = (int)fi->stVFrame.u32Fd[0];
+
+    for (i = 0; i < fi->stVFrame.u32PlaneNum && i < IMAGE_BUFFER_MAX_PLANES; i++) {
+        ib->planes[i].width    = ib->size.width;
+        ib->planes[i].height   = (i == 0U) ? ib->size.height : ib->size.height / 2U;
+        ib->planes[i].stride   = fi->stVFrame.u32PlaneStride[i];
+        ib->planes[i].scanline = ib->planes[i].height;
+        ib->planes[i].offset   = u32Offset;
+        ib->planes[i].length   = fi->stVFrame.u32PlaneSize[i];
+        if (fi->stVFrame.ulPlaneVirAddr[i] != 0U)
+            ib->planes[i].virAddr = (void *)fi->stVFrame.ulPlaneVirAddr[i];
+        else if (pBaseVir != NULL)
+            ib->planes[i].virAddr = (char *)pBaseVir + u32Offset;
+        ib->planes[i].fd = iFd;
+        u32Offset += fi->stVFrame.u32PlaneSize[i];
+    }
+
+    /* Fill DWT sub-bands for NV12/NV21 formats. */
+    if (fi->stViFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_NV12 ||
+        fi->stViFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
+        K1_VI_FillDwtPlanes(ib, ib->size.width, ib->size.height,
+                            iFd, pBaseVir, &u32Offset);
+    }
+
+    ib->m.fd  = iFd;
+    ib->index = fi->u32Idx;
 }

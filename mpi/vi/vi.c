@@ -1,4 +1,5 @@
 #include "vi_api.h"
+#include "vi_al_ops.h"
 
 #include <dlfcn.h>
 #include <string.h>
@@ -23,7 +24,6 @@ typedef struct _MpiViChnBufCtx {
     U8 au8NodeState[VI_MPI_MAX_BUF_CNT];
     VideoFrameInfo stFrameTemplate;
     VideoFrameInfo astFrameInfo[VI_MPI_MAX_BUF_CNT];
-    ImageBuffer astImageBuffer[VI_MPI_MAX_BUF_CNT];
     UL aulBufferId[VI_MPI_MAX_BUF_CNT];
 } MpiViChnBufCtx;
 
@@ -32,7 +32,6 @@ typedef struct _MpiViOfflineInputCtx {
     UL ulPoolId;
     UL ulBufferId;
     VideoFrameInfo stFrameInfo;
-    ImageBuffer stImageBuffer;
 } MpiViOfflineInputCtx;
 
 typedef struct _MpiViRawDumpCtx {
@@ -40,7 +39,6 @@ typedef struct _MpiViRawDumpCtx {
     UL ulPoolId;
     UL ulBufferId;
     VideoFrameInfo stFrameInfo;
-    ImageBuffer stImageBuffer;
 } MpiViRawDumpCtx;
 
 typedef enum _MpiViBufNodeState {
@@ -62,42 +60,7 @@ static BOOL mpi_vi_is_valid_dev_chn(VI_DEV ViDev, VI_CHN ViChn)
 #define MODULE_TAG "mpp_vi"
 
 static MppModule *g_pViModule = NULL;
-static BOOL g_bViK3CamMode = MPP_FALSE;
-static S32 (*vi_init_func)(VOID) = NULL;
-static S32 (*vi_deinit_func)(VOID) = NULL;
-static S32 (*vi_set_dev_attr_func)(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) = NULL;
-static S32 (*vi_get_dev_attr_func)(VI_DEV ViDev, ViDevAttrS *pstDevAttr) = NULL;
-static S32 (*vi_enable_dev_func)(VI_DEV ViDev) = NULL;
-static S32 (*vi_disable_dev_func)(VI_DEV ViDev) = NULL;
-static S32 (*vi_set_chn_attr_func)(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) = NULL;
-static S32 (*vi_get_chn_attr_func)(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) = NULL;
-static S32 (*vi_set_chn_framerate_func)(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) = NULL;
-static S32 (*vi_get_chn_framerate_func)(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) = NULL;
-static S32 (*vi_enable_chn_func)(VI_DEV ViDev, VI_CHN ViChn) = NULL;
-static S32 (*vi_disable_chn_func)(VI_DEV ViDev, VI_CHN ViChn) = NULL;
-static S32 (*vi_dequeue_done_buffer_func)(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec) = NULL;
-static S32 (*vi_query_frame_meta_func)(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, ViFrameMetaInfo *pstFrameInfo) = NULL;
-static S32 (*vi_queue_buffer_func)(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index) = NULL;
-static S32 (*vi_trigger_raw_dump_func)(VI_DEV ViDev, VI_CHN ViChn) = NULL;
-static S32 (*vi_get_raw_dump_frame_func)(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec) = NULL;
-static S32 (*vi_release_raw_dump_frame_func)(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame) = NULL;
-static S32 (*vi_get_rawdump_attr_func)(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr) = NULL;
-static S32 (*vi_set_rawdump_buf_func)(VI_DEV ViDev, VI_CHN ViChn,
-    const VideoFrameInfo *pstFrameInfo,
-    const ImageBuffer *pstImageBuffer) = NULL;
-static S32 (*vi_offline_set_input_addr_func)(VI_DEV ViDev,
-    VI_CHN ViChn,
-    UL ulPoolId,
-    UL ulBufferId,
-    const VideoFrameInfo *pstFrameInfo,
-    const ImageBuffer *pstImageBuffer,
-    const U8 *pu8RawVirAddr,
-    U32 u32RawSize) = NULL;
-static S32 (*vi_attach_bind_sink_func)(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) = NULL;
-static S32 (*vi_detach_bind_sink_func)(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) = NULL;
-static S32 (*vi_set_external_buf_pool_func)(VI_DEV ViDev, VI_CHN ViChn,
-    UL ulPoolId, U32 u32BufCnt, const UL *paulBufferId,
-    const VideoFrameInfo *pastFrameInfo) = NULL;
+static const ViAlOps *g_pViOps = NULL;
 
 static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn);
 
@@ -127,11 +90,7 @@ static VOID mpi_vi_destroy_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn)
     pstRawCtx = &g_astViRawDumpCtx[ViDev][ViChn];
     aulBufferId[0] = pstRawCtx->ulBufferId;
     if (pstRawCtx->ulPoolId != 0)
-        MPI_VI_DestroyOutBufPool(pstRawCtx->ulPoolId,
-            1,
-            aulBufferId,
-            &pstRawCtx->stFrameInfo,
-            &pstRawCtx->stImageBuffer);
+        MPI_VI_DestroyOutBufPool(pstRawCtx->ulPoolId, 1, aulBufferId);
     memset(pstRawCtx, 0, sizeof(*pstRawCtx));
 }
 
@@ -153,7 +112,7 @@ static S32 mpi_vi_prepare_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn)
     memset(&stChnAttr, 0, sizeof(stChnAttr));
     memset(&stFrameTemplate, 0, sizeof(stFrameTemplate));
     memset(&stPoolCfg, 0, sizeof(stPoolCfg));
-    s32Ret = vi_get_rawdump_attr_func(ViDev, ViChn, &stChnAttr);
+    s32Ret = g_pViOps->get_rawdump_attr(ViDev, ViChn, &stChnAttr);
     if (s32Ret != MPP_OK) {
         error("rawdump get attr failed, dev=%d chn=%d ret=%d", ViDev, ViChn, s32Ret);
         return s32Ret;
@@ -216,14 +175,19 @@ static S32 mpi_vi_prepare_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn)
     pstRawCtx->stFrameInfo.ulBufferId = pstRawCtx->ulBufferId;
     pstRawCtx->stFrameInfo.stVFrame.u32PrivateData = ((U32)ViDev << 16) | (U32)ViChn;
 
-    s32Ret = MPI_VI_FillImageBufferFromFrameInfo(&pstRawCtx->stFrameInfo, &pstRawCtx->stImageBuffer);
-    if (s32Ret != MPP_OK) {
-        error("rawdump fill image buffer failed, dev=%d chn=%d ret=%d", ViDev, ViChn, s32Ret);
-        mpi_vi_destroy_rawdump_ctx(ViDev, ViChn);
-        return s32Ret;
+    /* Populate vir addr and dma-buf fd so the plugin can extract them. */
+    {
+        S32 s32Fd = -1;
+        U32 j;
+        (void)VB_GetVirAddr(pstRawCtx->ulBufferId,
+            (void **)&pstRawCtx->stFrameInfo.stVFrame.ulPlaneVirAddr[0]);
+        if (VB_GetDmaBufFd(pstRawCtx->ulBufferId, &s32Fd) == MPP_OK) {
+            for (j = 0; j < pstRawCtx->stFrameInfo.stVFrame.u32PlaneNum && j < FRAME_MAX_PLANE; j++)
+                pstRawCtx->stFrameInfo.stVFrame.u32Fd[j] = (UL)s32Fd;
+        }
     }
 
-        s32Ret = vi_set_rawdump_buf_func(ViDev, ViChn, &pstRawCtx->stFrameInfo, &pstRawCtx->stImageBuffer);
+    s32Ret = g_pViOps->set_rawdump_buf(ViDev, ViChn, &pstRawCtx->stFrameInfo);
     if (s32Ret != MPP_OK) {
         error("rawdump import buffer to al failed, dev=%d chn=%d ret=%d", ViDev, ViChn, s32Ret);
         mpi_vi_destroy_rawdump_ctx(ViDev, ViChn);
@@ -285,7 +249,7 @@ static S32 mpi_vi_drain_done_buffers(VI_DEV ViDev, VI_CHN ViChn, S32 s32MilliSec
     S32 s32Ret = MPP_OK;
     S32 s32WaitMs = s32MilliSec;
 
-    if (vi_dequeue_done_buffer_func == NULL)
+    if (g_pViOps == NULL || g_pViOps->dequeue_done_buffer == NULL)
         return MPP_INIT_FAILED;
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
@@ -295,7 +259,7 @@ static S32 mpi_vi_drain_done_buffers(VI_DEV ViDev, VI_CHN ViChn, S32 s32MilliSec
         return MPI_VI_ERR_INVALID_PARAM;
 
     for (;;) {
-        s32Ret = vi_dequeue_done_buffer_func(ViDev, ViChn, &u32Index, s32WaitMs);
+        s32Ret = g_pViOps->dequeue_done_buffer(ViDev, ViChn, &u32Index, s32WaitMs);
         if (s32Ret != MPP_OK)
             break;
         if (u32Index >= pstBufCtx->u32BufCnt)
@@ -308,7 +272,7 @@ static S32 mpi_vi_drain_done_buffers(VI_DEV ViDev, VI_CHN ViChn, S32 s32MilliSec
         s32WaitMs = 0;
     }
 
-    return (s32Ret == MPI_VI_ERR_BUSY ) ? MPP_OK : s32Ret;
+    return (s32Ret == MPI_VI_ERR_BUSY) ? MPP_OK : s32Ret;
 }
 
 static VOID mpi_vi_reset_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn)
@@ -327,13 +291,8 @@ static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn)
         return;
 
     pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
-    if (pstBufCtx->ulPoolId != 0) {
-        MPI_VI_DestroyOutBufPool(pstBufCtx->ulPoolId,
-            pstBufCtx->u32BufCnt,
-            pstBufCtx->aulBufferId,
-            pstBufCtx->astFrameInfo,
-            pstBufCtx->astImageBuffer);
-    }
+    if (pstBufCtx->ulPoolId != 0)
+        MPI_VI_DestroyOutBufPool(pstBufCtx->ulPoolId, pstBufCtx->u32BufCnt, pstBufCtx->aulBufferId);
 
     mpi_vi_reset_chn_buf_ctx(ViDev, ViChn);
 }
@@ -350,20 +309,14 @@ static VOID mpi_vi_destroy_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn)
 {
     MpiViOfflineInputCtx *pstInputCtx = NULL;
     UL aulBufferId[1] = {0};
-    VideoFrameInfo astFrameInfo[1];
-    ImageBuffer astImageBuffer[1];
 
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return;
 
     pstInputCtx = &g_astViOfflineInputCtx[ViDev][ViChn];
     if (pstInputCtx->ulPoolId != 0) {
-        memset(astFrameInfo, 0, sizeof(astFrameInfo));
-        memset(astImageBuffer, 0, sizeof(astImageBuffer));
         aulBufferId[0] = pstInputCtx->ulBufferId;
-        astFrameInfo[0] = pstInputCtx->stFrameInfo;
-        astImageBuffer[0] = pstInputCtx->stImageBuffer;
-        MPI_VI_DestroyOutBufPool(pstInputCtx->ulPoolId, 1, aulBufferId, astFrameInfo, astImageBuffer);
+        MPI_VI_DestroyOutBufPool(pstInputCtx->ulPoolId, 1, aulBufferId);
     }
 
     mpi_vi_reset_offline_input_ctx(ViDev, ViChn);
@@ -372,6 +325,7 @@ static VOID mpi_vi_destroy_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn)
 static S32 mpi_vi_rebuild_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
 {
     MpiViOfflineInputCtx *pstInputCtx = NULL;
+    VideoFrameInfo stFrameTemplate;
     S32 s32Ret;
 
     if (pstChnAttr == NULL)
@@ -388,9 +342,8 @@ static S32 mpi_vi_rebuild_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn, const Vi
 
     s32Ret = MPI_VI_CreateOutBufPool(ViDev, ViChn, pstChnAttr, 1,
         &pstInputCtx->ulPoolId,
+        &stFrameTemplate,
         &pstInputCtx->stFrameInfo,
-        &pstInputCtx->stFrameInfo,
-        &pstInputCtx->stImageBuffer,
         &pstInputCtx->ulBufferId);
     if (s32Ret != MPP_OK)
         return s32Ret;
@@ -423,7 +376,6 @@ static S32 mpi_vi_rebuild_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAtt
         &pstBufCtx->ulPoolId,
         &pstBufCtx->stFrameTemplate,
         pstBufCtx->astFrameInfo,
-        pstBufCtx->astImageBuffer,
         pstBufCtx->aulBufferId);
     if (s32Ret != MPP_OK)
         return s32Ret;
@@ -437,20 +389,18 @@ static S32 mpi_vi_rebuild_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAtt
 
 static S32 vi_load_plugin(VOID)
 {
+    PFN_al_vi_get_ops pfn_get_ops;
     void *handle;
 
-    if (g_pViModule != NULL)
+    if (g_pViOps != NULL)
         return MPP_OK;
 
+    /* Try K3 (pure V4L2) first, fall back to K1 (full ISP). */
     g_pViModule = module_init(VI_K3_CAM);
-    if (g_pViModule != NULL)
-        g_bViK3CamMode = MPP_TRUE;
-    else {
+    if (g_pViModule == NULL)
         g_pViModule = module_init(VI_K1_CAM);
-        g_bViK3CamMode = MPP_FALSE;
-    }
     if (g_pViModule == NULL) {
-        error("module_init failed for VI_K1_CAM");
+        error("module_init failed for all VI plugins");
         return MPP_INIT_FAILED;
     }
 
@@ -463,43 +413,36 @@ static S32 vi_load_plugin(VOID)
     }
 
     dlerror();
-    vi_init_func = (S32 (*)(VOID))dlsym(handle, "al_vi_init");
-    vi_deinit_func = (S32 (*)(VOID))dlsym(handle, "al_vi_deinit");
-    vi_set_dev_attr_func = (S32 (*)(VI_DEV, const ViDevAttrS *))dlsym(handle, "al_vi_set_dev_attr");
-    vi_get_dev_attr_func = (S32 (*)(VI_DEV, ViDevAttrS *))dlsym(handle, "al_vi_get_dev_attr");
-    vi_enable_dev_func = (S32 (*)(VI_DEV))dlsym(handle, "al_vi_enable_dev");
-    vi_disable_dev_func = (S32 (*)(VI_DEV))dlsym(handle, "al_vi_disable_dev");
-    vi_set_chn_attr_func = (S32 (*)(VI_DEV, VI_CHN, const ViChnAttrS *))dlsym(handle, "al_vi_set_chn_attr");
-    vi_get_chn_attr_func = (S32 (*)(VI_DEV, VI_CHN, ViChnAttrS *))dlsym(handle, "al_vi_get_chn_attr");
-    vi_set_chn_framerate_func = (S32 (*)(VI_DEV, VI_CHN, const ViFrameRateCtrlS *))dlsym(handle, "al_vi_set_chn_framerate");
-    vi_get_chn_framerate_func = (S32 (*)(VI_DEV, VI_CHN, ViFrameRateCtrlS *))dlsym(handle, "al_vi_get_chn_framerate");
-    vi_enable_chn_func = (S32 (*)(VI_DEV, VI_CHN))dlsym(handle, "al_vi_enable_chn");
-    vi_disable_chn_func = (S32 (*)(VI_DEV, VI_CHN))dlsym(handle, "al_vi_disable_chn");
-    vi_dequeue_done_buffer_func = (S32 (*)(VI_DEV, VI_CHN, U32 *, S32))dlsym(handle, "al_vi_dequeue_done_buffer");
-    vi_queue_buffer_func = (S32 (*)(VI_DEV, VI_CHN, U32))dlsym(handle, "al_vi_queue_buffer");
-    vi_trigger_raw_dump_func = (S32 (*)(VI_DEV, VI_CHN))dlsym(handle, "al_vi_trigger_raw_dump");
-    vi_get_raw_dump_frame_func = (S32 (*)(VI_DEV, VI_CHN, VideoFrameInfo *, S32))dlsym(handle, "al_vi_get_raw_dump_frame");
-    vi_release_raw_dump_frame_func = (S32 (*)(VI_DEV, VI_CHN, const VideoFrameInfo *))dlsym(handle, "al_vi_release_raw_dump_frame");
-    vi_get_rawdump_attr_func = (S32 (*)(VI_DEV, VI_CHN, ViChnAttrS *))dlsym(handle, "al_vi_get_rawdump_attr");
-    vi_set_rawdump_buf_func = (S32 (*)(VI_DEV, VI_CHN, const VideoFrameInfo *, const ImageBuffer *))dlsym(handle, "al_vi_set_rawdump_buf");
-    vi_offline_set_input_addr_func = (S32 (*)(VI_DEV, VI_CHN, UL, UL, const VideoFrameInfo *, const ImageBuffer *, const U8 *, U32))dlsym(handle, "al_vi_offline_set_input_addr");
-    vi_attach_bind_sink_func = (S32 (*)(VI_DEV, VI_CHN, const MppNode *))dlsym(handle, "al_vi_attach_bind_sink");
-    vi_detach_bind_sink_func = (S32 (*)(VI_DEV, VI_CHN, const MppNode *))dlsym(handle, "al_vi_detach_bind_sink");
-    vi_set_external_buf_pool_func = (S32 (*)(VI_DEV, VI_CHN, UL, U32, const UL *, const VideoFrameInfo *))dlsym(handle, "al_vi_set_external_buf_pool");
-
-    if (vi_init_func == NULL || vi_deinit_func == NULL || vi_set_dev_attr_func == NULL ||
-        vi_get_dev_attr_func == NULL || vi_enable_dev_func == NULL || vi_disable_dev_func == NULL ||
-        vi_set_chn_attr_func == NULL || vi_get_chn_attr_func == NULL || vi_set_chn_framerate_func == NULL ||
-        vi_get_chn_framerate_func == NULL || vi_enable_chn_func == NULL || vi_disable_chn_func == NULL ||
-        vi_dequeue_done_buffer_func == NULL  || vi_queue_buffer_func == NULL ||
-        vi_trigger_raw_dump_func == NULL || vi_get_raw_dump_frame_func == NULL ||
-        vi_release_raw_dump_frame_func == NULL || vi_get_rawdump_attr_func == NULL || vi_set_rawdump_buf_func == NULL ||
-         vi_offline_set_input_addr_func == NULL ||
-        vi_attach_bind_sink_func == NULL || vi_detach_bind_sink_func == NULL ||
-        vi_set_external_buf_pool_func == NULL) {
-        error("required VI symbols missing from plugin");
+    pfn_get_ops = (PFN_al_vi_get_ops)dlsym(handle, "al_vi_get_ops");
+    if (pfn_get_ops == NULL) {
+        error("al_vi_get_ops symbol not found in VI plugin");
         module_destory(g_pViModule);
         g_pViModule = NULL;
+        return MPP_INIT_FAILED;
+    }
+
+    g_pViOps = pfn_get_ops();
+    if (g_pViOps == NULL) {
+        error("al_vi_get_ops returned NULL");
+        module_destory(g_pViModule);
+        g_pViModule = NULL;
+        return MPP_INIT_FAILED;
+    }
+
+    /* Validate required ops. */
+    if (g_pViOps->init == NULL || g_pViOps->deinit == NULL ||
+        g_pViOps->set_dev_attr == NULL || g_pViOps->get_dev_attr == NULL ||
+        g_pViOps->enable_dev == NULL || g_pViOps->disable_dev == NULL ||
+        g_pViOps->set_chn_attr == NULL || g_pViOps->get_chn_attr == NULL ||
+        g_pViOps->set_chn_framerate == NULL || g_pViOps->get_chn_framerate == NULL ||
+        g_pViOps->enable_chn == NULL || g_pViOps->disable_chn == NULL ||
+        g_pViOps->dequeue_done_buffer == NULL || g_pViOps->queue_buffer == NULL ||
+        g_pViOps->attach_bind_sink == NULL || g_pViOps->detach_bind_sink == NULL ||
+        g_pViOps->set_external_buf_pool == NULL) {
+        error("required VI ops missing from plugin");
+        module_destory(g_pViModule);
+        g_pViModule = NULL;
+        g_pViOps = NULL;
         return MPP_INIT_FAILED;
     }
 
@@ -516,43 +459,20 @@ S32 VI_Init(VOID)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_init_func();
+    return g_pViOps->init();
 }
 
 S32 VI_DeInit(VOID)
 {
     S32 s32Ret;
 
-    if (g_pViModule == NULL || vi_deinit_func == NULL)
+    if (g_pViModule == NULL || g_pViOps == NULL)
         return MPP_OK;
 
-    s32Ret = vi_deinit_func();
+    s32Ret = g_pViOps->deinit();
     module_destory(g_pViModule);
     g_pViModule = NULL;
-    vi_init_func = NULL;
-    vi_deinit_func = NULL;
-    vi_set_dev_attr_func = NULL;
-    vi_get_dev_attr_func = NULL;
-    vi_enable_dev_func = NULL;
-    vi_disable_dev_func = NULL;
-    vi_set_chn_attr_func = NULL;
-    vi_get_chn_attr_func = NULL;
-    vi_set_chn_framerate_func = NULL;
-    vi_get_chn_framerate_func = NULL;
-    vi_enable_chn_func = NULL;
-    vi_disable_chn_func = NULL;
-    vi_dequeue_done_buffer_func = NULL;
-    vi_query_frame_meta_func = NULL;
-    vi_queue_buffer_func = NULL;
-    vi_trigger_raw_dump_func = NULL;
-    vi_get_raw_dump_frame_func = NULL;
-    vi_release_raw_dump_frame_func = NULL;
-    vi_get_rawdump_attr_func = NULL;
-    vi_set_rawdump_buf_func = NULL;
-    vi_offline_set_input_addr_func = NULL;
-    vi_attach_bind_sink_func = NULL;
-    vi_detach_bind_sink_func = NULL;
-    vi_set_external_buf_pool_func = NULL;
+    g_pViOps = NULL;
 
     return s32Ret;
 }
@@ -561,28 +481,28 @@ S32 VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_set_dev_attr_func(ViDev, pstDevAttr);
+    return g_pViOps->set_dev_attr(ViDev, pstDevAttr);
 }
 
 S32 VI_GetDevAttr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_get_dev_attr_func(ViDev, pstDevAttr);
+    return g_pViOps->get_dev_attr(ViDev, pstDevAttr);
 }
 
 S32 VI_EnableDev(VI_DEV ViDev)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_enable_dev_func(ViDev);
+    return g_pViOps->enable_dev(ViDev);
 }
 
 S32 VI_DisableDev(VI_DEV ViDev)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_disable_dev_func(ViDev);
+    return g_pViOps->disable_dev(ViDev);
 }
 
 S32 VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
@@ -595,7 +515,7 @@ S32 VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
     if (pstChnAttr == NULL || mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
 
-    s32Ret = vi_set_chn_attr_func(ViDev, ViChn, pstChnAttr);
+    s32Ret = g_pViOps->set_chn_attr(ViDev, ViChn, pstChnAttr);
     if (s32Ret != MPP_OK)
         return s32Ret;
 
@@ -609,21 +529,21 @@ S32 VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_get_chn_attr_func(ViDev, ViChn, pstChnAttr);
+    return g_pViOps->get_chn_attr(ViDev, ViChn, pstChnAttr);
 }
 
 S32 VI_SetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_set_chn_framerate_func(ViDev, ViChn, pstFrameRateCtrl);
+    return g_pViOps->set_chn_framerate(ViDev, ViChn, pstFrameRateCtrl);
 }
 
 S32 VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_get_chn_framerate_func(ViDev, ViChn, pstFrameRateCtrl);
+    return g_pViOps->get_chn_framerate(ViDev, ViChn, pstFrameRateCtrl);
 }
 
 S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
@@ -637,7 +557,7 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
     memset(&stChnAttr, 0, sizeof(stChnAttr));
-    s32Ret = vi_get_chn_attr_func(ViDev, ViChn, &stChnAttr);
+    s32Ret = g_pViOps->get_chn_attr(ViDev, ViChn, &stChnAttr);
     if (s32Ret != MPP_OK)
         return s32Ret;
 
@@ -648,7 +568,7 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
             return s32Ret;
     }
 
-    s32Ret = vi_set_external_buf_pool_func(ViDev, ViChn,
+    s32Ret = g_pViOps->set_external_buf_pool(ViDev, ViChn,
         pstBufCtx->ulPoolId,
         pstBufCtx->u32BufCnt,
         pstBufCtx->aulBufferId,
@@ -658,15 +578,14 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
         return s32Ret;
     }
 
-    s32Ret = vi_enable_chn_func(ViDev, ViChn);
+    s32Ret = g_pViOps->enable_chn(ViDev, ViChn);
     if (s32Ret != MPP_OK) {
         mpi_vi_destroy_chn_buf_ctx(ViDev, ViChn);
         return s32Ret;
     }
 
-    for (U32 i = 0; i < pstBufCtx->u32BufCnt; ++i) {
+    for (U32 i = 0; i < pstBufCtx->u32BufCnt; ++i)
         mpi_vi_set_buf_state(pstBufCtx, i, MPI_VI_BUF_NODE_IN_HW);
-    }
 
     mpi_vi_reset_ready_queue(pstBufCtx);
     pstBufCtx->bEnabled = MPP_TRUE;
@@ -682,7 +601,7 @@ S32 VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn)
         return MPP_INIT_FAILED;
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
-    s32Ret = vi_disable_chn_func(ViDev, ViChn);
+    s32Ret = g_pViOps->disable_chn(ViDev, ViChn);
     pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
     pstBufCtx->bEnabled = MPP_FALSE;
     if (pstBufCtx->ulPoolId != 0)
@@ -724,25 +643,31 @@ S32 VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
+    if (g_pViOps->trigger_raw_dump == NULL)
+        return MPP_NOT_SUPPORTED;
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
     if (mpi_vi_prepare_rawdump_ctx(ViDev, ViChn) != MPP_OK)
         return MPI_VI_ERR_BUSY;
-    return vi_trigger_raw_dump_func(ViDev, ViChn);
+    return g_pViOps->trigger_raw_dump(ViDev, ViChn);
 }
 
 S32 VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_get_raw_dump_frame_func(ViDev, ViChn, pstVideoFrame, s32MilliSec);
+    if (g_pViOps->get_raw_dump_frame == NULL)
+        return MPP_NOT_SUPPORTED;
+    return g_pViOps->get_raw_dump_frame(ViDev, ViChn, pstVideoFrame, s32MilliSec);
 }
 
 S32 VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_release_raw_dump_frame_func(ViDev, ViChn, pstVideoFrame);
+    if (g_pViOps->release_raw_dump_frame == NULL)
+        return MPP_NOT_SUPPORTED;
+    return g_pViOps->release_raw_dump_frame(ViDev, ViChn, pstVideoFrame);
 }
 
 S32 VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize)
@@ -754,11 +679,13 @@ S32 VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, 
 
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
+    if (g_pViOps->offline_set_input_addr == NULL)
+        return MPP_NOT_SUPPORTED;
     if (pu8RawVirAddr == NULL || mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
 
     memset(&stChnAttr, 0, sizeof(stChnAttr));
-    s32Ret = vi_get_chn_attr_func(ViDev, ViChn, &stChnAttr);
+    s32Ret = g_pViOps->get_chn_attr(ViDev, ViChn, &stChnAttr);
     if (s32Ret != MPP_OK)
         return s32Ret;
 
@@ -776,13 +703,11 @@ S32 VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, 
     memcpy((void *)pstInputCtx->stFrameInfo.stVFrame.ulPlaneVirAddr[0], pu8RawVirAddr, u32RawSize);
     pstInputCtx->stFrameInfo.stVFrame.u32PlaneSizeValid[0] = u32RawSize;
     pstInputCtx->stFrameInfo.stVFrame.u32TotalSize = u32RawSize;
-    pstInputCtx->stImageBuffer.planes[0].length = u32RawSize;
 
-    return vi_offline_set_input_addr_func(ViDev, ViChn,
+    return g_pViOps->offline_set_input_addr(ViDev, ViChn,
         pstInputCtx->ulPoolId,
         pstInputCtx->ulBufferId,
         &pstInputCtx->stFrameInfo,
-        &pstInputCtx->stImageBuffer,
         pu8RawVirAddr,
         u32RawSize);
 }
@@ -791,20 +716,19 @@ S32 VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_attach_bind_sink_func(ViDev, ViChn, pstSinkNode);
+    return g_pViOps->attach_bind_sink(ViDev, ViChn, pstSinkNode);
 }
 
 S32 VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
 {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return vi_detach_bind_sink_func(ViDev, ViChn, pstSinkNode);
+    return g_pViOps->detach_bind_sink(ViDev, ViChn, pstSinkNode);
 }
 
 S32 VI_ReleaseChnFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame)
 {
     MpiViChnBufCtx *pstBufCtx = NULL;
-    const VideoFrameInfo *pstReleaseFrame = pstVideoFrame;
     U32 i;
 
     if (vi_load_plugin() != MPP_OK)
@@ -822,10 +746,9 @@ S32 VI_ReleaseChnFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVide
             continue;
 
         mpi_vi_set_buf_state(pstBufCtx, i, MPI_VI_BUF_NODE_IN_HW);
-        return vi_queue_buffer_func(ViDev, ViChn, i);
+        return g_pViOps->queue_buffer(ViDev, ViChn, i);
     }
 
-    (void)pstReleaseFrame;
     return MPI_VI_ERR_INVALID_PARAM;
 }
 

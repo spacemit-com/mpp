@@ -21,6 +21,7 @@
 #include "vi_k1_ccic.h"
 #include "vi_k1_virtual.h"
 #include "vi_k1_raw.h"
+#include "vi_al_ops.h"
 
 #include <stdio.h>
 
@@ -864,92 +865,149 @@ S32 K1_VI_QueueBufferByIndex(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
     return K1_VI_SUCCESS;
 }
 
-S32 al_vi_init(VOID)
+/*============================================================================
+ * ViAlOps implementations
+ *
+ * These static functions form the K1 plugin's vtable entries.  They translate
+ * the platform-neutral ViAlOps interface into K1 ASR-ISP calls.
+ * Conversion of VideoFrameInfo to IMAGE_BUFFER_S happens here, inside the
+ * plugin, not in the MPI layer.
+ *============================================================================*/
+
+static S32 k1_vi_init(VOID)
 {
     return K1_VI_Init();
 }
 
-S32 al_vi_deinit(VOID)
+static S32 k1_vi_deinit(VOID)
 {
     return K1_VI_DeInit();
 }
 
-S32 al_vi_set_dev_attr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
+static S32 k1_vi_set_dev_attr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
 {
     return K1_VI_SetDevAttr(ViDev, pstDevAttr);
 }
 
-S32 al_vi_get_dev_attr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
+static S32 k1_vi_get_dev_attr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
 {
     return K1_VI_GetDevAttr(ViDev, pstDevAttr);
 }
 
-S32 al_vi_enable_dev(VI_DEV ViDev)
+static S32 k1_vi_enable_dev(VI_DEV ViDev)
 {
     return K1_VI_EnableDev(ViDev);
 }
 
-S32 al_vi_disable_dev(VI_DEV ViDev)
+static S32 k1_vi_disable_dev(VI_DEV ViDev)
 {
     return K1_VI_DisableDev(ViDev);
 }
 
-S32 al_vi_set_chn_attr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
+static S32 k1_vi_set_chn_attr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
 {
     return K1_VI_SetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
-S32 al_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
+static S32 k1_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
 {
     return K1_VI_GetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
-S32 al_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl)
+static S32 k1_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl)
 {
     return K1_VI_SetChnFrameRate(ViDev, ViChn, pstFrameRateCtrl);
 }
 
-S32 al_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl)
+static S32 k1_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl)
 {
     return K1_VI_GetChnFrameRate(ViDev, ViChn, pstFrameRateCtrl);
 }
 
-S32 al_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn)
+static S32 k1_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn)
 {
     return K1_VI_EnableChn(ViDev, ViChn);
 }
 
-S32 al_vi_disable_chn(VI_DEV ViDev, VI_CHN ViChn)
+static S32 k1_vi_disable_chn(VI_DEV ViDev, VI_CHN ViChn)
 {
     return K1_VI_DisableChn(ViDev, ViChn);
 }
 
-S32 al_vi_set_external_buf_pool(VI_DEV ViDev, VI_CHN ViChn,
-                                UL ulPoolId, U32 u32BufCnt,
-                                const UL *paulBufferId,
-                                const VideoFrameInfo *pastFrameInfo,
-                                const IMAGE_BUFFER_S *pastImageBuffer)
+static S32 k1_vi_set_external_buf_pool(VI_DEV ViDev, VI_CHN ViChn,
+                                        UL ulPoolId, U32 u32BufCnt,
+                                        const UL *paulBufferId,
+                                        const VideoFrameInfo *pastFrameInfo)
 {
-    return K1_VI_SetExternalBufPool(ViDev,
-                                    ViChn,
-                                    ulPoolId,
-                                    u32BufCnt,
-                                    paulBufferId,
-                                    pastFrameInfo,
-                                    pastImageBuffer);
+    IMAGE_BUFFER_S astImageBuffer[K1_VI_MAX_BUF_CNT];
+    U32 i;
+
+    if (u32BufCnt > K1_VI_MAX_BUF_CNT)
+        return K1_VI_ERR_INVALID_PARAM;
+
+    for (i = 0; i < u32BufCnt; i++)
+        K1_VI_FillImageBufferFromVideoFrame(&pastFrameInfo[i], &astImageBuffer[i]);
+
+    return K1_VI_SetExternalBufPool(ViDev, ViChn, ulPoolId, u32BufCnt,
+                                     paulBufferId, pastFrameInfo, astImageBuffer);
 }
 
-S32 al_vi_set_rawdump_buf(VI_DEV ViDev, VI_CHN ViChn,
-                          const VideoFrameInfo *pstFrameInfo,
-                          const IMAGE_BUFFER_S *pstImageBuffer)
+static S32 k1_vi_dequeue_done_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec)
+{
+    return K1_VI_DequeueDoneBuffer(ViDev, ViChn, pu32Index, s32MilliSec);
+}
+
+static S32 k1_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
+{
+    return K1_VI_QueueBufferByIndex(ViDev, ViChn, u32Index);
+}
+
+static S32 k1_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
+{
+    return K1_VI_AttachBindSink(ViDev, ViChn, pstSinkNode);
+}
+
+static S32 k1_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
+{
+    return K1_VI_DetachBindSink(ViDev, ViChn, pstSinkNode);
+}
+
+static S32 k1_vi_trigger_raw_dump(VI_DEV ViDev, VI_CHN ViChn)
+{
+    return K1_VI_TriggerRawDump(ViDev, ViChn);
+}
+
+static S32 k1_vi_get_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn,
+                                     VideoFrameInfo *pstVideoFrame, S32 s32MilliSec)
+{
+    return K1_VI_GetRawDumpFrame(ViDev, ViChn, pstVideoFrame, s32MilliSec);
+}
+
+static S32 k1_vi_release_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn,
+                                         const VideoFrameInfo *pstVideoFrame)
+{
+    return K1_VI_ReleaseRawDumpFrame(ViDev, ViChn, pstVideoFrame);
+}
+
+static S32 k1_vi_get_rawdump_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr)
+{
+    if (g_stK1ViCtx.bInit != MPP_TRUE)
+        return K1_VI_ERR_NOT_INIT;
+
+    return K1_VI_GetRawDumpAttr(ViDev, ViChn, pstRawAttr);
+}
+
+static S32 k1_vi_set_rawdump_buf(VI_DEV ViDev, VI_CHN ViChn,
+                                  const VideoFrameInfo *pstFrameInfo)
 {
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
+    IMAGE_BUFFER_S stImageBuffer;
     S32 s32Ret = 0;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
         return K1_VI_ERR_NOT_INIT;
-    if (pstFrameInfo == NULL || pstImageBuffer == NULL ||
+    if (pstFrameInfo == NULL ||
         K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -967,63 +1025,21 @@ S32 al_vi_set_rawdump_buf(VI_DEV ViDev, VI_CHN ViChn,
             return s32Ret;
     }
 
-    return K1_VI_ImportRawDumpBuffer(ViDev, ViChn, pstRawCtx, pstFrameInfo, pstImageBuffer);
+    K1_VI_FillImageBufferFromVideoFrame(pstFrameInfo, &stImageBuffer);
+    return K1_VI_ImportRawDumpBuffer(ViDev, ViChn, pstRawCtx, pstFrameInfo, &stImageBuffer);
 }
 
-S32 al_vi_get_rawdump_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr)
+static S32 k1_vi_offline_set_input_addr(VI_DEV ViDev, VI_CHN ViChn,
+                                         UL ulPoolId, UL ulBufferId,
+                                         const VideoFrameInfo *pstFrameInfo,
+                                         const U8 *pu8RawVirAddr, U32 u32RawSize)
 {
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
+    IMAGE_BUFFER_S stImageBuffer;
 
-    return K1_VI_GetRawDumpAttr(ViDev, ViChn, pstRawAttr);
-}
-
-S32 al_vi_dequeue_done_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec)
-{
-    return K1_VI_DequeueDoneBuffer(ViDev, ViChn, pu32Index, s32MilliSec);
-}
-
-S32 al_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
-{
-    return K1_VI_QueueBufferByIndex(ViDev, ViChn, u32Index);
-}
-
-S32 al_vi_trigger_raw_dump(VI_DEV ViDev, VI_CHN ViChn)
-{
-    return K1_VI_TriggerRawDump(ViDev, ViChn);
-}
-
-S32 al_vi_get_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec)
-{
-    return K1_VI_GetRawDumpFrame(ViDev, ViChn, pstVideoFrame, s32MilliSec);
-}
-
-S32 al_vi_release_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame)
-{
-    return K1_VI_ReleaseRawDumpFrame(ViDev, ViChn, pstVideoFrame);
-}
-
-S32 al_vi_offline_set_input_addr(VI_DEV ViDev,
-                             VI_CHN ViChn,
-                             UL ulPoolId,
-                             UL ulBufferId,
-                             const VideoFrameInfo *pstFrameInfo,
-                             const IMAGE_BUFFER_S *pstImageBuffer,
-                             const U8 *pu8RawVirAddr,
-                             U32 u32RawSize)
-{
-    return K1_VI_OfflineSetInputAddr(ViDev, ViChn, ulPoolId, ulBufferId, pstFrameInfo,
-                                     pstImageBuffer, pu8RawVirAddr, u32RawSize);
-}
-
-S32 al_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
-    return K1_VI_AttachBindSink(ViDev, ViChn, pstSinkNode);
-}
-
-S32 al_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
-    return K1_VI_DetachBindSink(ViDev, ViChn, pstSinkNode);
+    K1_VI_FillImageBufferFromVideoFrame(pstFrameInfo, &stImageBuffer);
+    return K1_VI_OfflineSetInputAddr(ViDev, ViChn, ulPoolId, ulBufferId,
+                                      pstFrameInfo, &stImageBuffer,
+                                      pu8RawVirAddr, u32RawSize);
 }
 
 S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
@@ -1160,3 +1176,46 @@ S32 K1_VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *
     return K1_VI_SUCCESS;
 }
 
+/*============================================================================
+ * Plugin vtable and entry point
+ *============================================================================*/
+
+static const ViAlOps k1_vi_ops = {
+    /* Required */
+    .init                   = k1_vi_init,
+    .deinit                 = k1_vi_deinit,
+    .set_dev_attr           = k1_vi_set_dev_attr,
+    .get_dev_attr           = k1_vi_get_dev_attr,
+    .enable_dev             = k1_vi_enable_dev,
+    .disable_dev            = k1_vi_disable_dev,
+    .set_chn_attr           = k1_vi_set_chn_attr,
+    .get_chn_attr           = k1_vi_get_chn_attr,
+    .set_chn_framerate      = k1_vi_set_chn_framerate,
+    .get_chn_framerate      = k1_vi_get_chn_framerate,
+    .enable_chn             = k1_vi_enable_chn,
+    .disable_chn            = k1_vi_disable_chn,
+    .dequeue_done_buffer    = k1_vi_dequeue_done_buffer,
+    .queue_buffer           = k1_vi_queue_buffer,
+    .attach_bind_sink       = k1_vi_attach_bind_sink,
+    .detach_bind_sink       = k1_vi_detach_bind_sink,
+    .set_external_buf_pool  = k1_vi_set_external_buf_pool,
+
+    /* Optional: rawdump — K1 supports all rawdump ops */
+    .trigger_raw_dump       = k1_vi_trigger_raw_dump,
+    .get_raw_dump_frame     = k1_vi_get_raw_dump_frame,
+    .release_raw_dump_frame = k1_vi_release_raw_dump_frame,
+    .get_rawdump_attr       = k1_vi_get_rawdump_attr,
+    .set_rawdump_buf        = k1_vi_set_rawdump_buf,
+
+    /* Optional: offline — K1 supports */
+    .offline_set_input_addr = k1_vi_offline_set_input_addr,
+
+    /* K3/K7 extensions — K1 does not support */
+    .query_dqbuf_meta       = NULL,
+    .query_frame_meta       = NULL,
+};
+
+const ViAlOps *al_vi_get_ops(void)
+{
+    return &k1_vi_ops;
+}

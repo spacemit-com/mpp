@@ -11,7 +11,6 @@
 
 #include "vi_type.h"
 #include "vb_api.h"
-#include "image_buffer.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -21,13 +20,14 @@ extern "C" {
 
 S32 MPI_VI_CalcFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo);
 S32 MPI_VI_CalcRawDumpFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo);
-S32 MPI_VI_FillImageBufferFromFrameInfo(const VideoFrameInfo *pstFrameInfo, ImageBuffer *pstImageBuffer);
+
 S32 MPI_VI_CreateOutBufPool(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr,
-                            U32 u32BufCnt, UL *pulPoolId, VideoFrameInfo *pstFrameTemplate,
-                                                        VideoFrameInfo *pastFrameInfo, ImageBuffer *pastImageBuffer,
+                            U32 u32BufCnt, UL *pulPoolId,
+                            VideoFrameInfo *pstFrameTemplate,
+                            VideoFrameInfo *pastFrameInfo,
                             UL *paulBufferId);
-VOID MPI_VI_DestroyOutBufPool(UL ulPoolId, U32 u32BufCnt, UL *paulBufferId,
-                                                            VideoFrameInfo *pastFrameInfo, ImageBuffer *pastImageBuffer);
+
+VOID MPI_VI_DestroyOutBufPool(UL ulPoolId, U32 u32BufCnt, UL *paulBufferId);
 
 #ifdef __cplusplus
 #if __cplusplus
