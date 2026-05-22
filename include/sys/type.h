@@ -14,6 +14,7 @@
 
 #include <inttypes.h>
 #include <stddef.h>
+ #include <stdio.h>
 
 typedef unsigned char U8;
 typedef uint16_t U16;

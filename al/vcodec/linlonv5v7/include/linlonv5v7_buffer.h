@@ -216,7 +216,7 @@ void setQPofEPR(Buffer *buf, S32 data);
 S32 getQPofEPR(Buffer *buf);
 BOOL isGeneralBuffer(Buffer *buf);
 
-void memoryMap(Buffer *buf, S32 fd);
+S32 memoryMap(Buffer *buf, S32 fd);
 S32 memoryUnmap(Buffer *buf);
 S32 getLength(Buffer *buf, U32 plane);
 S32 getExtraId(Buffer *buf);

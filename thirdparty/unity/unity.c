@@ -43,7 +43,7 @@ void UnityPrint(const char *string) {
 void UnityPrintLen(const char *string, UNITY_UINT32 length) {
     if (string) {
         while (*string && length--)
-            putchar(*string++);
+            putchar(*string++);  // NOLINT(build/include_what_you_use)
     }
 }
 

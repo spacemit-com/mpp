@@ -20,6 +20,7 @@ extern "C" {
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /* -----------------------------------------------------------------------
  * Configuration (can be overridden by cmake defines)
@@ -82,7 +83,7 @@ void Unity_PrintNumberHex(UNITY_UINT number, char nibbles);
 
 void UnityPrintChar(const char *pch);
 void UnityPrint(const char *string);
-void UnityPrintLen(const char *string, UNITY_UINT32 length);
+void UnityPrintLen(const char *string, UNITY_UINT32 length);  // NOLINT(build/include_what_you_use)
 
 /* Failure functions */
 void UnityFail(const char *message, UNITY_UINT line);

@@ -128,16 +128,16 @@ FIND_PLUGIN(VI_FILE, vi_file, vi_file_plugin)
         return 0;                                                                                                   \
     }
 
-CHECK_LIBRARY(SFOMX, sfomx, sf - omx - il, /, /)
+CHECK_LIBRARY(SFOMX, sfomx, sf-omx-il, /, /)
 CHECK_LIBRARY(SFENC, sfenc, sfenc, /, /)
 CHECK_LIBRARY(SFDEC, sfdec, sfdec, /, /)
-CHECK_LIBRARY(FFMPEG, ffmpeg, avcodec, / usr / lib / ffmpeg, / usr / local / lib / ffmpeg)
+CHECK_LIBRARY(FFMPEG, ffmpeg, avcodec, /usr/lib/ffmpeg, /usr/local/lib/ffmpeg)
 CHECK_LIBRARY(
-    OPENH264, openh264, openh264, / usr / lib / x86_64 - linux - gnu, / usr / local / lib / x86_64 - linux - gnu)
+    OPENH264, openh264, openh264, /usr/lib/x86_64-linux-gnu, /usr/local/lib/x86_64-linux-gnu)
 CHECK_LIBRARY(FAKEDEC, fakedec, c, /, /)
 CHECK_LIBRARY(K1_V2D, k1_v2d, v2d, /, /)
 CHECK_LIBRARY(K1_JPU, k1_jpu, jpu, /, /)
-CHECK_LIBRARY(VO_SDL2, vo_sdl2, SDL2 - 2.0, /, /)
+CHECK_LIBRARY(VO_SDL2, vo_sdl2, SDL2-2.0, /, /)
 CHECK_LIBRARY(VO_FILE, vo_file, c, /, /)
 CHECK_LIBRARY(VI_V4L2, vi_v4l2, c, /, /)
 CHECK_LIBRARY(VI_K1_CAM, vi_k1_cam, c, /, /)

@@ -91,7 +91,8 @@ static void ccic_demo_dump_frame_info(const VideoFrameInfo *pstFrame) {
 
     pstComm = &pstFrame->stViFrameInfo.stCommFrameInfo;
     printf(
-        "[ccic-demo] idx=%u pool=%lu buf=%lu pts=%" PRIu64 "size=%ux%u fmt=%d total=%u planes=%u fd0=%lu vir0=%p valid0=%u\n",
+        "[ccic-demo] idx=%u pool=%lu buf=%lu pts=%" PRIu64
+        " size=%ux%u fmt=%d total=%u planes=%u fd0=%lu vir0=%p valid0=%u\n",
         pstFrame->u32Idx,
         pstFrame->ulPoolId,
         pstFrame->ulBufferId,

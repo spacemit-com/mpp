@@ -72,7 +72,13 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format, 
         buffer_tmp->pDmaBufWrapper = createDmaBufWrapper(DMA_HEAP_CMA);
     }
 
-    memoryMap(buffer_tmp, fd);
+    if (memoryMap(buffer_tmp, fd) != MPP_OK) {
+        error("memoryMap failed, destroy buffer");
+        if (buffer_tmp->pDmaBufWrapper)
+            destoryDmaBufWrapper(buffer_tmp->pDmaBufWrapper);
+        free(buffer_tmp);
+        return NULL;
+    }
 
     return buffer_tmp;
 }
@@ -411,7 +417,7 @@ void update(Buffer *buf, struct v4l2_buffer b) {
     }
 }
 
-void memoryMap(Buffer *buf, S32 fd) {
+S32 memoryMap(Buffer *buf, S32 fd) {
     if (V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type)) {
         for (U32 i = 0; i < buf->stBufArr.length; ++i) {
             struct v4l2_plane *p = &(buf->stBufArr.m.planes[i]);
@@ -419,14 +425,14 @@ void memoryMap(Buffer *buf, S32 fd) {
             if (p->length > 0) {
                 if (V4L2_MEMORY_MMAP == buf->nMemType) {
                     buf->pUserPtr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, p->m.mem_offset);
+                    if (buf->pUserPtr[i] == MAP_FAILED) {
+                        error("Failed to mmap multi plane memory (%s)", strerror(errno));
+                        return MPP_MMAP_FAILED;
+                    }
                 } else if (buf->nMemType == V4L2_MEMORY_USERPTR) {
                     // userptr mode, not allocate here, use the external point
                     // buf->pUserPtr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE,
                     //                         MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-                }
-
-                if (buf->pUserPtr[i] == MAP_FAILED) {
-                    error("Failed to mmap multi plane memory (%s)", strerror(errno));
                 }
 
                 buf->nPlaneLength[i] = p->length;
@@ -442,6 +448,7 @@ void memoryMap(Buffer *buf, S32 fd) {
                 mmap(NULL, buf->nTotalLength, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.planes[0].m.fd, 0);
             if (buf->pUserPtr[0] == MAP_FAILED) {
                 error("Failed to mmap multi plane memory (%s)", strerror(errno));
+                return MPP_MMAP_FAILED;
             }
             buf->nPlaneOffset[0] = 0;
 
@@ -459,29 +466,22 @@ void memoryMap(Buffer *buf, S32 fd) {
                 }
             }
         } else if (V4L2_MEMORY_DMABUF == buf->nMemType && MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType) {
-            debug(
-                "dmabuf external, not alloc dmabuf here, always used for video "
-                "encode!");
+            debug("dmabuf external, not alloc dmabuf here, always used for video encode!");
         }
-
     } else {
         if (buf->stBufArr.length > 0) {
             if (V4L2_MEMORY_MMAP == buf->nMemType) {
                 buf->pUserPtr[0] =
                     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf->stBufArr.m.offset);
-            } else if (
-                V4L2_MEMORY_DMABUF == buf->nMemType && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType
-            ) {
+            } else if (V4L2_MEMORY_DMABUF == buf->nMemType
+                && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
                 buf->nTotalLength = buf->stBufArr.length;
                 buf->stBufArr.m.fd = allocDmaBuf(buf->pDmaBufWrapper, buf->stBufArr.length);
                 buf->pUserPtr[0] =
                     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.fd, 0);
-            } else if (
-                V4L2_MEMORY_DMABUF == buf->nMemType && MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType
-            ) {
-                debug(
-                    "dmabuf external, not alloc dmabuf here, always used for video "
-                    "encode!");
+            } else if (V4L2_MEMORY_DMABUF == buf->nMemType
+                && MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType) {
+                debug("dmabuf external, not alloc dmabuf here, always used for video encode!");
             } else if (V4L2_MEMORY_USERPTR == buf->nMemType) {
                 // userptr mode, not allocate here, use the external point
                 // buf->pUserPtr[0] =
@@ -491,9 +491,12 @@ void memoryMap(Buffer *buf, S32 fd) {
 
             if (buf->pUserPtr[0] == MAP_FAILED) {
                 error("Failed to mmap single plane memory (%s)", strerror(errno));
+                return MPP_MMAP_FAILED;
             }
         }
     }
+
+    return MPP_OK;
 }
 
 S32 memoryUnmap(Buffer *buf) {
