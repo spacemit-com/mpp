@@ -6,8 +6,8 @@
  * @Description: MppDataQueue - data buffering queue for MppData
  */
 
-#ifndef _MPP_DATA_QUEUE_H_
-#define _MPP_DATA_QUEUE_H_
+#ifndef DATAQUEUE_H
+#define DATAQUEUE_H
 
 #include <pthread.h>
 
@@ -45,4 +45,4 @@ void DATAQUEUE_Node_Destory(MppDataQueueNode *node);
 };
 #endif
 
-#endif /*_MPP_DATA_QUEUE_H_*/
+#endif /*DATAQUEUE_H*/

@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __AL_VI_K1_ISP_H__
-#define __AL_VI_K1_ISP_H__
+#ifndef VI_K1_ISP_H
+#define VI_K1_ISP_H
 
 #include "vi_k1_ctx.h"
 
@@ -31,4 +31,4 @@ S32 K1_VI_DeInitOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx);
 S32 K1_VI_StartOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx);
 S32 K1_VI_StopOfflineIsp(K1_VI_CHN_CTX_S *pstChnCtx);
 
-#endif /* __AL_VI_K1_ISP_H__ */
+#endif /* VI_K1_ISP_H */

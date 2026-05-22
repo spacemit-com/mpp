@@ -9,8 +9,8 @@
  * @Description:
  */
 
-#ifndef _MPP_PARSE_H_
-#define _MPP_PARSE_H_
+#ifndef PARSE_H
+#define PARSE_H
 
 #include "para.h"
 
@@ -19,14 +19,18 @@
 typedef struct _MppParseContext MppParseContext;
 
 typedef struct _ParseOps {
-  S32 (*init)(MppParseContext *base_context);
-  S32(*parse)
-  (MppParseContext *base_context, U8 *stream_start_addr, S32 stream_size,
-   U8 *frame_start_addr, S32 *frame_size, S32 is_first_seq_header);
+    S32 (*init)(MppParseContext *base_context);
+    S32 (*parse)(
+        MppParseContext *base_context,
+        U8 *stream_start_addr,
+        S32 stream_size,
+        U8 *frame_start_addr,
+        S32 *frame_size,
+        S32 is_first_seq_header);
 } ParseOps;
 
 struct _MppParseContext {
-  ParseOps *ops;
+    ParseOps *ops;
 };
 
 /**
@@ -60,9 +64,13 @@ S32 PARSE_H264_Init(MppParseContext *ctx);
  * @param {S32 } is_first_seq_header
  * @return {*}
  */
-S32 PARSE_H264_Parse(MppParseContext *ctx, U8 *stream_start_addr,
-                     S32 stream_size, U8 *frame_start_addr, S32 *frame_size,
-                     S32 is_first_seq_header);
+S32 PARSE_H264_Parse(
+    MppParseContext *ctx,
+    U8 *stream_start_addr,
+    S32 stream_size,
+    U8 *frame_start_addr,
+    S32 *frame_size,
+    S32 is_first_seq_header);
 
 /**
  * @description:
@@ -81,9 +89,13 @@ S32 PARSE_H265_Init(MppParseContext *ctx);
  * @param {S32 } is_first_seq_header
  * @return {*}
  */
-S32 PARSE_H265_Parse(MppParseContext *ctx, U8 *stream_start_addr,
-                     S32 stream_size, U8 *frame_start_addr, S32 *frame_size,
-                     S32 is_first_seq_header);
+S32 PARSE_H265_Parse(
+    MppParseContext *ctx,
+    U8 *stream_start_addr,
+    S32 stream_size,
+    U8 *frame_start_addr,
+    S32 *frame_size,
+    S32 is_first_seq_header);
 
 /**
  * @description:
@@ -102,9 +114,13 @@ S32 PARSE_MJPEG_Init(MppParseContext *ctx);
  * @param {S32 } is_first_seq_header
  * @return {*}
  */
-S32 PARSE_MJPEG_Parse(MppParseContext *ctx, U8 *stream_start_addr,
-                      S32 stream_size, U8 *frame_start_addr, S32 *frame_size,
-                      S32 is_first_seq_header);
+S32 PARSE_MJPEG_Parse(
+    MppParseContext *ctx,
+    U8 *stream_start_addr,
+    S32 stream_size,
+    U8 *frame_start_addr,
+    S32 *frame_size,
+    S32 is_first_seq_header);
 
 /**
  * @description:
@@ -123,7 +139,11 @@ S32 PARSE_DEFAULT_Init(MppParseContext *ctx);
  * @param {S32 } is_first_seq_header
  * @return {*}
  */
-S32 PARSE_DEFAULT_Parse(MppParseContext *ctx, U8 *stream_start_addr,
-                        S32 stream_size, U8 *frame_start_addr, S32 *frame_size,
-                        S32 is_first_seq_header);
-#endif /*_MPP_PARSE_H_*/
+S32 PARSE_DEFAULT_Parse(
+    MppParseContext *ctx,
+    U8 *stream_start_addr,
+    S32 stream_size,
+    U8 *frame_start_addr,
+    S32 *frame_size,
+    S32 is_first_seq_header);
+#endif /*PARSE_H*/

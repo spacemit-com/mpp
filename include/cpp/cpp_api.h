@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __CPP_API_H__
-#define __CPP_API_H__
+#ifndef CPP_API_H
+#define CPP_API_H
 
 #include "type.h"
 #include "vb_type.h"
@@ -149,10 +149,7 @@ S32 CPP_Disable(CPP_GRP CppGrp);
  * @param {VOID *} pUserData User private pointer passed through to internal metadata.
  * @return {S32} Returns 0 on success, error code on failure.
  */
-S32 CPP_SendFrame(CPP_GRP CppGrp,
-                  const VideoFrameInfo *pstInFrame,
-                  U32 u32FrameId,
-                  VOID *pUserData);
+S32 CPP_SendFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstInFrame, U32 u32FrameId, VOID *pUserData);
 
 /**
  * @description: Get one processed frame from CPP output channel in pull mode.
@@ -188,4 +185,4 @@ S32 CPP_DumpFrame(CPP_GRP CppGrp, const CHAR *pszPath, U32 u32Count);
 #endif
 #endif /* __cplusplus */
 
-#endif /* __CPP_API_H__ */
+#endif /* CPP_API_H */

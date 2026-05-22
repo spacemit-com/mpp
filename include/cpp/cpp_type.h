@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __CPP_TYPE_H__
-#define __CPP_TYPE_H__
+#ifndef CPP_TYPE_H
+#define CPP_TYPE_H
 
 #include "type.h"
 #include "vb_type.h"
@@ -23,20 +23,20 @@ extern "C" {
 #endif
 #endif /* __cplusplus */
 
-#define CPP_INVALID_GRP_ID   (-1)
-#define CPP_INVALID_CHN_ID   (-1)
+#define CPP_INVALID_GRP_ID (-1)
+#define CPP_INVALID_CHN_ID (-1)
 
-#define CPP_MAX_GRP_NUM      4
-#define CPP_MAX_CHN_NUM      4
+#define CPP_MAX_GRP_NUM 4
+#define CPP_MAX_CHN_NUM 4
 
-#define CPP_MIN_WIDTH        64
-#define CPP_MIN_HEIGHT       64
-#define CPP_MAX_WIDTH        8192
-#define CPP_MAX_HEIGHT       8192
+#define CPP_MIN_WIDTH 64
+#define CPP_MIN_HEIGHT 64
+#define CPP_MAX_WIDTH 8192
+#define CPP_MAX_HEIGHT 8192
 
-#define CPP_3DNR_LAYER_NUM   5
-#define CPP_3DNR_GAIN_NUM    12
-#define CPP_NIGHT_SEG_NUM    9
+#define CPP_3DNR_LAYER_NUM 5
+#define CPP_3DNR_GAIN_NUM 12
+#define CPP_NIGHT_SEG_NUM 9
 
 typedef S32 CPP_GRP;
 typedef S32 CPP_CHN;
@@ -61,16 +61,16 @@ typedef enum _CppCallbackEvent {
 } CppCallbackEvent;
 
 typedef struct _CppGrpAttrS {
-    U32            u32Width;
-    U32            u32Height;
+    U32 u32Width;
+    U32 u32Height;
     MppPixelFormat ePixelFormat;
     CppProcessMode eProcessMode;
 } CppGrpAttrS;
 
 typedef struct _CppChnAttrS {
-    BOOL           bEnable;
-    U32            u32Width;
-    U32            u32Height;
+    BOOL bEnable;
+    U32 u32Width;
+    U32 u32Height;
     MppPixelFormat ePixelFormat;
 } CppChnAttrS;
 
@@ -91,19 +91,19 @@ typedef struct _CppProcCfgS {
 typedef struct _CppBufferPairS {
     const VideoFrameInfo *pstInFrame;
     const VideoFrameInfo *pstOutFrame;
-    U32                   u32FrameId;
-    VOID                 *pUserData;
+    U32 u32FrameId;
+    VOID *pUserData;
 } CppBufferPairS;
 
 typedef struct _CppCallbackInfoS {
-    CppCallbackEvent  eEvent;
-    CPP_GRP           CppGrp;
-    CPP_CHN           CppChn;
-    S32               s32FrameId;
-    S32               s32Result;
+    CppCallbackEvent eEvent;
+    CPP_GRP CppGrp;
+    CPP_CHN CppChn;
+    S32 s32FrameId;
+    S32 s32Result;
     const VideoFrameInfo *pstInFrame;
     const VideoFrameInfo *pstOutFrame;
-    VOID             *pUserData;
+    VOID *pUserData;
 } CppCallbackInfoS;
 
 typedef VOID (*CppCallback)(const CppCallbackInfoS *pstCbInfo);
@@ -114,4 +114,4 @@ typedef VOID (*CppCallback)(const CppCallbackInfoS *pstCbInfo);
 #endif
 #endif /* __cplusplus */
 
-#endif /* __CPP_TYPE_H__ */
+#endif /* CPP_TYPE_H */

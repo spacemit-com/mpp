@@ -10,8 +10,8 @@
  * @Description:
  */
 
-#ifndef _LINLONV5V7_BUFFER_H_
-#define _LINLONV5V7_BUFFER_H_
+#ifndef LINLONV5V7_BUFFER_H
+#define LINLONV5V7_BUFFER_H
 
 #include <errno.h>
 #include <linux/videodev2.h>
@@ -36,8 +36,7 @@ typedef struct _Buffer Buffer;
  * @param {v4l2_format} format
  * @return {*}
  */
-Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format,
-                     MppFrameBufferType buffer_type);
+Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format, MppFrameBufferType buffer_type);
 
 /***
  * @description: destory a Buffer struct
@@ -97,8 +96,7 @@ S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id);
  * @param {S32} extra_id
  * @return {*}
  */
-S32 setExternalDmaBufSinglePlanar(Buffer *buf, S32 fd, U8 *ptr, S32 length,
-                                   S32 extra_id);
+S32 setExternalDmaBufSinglePlanar(Buffer *buf, S32 fd, U8 *ptr, S32 length, S32 extra_id);
 
 /**
  * @description: set external userptr info to Buffer
@@ -109,8 +107,7 @@ S32 setExternalDmaBufSinglePlanar(Buffer *buf, S32 fd, U8 *ptr, S32 length,
  * @param {S32} extra_id
  * @return {*}
  */
-S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2,
-                            S32 extra_id);
+S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2, S32 extra_id);
 
 /**
  * @description: get the v4l2_format of Buffer
@@ -227,4 +224,4 @@ S32 getExtraFd(Buffer *buf);
 BOOL getIsQueued(Buffer *buf);
 S32 setIsQueued(Buffer *buf, BOOL queued);
 
-#endif /*_LINLONV5V7_BUFFER_H_*/
+#endif /*LINLONV5V7_BUFFER_H*/

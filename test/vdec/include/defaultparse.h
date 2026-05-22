@@ -9,8 +9,8 @@
  * @Description:
  */
 
-#ifndef _MPP_DEFAULTPARSE_H_
-#define _MPP_DEFAULTPARSE_H_
+#ifndef DEFAULTPARSE_H
+#define DEFAULTPARSE_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,4 +18,4 @@
 
 #include "type.h"
 
-#endif /*_MPP_DEFAULTPARSE_H_*/
+#endif /*DEFAULTPARSE_H*/

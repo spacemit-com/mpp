@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __DEMUX_TYPE_H__
-#define __DEMUX_TYPE_H__
+#ifndef DEMUX_TYPE_H
+#define DEMUX_TYPE_H
 
 #include "sys/type.h"
 #include "sys/sys_type.h"
@@ -25,29 +25,25 @@ extern "C" {
 
 /* ======================== 常量 ======================== */
 
-#define DEMUX_MAX_CHN       16
-#define DEMUX_URL_MAX_LEN   256
+#define DEMUX_MAX_CHN 16
+#define DEMUX_URL_MAX_LEN 256
 
 /* ======================== 错误码 ======================== */
 
-#define ERR_DEMUX_OK            0
-#define ERR_DEMUX_NULL_PTR      (-1001)
-#define ERR_DEMUX_INVALID_CHN   (-1002)
-#define ERR_DEMUX_NOT_INIT      (-1003)
-#define ERR_DEMUX_ALREADY_INIT  (-1004)
-#define ERR_DEMUX_BUSY          (-1005)
-#define ERR_DEMUX_NOMEM         (-1006)
-#define ERR_DEMUX_NOT_STARTED   (-1007)
-#define ERR_DEMUX_OPEN_FAIL     (-1008)
-#define ERR_DEMUX_NO_STREAM     (-1009)
+#define ERR_DEMUX_OK 0
+#define ERR_DEMUX_NULL_PTR (-1001)
+#define ERR_DEMUX_INVALID_CHN (-1002)
+#define ERR_DEMUX_NOT_INIT (-1003)
+#define ERR_DEMUX_ALREADY_INIT (-1004)
+#define ERR_DEMUX_BUSY (-1005)
+#define ERR_DEMUX_NOMEM (-1006)
+#define ERR_DEMUX_NOT_STARTED (-1007)
+#define ERR_DEMUX_OPEN_FAIL (-1008)
+#define ERR_DEMUX_NO_STREAM (-1009)
 
 /* ======================== 枚举 ======================== */
 
-typedef enum _DemuxInputType {
-    DEMUX_INPUT_RTSP = 0,
-    DEMUX_INPUT_FILE,
-    DEMUX_INPUT_MAX
-} DemuxInputType;
+typedef enum _DemuxInputType { DEMUX_INPUT_RTSP = 0, DEMUX_INPUT_FILE, DEMUX_INPUT_MAX } DemuxInputType;
 
 typedef enum _DemuxCodecType {
     DEMUX_CODEC_H264 = 0,
@@ -62,10 +58,10 @@ typedef enum _DemuxCodecType {
  * @brief 解封装后的流信息（连接成功后可查询）
  */
 typedef struct _DemuxStreamInfo {
-    DemuxCodecType  eCodecType;
-    U32             u32Width;
-    U32             u32Height;
-    U32             u32Fps;
+    DemuxCodecType eCodecType;
+    U32 u32Width;
+    U32 u32Height;
+    U32 u32Fps;
 } DemuxStreamInfo;
 
 /**
@@ -73,13 +69,13 @@ typedef struct _DemuxStreamInfo {
  *        数据指针仅在回调期间有效
  */
 typedef struct _DemuxPacket {
-    const U8       *pu8Data;
-    U32             u32Size;
-    BOOL            bKeyFrame;
-    DemuxCodecType  eCodecType;
-    U64             u64PTS;            /* 微秒 */
-    U32             u32Width;
-    U32             u32Height;
+    const U8 *pu8Data;
+    U32 u32Size;
+    BOOL bKeyFrame;
+    DemuxCodecType eCodecType;
+    U64 u64PTS; /* 微秒 */
+    U32 u32Width;
+    U32 u32Height;
 } DemuxPacket;
 
 /**
@@ -95,16 +91,16 @@ typedef S32 (*DemuxPacketCallback)(S32 s32ChnId, const DemuxPacket *pstPkt, VOID
  * @brief DEMUX 通道属性
  */
 typedef struct _DemuxChnAttr {
-    DemuxInputType  eInputType;
-    CHAR            szUrl[DEMUX_URL_MAX_LEN];
-    BOOL            bPreferTcp;            /* RTSP over TCP */
-    BOOL            bLowLatency;           /* nobuffer / reorder_queue_size=0 */
-    U32             u32OpenTimeoutMs;      /* 打开超时 ms */
-    U32             u32RwTimeoutMs;        /* 读写超时 ms */
-    U32             u32ReconnectMs;        /* 断线重连间隔 ms */
-    U32             u32AnalyzeDurationMs;  /* 流分析时长 ms, 0=默认 */
-    U32             u32ProbeSizeBytes;     /* 探测大小, 0=默认 */
-    BOOL            bInjectPS;             /* IDR 前注入 VPS/SPS/PPS */
+    DemuxInputType eInputType;
+    CHAR szUrl[DEMUX_URL_MAX_LEN];
+    BOOL bPreferTcp;          /* RTSP over TCP */
+    BOOL bLowLatency;         /* nobuffer / reorder_queue_size=0 */
+    U32 u32OpenTimeoutMs;     /* 打开超时 ms */
+    U32 u32RwTimeoutMs;       /* 读写超时 ms */
+    U32 u32ReconnectMs;       /* 断线重连间隔 ms */
+    U32 u32AnalyzeDurationMs; /* 流分析时长 ms, 0=默认 */
+    U32 u32ProbeSizeBytes;    /* 探测大小, 0=默认 */
+    BOOL bInjectPS;           /* IDR 前注入 VPS/SPS/PPS */
 } DemuxChnAttr;
 
 #ifdef __cplusplus
@@ -113,4 +109,4 @@ typedef struct _DemuxChnAttr {
 #endif
 #endif /* __cplusplus */
 
-#endif /* __DEMUX_TYPE_H__ */
+#endif /* DEMUX_TYPE_H */

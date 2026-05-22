@@ -6,8 +6,8 @@
  * @Description: MppRingBuffer - circular buffer implementation
  */
 
-#ifndef _RINGBUFFER_H_
-#define _RINGBUFFER_H_
+#ifndef RINGBUFFER_H
+#define RINGBUFFER_H
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -14,24 +14,20 @@
 #include "include/vi_k1_sensor.h"
 #include "include/vi_k1_common.h"
 
-static BOOL K1_VI_IsSensorCfgMatch(const K1_VI_DEV_CTX_S *pstDevCtx, const SENSOR_CONFIG_S *pstCfg)
-{
+static BOOL K1_VI_IsSensorCfgMatch(const K1_VI_DEV_CTX_S *pstDevCtx, const SENSOR_CONFIG_S *pstCfg) {
     if (pstDevCtx == NULL || pstCfg == NULL)
         return MPP_FALSE;
 
-    if ((U32)pstCfg->width != pstDevCtx->stAttr.u32Width ||
-        (U32)pstCfg->height != pstDevCtx->stAttr.u32Height)
+    if ((U32)pstCfg->width != pstDevCtx->stAttr.u32Width || (U32)pstCfg->height != pstDevCtx->stAttr.u32Height)
         return MPP_FALSE;
 
-    if (pstDevCtx->stAttr.u32MipiLaneNum != 0 &&
-        (U32)pstCfg->lane_num != pstDevCtx->stAttr.u32MipiLaneNum)
+    if (pstDevCtx->stAttr.u32MipiLaneNum != 0 && (U32)pstCfg->lane_num != pstDevCtx->stAttr.u32MipiLaneNum)
         return MPP_FALSE;
 
     return MPP_TRUE;
 }
 
-static S32 K1_VI_SelectSensorCfg(K1_VI_DEV_CTX_S *pstDevCtx)
-{
+static S32 K1_VI_SelectSensorCfg(K1_VI_DEV_CTX_S *pstDevCtx) {
     U32 i = 0;
     SENSOR_CONFIG_S *pstCfg = NULL;
 
@@ -44,34 +40,34 @@ static S32 K1_VI_SelectSensorCfg(K1_VI_DEV_CTX_S *pstDevCtx)
             continue;
 
         pstDevCtx->pstSensorCfg = pstCfg;
-		info("Selected sensor config %u: %ux%u\n", i, pstCfg->width, pstCfg->height);
-		info("Selected sensor config minFps maxFps: %f %f bitDepth=%d lane_num=%d\n",
-		       pstCfg->minFps, pstCfg->maxFps, pstCfg->bitDepth, pstCfg->lane_num);
+        info("Selected sensor config %u: %ux%u\n", i, pstCfg->width, pstCfg->height);
+        info(
+            "Selected sensor config minFps maxFps: %f %f bitDepth=%d lane_num=%d\n",
+            pstCfg->minFps,
+            pstCfg->maxFps,
+            pstCfg->bitDepth,
+            pstCfg->lane_num);
 
         return K1_VI_SUCCESS;
     }
     return K1_VI_ERR_INVALID_PARAM;
 }
 
-static S32 K1_VI_GetSelectedSensorCfgIndex(const K1_VI_DEV_CTX_S *pstDevCtx)
-{
+static S32 K1_VI_GetSelectedSensorCfgIndex(const K1_VI_DEV_CTX_S *pstDevCtx) {
     ptrdiff_t iIndex = 0;
 
-    if (pstDevCtx == NULL ||
-        pstDevCtx->pstSensorCfg == NULL ||
+    if (pstDevCtx == NULL || pstDevCtx->pstSensorCfg == NULL ||
         pstDevCtx->stSensorCapability.sensor_capability.snr_config == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
     iIndex = pstDevCtx->pstSensorCfg - pstDevCtx->stSensorCapability.sensor_capability.snr_config;
-    if (iIndex < 0 ||
-        (U32)iIndex >= (U32)pstDevCtx->stSensorCapability.sensor_capability.snr_config_num)
+    if (iIndex < 0 || (U32)iIndex >= (U32)pstDevCtx->stSensorCapability.sensor_capability.snr_config_num)
         return K1_VI_ERR_INVALID_PARAM;
 
     return (S32)iIndex;
 }
 
-S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
-{
+S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     SENSOR_CUSTOM_S stSnrCustom;
     int s32Ret = 0;
@@ -94,8 +90,9 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
     stSnrCustom.board_id = 1;
 
     memset(pstDevCtx->szSensorName, 0, sizeof(pstDevCtx->szSensorName));
-	info("Detecting sensor for VI dev %u...\n", ViDev);
-    s32Ret = SPM_SENSORS_MODULE_Detect_Auto(pstDevCtx->szSensorName, &s32Width, &s32Height, ViDev, stSnrCustom.board_id);
+    info("Detecting sensor for VI dev %u...\n", ViDev);
+    s32Ret =
+        SPM_SENSORS_MODULE_Detect_Auto(pstDevCtx->szSensorName, &s32Width, &s32Height, ViDev, stSnrCustom.board_id);
     if (s32Ret != 0)
         return s32Ret;
 
@@ -106,20 +103,23 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
         pstDevCtx->stAttr.u32Height = (U32)s32Height;
     }
 
-    s32Ret = SPM_SENSORS_MODULE_Init(&pstDevCtx->pSensorHandle,
-                                     pstDevCtx->szSensorName,
-                                     ViDev,
-                                     &pstDevCtx->stSensorModuleInfo,
-                                     stSnrCustom.i2c_addr);
-	info("%s: SPM_SENSORS_MODULE_Init %s devId %d, i2cAddr %d, ret = %d\n", __func__, pstDevCtx->szSensorName, ViDev, stSnrCustom.i2c_addr, s32Ret);
+    s32Ret = SPM_SENSORS_MODULE_Init(
+        &pstDevCtx->pSensorHandle, pstDevCtx->szSensorName, ViDev,
+        &pstDevCtx->stSensorModuleInfo, stSnrCustom.i2c_addr);
+    info(
+        "%s: SPM_SENSORS_MODULE_Init %s devId %d, i2cAddr %d, ret = %d\n",
+        __func__,
+        pstDevCtx->szSensorName,
+        ViDev,
+        stSnrCustom.i2c_addr,
+        s32Ret);
     if (s32Ret != 0)
         return s32Ret;
 
     if (pstDevCtx->stSensorModuleInfo.snr_config_num > 0) {
         pstDevCtx->stSensorCapability.sensor_capability.snr_config_num = pstDevCtx->stSensorModuleInfo.snr_config_num;
         pstDevCtx->stSensorCapability.sensor_capability.snr_config =
-            (SENSOR_CONFIG_S *)calloc(1,
-                pstDevCtx->stSensorModuleInfo.snr_config_num * sizeof(SENSOR_CONFIG_S));
+            (SENSOR_CONFIG_S *)calloc(1, pstDevCtx->stSensorModuleInfo.snr_config_num * sizeof(SENSOR_CONFIG_S));
         if (pstDevCtx->stSensorCapability.sensor_capability.snr_config == NULL) {
             K1_VI_DeInitSensor(ViDev);
             return K1_VI_ERR_BUSY;
@@ -127,7 +127,11 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
     }
 
     s32Ret = SPM_SENSORS_MODULE_EnumCapability(pstDevCtx->pSensorHandle, &pstDevCtx->stSensorCapability);
-	info("%s: SPM_SENSORS_MODULE_EnumCapability ret = %d, config_num = %d\n", __func__, s32Ret, pstDevCtx->stSensorCapability.sensor_capability.snr_config_num);
+    info(
+        "%s: SPM_SENSORS_MODULE_EnumCapability ret = %d, config_num = %d\n",
+        __func__,
+        s32Ret,
+        pstDevCtx->stSensorCapability.sensor_capability.snr_config_num);
     if (s32Ret != 0) {
         K1_VI_DeInitSensor(ViDev);
         return s32Ret;
@@ -173,8 +177,7 @@ S32 K1_VI_TryAutoInitSensor(VI_DEV ViDev)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_StartSensor(VI_DEV ViDev)
-{
+S32 K1_VI_StartSensor(VI_DEV ViDev) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     int s32Ret = 0;
 
@@ -195,8 +198,7 @@ S32 K1_VI_StartSensor(VI_DEV ViDev)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_StopSensor(VI_DEV ViDev)
-{
+S32 K1_VI_StopSensor(VI_DEV ViDev) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     int s32Ret = 0;
 
@@ -217,8 +219,7 @@ S32 K1_VI_StopSensor(VI_DEV ViDev)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_DeInitSensor(VI_DEV ViDev)
-{
+S32 K1_VI_DeInitSensor(VI_DEV ViDev) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
 
     if (K1_VI_IsValidDev(ViDev) != MPP_TRUE)

@@ -18,30 +18,29 @@
 
 #define K3_CAM_DEV 0
 #define K3_CAM_CHN 0
-#define K3_CAM_DEFAULT_WIDTH  1920
+#define K3_CAM_DEFAULT_WIDTH 1920
 #define K3_CAM_DEFAULT_HEIGHT 1080
-#define K3_CAM_DEFAULT_LANES  4
-#define K3_CAM_DEFAULT_MBPS   800
-#define K3_CAM_TIMEOUT_MS     33
-#define K3_CAM_FRAME_COUNT    100
-#define K3_CAM_SAVE_PATH      "./frames.raw"
+#define K3_CAM_DEFAULT_LANES 4
+#define K3_CAM_DEFAULT_MBPS 800
+#define K3_CAM_TIMEOUT_MS 33
+#define K3_CAM_FRAME_COUNT 100
+#define K3_CAM_SAVE_PATH "./frames.raw"
 
-static void dump_frame(const VideoFrameInfo *frame, U32 idx)
-{
+static void dump_frame(const VideoFrameInfo *frame, U32 idx) {
     if (frame == NULL)
         return;
 
-    printf("frame[%u]: pool=%lu buf=%lu width=%u planes=%u ts=%llu\n",
+    printf(
+        "frame[%u]: pool=%lu buf=%lu width=%u planes=%u ts=%" PRIu64 "\n",
         idx,
         frame->ulPoolId,
         frame->ulBufferId,
         frame->stCommFrameInfo.u32Width,
         frame->stVFrame.u32PlaneNum,
-        (unsigned long long)frame->stVFrame.u64PTS);
+        (uint64_t)frame->stVFrame.u64PTS);
 }
 
-static int save_frame(FILE *fp, const VideoFrameInfo *frame, U32 idx)
-{
+static int save_frame(FILE *fp, const VideoFrameInfo *frame, U32 idx) {
     U32 i;
     U32 planes;
     U32 total_written = 0;
@@ -71,15 +70,13 @@ static int save_frame(FILE *fp, const VideoFrameInfo *frame, U32 idx)
             size = (width * height * 10 + 7) / 8;
         }
 
-        printf("  plane[%u]: addr=%p size_valid=%u size_total=%u using=%u\n",
-               i, addr, size_valid, size_total, size);
+        printf("  plane[%u]: addr=%p size_valid=%u size_total=%u using=%u\n", i, addr, size_valid, size_total, size);
 
         if (addr == NULL || size == 0)
             continue;
 
         if (fwrite(addr, 1, size, fp) != size) {
-            printf("save_frame[%u]: short write at plane %u: %s\n",
-                idx, i, strerror(errno));
+            printf("save_frame[%u]: short write at plane %u: %s\n", idx, i, strerror(errno));
             return -1;
         }
         total_written += size;
@@ -89,8 +86,7 @@ static int save_frame(FILE *fp, const VideoFrameInfo *frame, U32 idx)
     return 0;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     const char *dev = "/dev/video8";
     S32 ret;
     U32 i;
@@ -163,7 +159,7 @@ int main(int argc, char **argv)
     }
 
     printf("started capture path for %s\n", dev);
-    usleep(30000); // Allow some time for the camera to start streaming
+    usleep(30000);  // Allow some time for the camera to start streaming
 
     FILE *save_fp = fopen(K3_CAM_SAVE_PATH, "wb");
     if (save_fp == NULL) {

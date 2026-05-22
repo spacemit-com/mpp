@@ -31,27 +31,25 @@
 #include "vb_api.h"
 #include "venc/venc_api.h"
 
-#define TEST_ALIGN      16U
-#define TEST_BITRATE    4000000U
-#define TEST_FRAMERATE  30U
-#define TEST_GOP        30U
+#define TEST_ALIGN 16U
+#define TEST_BITRATE 4000000U
+#define TEST_FRAMERATE 30U
+#define TEST_GOP 30U
 
-static void usage(const char *prog)
-{
-    fprintf(stderr,
-            "Usage: %s <input_nv12> <width> <height> <output_file> [codec] [frames]\n"
-            "  codec : h264 | h265 | mjpeg (default: h264)\n"
-            "  frames: number of times to feed the same frame (default: 1)\n",
-            prog);
+static void usage(const char *prog) {
+    fprintf(
+        stderr,
+        "Usage: %s <input_nv12> <width> <height> <output_file> [codec] [frames]\n"
+        "  codec : h264 | h265 | mjpeg (default: h264)\n"
+        "  frames: number of times to feed the same frame (default: 1)\n",
+        prog);
 }
 
-static U32 align_up(U32 value, U32 align)
-{
+static U32 align_up(U32 value, U32 align) {
     return (value + align - 1U) / align * align;
 }
 
-static MppStreamCodecType parse_codec(const char *codec)
-{
+static MppStreamCodecType parse_codec(const char *codec) {
     if (codec == NULL || strcmp(codec, "h264") == 0)
         return MPP_STREAM_CODEC_H264;
     if (strcmp(codec, "h265") == 0)
@@ -61,18 +59,20 @@ static MppStreamCodecType parse_codec(const char *codec)
     return MPP_STREAM_CODEC_UNKNOWN;
 }
 
-static const char *codec_name(MppStreamCodecType codec)
-{
+static const char *codec_name(MppStreamCodecType codec) {
     switch (codec) {
-    case MPP_STREAM_CODEC_H264: return "H.264";
-    case MPP_STREAM_CODEC_H265: return "H.265";
-    case MPP_STREAM_CODEC_MJPEG: return "MJPEG";
-    default: return "UNKNOWN";
+        case MPP_STREAM_CODEC_H264:
+            return "H.264";
+        case MPP_STREAM_CODEC_H265:
+            return "H.265";
+        case MPP_STREAM_CODEC_MJPEG:
+            return "MJPEG";
+        default:
+            return "UNKNOWN";
     }
 }
 
-static int load_nv12_frame(FILE *fp, U8 *dst, U32 width, U32 height, U32 stride)
-{
+static int load_nv12_frame(FILE *fp, U8 *dst, U32 width, U32 height, U32 stride) {
     U32 y;
     const U32 y_rows = height;
     const U32 uv_rows = height / 2U;
@@ -93,8 +93,7 @@ static int load_nv12_frame(FILE *fp, U8 *dst, U32 width, U32 height, U32 stride)
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     const char *input_path;
     const char *output_path;
     const char *codec_arg = "h264";
@@ -289,8 +288,14 @@ int main(int argc, char *argv[])
     }
     chn_enabled = MPP_TRUE;
 
-    printf("[INFO] VENC file test: %s %ux%u -> %s (%s), frames=%u\n",
-           input_path, width, height, output_path, codec_name(codec), frames);
+    printf(
+        "[INFO] VENC file test: %s %ux%u -> %s (%s), frames=%u\n",
+        input_path,
+        width,
+        height,
+        output_path,
+        codec_name(codec),
+        frames);
 
     for (U32 i = 0; i < frames; ++i) {
         frame_info.u32Idx = i;
@@ -315,9 +320,12 @@ int main(int argc, char *argv[])
             goto fail_enabled;
         }
 
-        printf("[INFO] encoded frame %u: size=%u key=%d pts=%llu\n",
-               i, stream.u32Size, stream.bKeyFrame,
-               (unsigned long long)stream.u64PTS);
+        printf(
+            "[INFO] encoded frame %u: size=%u key=%d pts=%" PRIu64 "\n",
+            i,
+            stream.u32Size,
+            stream.bKeyFrame,
+            (uint64_t)stream.u64PTS);
         VENC_ReleaseStream(venc_chn, &stream);
         encoded++;
     }

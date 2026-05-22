@@ -9,8 +9,8 @@
  * @Description: abstract layer interface of video encode
  */
 
-#ifndef _AL_INTERFACE_ENC_H_
-#define _AL_INTERFACE_ENC_H_
+#ifndef AL_INTERFACE_ENC_H
+#define AL_INTERFACE_ENC_H
 
 #include "al_interface_base.h"
 #include "venc_type.h"
@@ -116,4 +116,4 @@ void al_enc_destory(ALBaseContext *ctx);
 };
 #endif
 
-#endif /*_AL_INTERFACE_ENC_H_*/
+#endif /*AL_INTERFACE_ENC_H*/

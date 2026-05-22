@@ -34,11 +34,14 @@
 #include "vb_api.h"
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg)                      \
+    do {                                          \
+        printf("[FAIL] %s: %s\n", (name), (msg)); \
+        exit(1);                                  \
+    } while (0)
 
 /* ======================== Test 1: Basic Lifecycle ======================== */
-static void test_basic_lifecycle(void)
-{
+static void test_basic_lifecycle(void) {
     const char *name = "basic_lifecycle";
     S32 ret;
     UL pool_id, buf1, buf2;
@@ -50,10 +53,10 @@ static void test_basic_lifecycle(void)
 
     /* create a common pool (eModId = MPP_ID_SYS) */
     VbPoolCfg cfg = {
-        .u32BufSize  = 4096,
-        .u32BufCnt   = 4,
-        .eModId      = MPP_ID_SYS,
-        .eRemapMode  = VB_REMAP_MODE_NONE,
+        .u32BufSize = 4096,
+        .u32BufCnt = 4,
+        .eModId = MPP_ID_SYS,
+        .eRemapMode = VB_REMAP_MODE_NONE,
     };
     pool_id = VB_CreatePool(&cfg);
     if (pool_id == 0)
@@ -85,8 +88,7 @@ static void test_basic_lifecycle(void)
 }
 
 /* ======================== Test 2: Pool Exhaustion & Timeout ======================== */
-static void test_exhaustion_timeout(void)
-{
+static void test_exhaustion_timeout(void) {
     const char *name = "exhaustion_timeout";
     S32 ret;
     UL pool_id;
@@ -98,10 +100,10 @@ static void test_exhaustion_timeout(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = {
-        .u32BufSize  = 1024,
-        .u32BufCnt   = 3,
-        .eModId      = MPP_ID_VI,  /* private pool for VI */
-        .eRemapMode  = VBUF_REMAP_MODE_NOCACHE,
+        .u32BufSize = 1024,
+        .u32BufCnt = 3,
+        .eModId = MPP_ID_VI, /* private pool for VI */
+        .eRemapMode = VBUF_REMAP_MODE_NOCACHE,
     };
     pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
@@ -142,8 +144,7 @@ static void test_exhaustion_timeout(void)
 }
 
 /* ======================== Test 3: RefCount ======================== */
-static void test_refcount(void)
-{
+static void test_refcount(void) {
     const char *name = "refcount";
     S32 ret;
 
@@ -152,8 +153,7 @@ static void test_refcount(void)
     ret = VB_Init();
     assert(ret == 0);
 
-    VbPoolCfg cfg = { .u32BufSize = 2048, .u32BufCnt = 2,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 2048, .u32BufCnt = 2, .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -204,8 +204,7 @@ typedef struct {
     int errors;
 } ThreadArg;
 
-static void *thread_worker(void *arg)
-{
+static void *thread_worker(void *arg) {
     ThreadArg *ta = (ThreadArg *)arg;
     ta->errors = 0;
 
@@ -228,8 +227,7 @@ static void *thread_worker(void *arg)
     return NULL;
 }
 
-static void test_multithread(void)
-{
+static void test_multithread(void) {
     const char *name = "multithread";
     S32 ret;
     int num_threads = 8;
@@ -240,8 +238,7 @@ static void test_multithread(void)
     ret = VB_Init();
     assert(ret == 0);
 
-    VbPoolCfg cfg = { .u32BufSize = 512, .u32BufCnt = 4,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 512, .u32BufCnt = 4, .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -249,10 +246,10 @@ static void test_multithread(void)
     ThreadArg args[8];
 
     for (int i = 0; i < num_threads; i++) {
-        args[i].pool_id    = pool_id;
+        args[i].pool_id = pool_id;
         args[i].iterations = iterations;
-        args[i].thread_id  = i;
-        args[i].errors     = 0;
+        args[i].thread_id = i;
+        args[i].errors = 0;
         pthread_create(&threads[i], NULL, thread_worker, &args[i]);
     }
 
@@ -277,8 +274,7 @@ static void test_multithread(void)
 }
 
 /* ======================== Test 5: Destroy with Outstanding ======================== */
-static void test_destroy_outstanding(void)
-{
+static void test_destroy_outstanding(void) {
     const char *name = "destroy_outstanding";
     S32 ret;
 
@@ -287,8 +283,7 @@ static void test_destroy_outstanding(void)
     ret = VB_Init();
     assert(ret == 0);
 
-    VbPoolCfg cfg = { .u32BufSize = 1024, .u32BufCnt = 2,
-                       .eModId = MPP_ID_VDEC, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 1024, .u32BufCnt = 2, .eModId = MPP_ID_VDEC, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -311,8 +306,7 @@ static void test_destroy_outstanding(void)
 }
 
 /* ======================== Main ======================== */
-int main(void)
-{
+int main(void) {
     printf("=== VB Module Tests ===\n\n");
 
     test_basic_lifecycle();

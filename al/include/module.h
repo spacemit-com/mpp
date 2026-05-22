@@ -9,8 +9,8 @@
  * @Description:
  */
 
-#ifndef _MPP_MODULE_H_
-#define _MPP_MODULE_H_
+#ifndef MODULE_H
+#define MODULE_H
 
 #include <dlfcn.h>
 
@@ -26,26 +26,26 @@ typedef struct _MppModule MppModule;
  * @param {MppModuleType} codec_type
  * @return {*}
  */
-MppModule* module_init(MppModuleType codec_type);
+MppModule *module_init(MppModuleType codec_type);
 
 /***
  * @description:
  * @return {*}
  */
-MppModule* module_auto_init();
+MppModule *module_auto_init();
 
 /**
  * @description:
  * @param {MppModule} *module
  * @return {*}
  */
-void module_destory(MppModule* module);
+void module_destory(MppModule *module);
 
 /**
  * @description:
  * @param {MppModule} *module
  * @return {*}
  */
-void* module_get_so_path(MppModule* module);
+void *module_get_so_path(MppModule *module);
 
-#endif /*_MPP_MODULE_H_*/
+#endif /*MODULE_H*/

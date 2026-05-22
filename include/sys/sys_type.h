@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __SYS_TYPE_H__
-#define __SYS_TYPE_H__
+#ifndef SYS_TYPE_H
+#define SYS_TYPE_H
 
 #include "type.h"
 
@@ -24,37 +24,37 @@ extern "C" {
 
 /* ======================== Error Codes ======================== */
 
-#define SYS_ERR_OK           0
-#define SYS_ERR_INVAL       (-2)
-#define SYS_ERR_NOMEM       (-3)
-#define SYS_ERR_NOT_INIT    (-4)
-#define SYS_ERR_BUSY        (-5)
-#define SYS_ERR_NOT_FOUND   (-6)
-#define SYS_ERR_EXIST       (-7)
-#define SYS_ERR_FULL        (-8)
+#define SYS_ERR_OK 0
+#define SYS_ERR_INVAL (-2)
+#define SYS_ERR_NOMEM (-3)
+#define SYS_ERR_NOT_INIT (-4)
+#define SYS_ERR_BUSY (-5)
+#define SYS_ERR_NOT_FOUND (-6)
+#define SYS_ERR_EXIST (-7)
+#define SYS_ERR_FULL (-8)
 #define SYS_ERR_DOUBLE_INIT (-9)
-#define SYS_ERR_TIMEOUT    (-10)
+#define SYS_ERR_TIMEOUT (-10)
 
 typedef enum _ModId {
-    MPP_ID_SYS   = 1,
-    MPP_ID_VI    = 2,
-    MPP_ID_VO    = 3,
-    MPP_ID_CPP   = 4,
-    MPP_ID_VENC  = 5,
-    MPP_ID_VDEC  = 6,
-    MPP_ID_RGN   = 7,
-    MPP_ID_MUX   = 8,
+    MPP_ID_SYS = 1,
+    MPP_ID_VI = 2,
+    MPP_ID_VO = 3,
+    MPP_ID_CPP = 4,
+    MPP_ID_VENC = 5,
+    MPP_ID_VDEC = 6,
+    MPP_ID_RGN = 7,
+    MPP_ID_MUX = 8,
     MPP_ID_DEMUX = 9,
-    MPP_ID_UVC   = 10,
-    MPP_ID_V2D   = 11,
+    MPP_ID_UVC = 10,
+    MPP_ID_V2D = 11,
 
     MPP_ID_MAX,
 } ModId;
 
 typedef struct _MppNode {
-    ModId    eModId;
-    S32      s32DevId;
-    S32      s32ChnId;
+    ModId eModId;
+    S32 s32DevId;
+    S32 s32ChnId;
 } MppNode;
 
 typedef enum _MppPayloadType {
@@ -88,17 +88,16 @@ typedef enum _MppStreamCodecType {
 } MppStreamCodecType;
 
 typedef struct _StreamBufferInfo {
-    const U8          *pu8Addr;
-    U32                u32Size;
-    BOOL               bKeyFrame;
-    BOOL               bEndOfStream;
+    const U8 *pu8Addr;
+    U32 u32Size;
+    BOOL bKeyFrame;
+    BOOL bEndOfStream;
     MppStreamCodecType eCodecType;
-    U64                u64PTS;
-    U32                u32Width;
-    U32                u32Height;
-    UL                 ulPrivate;
+    U64 u64PTS;
+    U32 u32Width;
+    U32 u32Height;
+    UL ulPrivate;
 } StreamBufferInfo;
-
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -106,4 +105,4 @@ typedef struct _StreamBufferInfo {
 #endif
 #endif /* __cplusplus */
 
-#endif /*__SYS_TYPE_H__ */
+#endif /*SYS_TYPE_H */

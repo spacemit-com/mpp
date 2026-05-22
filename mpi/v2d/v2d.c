@@ -44,65 +44,61 @@ typedef struct MppV2DJobCtx {
     MppV2DTaskNode *tail;
 } MppV2DJobCtx;
 
-static const char *mpp_v2d_str_error(S32 s32ErrCode)
-{
+static const char *mpp_v2d_str_error(S32 s32ErrCode) {
     switch (s32ErrCode) {
-    case V2D_OK:
-        return "V2D_OK";
-    case V2D_ERR_FAILURE:
-        return "V2D_ERR_FAILURE";
-    case V2D_ERR_NULL_PTR:
-        return "V2D_ERR_NULL_PTR";
-    case V2D_ERR_INVALID_HANDLE:
-        return "V2D_ERR_INVALID_HANDLE";
-    case V2D_ERR_INVALID_PARAM:
-        return "V2D_ERR_INVALID_PARAM";
-    case V2D_ERR_PARAM_PAIR:
-        return "V2D_ERR_PARAM_PAIR";
-    case V2D_ERR_INVALID_FRAME:
-        return "V2D_ERR_INVALID_FRAME";
-    case V2D_ERR_INVALID_FORMAT:
-        return "V2D_ERR_INVALID_FORMAT";
-    case V2D_ERR_INVALID_STRIDE:
-        return "V2D_ERR_INVALID_STRIDE";
-    case V2D_ERR_INVALID_RECT:
-        return "V2D_ERR_INVALID_RECT";
-    case V2D_ERR_FORMAT_MISMATCH:
-        return "V2D_ERR_FORMAT_MISMATCH";
-    case V2D_ERR_SIZE_MISMATCH:
-        return "V2D_ERR_SIZE_MISMATCH";
-    case V2D_ERR_FBC_UNSUPPORTED:
-        return "V2D_ERR_FBC_UNSUPPORTED";
-    case V2D_ERR_NO_CSC:
-        return "V2D_ERR_NO_CSC";
-    case V2D_ERR_TASK_FULL:
-        return "V2D_ERR_TASK_FULL";
-    case V2D_ERR_ALLOC:
-        return "V2D_ERR_ALLOC";
-    case V2D_ERR_VB_VIRADDR:
-        return "V2D_ERR_VB_VIRADDR";
-    case V2D_ERR_DEV_OPEN:
-        return "V2D_ERR_DEV_OPEN";
-    case V2D_ERR_DEV_WRITE:
-        return "V2D_ERR_DEV_WRITE";
-    case V2D_ERR_FENCE_TIMEOUT:
-        return "V2D_ERR_FENCE_TIMEOUT";
-    case V2D_ERR_FENCE_POLL:
-        return "V2D_ERR_FENCE_POLL";
-    default:
-        return "V2D_ERR_UNKNOWN";
+        case V2D_OK:
+            return "V2D_OK";
+        case V2D_ERR_FAILURE:
+            return "V2D_ERR_FAILURE";
+        case V2D_ERR_NULL_PTR:
+            return "V2D_ERR_NULL_PTR";
+        case V2D_ERR_INVALID_HANDLE:
+            return "V2D_ERR_INVALID_HANDLE";
+        case V2D_ERR_INVALID_PARAM:
+            return "V2D_ERR_INVALID_PARAM";
+        case V2D_ERR_PARAM_PAIR:
+            return "V2D_ERR_PARAM_PAIR";
+        case V2D_ERR_INVALID_FRAME:
+            return "V2D_ERR_INVALID_FRAME";
+        case V2D_ERR_INVALID_FORMAT:
+            return "V2D_ERR_INVALID_FORMAT";
+        case V2D_ERR_INVALID_STRIDE:
+            return "V2D_ERR_INVALID_STRIDE";
+        case V2D_ERR_INVALID_RECT:
+            return "V2D_ERR_INVALID_RECT";
+        case V2D_ERR_FORMAT_MISMATCH:
+            return "V2D_ERR_FORMAT_MISMATCH";
+        case V2D_ERR_SIZE_MISMATCH:
+            return "V2D_ERR_SIZE_MISMATCH";
+        case V2D_ERR_FBC_UNSUPPORTED:
+            return "V2D_ERR_FBC_UNSUPPORTED";
+        case V2D_ERR_NO_CSC:
+            return "V2D_ERR_NO_CSC";
+        case V2D_ERR_TASK_FULL:
+            return "V2D_ERR_TASK_FULL";
+        case V2D_ERR_ALLOC:
+            return "V2D_ERR_ALLOC";
+        case V2D_ERR_VB_VIRADDR:
+            return "V2D_ERR_VB_VIRADDR";
+        case V2D_ERR_DEV_OPEN:
+            return "V2D_ERR_DEV_OPEN";
+        case V2D_ERR_DEV_WRITE:
+            return "V2D_ERR_DEV_WRITE";
+        case V2D_ERR_FENCE_TIMEOUT:
+            return "V2D_ERR_FENCE_TIMEOUT";
+        case V2D_ERR_FENCE_POLL:
+            return "V2D_ERR_FENCE_POLL";
+        default:
+            return "V2D_ERR_UNKNOWN";
     }
 }
 
-static S32 V2D_SurfaceFromVideoFrame(const VideoFrameInfo *frame,
-                          V2DSurface *surface);
+static S32 V2D_SurfaceFromVideoFrame(const VideoFrameInfo *frame, V2DSurface *surface);
 
-static S32 mpp_v2d_get_default_csc_mode(const VideoFrameInfo *pstSrcFrame,
-                                        const VideoFrameInfo *pstDstFrame,
-                                        V2DCscMode *peCscMode);
+static S32 mpp_v2d_get_default_csc_mode(
+    const VideoFrameInfo *pstSrcFrame, const VideoFrameInfo *pstDstFrame, V2DCscMode *peCscMode);
 
-static S32 mpp_v2d_wait_fence(S32 fd, S32 timeout_ms)
-{
+static S32 mpp_v2d_wait_fence(S32 fd, S32 timeout_ms) {
     struct pollfd pollFd;
     S32 ret;
 
@@ -131,63 +127,60 @@ static S32 mpp_v2d_wait_fence(S32 fd, S32 timeout_ms)
     return SUCCESS;
 }
 
-static S32 mpp_v2d_get_format_bpp(V2DColorFormat format, U32 *bpp)
-{
+static S32 mpp_v2d_get_format_bpp(V2DColorFormat format, U32 *bpp) {
     if (bpp == NULL) {
         return V2D_ERR_NULL_PTR;
     }
 
     switch (format) {
-    case V2D_COLOR_FORMAT_RGB565:
-    case V2D_COLOR_FORMAT_BGR565:
-    case V2D_COLOR_FORMAT_RGBA5658:
-    case V2D_COLOR_FORMAT_ARGB8565:
-    case V2D_COLOR_FORMAT_BGRA5658:
-    case V2D_COLOR_FORMAT_ABGR8565:
-        *bpp = 2U;
-        return SUCCESS;
-    case V2D_COLOR_FORMAT_RGB888:
-    case V2D_COLOR_FORMAT_BGR888:
-    case V2D_COLOR_FORMAT_L8_RGB888:
-    case V2D_COLOR_FORMAT_L8_BGR888:
-        *bpp = 3U;
-        return SUCCESS;
-    case V2D_COLOR_FORMAT_RGBX8888:
-    case V2D_COLOR_FORMAT_RGBA8888:
-    case V2D_COLOR_FORMAT_ARGB8888:
-    case V2D_COLOR_FORMAT_BGRA8888:
-    case V2D_COLOR_FORMAT_BGRX8888:
-    case V2D_COLOR_FORMAT_ABGR8888:
-    case V2D_COLOR_FORMAT_L8_RGBA8888:
-    case V2D_COLOR_FORMAT_L8_BGRA8888:
-        *bpp = 4U;
-        return SUCCESS;
-    case V2D_COLOR_FORMAT_A8:
-    case V2D_COLOR_FORMAT_Y8:
-        *bpp = 1U;
-        return SUCCESS;
-    case V2D_COLOR_FORMAT_NV12:
-    case V2D_COLOR_FORMAT_NV21:
-        *bpp = 1U;
-        return SUCCESS;
-    default:
-        return V2D_ERR_INVALID_FORMAT;
+        case V2D_COLOR_FORMAT_RGB565:
+        case V2D_COLOR_FORMAT_BGR565:
+        case V2D_COLOR_FORMAT_RGBA5658:
+        case V2D_COLOR_FORMAT_ARGB8565:
+        case V2D_COLOR_FORMAT_BGRA5658:
+        case V2D_COLOR_FORMAT_ABGR8565:
+            *bpp = 2U;
+            return SUCCESS;
+        case V2D_COLOR_FORMAT_RGB888:
+        case V2D_COLOR_FORMAT_BGR888:
+        case V2D_COLOR_FORMAT_L8_RGB888:
+        case V2D_COLOR_FORMAT_L8_BGR888:
+            *bpp = 3U;
+            return SUCCESS;
+        case V2D_COLOR_FORMAT_RGBX8888:
+        case V2D_COLOR_FORMAT_RGBA8888:
+        case V2D_COLOR_FORMAT_ARGB8888:
+        case V2D_COLOR_FORMAT_BGRA8888:
+        case V2D_COLOR_FORMAT_BGRX8888:
+        case V2D_COLOR_FORMAT_ABGR8888:
+        case V2D_COLOR_FORMAT_L8_RGBA8888:
+        case V2D_COLOR_FORMAT_L8_BGRA8888:
+            *bpp = 4U;
+            return SUCCESS;
+        case V2D_COLOR_FORMAT_A8:
+        case V2D_COLOR_FORMAT_Y8:
+            *bpp = 1U;
+            return SUCCESS;
+        case V2D_COLOR_FORMAT_NV12:
+        case V2D_COLOR_FORMAT_NV21:
+            *bpp = 1U;
+            return SUCCESS;
+        default:
+            return V2D_ERR_INVALID_FORMAT;
     }
 }
 
-static S32 mpp_v2d_format_has_cpu_writer(V2DColorFormat format)
-{
+static S32 mpp_v2d_format_has_cpu_writer(V2DColorFormat format) {
     switch (format) {
-    case V2D_COLOR_FORMAT_NV12:
-    case V2D_COLOR_FORMAT_NV21:
-        return SUCCESS;
-    default:
-        return V2D_ERR_INVALID_FORMAT;
+        case V2D_COLOR_FORMAT_NV12:
+        case V2D_COLOR_FORMAT_NV21:
+            return SUCCESS;
+        default:
+            return V2D_ERR_INVALID_FORMAT;
     }
 }
 
-static S32 mpp_v2d_line_get_base_addr(const VideoFrameInfo *frame, U8 **base_addr)
-{
+static S32 mpp_v2d_line_get_base_addr(const VideoFrameInfo *frame, U8 **base_addr) {
     UL vbHandle;
     void *virAddr = NULL;
 
@@ -210,12 +203,7 @@ static S32 mpp_v2d_line_get_base_addr(const VideoFrameInfo *frame, U8 **base_add
     return SUCCESS;
 }
 
-static S32 mpp_v2d_write_pixel(V2DSurface *dst,
-                       U8 *base_addr,
-                       S32 x,
-                       S32 y,
-                       const V2DFillColor *color)
-{
+static S32 mpp_v2d_write_pixel(V2DSurface *dst, U8 *base_addr, S32 x, S32 y, const V2DFillColor *color) {
     U32 offset;
     U32 colorValue;
     U8 yValue;
@@ -231,8 +219,7 @@ static S32 mpp_v2d_write_pixel(V2DSurface *dst,
         return SUCCESS;
     }
 
-    if ((dst->enFormat != V2D_COLOR_FORMAT_NV12) &&
-        (dst->enFormat != V2D_COLOR_FORMAT_NV21)) {
+    if ((dst->enFormat != V2D_COLOR_FORMAT_NV12) && (dst->enFormat != V2D_COLOR_FORMAT_NV21)) {
         return V2D_ERR_INVALID_FORMAT;
     }
 
@@ -257,10 +244,7 @@ static S32 mpp_v2d_write_pixel(V2DSurface *dst,
     return SUCCESS;
 }
 
-static S32 mpp_v2d_draw_line_cpu(V2DSurface *dst,
-                     U8 *base_addr,
-                     const V2DLine *line)
-{
+static S32 mpp_v2d_draw_line_cpu(V2DSurface *dst, U8 *base_addr, const V2DLine *line) {
     S32 x0;
     S32 y0;
     S32 x1;
@@ -313,12 +297,9 @@ static S32 mpp_v2d_draw_line_cpu(V2DSurface *dst,
     return SUCCESS;
 }
 
-static S32 mpp_v2d_draw_circle_points(V2DSurface *pstDst,
-                                      U8 *pu8BaseAddr,
-                                      const V2DCircle *pstCircle,
-                                      S32 s32OffsetX,
-                                      S32 s32OffsetY)
-{
+static S32 mpp_v2d_draw_circle_points(
+    V2DSurface *pstDst, U8 *pu8BaseAddr, const V2DCircle *pstCircle, S32 s32OffsetX, S32 s32OffsetY
+) {
     S32 s32CenterX;
     S32 s32CenterY;
 
@@ -329,25 +310,39 @@ static S32 mpp_v2d_draw_circle_points(V2DSurface *pstDst,
     s32CenterX = pstCircle->s32CenterX;
     s32CenterY = pstCircle->s32CenterY;
 
-    if ((mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetX, s32CenterY + s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
-        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetX, s32CenterY + s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
-        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetX, s32CenterY - s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
-        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetX, s32CenterY - s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
-        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetY, s32CenterY + s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
-        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetY, s32CenterY + s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
-        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX + s32OffsetY, s32CenterY - s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
-        (mpp_v2d_write_pixel(pstDst, pu8BaseAddr, s32CenterX - s32OffsetY, s32CenterY - s32OffsetX, &pstCircle->stColor) != SUCCESS)) {
+    if ((mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX + s32OffsetX, s32CenterY + s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX - s32OffsetX, s32CenterY + s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX + s32OffsetX, s32CenterY - s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX - s32OffsetX, s32CenterY - s32OffsetY, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX + s32OffsetY, s32CenterY + s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX - s32OffsetY, s32CenterY + s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX + s32OffsetY, s32CenterY - s32OffsetX, &pstCircle->stColor) != SUCCESS) ||
+        (mpp_v2d_write_pixel(
+                pstDst, pu8BaseAddr,
+                s32CenterX - s32OffsetY, s32CenterY - s32OffsetX, &pstCircle->stColor) != SUCCESS)) {
         return V2D_ERR_INVALID_FORMAT;
     }
 
     return SUCCESS;
 }
 
-static S32 mpp_v2d_draw_circle_outline_cpu(V2DSurface *pstDst,
-                                           U8 *pu8BaseAddr,
-                                           const V2DCircle *pstCircle,
-                                           U32 u32Radius)
-{
+static S32 mpp_v2d_draw_circle_outline_cpu(
+    V2DSurface *pstDst, U8 *pu8BaseAddr, const V2DCircle *pstCircle, U32 u32Radius
+) {
     S32 s32X;
     S32 s32Y;
     S32 s32Decision;
@@ -379,10 +374,7 @@ static S32 mpp_v2d_draw_circle_outline_cpu(V2DSurface *pstDst,
     return SUCCESS;
 }
 
-static S32 mpp_v2d_draw_circle_filled_cpu(V2DSurface *pstDst,
-                                          U8 *pu8BaseAddr,
-                                          const V2DCircle *pstCircle)
-{
+static S32 mpp_v2d_draw_circle_filled_cpu(V2DSurface *pstDst, U8 *pu8BaseAddr, const V2DCircle *pstCircle) {
     S32 s32OffsetY;
     S32 s32Radius;
     S32 ret;
@@ -420,10 +412,7 @@ static S32 mpp_v2d_draw_circle_filled_cpu(V2DSurface *pstDst,
     return SUCCESS;
 }
 
-static S32 mpp_v2d_draw_circle_cpu(V2DSurface *pstDst,
-                                   U8 *pu8BaseAddr,
-                                   const V2DCircle *pstCircle)
-{
+static S32 mpp_v2d_draw_circle_cpu(V2DSurface *pstDst, U8 *pu8BaseAddr, const V2DCircle *pstCircle) {
     U32 u32Thickness;
     U32 u32Radius;
     S32 ret;
@@ -455,8 +444,7 @@ static S32 mpp_v2d_draw_circle_cpu(V2DSurface *pstDst,
     return SUCCESS;
 }
 
-static S32 mpp_v2d_validate_surface(const V2DSurface *surface)
-{
+static S32 mpp_v2d_validate_surface(const V2DSurface *surface) {
     U32 bpp = 0U;
     S32 ret;
 
@@ -481,8 +469,7 @@ static S32 mpp_v2d_validate_surface(const V2DSurface *surface)
         return ret;
     }
 
-    if ((surface->enFormat == V2D_COLOR_FORMAT_NV12) ||
-        (surface->enFormat == V2D_COLOR_FORMAT_NV21)) {
+    if ((surface->enFormat == V2D_COLOR_FORMAT_NV12) || (surface->enFormat == V2D_COLOR_FORMAT_NV21)) {
         if (surface->u16Stride < surface->u16W) {
             return V2D_ERR_INVALID_STRIDE;
         }
@@ -493,8 +480,7 @@ static S32 mpp_v2d_validate_surface(const V2DSurface *surface)
     return SUCCESS;
 }
 
-static S32 mpp_v2d_validate_rect(const V2DArea *rect, const V2DSurface *surface)
-{
+static S32 mpp_v2d_validate_rect(const V2DArea *rect, const V2DSurface *surface) {
     if ((rect == NULL) || (surface == NULL)) {
         return V2D_ERR_NULL_PTR;
     }
@@ -514,11 +500,9 @@ static S32 mpp_v2d_validate_rect(const V2DArea *rect, const V2DSurface *surface)
     return SUCCESS;
 }
 
-static S32 mpp_v2d_resolve_rect(const VideoFrameInfo *frame,
-                                const V2DArea *rect,
-                                V2DSurface *surface,
-                                V2DArea *resolved_rect)
-{
+static S32 mpp_v2d_resolve_rect(
+    const VideoFrameInfo *frame, const V2DArea *rect, V2DSurface *surface, V2DArea *resolved_rect
+) {
     S32 ret;
 
     if ((frame == NULL) || (surface == NULL) || (resolved_rect == NULL)) {
@@ -542,44 +526,40 @@ static S32 mpp_v2d_resolve_rect(const VideoFrameInfo *frame,
     return mpp_v2d_validate_rect(resolved_rect, surface);
 }
 
-static U16 mpp_v2d_align_even_floor(U32 value)
-{
+static U16 mpp_v2d_align_even_floor(U32 value) {
     return (U16)(value & ~1U);
 }
 
-static S32 mpp_v2d_is_rgb_format(MppPixelFormat ePixelFormat)
-{
+static S32 mpp_v2d_is_rgb_format(MppPixelFormat ePixelFormat) {
     switch (ePixelFormat) {
-    case MPP_PIXEL_FORMAT_RGB_888:
-    case MPP_PIXEL_FORMAT_BGR_888:
-    case MPP_PIXEL_FORMAT_RGB_565:
-    case MPP_PIXEL_FORMAT_BGR_565:
-    case MPP_PIXEL_FORMAT_RGBA:
-    case MPP_PIXEL_FORMAT_ARGB:
-    case MPP_PIXEL_FORMAT_BGRA:
-    case MPP_PIXEL_FORMAT_ABGR:
-    case MPP_PIXEL_FORMAT_A8:
-        return SUCCESS;
-    default:
-        return FAILURE;
+        case MPP_PIXEL_FORMAT_RGB_888:
+        case MPP_PIXEL_FORMAT_BGR_888:
+        case MPP_PIXEL_FORMAT_RGB_565:
+        case MPP_PIXEL_FORMAT_BGR_565:
+        case MPP_PIXEL_FORMAT_RGBA:
+        case MPP_PIXEL_FORMAT_ARGB:
+        case MPP_PIXEL_FORMAT_BGRA:
+        case MPP_PIXEL_FORMAT_ABGR:
+        case MPP_PIXEL_FORMAT_A8:
+            return SUCCESS;
+        default:
+            return FAILURE;
     }
 }
 
-static S32 mpp_v2d_is_yuv_format(MppPixelFormat ePixelFormat)
-{
+static S32 mpp_v2d_is_yuv_format(MppPixelFormat ePixelFormat) {
     switch (ePixelFormat) {
-    case MPP_PIXEL_FORMAT_NV12:
-    case MPP_PIXEL_FORMAT_NV21:
-        return SUCCESS;
-    default:
-        return FAILURE;
+        case MPP_PIXEL_FORMAT_NV12:
+        case MPP_PIXEL_FORMAT_NV21:
+            return SUCCESS;
+        default:
+            return FAILURE;
     }
 }
 
-static S32 mpp_v2d_get_default_csc_mode(const VideoFrameInfo *pstSrcFrame,
-                                        const VideoFrameInfo *pstDstFrame,
-                                        V2DCscMode *peCscMode)
-{
+static S32 mpp_v2d_get_default_csc_mode(
+    const VideoFrameInfo *pstSrcFrame, const VideoFrameInfo *pstDstFrame, V2DCscMode *peCscMode
+) {
     MppPixelFormat eSrcFormat;
     MppPixelFormat eDstFormat;
     S32 s32SrcIsRgb;
@@ -623,27 +603,26 @@ static S32 mpp_v2d_get_default_csc_mode(const VideoFrameInfo *pstSrcFrame,
     return V2D_ERR_NO_CSC;
 }
 
-static S32 mpp_v2d_is_rgba32_format(MppPixelFormat ePixelFormat)
-{
+static S32 mpp_v2d_is_rgba32_format(MppPixelFormat ePixelFormat) {
     switch (ePixelFormat) {
-    case MPP_PIXEL_FORMAT_RGBA:
-    case MPP_PIXEL_FORMAT_ARGB:
-    case MPP_PIXEL_FORMAT_ABGR:
-    case MPP_PIXEL_FORMAT_BGRA:
-        return SUCCESS;
-    default:
-        return FAILURE;
+        case MPP_PIXEL_FORMAT_RGBA:
+        case MPP_PIXEL_FORMAT_ARGB:
+        case MPP_PIXEL_FORMAT_ABGR:
+        case MPP_PIXEL_FORMAT_BGRA:
+            return SUCCESS;
+        default:
+            return FAILURE;
     }
 }
 
-static S32 mpp_v2d_validate_adv_2layer_frame(const VideoFrameInfo *frame, U32 width, U32 height, MppPixelFormat format)
-{
+static S32 mpp_v2d_validate_adv_2layer_frame(
+    const VideoFrameInfo *frame, U32 width, U32 height, MppPixelFormat format
+) {
     if (frame == NULL) {
         return V2D_ERR_NULL_PTR;
     }
 
-    if ((frame->stCommFrameInfo.u32Width != width) ||
-        (frame->stCommFrameInfo.u32Height != height)) {
+    if ((frame->stCommFrameInfo.u32Width != width) || (frame->stCommFrameInfo.u32Height != height)) {
         return V2D_ERR_SIZE_MISMATCH;
     }
     if (frame->stCommFrameInfo.ePixelFormat != format) {
@@ -657,14 +636,12 @@ static S32 mpp_v2d_validate_adv_2layer_frame(const VideoFrameInfo *frame, U32 wi
     return SUCCESS;
 }
 
-static S32 mpp_v2d_validate_adv_2layer_foreground(const VideoFrameInfo *frame, U32 width, U32 height)
-{
+static S32 mpp_v2d_validate_adv_2layer_foreground(const VideoFrameInfo *frame, U32 width, U32 height) {
     if (frame == NULL) {
         return V2D_ERR_NULL_PTR;
     }
 
-    if ((frame->stCommFrameInfo.u32Width != width) ||
-        (frame->stCommFrameInfo.u32Height != height)) {
+    if ((frame->stCommFrameInfo.u32Width != width) || (frame->stCommFrameInfo.u32Height != height)) {
         return V2D_ERR_SIZE_MISMATCH;
     }
 
@@ -679,16 +656,14 @@ static S32 mpp_v2d_validate_adv_2layer_foreground(const VideoFrameInfo *frame, U
     return SUCCESS;
 }
 
-static S32 mpp_v2d_validate_adv_2layer_frames(const VideoFrameInfo *background_frame,
-                                             const VideoFrameInfo *foreground_frame,
-                                             const VideoFrameInfo *output_frame)
-{
+static S32 mpp_v2d_validate_adv_2layer_frames(
+    const VideoFrameInfo *background_frame, const VideoFrameInfo *foreground_frame, const VideoFrameInfo *output_frame
+) {
     U32 width;
     U32 height;
     S32 ret;
 
-    if ((background_frame == NULL) || (foreground_frame == NULL) ||
-        (output_frame == NULL)) {
+    if ((background_frame == NULL) || (foreground_frame == NULL) || (output_frame == NULL)) {
         return V2D_ERR_NULL_PTR;
     }
 
@@ -717,8 +692,7 @@ static S32 mpp_v2d_validate_adv_2layer_frames(const VideoFrameInfo *background_f
     return SUCCESS;
 }
 
-static void mpp_v2d_dump_area(const char *name, const V2DArea *rect)
-{
+static void mpp_v2d_dump_area(const char *name, const V2DArea *rect) {
     if (name == NULL) {
         name = "rect";
     }
@@ -728,16 +702,10 @@ static void mpp_v2d_dump_area(const char *name, const V2DArea *rect)
         return;
     }
 
-    info("%s: x=%d y=%d w=%u h=%u\n",
-           name,
-           rect->u16X,
-           rect->u16Y,
-           rect->u16W,
-           rect->u16H);
+    info("%s: x=%d y=%d w=%u h=%u\n", name, rect->u16X, rect->u16Y, rect->u16W, rect->u16H);
 }
 
-static void mpp_v2d_dump_surface(const char *name, const V2DSurface *surface)
-{
+static void mpp_v2d_dump_surface(const char *name, const V2DSurface *surface) {
     if (name == NULL) {
         name = "surface";
     }
@@ -747,31 +715,33 @@ static void mpp_v2d_dump_surface(const char *name, const V2DSurface *surface)
         return;
     }
 
-    info("%s: fd=%d format=%d w=%u h=%u stride=%u offset=%d fbc_enable=%u\n",
-           name,
-           surface->s32Fd,
-           surface->enFormat,
-           surface->u16W,
-           surface->u16H,
-           surface->u16Stride,
-           surface->s32Offset,
-           surface->bFbcEnable);
-    info("%s: phy_y=0x%08x%08x phy_uv=0x%08x%08x solid_enable=%u solid_color=0x%08x\n",
-           name,
-           surface->u32PhyAddrYH,
-           surface->u32PhyAddrYL,
-           surface->u32PhyAddrUvH,
-           surface->u32PhyAddrUvL,
-           surface->stSolidColor.bEnable,
-           surface->stSolidColor.stFillColor.u32ColorValue);
-    info("%s: fbc_dec_fd=%d fbc_enc_fd=%d\n",
-           name,
-           surface->stFbcInfo.stFbcDecInfo.s32Fd,
-           surface->stFbcInfo.stFbcEncInfo.s32Fd);
+    info(
+        "%s: fd=%d format=%d w=%u h=%u stride=%u offset=%d fbc_enable=%u\n",
+        name,
+        surface->s32Fd,
+        surface->enFormat,
+        surface->u16W,
+        surface->u16H,
+        surface->u16Stride,
+        surface->s32Offset,
+        surface->bFbcEnable);
+    info(
+        "%s: phy_y=0x%08x%08x phy_uv=0x%08x%08x solid_enable=%u solid_color=0x%08x\n",
+        name,
+        surface->u32PhyAddrYH,
+        surface->u32PhyAddrYL,
+        surface->u32PhyAddrUvH,
+        surface->u32PhyAddrUvL,
+        surface->stSolidColor.bEnable,
+        surface->stSolidColor.stFillColor.u32ColorValue);
+    info(
+        "%s: fbc_dec_fd=%d fbc_enc_fd=%d\n",
+        name,
+        surface->stFbcInfo.stFbcDecInfo.s32Fd,
+        surface->stFbcInfo.stFbcEncInfo.s32Fd);
 }
 
-static void mpp_v2d_dump_blend_conf(const V2DBlendConf *blend_conf)
-{
+static void mpp_v2d_dump_blend_conf(const V2DBlendConf *blend_conf) {
     U32 i;
 
     if (blend_conf == NULL) {
@@ -779,55 +749,58 @@ static void mpp_v2d_dump_blend_conf(const V2DBlendConf *blend_conf)
         return;
     }
 
-    info("blend_conf: blend_cmd=%d mask_cmd=%d bgcolor.color=0x%x bgcolor.format=%d\n",
-           blend_conf->enBlendCmd,
-           blend_conf->enMaskCmd,
-           blend_conf->stBgColor.stFillColor.u32ColorValue,
-           blend_conf->stBgColor.stFillColor.enFormat);
+    info(
+        "blend_conf: blend_cmd=%d mask_cmd=%d bgcolor.color=0x%x bgcolor.format=%d\n",
+        blend_conf->enBlendCmd,
+        blend_conf->enMaskCmd,
+        blend_conf->stBgColor.stFillColor.u32ColorValue,
+        blend_conf->stBgColor.stFillColor.enFormat);
     mpp_v2d_dump_area("blend_conf.mask_area", &blend_conf->stBlendMaskArea);
 
-        for (i = 0; i < V2D_INPUT_LAYER_NUM; ++i) {
-        info("blend_conf.layer[%u]: alpha_source=%d pre_alpha_func=%d global_alpha=%u\n",
-             i,
-             blend_conf->stBlendLayer[i].enBlendAlphaSource,
-             blend_conf->stBlendLayer[i].enBlendPreAlphaFunc,
-             blend_conf->stBlendLayer[i].u8GlobalAlpha);
-        info("blend_conf.layer[%u]: src_color_factor=%d dst_color_factor=%d src_alpha_factor=%d dst_alpha_factor=%d\n",
-             i,
-             blend_conf->stBlendLayer[i].stBlendFactor.enSrcColorFactor,
-             blend_conf->stBlendLayer[i].stBlendFactor.enDstColorFactor,
-             blend_conf->stBlendLayer[i].stBlendFactor.enSrcAlphaFactor,
-             blend_conf->stBlendLayer[i].stBlendFactor.enDstAlphaFactor);
-        info("blend_conf.layer[%u]: rop2_color=%d rop2_alpha=%d\n",
-             i,
-             blend_conf->stBlendLayer[i].stRop2Code.enColorRop2Code,
-             blend_conf->stBlendLayer[i].stRop2Code.enAlphaRop2Code);
-        info("blend_conf.layer[%u].blend_area: x=%d y=%d w=%u h=%u\n",
-             i,
-             blend_conf->stBlendLayer[i].stBlendArea.u16X,
-             blend_conf->stBlendLayer[i].stBlendArea.u16Y,
-             blend_conf->stBlendLayer[i].stBlendArea.u16W,
-             blend_conf->stBlendLayer[i].stBlendArea.u16H);
+    for (i = 0; i < V2D_INPUT_LAYER_NUM; ++i) {
+        info(
+            "blend_conf.layer[%u]: alpha_source=%d pre_alpha_func=%d global_alpha=%u\n",
+            i,
+            blend_conf->stBlendLayer[i].enBlendAlphaSource,
+            blend_conf->stBlendLayer[i].enBlendPreAlphaFunc,
+            blend_conf->stBlendLayer[i].u8GlobalAlpha);
+        info(
+            "blend_conf.layer[%u]: src_color_factor=%d dst_color_factor=%d src_alpha_factor=%d dst_alpha_factor=%d\n",
+            i,
+            blend_conf->stBlendLayer[i].stBlendFactor.enSrcColorFactor,
+            blend_conf->stBlendLayer[i].stBlendFactor.enDstColorFactor,
+            blend_conf->stBlendLayer[i].stBlendFactor.enSrcAlphaFactor,
+            blend_conf->stBlendLayer[i].stBlendFactor.enDstAlphaFactor);
+        info(
+            "blend_conf.layer[%u]: rop2_color=%d rop2_alpha=%d\n",
+            i,
+            blend_conf->stBlendLayer[i].stRop2Code.enColorRop2Code,
+            blend_conf->stBlendLayer[i].stRop2Code.enAlphaRop2Code);
+        info(
+            "blend_conf.layer[%u].blend_area: x=%d y=%d w=%u h=%u\n",
+            i,
+            blend_conf->stBlendLayer[i].stBlendArea.u16X,
+            blend_conf->stBlendLayer[i].stBlendArea.u16Y,
+            blend_conf->stBlendLayer[i].stBlendArea.u16W,
+            blend_conf->stBlendLayer[i].stBlendArea.u16H);
     }
 }
 
-static void mpp_v2d_dump_palette(const V2DPalette *palette)
-{
+static void mpp_v2d_dump_palette(const V2DPalette *palette) {
     if (palette == NULL) {
         error("palette: NULL\n");
         return;
     }
 
     // info("palette: alp=%u color0=0x%08x color1=0x%08x color2=0x%08x color3=0x%08x\n",
-    // 	   palette->alp,
-    // 	   palette->color0,
-    // 	   palette->color1,
-    // 	   palette->color2,
-    // 	   palette->color3);
+    //        palette->alp,
+    //        palette->color0,
+    //        palette->color1,
+    //        palette->color2,
+    //        palette->color3);
 }
 
-static S32 mpp_v2d_submit_task(MppV2DJobCtx *job, MppV2DTaskNode *node)
-{
+static S32 mpp_v2d_submit_task(MppV2DJobCtx *job, MppV2DTaskNode *node) {
     V2DSurface dst;
     U8 *base_addr = NULL;
     ssize_t written;
@@ -894,8 +867,7 @@ static S32 mpp_v2d_submit_task(MppV2DJobCtx *job, MppV2DTaskNode *node)
     return SUCCESS;
 }
 
-static void mpp_v2d_destroy_task_list(MppV2DTaskNode *head)
-{
+static void mpp_v2d_destroy_task_list(MppV2DTaskNode *head) {
     MppV2DTaskNode *node = head;
 
     while (node != NULL) {
@@ -905,8 +877,7 @@ static void mpp_v2d_destroy_task_list(MppV2DTaskNode *head)
     }
 }
 
-static MppV2DJobCtx *mpp_v2d_job_from_handle(V2DHandle handle)
-{
+static MppV2DJobCtx *mpp_v2d_job_from_handle(V2DHandle handle) {
     if (handle == 0U) {
         return NULL;
     }
@@ -914,10 +885,7 @@ static MppV2DJobCtx *mpp_v2d_job_from_handle(V2DHandle handle)
     return (MppV2DJobCtx *)(uintptr_t)handle;
 }
 
-static S32 mpp_v2d_append_task(MppV2DJobCtx *job,
-                               MppV2DTaskType type,
-                               MppV2DTaskNode **out_node)
-{
+static S32 mpp_v2d_append_task(MppV2DJobCtx *job, MppV2DTaskType type, MppV2DTaskNode **out_node) {
     MppV2DTaskNode *node;
 
     if ((job == NULL) || (out_node == NULL)) {
@@ -951,8 +919,7 @@ static S32 mpp_v2d_append_task(MppV2DJobCtx *job,
     return SUCCESS;
 }
 
-static S32 mpp_v2d_open_device(MppV2DJobCtx *job)
-{
+static S32 mpp_v2d_open_device(MppV2DJobCtx *job) {
     if (job == NULL) {
         return V2D_ERR_NULL_PTR;
     }
@@ -969,8 +936,7 @@ static S32 mpp_v2d_open_device(MppV2DJobCtx *job)
     return SUCCESS;
 }
 
-static S32 mpp_v2d_submit_job(MppV2DJobCtx *job)
-{
+static S32 mpp_v2d_submit_job(MppV2DJobCtx *job) {
     MppV2DTaskNode *node;
     S32 ret;
 
@@ -998,9 +964,7 @@ static S32 mpp_v2d_submit_job(MppV2DJobCtx *job)
     return SUCCESS;
 }
 
-
-static S32 V2D_SurfaceFromVideoFrame(const VideoFrameInfo *frame, V2DSurface *surface)
-{
+static S32 V2D_SurfaceFromVideoFrame(const VideoFrameInfo *frame, V2DSurface *surface) {
     if ((frame == NULL) || (surface == NULL)) {
         return V2D_ERR_NULL_PTR;
     }
@@ -1020,52 +984,50 @@ static S32 V2D_SurfaceFromVideoFrame(const VideoFrameInfo *frame, V2DSurface *su
     surface->u16Stride = (U16)frame->stVFrame.u32PlaneStride[0];
 
     switch (frame->stCommFrameInfo.ePixelFormat) {
-    case MPP_PIXEL_FORMAT_NV12:
-        surface->enFormat = V2D_COLOR_FORMAT_NV12;
-        surface->s32Offset = (S32)frame->stVFrame.u32PlaneSize[0];
+        case MPP_PIXEL_FORMAT_NV12:
+            surface->enFormat = V2D_COLOR_FORMAT_NV12;
+            surface->s32Offset = (S32)frame->stVFrame.u32PlaneSize[0];
 
-        break;
-    case MPP_PIXEL_FORMAT_NV21:
-        surface->enFormat = V2D_COLOR_FORMAT_NV21;
-        surface->s32Offset = (S32)frame->stVFrame.u32PlaneSize[0];
-        break;
-    case MPP_PIXEL_FORMAT_RGB_888:
-        surface->enFormat = V2D_COLOR_FORMAT_RGB888;
-        break;
-    case MPP_PIXEL_FORMAT_BGR_888:
-        surface->enFormat = V2D_COLOR_FORMAT_BGR888;
-        break;
-    case MPP_PIXEL_FORMAT_RGB_565:
-        surface->enFormat = V2D_COLOR_FORMAT_RGB565;
-        break;
-    case MPP_PIXEL_FORMAT_BGR_565:
-        surface->enFormat = V2D_COLOR_FORMAT_BGR565;
-        break;
-    case MPP_PIXEL_FORMAT_RGBA:
-        surface->enFormat = V2D_COLOR_FORMAT_RGBA8888;
-        break;
-    case MPP_PIXEL_FORMAT_ARGB:
-        surface->enFormat = V2D_COLOR_FORMAT_ARGB8888;
-        break;
-    case MPP_PIXEL_FORMAT_BGRA:
-        surface->enFormat = V2D_COLOR_FORMAT_BGRA8888;
-        break;
-    case MPP_PIXEL_FORMAT_ABGR:
-        surface->enFormat = V2D_COLOR_FORMAT_ABGR8888;
-        break;
-    case MPP_PIXEL_FORMAT_A8:
-        surface->enFormat = V2D_COLOR_FORMAT_A8;
-        break;
-    default:
-        return V2D_ERR_INVALID_FORMAT;
+            break;
+        case MPP_PIXEL_FORMAT_NV21:
+            surface->enFormat = V2D_COLOR_FORMAT_NV21;
+            surface->s32Offset = (S32)frame->stVFrame.u32PlaneSize[0];
+            break;
+        case MPP_PIXEL_FORMAT_RGB_888:
+            surface->enFormat = V2D_COLOR_FORMAT_RGB888;
+            break;
+        case MPP_PIXEL_FORMAT_BGR_888:
+            surface->enFormat = V2D_COLOR_FORMAT_BGR888;
+            break;
+        case MPP_PIXEL_FORMAT_RGB_565:
+            surface->enFormat = V2D_COLOR_FORMAT_RGB565;
+            break;
+        case MPP_PIXEL_FORMAT_BGR_565:
+            surface->enFormat = V2D_COLOR_FORMAT_BGR565;
+            break;
+        case MPP_PIXEL_FORMAT_RGBA:
+            surface->enFormat = V2D_COLOR_FORMAT_RGBA8888;
+            break;
+        case MPP_PIXEL_FORMAT_ARGB:
+            surface->enFormat = V2D_COLOR_FORMAT_ARGB8888;
+            break;
+        case MPP_PIXEL_FORMAT_BGRA:
+            surface->enFormat = V2D_COLOR_FORMAT_BGRA8888;
+            break;
+        case MPP_PIXEL_FORMAT_ABGR:
+            surface->enFormat = V2D_COLOR_FORMAT_ABGR8888;
+            break;
+        case MPP_PIXEL_FORMAT_A8:
+            surface->enFormat = V2D_COLOR_FORMAT_A8;
+            break;
+        default:
+            return V2D_ERR_INVALID_FORMAT;
     }
 
     return mpp_v2d_validate_surface(surface);
 }
 
-
-S32 V2D_BeginJob(V2DHandle *pHandle)
-{
+S32 V2D_BeginJob(V2DHandle *pHandle) {
     MppV2DJobCtx *job;
 
     if (pHandle == NULL) {
@@ -1082,8 +1044,7 @@ S32 V2D_BeginJob(V2DHandle *pHandle)
     return SUCCESS;
 }
 
-S32 V2D_EndJob(V2DHandle handle)
-{
+S32 V2D_EndJob(V2DHandle handle) {
     S32 ret;
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
 
@@ -1103,8 +1064,7 @@ S32 V2D_EndJob(V2DHandle handle)
     return ret;
 }
 
-S32 V2D_CancelJob(V2DHandle handle)
-{
+S32 V2D_CancelJob(V2DHandle handle) {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
 
     if (job == NULL) {
@@ -1120,11 +1080,7 @@ S32 V2D_CancelJob(V2DHandle handle)
     return SUCCESS;
 }
 
-S32 V2D_AddFillTask(V2DHandle handle,
-                    VideoFrameInfo *pstDstFrame,
-                    V2DArea *pstDstRect,
-                    V2DFillColor *pstFillColor)
-{
+S32 V2D_AddFillTask(V2DHandle handle, VideoFrameInfo *pstDstFrame, V2DArea *pstDstRect, V2DFillColor *pstFillColor) {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
     V2DParam *param;
@@ -1164,13 +1120,14 @@ S32 V2D_AddFillTask(V2DHandle handle,
     return SUCCESS;
 }
 
-S32 V2D_AddBitblitTask(V2DHandle handle,
-                        const VideoFrameInfo *pstSrcFrame,
-                        V2DArea *pstSrcRect,
-                        VideoFrameInfo *pstDstFrame,
-                        V2DArea *pstDstRect,
-                        V2DCscMode eCscMode)
-{
+S32 V2D_AddBitblitTask(
+    V2DHandle handle,
+    const VideoFrameInfo *pstSrcFrame,
+    V2DArea *pstSrcRect,
+    VideoFrameInfo *pstDstFrame,
+    V2DArea *pstDstRect,
+    V2DCscMode eCscMode
+) {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
     V2DParam *param;
@@ -1181,8 +1138,7 @@ S32 V2D_AddBitblitTask(V2DHandle handle,
     if (job == NULL) {
         return V2D_ERR_INVALID_HANDLE;
     }
-    if ((pstDstFrame == NULL) || (pstDstRect == NULL) ||
-        (pstSrcFrame == NULL) || (pstSrcRect == NULL)) {
+    if ((pstDstFrame == NULL) || (pstDstRect == NULL) || (pstSrcFrame == NULL) || (pstSrcRect == NULL)) {
         return V2D_ERR_NULL_PTR;
     }
 
@@ -1219,23 +1175,24 @@ S32 V2D_AddBitblitTask(V2DHandle handle,
     return SUCCESS;
 }
 
-S32 V2D_AddBlendTask(V2DHandle handle,
-                         const VideoFrameInfo *pstBackgroundFrame,
-                         V2DArea *pstBackgroundRect,
-                         const VideoFrameInfo *pstForegroundFrame,
-                         V2DArea *pstForegroundRect,
-                         const VideoFrameInfo *pstMaskFrame,
-                         V2DArea *pstMaskRect,
-                         VideoFrameInfo *pstDstFrame,
-                         V2DArea *pstDstRect,
-                         V2DBlendConf *pstBlendConf,
-                         V2DRotateAngle eForeRotate,
-                         V2DRotateAngle eBackRotate,
-                         V2DCscMode eForeCscMode,
-                         V2DCscMode eBackCscMode,
-                         V2DPalette *pstPalette,
-                         V2DDither eDither)
-{
+S32 V2D_AddBlendTask(
+    V2DHandle handle,
+    const VideoFrameInfo *pstBackgroundFrame,
+    V2DArea *pstBackgroundRect,
+    const VideoFrameInfo *pstForegroundFrame,
+    V2DArea *pstForegroundRect,
+    const VideoFrameInfo *pstMaskFrame,
+    V2DArea *pstMaskRect,
+    VideoFrameInfo *pstDstFrame,
+    V2DArea *pstDstRect,
+    V2DBlendConf *pstBlendConf,
+    V2DRotateAngle eForeRotate,
+    V2DRotateAngle eBackRotate,
+    V2DCscMode eForeCscMode,
+    V2DCscMode eBackCscMode,
+    V2DPalette *pstPalette,
+    V2DDither eDither
+) {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
     V2DParam *param;
@@ -1247,13 +1204,10 @@ S32 V2D_AddBlendTask(V2DHandle handle,
     V2DSurface *foregroundSurface = NULL;
     V2DSurface *maskSurface = NULL;
 
-    // info("V2D_AddBlendTask: handle=0x%llx fore_rotate=%d back_rotate=%d fore_csc_mode=%d back_csc_mode=%d dither=%d\n",
-    // 	   (unsigned long long)handle,
-    // 	   fore_rotate,
-    // 	   back_rotate,
-    // 	   fore_csc_mode,
-    // 	   back_csc_mode,
-    // 	   dither);
+    // info("V2D_AddBlendTask: handle=0x%llx fore_rotate=%d back_rotate=%d
+    //      fore_csc_mode=%d back_csc_mode=%d dither=%d\n",
+    //      (unsigned long long)handle, fore_rotate, back_rotate,
+    //      fore_csc_mode, back_csc_mode, dither);
     // mpp_v2d_dump_surface("background", background);
     // mpp_v2d_dump_area("background_rect", background_rect);
     // mpp_v2d_dump_surface("dst", dst);
@@ -1359,10 +1313,7 @@ S32 V2D_AddBlendTask(V2DHandle handle,
     return SUCCESS;
 }
 
-S32 V2D_DrawLine(V2DHandle handle,
-             VideoFrameInfo *pstDstFrame,
-             V2DLine *pstLine)
-{
+S32 V2D_DrawLine(V2DHandle handle, VideoFrameInfo *pstDstFrame, V2DLine *pstLine) {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
     V2DSurface dst;
@@ -1388,8 +1339,7 @@ S32 V2D_DrawLine(V2DHandle handle,
         return V2D_ERR_INVALID_FORMAT;
     }
 
-    if ((pstLine->stColor.enFormat != V2D_COLOR_FORMAT_NV12) &&
-        (pstLine->stColor.enFormat != V2D_COLOR_FORMAT_NV21)) {
+    if ((pstLine->stColor.enFormat != V2D_COLOR_FORMAT_NV12) && (pstLine->stColor.enFormat != V2D_COLOR_FORMAT_NV21)) {
         return V2D_ERR_FORMAT_MISMATCH;
     }
 
@@ -1401,13 +1351,12 @@ S32 V2D_DrawLine(V2DHandle handle,
         return V2D_ERR_INVALID_PARAM;
     }
 
-    if ((pstLine->s32X0 < 0) || (pstLine->s32Y0 < 0) ||
-        (pstLine->s32X1 < 0) || (pstLine->s32Y1 < 0)) {
+    if ((pstLine->s32X0 < 0) || (pstLine->s32Y0 < 0) || (pstLine->s32X1 < 0) || (pstLine->s32Y1 < 0)) {
         return V2D_ERR_INVALID_RECT;
     }
 
-    if (((U32)pstLine->s32X0 >= dst.u16W) || ((U32)pstLine->s32Y0 >= dst.u16H) ||
-        ((U32)pstLine->s32X1 >= dst.u16W) || ((U32)pstLine->s32Y1 >= dst.u16H)) {
+    if (((U32)pstLine->s32X0 >= dst.u16W) || ((U32)pstLine->s32Y0 >= dst.u16H) || ((U32)pstLine->s32X1 >= dst.u16W) ||
+        ((U32)pstLine->s32Y1 >= dst.u16H)) {
         return V2D_ERR_INVALID_RECT;
     }
 
@@ -1422,12 +1371,9 @@ S32 V2D_DrawLine(V2DHandle handle,
     return SUCCESS;
 }
 
-S32 V2D_DrawRect(V2DHandle handle,
-             VideoFrameInfo *pstDstFrame,
-             V2DArea *pstRect,
-             V2DFillColor *pstColor,
-             U32 u32LineWidth)
-{
+S32 V2D_DrawRect(
+    V2DHandle handle, VideoFrameInfo *pstDstFrame, V2DArea *pstRect, V2DFillColor *pstColor, U32 u32LineWidth
+) {
     V2DSurface dst;
     V2DLine line;
     S32 left;
@@ -1501,10 +1447,7 @@ S32 V2D_DrawRect(V2DHandle handle,
     return SUCCESS;
 }
 
-S32 V2D_DrawCircle(V2DHandle handle,
-                   VideoFrameInfo *pstDstFrame,
-                   V2DCircle *pstCircle)
-{
+S32 V2D_DrawCircle(V2DHandle handle, VideoFrameInfo *pstDstFrame, V2DCircle *pstCircle) {
     MppV2DJobCtx *job = mpp_v2d_job_from_handle(handle);
     MppV2DTaskNode *node;
     V2DSurface dst;
@@ -1545,8 +1488,7 @@ S32 V2D_DrawCircle(V2DHandle handle,
     }
 
     s32OuterRadius = (S32)pstCircle->u32Radius;
-    if ((pstCircle->s32CenterX - s32OuterRadius < 0) ||
-        (pstCircle->s32CenterY - s32OuterRadius < 0) ||
+    if ((pstCircle->s32CenterX - s32OuterRadius < 0) || (pstCircle->s32CenterY - s32OuterRadius < 0) ||
         ((U32)(pstCircle->s32CenterX + s32OuterRadius) >= dst.u16W) ||
         ((U32)(pstCircle->s32CenterY + s32OuterRadius) >= dst.u16H)) {
         return V2D_ERR_INVALID_RECT;
@@ -1567,12 +1509,13 @@ S32 V2D_DrawCircle(V2DHandle handle,
     return SUCCESS;
 }
 
-S32 V2D_DrawMask(V2DHandle handle,
-                 const VideoFrameInfo *pstBackgroundFrame,
-                 const VideoFrameInfo *pstForegroundFrame,
-                 const VideoFrameInfo *pstMaskFrame,
-                 VideoFrameInfo *pstDstFrame)
-{
+S32 V2D_DrawMask(
+    V2DHandle handle,
+    const VideoFrameInfo *pstBackgroundFrame,
+    const VideoFrameInfo *pstForegroundFrame,
+    const VideoFrameInfo *pstMaskFrame,
+    VideoFrameInfo *pstDstFrame
+) {
     V2DBlendConf blendConf;
     V2DArea backgroundRect;
     V2DArea foregroundRect;
@@ -1584,8 +1527,8 @@ S32 V2D_DrawMask(V2DHandle handle,
     if (mpp_v2d_job_from_handle(handle) == NULL) {
         return V2D_ERR_INVALID_HANDLE;
     }
-    if ((pstBackgroundFrame == NULL) || (pstForegroundFrame == NULL) ||
-        (pstMaskFrame == NULL) || (pstDstFrame == NULL)) {
+    if ((pstBackgroundFrame == NULL) || (pstForegroundFrame == NULL) || (pstMaskFrame == NULL) ||
+        (pstDstFrame == NULL)) {
         return V2D_ERR_NULL_PTR;
     }
 
@@ -1627,28 +1570,26 @@ S32 V2D_DrawMask(V2DHandle handle,
     blendConf.stBlendLayer[1].stBlendFactor.enDstColorFactor = V2D_BLEND_ONE_MINUS_SRC_ALPHA;
     blendConf.stBlendLayer[1].stBlendFactor.enDstAlphaFactor = V2D_BLEND_ZERO;
 
-    return V2D_AddBlendTask(handle,
-                            pstBackgroundFrame,
-                            &backgroundRect,
-                            pstForegroundFrame,
-                            &foregroundRect,
-                            pstMaskFrame,
-                            &maskRect,
-                            pstDstFrame,
-                            &dstRect,
-                            &blendConf,
-                            V2D_ROT_0,
-                            V2D_ROT_0,
-                            eForeCscMode,
-                            V2D_CSC_MODE_BUTT,
-                            NULL,
-                            V2D_NO_DITHER);
+    return V2D_AddBlendTask(
+        handle,
+        pstBackgroundFrame,
+        &backgroundRect,
+        pstForegroundFrame,
+        &foregroundRect,
+        pstMaskFrame,
+        &maskRect,
+        pstDstFrame,
+        &dstRect,
+        &blendConf,
+        V2D_ROT_0,
+        V2D_ROT_0,
+        eForeCscMode,
+        V2D_CSC_MODE_BUTT,
+        NULL,
+        V2D_NO_DITHER);
 }
 
-S32 V2D_ConvertFrame(V2DHandle handle,
-                     const VideoFrameInfo *pstSrcFrame,
-                     VideoFrameInfo *pstDstFrame)
-{
+S32 V2D_ConvertFrame(V2DHandle handle, const VideoFrameInfo *pstSrcFrame, VideoFrameInfo *pstDstFrame) {
     V2DArea srcRect;
     V2DArea dstRect;
     V2DCscMode eCscMode;
@@ -1680,19 +1621,12 @@ S32 V2D_ConvertFrame(V2DHandle handle,
     dstRect.u16W = pstDstFrame->stCommFrameInfo.u32Width;
     dstRect.u16H = pstDstFrame->stCommFrameInfo.u32Height;
 
-    return V2D_AddBitblitTask(handle,
-                     pstSrcFrame,
-                     &srcRect,
-                     pstDstFrame,
-                     &dstRect,
-                     eCscMode);
+    return V2D_AddBitblitTask(handle, pstSrcFrame, &srcRect, pstDstFrame, &dstRect, eCscMode);
 }
 
-S32 V2D_ScaleFrame(V2DHandle handle,
-                   const VideoFrameInfo *pstSrcFrame,
-                   VideoFrameInfo *pstDstFrame,
-                   V2DCscMode eCscMode)
-{
+S32 V2D_ScaleFrame(
+    V2DHandle handle, const VideoFrameInfo *pstSrcFrame, VideoFrameInfo *pstDstFrame, V2DCscMode eCscMode
+) {
     V2DArea srcRect;
     V2DArea dstRect;
 
@@ -1712,18 +1646,10 @@ S32 V2D_ScaleFrame(V2DHandle handle,
     dstRect.u16W = pstDstFrame->stCommFrameInfo.u32Width;
     dstRect.u16H = pstDstFrame->stCommFrameInfo.u32Height;
 
-    return V2D_AddBitblitTask(handle,
-                     pstSrcFrame,
-                     &srcRect,
-                     pstDstFrame,
-                     &dstRect,
-                     eCscMode);
+    return V2D_AddBitblitTask(handle, pstSrcFrame, &srcRect, pstDstFrame, &dstRect, eCscMode);
 }
 
-S32 V2D_ResizeFrame(V2DHandle handle,
-                    const VideoFrameInfo *pstSrcFrame,
-                    VideoFrameInfo *pstDstFrame)
-{
+S32 V2D_ResizeFrame(V2DHandle handle, const VideoFrameInfo *pstSrcFrame, VideoFrameInfo *pstDstFrame) {
     V2DArea srcRect;
     V2DArea dstRect;
     V2DCscMode eCscMode;
@@ -1750,23 +1676,19 @@ S32 V2D_ResizeFrame(V2DHandle handle,
     dstRect.u16W = pstDstFrame->stCommFrameInfo.u32Width;
     dstRect.u16H = pstDstFrame->stCommFrameInfo.u32Height;
 
-    return V2D_AddBitblitTask(handle,
-                     pstSrcFrame,
-                     &srcRect,
-                     pstDstFrame,
-                     &dstRect,
-                     eCscMode);
+    return V2D_AddBitblitTask(handle, pstSrcFrame, &srcRect, pstDstFrame, &dstRect, eCscMode);
 }
 
-S32 V2D_BorderFill(V2DHandle handle,
-                    const VideoFrameInfo *pstSrcFrame,
-                    VideoFrameInfo *pstDstFrame,
-                    U32 u32Top,
-                    U32 u32Bottom,
-                    U32 u32Left,
-                    U32 u32Right,
-                    const V2DFillColor *pstBorderColor)
-{
+S32 V2D_BorderFill(
+    V2DHandle handle,
+    const VideoFrameInfo *pstSrcFrame,
+    VideoFrameInfo *pstDstFrame,
+    U32 u32Top,
+    U32 u32Bottom,
+    U32 u32Left,
+    U32 u32Right,
+    const V2DFillColor *pstBorderColor
+) {
     V2DSurface srcSurface;
     V2DSurface dstSurface;
     V2DArea srcRect;
@@ -1804,8 +1726,7 @@ S32 V2D_BorderFill(V2DHandle handle,
         return V2D_ERR_FORMAT_MISMATCH;
     }
 
-    if ((u32Left & 1U) != 0U || (u32Right & 1U) != 0U ||
-        (u32Top & 1U) != 0U || (u32Bottom & 1U) != 0U) {
+    if ((u32Left & 1U) != 0U || (u32Right & 1U) != 0U || (u32Top & 1U) != 0U || (u32Bottom & 1U) != 0U) {
         return V2D_ERR_INVALID_PARAM;
     }
 
@@ -1838,19 +1759,12 @@ S32 V2D_BorderFill(V2DHandle handle,
         return ret;
     }
 
-    return V2D_AddBitblitTask(handle,
-                              pstSrcFrame,
-                              (V2DArea *)&srcRect,
-                              pstDstFrame,
-                              &innerRect,
-                              eCscMode);
+    return V2D_AddBitblitTask(handle, pstSrcFrame, (V2DArea *)&srcRect, pstDstFrame, &innerRect, eCscMode);
 }
 
-S32 V2D_RotateFrame(V2DHandle handle,
-                const VideoFrameInfo *pstSrcFrame,
-                VideoFrameInfo *pstDstFrame,
-                V2DRotateAngle eRotate)
-{
+S32 V2D_RotateFrame(
+    V2DHandle handle, const VideoFrameInfo *pstSrcFrame, VideoFrameInfo *pstDstFrame, V2DRotateAngle eRotate
+) {
     V2DArea srcRect;
     V2DArea dstRect;
     V2DBlendConf blendConf;
@@ -1874,29 +1788,31 @@ S32 V2D_RotateFrame(V2DHandle handle,
     memset(&blendConf, 0, sizeof(blendConf));
     blendConf.stBlendLayer[0].stBlendArea = dstRect;
 
-    return V2D_AddBlendTask(handle,
-                      pstSrcFrame,
-                      &srcRect,
-                      NULL,
-                      NULL,
-                      NULL,
-                      NULL,
-                      pstDstFrame,
-                      &dstRect,
-                      &blendConf,
-                      V2D_ROT_0,
-                      eRotate,
-                      V2D_CSC_MODE_BUTT,
-                      V2D_CSC_MODE_BUTT,
-                      NULL,
-                      V2D_NO_DITHER);
+    return V2D_AddBlendTask(
+        handle,
+        pstSrcFrame,
+        &srcRect,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        pstDstFrame,
+        &dstRect,
+        &blendConf,
+        V2D_ROT_0,
+        eRotate,
+        V2D_CSC_MODE_BUTT,
+        V2D_CSC_MODE_BUTT,
+        NULL,
+        V2D_NO_DITHER);
 }
 
-S32 V2D_Adv2Layers(V2DHandle handle,
-                       const VideoFrameInfo *pstBackgroundFrame,
-                       const VideoFrameInfo *pstForegroundFrame,
-                       VideoFrameInfo *pstOutputFrame)
-{
+S32 V2D_Adv2Layers(
+    V2DHandle handle,
+    const VideoFrameInfo *pstBackgroundFrame,
+    const VideoFrameInfo *pstForegroundFrame,
+    VideoFrameInfo *pstOutputFrame
+) {
     U32 width;
     U32 height;
     V2DArea backgroundRect;
@@ -1952,20 +1868,21 @@ S32 V2D_Adv2Layers(V2DHandle handle,
         return ret;
     }
 
-    return V2D_AddBlendTask(handle,
-                      pstBackgroundFrame,
-                      &backgroundRect,
-                      pstForegroundFrame,
-                      &foregroundRect,
-                      NULL,
-                      NULL,
-                      pstOutputFrame,
-                      &dstRect,
-                      &blendConf,
-                      V2D_ROT_0,
-                      V2D_ROT_0,
-                      eForeCscMode,
-                      V2D_CSC_MODE_BUTT,
-                      NULL,
-                      V2D_NO_DITHER);
+    return V2D_AddBlendTask(
+        handle,
+        pstBackgroundFrame,
+        &backgroundRect,
+        pstForegroundFrame,
+        &foregroundRect,
+        NULL,
+        NULL,
+        pstOutputFrame,
+        &dstRect,
+        &blendConf,
+        V2D_ROT_0,
+        V2D_ROT_0,
+        eForeCscMode,
+        V2D_CSC_MODE_BUTT,
+        NULL,
+        V2D_NO_DITHER);
 }

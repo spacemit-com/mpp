@@ -12,46 +12,43 @@
  */
 
 #include "mux/mux_api.h"
-#include "mux_rtsp_internal.h"
-#include "sys/mpp_shm.h"
 
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "mux_rtsp_internal.h"
+#include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
-
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
 
 #define MUX_LOGE(fmt, ...) fprintf(stderr, "[MUX][ERR] " fmt "\n", ##__VA_ARGS__)
 #define MUX_LOGI(fmt, ...) fprintf(stdout, "[MUX][INF] " fmt "\n", ##__VA_ARGS__)
 
-#define MUX_STATE_IDLE      0
-#define MUX_STATE_CREATED   1
-#define MUX_STATE_RUNNING   2
+#define MUX_STATE_IDLE 0
+#define MUX_STATE_CREATED 1
+#define MUX_STATE_RUNNING 2
 
 typedef struct _MuxContext {
-    S32             s32Init;
+    S32 s32Init;
     pthread_mutex_t lock;
-    MuxChannel      astChn[MUX_MAX_CHN];
+    MuxChannel astChn[MUX_MAX_CHN];
 } MuxContext;
 
 static MuxContext g_stMuxCtx = {0};
 
-static S32 mux_check_chn(S32 s32ChnId)
-{
+static S32 mux_check_chn(S32 s32ChnId) {
     if (s32ChnId < 0 || s32ChnId >= MUX_MAX_CHN) {
         return ERR_MUX_INVALID_CHN;
     }
     return ERR_MUX_OK;
 }
 
-static enum AVCodecID mux_codec_to_ffmpeg(MuxCodecType eCodecType)
-{
+static enum AVCodecID mux_codec_to_ffmpeg(MuxCodecType eCodecType) {
     switch (eCodecType) {
         case MUX_CODEC_H264:
             return AV_CODEC_ID_H264;
@@ -64,8 +61,7 @@ static enum AVCodecID mux_codec_to_ffmpeg(MuxCodecType eCodecType)
     }
 }
 
-static MuxCodecType mux_codec_from_stream(MppStreamCodecType eCodecType)
-{
+static MuxCodecType mux_codec_from_stream(MppStreamCodecType eCodecType) {
     switch (eCodecType) {
         case MPP_STREAM_CODEC_H264:
             return MUX_CODEC_H264;
@@ -78,8 +74,7 @@ static MuxCodecType mux_codec_from_stream(MppStreamCodecType eCodecType)
     }
 }
 
-static VOID *mux_bind_worker(VOID *arg)
-{
+static VOID *mux_bind_worker(VOID *arg) {
     MuxChannel *pstChn = (MuxChannel *)arg;
     U8 *pu8Buf;
     S32 ret = 0;
@@ -104,7 +99,7 @@ static VOID *mux_bind_worker(VOID *arg)
         ret = SYS_RecvStream(&pstChn->stSinkNode, &stStream, 100);
         if (ret != 0) {
             if (SYS_ERR_NOT_FOUND == ret) {
-                usleep(20000); // Sleep 20ms before retrying to avoid busy loop when no stream is bound
+                usleep(20000);  // Sleep 20ms before retrying to avoid busy loop when no stream is bound
             }
             continue;
         }
@@ -115,7 +110,7 @@ static VOID *mux_bind_worker(VOID *arg)
         stPkt.bKeyFrame = stStream.bKeyFrame;
         stPkt.eCodecType = mux_codec_from_stream(stStream.eCodecType);
         stPkt.u64PTS = stStream.u64PTS;
-        (VOID)MUX_SendPacket(pstChn->s32ChnId, &stPkt);
+        (VOID) MUX_SendPacket(pstChn->s32ChnId, &stPkt);
     }
 
     pstChn->s32WorkerAlive = 0;
@@ -123,8 +118,7 @@ static VOID *mux_bind_worker(VOID *arg)
     return NULL;
 }
 
-static S32 mux_open_output(MuxChannel *pstChn)
-{
+static S32 mux_open_output(MuxChannel *pstChn) {
     enum AVCodecID eCodecId;
     S32 ret;
 
@@ -189,8 +183,7 @@ static S32 mux_open_output(MuxChannel *pstChn)
     return ERR_MUX_OK;
 }
 
-static VOID mux_close_output(MuxChannel *pstChn)
-{
+static VOID mux_close_output(MuxChannel *pstChn) {
     if (!pstChn) {
         return;
     }
@@ -216,8 +209,7 @@ static VOID mux_close_output(MuxChannel *pstChn)
     pstChn->s32HeaderWritten = 0;
 }
 
-S32 MUX_Init(VOID)
-{
+S32 MUX_Init(VOID) {
     S32 i;
 
     if (g_stMuxCtx.s32Init) {
@@ -243,8 +235,7 @@ S32 MUX_Init(VOID)
     return ERR_MUX_OK;
 }
 
-S32 MUX_Exit(VOID)
-{
+S32 MUX_Exit(VOID) {
     S32 i;
 
     if (!g_stMuxCtx.s32Init) {
@@ -264,8 +255,7 @@ S32 MUX_Exit(VOID)
     return ERR_MUX_OK;
 }
 
-S32 MUX_CreateChn(S32 s32ChnId, const MuxChnAttr *pstAttr)
-{
+S32 MUX_CreateChn(S32 s32ChnId, const MuxChnAttr *pstAttr) {
     MuxChannel *pstChn;
     S32 ret;
 
@@ -297,8 +287,7 @@ S32 MUX_CreateChn(S32 s32ChnId, const MuxChnAttr *pstAttr)
     return ERR_MUX_OK;
 }
 
-S32 MUX_DestroyChn(S32 s32ChnId)
-{
+S32 MUX_DestroyChn(S32 s32ChnId) {
     MuxChannel *pstChn;
     S32 ret;
 
@@ -322,8 +311,7 @@ S32 MUX_DestroyChn(S32 s32ChnId)
     return ERR_MUX_OK;
 }
 
-S32 MUX_StartChn(S32 s32ChnId)
-{
+S32 MUX_StartChn(S32 s32ChnId) {
     MuxChannel *pstChn;
     S32 ret;
 
@@ -369,8 +357,7 @@ S32 MUX_StartChn(S32 s32ChnId)
     return ERR_MUX_OK;
 }
 
-S32 MUX_StopChn(S32 s32ChnId)
-{
+S32 MUX_StopChn(S32 s32ChnId) {
     MuxChannel *pstChn;
     S32 ret;
 
@@ -408,8 +395,7 @@ S32 MUX_StopChn(S32 s32ChnId)
     return ERR_MUX_OK;
 }
 
-S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt)
-{
+S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt) {
     MuxChannel *pstChn;
     AVPacket stPkt = {0};
     S32 ret;
@@ -468,8 +454,7 @@ S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt)
     return ERR_MUX_OK;
 }
 
-S32 MUX_GetChnStat(S32 s32ChnId, MuxChnStat *pstStat)
-{
+S32 MUX_GetChnStat(S32 s32ChnId, MuxChnStat *pstStat) {
     MuxChannel *pstChn;
     S32 ret;
 
@@ -505,8 +490,7 @@ S32 MUX_GetChnStat(S32 s32ChnId, MuxChnStat *pstStat)
     return ERR_MUX_OK;
 }
 
-S32 MUX_GetChnAttr(S32 s32ChnId, MuxChnAttr *pstAttr)
-{
+S32 MUX_GetChnAttr(S32 s32ChnId, MuxChnAttr *pstAttr) {
     MuxChannel *pstChn;
     S32 ret;
 
@@ -534,8 +518,7 @@ S32 MUX_GetChnAttr(S32 s32ChnId, MuxChnAttr *pstAttr)
     return ERR_MUX_OK;
 }
 
-S32 MUX_GetSinkNode(S32 s32ChnId, MppNode *pstNode)
-{
+S32 MUX_GetSinkNode(S32 s32ChnId, MppNode *pstNode) {
     MuxChannel *pstChn;
     S32 ret;
 

@@ -20,15 +20,19 @@
 #include "vb_api.h"
 #include "v2d_api.h"
 
-#define DEMO_INPUT_FILE   "./vi_phy0_first_frame.yuv"
-#define DEMO_OUTPUT_FILE  "./test_v2d_blend_out.rgba"
-#define SRC_WIDTH         1920U
-#define SRC_HEIGHT        1080U
-#define DST_WIDTH         640U
-#define DST_HEIGHT        480U
+#define DEMO_INPUT_FILE "./vi_phy0_first_frame.yuv"
+#define DEMO_OUTPUT_FILE "./test_v2d_blend_out.rgba"
+#define SRC_WIDTH 1920U
+#define SRC_HEIGHT 1080U
+#define DST_WIDTH 640U
+#define DST_HEIGHT 480U
 
-#define DEMO_LOG(fmt, ...)  printf("[test_v2d_blend] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[test_v2d_blend][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...) printf("[test_v2d_blend] " fmt "\n", ##__VA_ARGS__)
+#define DEMO_FAIL(fmt, ...)                                        \
+    do {                                                           \
+        printf("[test_v2d_blend][FAIL] " fmt "\n", ##__VA_ARGS__); \
+        return -1;                                                 \
+    } while (0)
 
 typedef struct DEMO_CONFIG_S {
     const char *input_file;
@@ -39,8 +43,7 @@ typedef struct DEMO_CONFIG_S {
     U32 dst_height;
 } DEMO_CONFIG_S;
 
-static void demo_set_default_config(DEMO_CONFIG_S *config)
-{
+static void demo_set_default_config(DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return;
     }
@@ -54,10 +57,9 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     config->dst_height = DST_HEIGHT;
 }
 
-static int demo_parse_u32(const char *text, U32 *value)
-{
+static int demo_parse_u32(const char *text, U32 *value) {
     char *end_ptr = NULL;
-    unsigned long parsed;
+    uint64_t parsed;
 
     if (text == NULL || value == NULL || text[0] == '\0') {
         return -1;
@@ -72,8 +74,7 @@ static int demo_parse_u32(const char *text, U32 *value)
     return 0;
 }
 
-static void demo_print_usage(const char *prog)
-{
+static void demo_print_usage(const char *prog) {
     printf("Usage:\n");
     printf("  %s [input_nv12 src_width src_height output_rgba dst_width dst_height]\n", prog);
     printf("\nDefaults:\n");
@@ -87,8 +88,7 @@ static void demo_print_usage(const char *prog)
     printf("  Convert NV12 to RGBA, scale to 640x480, rotate 90 degrees via V2D_AddBlendTask.\n");
 }
 
-static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
-{
+static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return -1;
     }
@@ -105,10 +105,8 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
 
     config->input_file = argv[1];
     config->output_file = argv[4];
-    if (demo_parse_u32(argv[2], &config->src_width) != 0 ||
-        demo_parse_u32(argv[3], &config->src_height) != 0 ||
-        demo_parse_u32(argv[5], &config->dst_width) != 0 ||
-        demo_parse_u32(argv[6], &config->dst_height) != 0) {
+    if (demo_parse_u32(argv[2], &config->src_width) != 0 || demo_parse_u32(argv[3], &config->src_height) != 0 ||
+        demo_parse_u32(argv[5], &config->dst_width) != 0 || demo_parse_u32(argv[6], &config->dst_height) != 0) {
         return -1;
     }
 
@@ -119,13 +117,9 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
  * Allocate a VB pool, grab one buffer from it, and fill out the
  * VideoFrameInfo so V2D can consume it directly (UVC-style flow).
  */
-static int demo_prepare_pool(UL *pool_id,
-                             VideoFrameInfo *frame,
-                             ModId mod_id,
-                             MppPixelFormat pixel_format,
-                             U32 width,
-                             U32 height)
-{
+static int demo_prepare_pool(
+    UL *pool_id, VideoFrameInfo *frame, ModId mod_id, MppPixelFormat pixel_format, U32 width, U32 height
+) {
     VbPoolCfg cfg;
     UL buffer = 0UL;
     S32 ret;
@@ -156,7 +150,7 @@ static int demo_prepare_pool(UL *pool_id,
     }
 
     memset(&cfg, 0, sizeof(cfg));
-    cfg.u32BufCnt = 1U;   /* single-shot demo: one buffer per pool, bound to `frame` */
+    cfg.u32BufCnt = 1U; /* single-shot demo: one buffer per pool, bound to `frame` */
     cfg.u32BufSize = total_size;
     cfg.eModId = mod_id;
     cfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
@@ -223,8 +217,7 @@ err_destroy_pool:
     return -1;
 }
 
-static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -235,8 +228,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     }
 
     base = (U8 *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[0];
-    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] +
-                    (size_t)frame->stVFrame.u32PlaneSize[1];
+    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] + (size_t)frame->stVFrame.u32PlaneSize[1];
 
     fp = fopen(input_file, "rb");
     if (fp == NULL) {
@@ -252,18 +244,17 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
         return -1;
     }
 
-    if (frame->stVFrame.ulPlaneVirAddr[1] !=
-        (frame->stVFrame.ulPlaneVirAddr[0] + frame->stVFrame.u32PlaneSize[0])) {
-        memcpy((void *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[1],
-               base + frame->stVFrame.u32PlaneSize[0],
-               frame->stVFrame.u32PlaneSize[1]);
+    if (frame->stVFrame.ulPlaneVirAddr[1] != (frame->stVFrame.ulPlaneVirAddr[0] + frame->stVFrame.u32PlaneSize[0])) {
+        memcpy(
+            (void *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[1],
+            base + frame->stVFrame.u32PlaneSize[0],
+            frame->stVFrame.u32PlaneSize[1]);
     }
 
     return 0;
 }
 
-static int demo_dump_rgba_file(const VideoFrameInfo *frame, const char *output_file)
-{
+static int demo_dump_rgba_file(const VideoFrameInfo *frame, const char *output_file) {
     FILE *fp;
     size_t write_size;
     size_t expected_size;
@@ -286,8 +277,7 @@ static int demo_dump_rgba_file(const VideoFrameInfo *frame, const char *output_f
     return (write_size == expected_size) ? 0 : -1;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 ret;
     DEMO_CONFIG_S config;
     V2DHandle handle = 0;
@@ -323,13 +313,15 @@ int main(int argc, char *argv[])
         DEMO_FAIL("VB_Init failed, ret=%d", ret);
     }
 
-    if (demo_prepare_pool(&src_pool, &src_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_NV12,
-                          config.src_width, config.src_height) != 0) {
+    if (demo_prepare_pool(
+            &src_pool, &src_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_NV12,
+            config.src_width, config.src_height) != 0) {
         goto EXIT;
     }
 
-    if (demo_prepare_pool(&dst_pool, &dst_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_RGBA,
-                          config.dst_width, config.dst_height) != 0) {
+    if (demo_prepare_pool(
+            &dst_pool, &dst_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_RGBA,
+            config.dst_width, config.dst_height) != 0) {
         goto EXIT;
     }
 
@@ -355,22 +347,23 @@ int main(int argc, char *argv[])
 
     ret = V2D_BeginJob(&handle);
     if (ret == 0) {
-        ret = V2D_AddBlendTask(handle,
-                               &src_frame,
-                               &src_rect,
-                               NULL,
-                               NULL,
-                               NULL,
-                               NULL,
-                               &dst_frame,
-                               &dst_rect,
-                               &blend_conf,
-                               V2D_ROT_0,
-                               V2D_ROT_90,
-                               V2D_CSC_MODE_BUTT,
-                               V2D_CSC_MODE_BT709NARROW_2_RGB,
-                               NULL,
-                               V2D_NO_DITHER);
+        ret = V2D_AddBlendTask(
+            handle,
+            &src_frame,
+            &src_rect,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            &dst_frame,
+            &dst_rect,
+            &blend_conf,
+            V2D_ROT_0,
+            V2D_ROT_90,
+            V2D_CSC_MODE_BUTT,
+            V2D_CSC_MODE_BT709NARROW_2_RGB,
+            NULL,
+            V2D_NO_DITHER);
         if (ret != 0) {
             V2D_CancelJob(handle);
         } else {

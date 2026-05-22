@@ -8,16 +8,14 @@
 
 static volatile S32 g_s32Running = 1;
 
-static VOID sig_handler(int sig)
-{
+static VOID sig_handler(int sig) {
     (void)sig;
     g_s32Running = 0;
 }
 
 static MuxCodecType g_eMuxCodec = MUX_CODEC_H264;
 
-static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
-{
+static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv) {
     MuxPacket stMuxPkt;
 
     (void)s32ChnId;
@@ -47,20 +45,21 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
     return MUX_SendPacket(0, &stMuxPkt);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     DemuxChnAttr stDemuxAttr;
     MuxChnAttr stMuxAttr;
 
     if (argc < 3) {
-        fprintf(stderr,
-                "usage: %s <input_rtsp_url> <output_rtsp_url>\n"
-                "  example:\n"
-                "    %s rtsp://192.168.1.100:554/live rtsp://0.0.0.0:8554/relay\n"
-                "  then play with:\n"
-                "    ffplay rtsp://127.0.0.1:8554/relay\n"
-                "    vlc rtsp://127.0.0.1:8554/relay\n",
-                argv[0], argv[0]);
+        fprintf(
+            stderr,
+            "usage: %s <input_rtsp_url> <output_rtsp_url>\n"
+            "  example:\n"
+            "    %s rtsp://192.168.1.100:554/live rtsp://0.0.0.0:8554/relay\n"
+            "  then play with:\n"
+            "    ffplay rtsp://127.0.0.1:8554/relay\n"
+            "    vlc rtsp://127.0.0.1:8554/relay\n",
+            argv[0],
+            argv[0]);
         return 1;
     }
 
@@ -122,10 +121,11 @@ int main(int argc, char *argv[])
     while (g_s32Running) {
         MuxChnStat stStat;
         if (MUX_GetChnStat(0, &stStat) == 0) {
-            printf("\r[RTSP] clients=%u  pkts=%llu  bytes=%llu  ",
-                   stStat.u32ActiveClients,
-                   (unsigned long long)stStat.u64TotalPkts,
-                   (unsigned long long)stStat.u64TotalBytes);
+            printf(
+                "\r[RTSP] clients=%u  pkts=%" PRIu64 "bytes=%" PRIu64,
+                stStat.u32ActiveClients,
+                (uint64_t)stStat.u64TotalPkts,
+                (uint64_t)stStat.u64TotalBytes);
             fflush(stdout);
         }
         sleep(2);

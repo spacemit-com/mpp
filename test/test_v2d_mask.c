@@ -20,15 +20,19 @@
 #include "vb_api.h"
 #include "v2d_api.h"
 
-#define DEMO_BG_FILE      "./mask_bg_nv12.yuv"
-#define DEMO_FG_FILE      "./mask_fg_bgra.raw"
-#define DEMO_MASK_FILE    "./mask_a8.raw"
-#define DEMO_OUTPUT_FILE  "./test_v2d_mask_out.yuv"
-#define DEMO_WIDTH        1920U
-#define DEMO_HEIGHT       1080U
+#define DEMO_BG_FILE "./mask_bg_nv12.yuv"
+#define DEMO_FG_FILE "./mask_fg_bgra.raw"
+#define DEMO_MASK_FILE "./mask_a8.raw"
+#define DEMO_OUTPUT_FILE "./test_v2d_mask_out.yuv"
+#define DEMO_WIDTH 1920U
+#define DEMO_HEIGHT 1080U
 
-#define DEMO_LOG(fmt, ...)  printf("[test_v2d_mask] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[test_v2d_mask][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...) printf("[test_v2d_mask] " fmt "\n", ##__VA_ARGS__)
+#define DEMO_FAIL(fmt, ...)                                       \
+    do {                                                          \
+        printf("[test_v2d_mask][FAIL] " fmt "\n", ##__VA_ARGS__); \
+        return -1;                                                \
+    } while (0)
 
 typedef struct DEMO_CONFIG_S {
     const char *bg_file;
@@ -39,8 +43,7 @@ typedef struct DEMO_CONFIG_S {
     U32 height;
 } DEMO_CONFIG_S;
 
-static void demo_set_default_config(DEMO_CONFIG_S *config)
-{
+static void demo_set_default_config(DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return;
     }
@@ -54,10 +57,9 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     config->height = DEMO_HEIGHT;
 }
 
-static int demo_parse_u32(const char *text, U32 *value)
-{
+static int demo_parse_u32(const char *text, U32 *value) {
     char *end_ptr = NULL;
-    unsigned long parsed;
+    uint64_t parsed;
 
     if ((text == NULL) || (value == NULL) || (text[0] == '\0')) {
         return -1;
@@ -72,8 +74,7 @@ static int demo_parse_u32(const char *text, U32 *value)
     return 0;
 }
 
-static void demo_print_usage(const char *prog)
-{
+static void demo_print_usage(const char *prog) {
     printf("Usage:\n");
     printf("  %s [bg_nv12 fg_bgra mask_a8 output_nv12 width height]\n", prog);
     printf("\nDefaults:\n");
@@ -85,8 +86,7 @@ static void demo_print_usage(const char *prog)
     printf("  height     : %u\n", DEMO_HEIGHT);
 }
 
-static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
-{
+static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return -1;
     }
@@ -105,8 +105,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     config->fg_file = argv[2];
     config->mask_file = argv[3];
     config->output_file = argv[4];
-    if ((demo_parse_u32(argv[5], &config->width) != 0) ||
-        (demo_parse_u32(argv[6], &config->height) != 0)) {
+    if ((demo_parse_u32(argv[5], &config->width) != 0) || (demo_parse_u32(argv[6], &config->height) != 0)) {
         return -1;
     }
 
@@ -117,13 +116,9 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
  * Allocate a VB pool, grab one buffer from it, and fill out the
  * VideoFrameInfo so V2D can consume it directly (UVC-style flow).
  */
-static int demo_prepare_pool(UL *pool_id,
-                             VideoFrameInfo *frame,
-                             ModId mod_id,
-                             MppPixelFormat pixel_format,
-                             U32 width,
-                             U32 height)
-{
+static int demo_prepare_pool(
+    UL *pool_id, VideoFrameInfo *frame, ModId mod_id, MppPixelFormat pixel_format, U32 width, U32 height
+) {
     VbPoolCfg cfg;
     UL buffer = 0UL;
     S32 ret;
@@ -159,7 +154,7 @@ static int demo_prepare_pool(UL *pool_id,
     }
 
     memset(&cfg, 0, sizeof(cfg));
-    cfg.u32BufCnt = 1U;   /* single-shot demo: one buffer per pool, bound to `frame` */
+    cfg.u32BufCnt = 1U; /* single-shot demo: one buffer per pool, bound to `frame` */
     cfg.u32BufSize = total_size;
     cfg.eModId = mod_id;
     cfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
@@ -226,8 +221,7 @@ err_destroy_pool:
     return -1;
 }
 
-static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -257,8 +251,7 @@ static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file)
     return 0;
 }
 
-static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -269,8 +262,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     }
 
     base = (U8 *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[0];
-    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] +
-                    (size_t)frame->stVFrame.u32PlaneSize[1];
+    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] + (size_t)frame->stVFrame.u32PlaneSize[1];
 
     fp = fopen(input_file, "rb");
     if (fp == NULL) {
@@ -289,8 +281,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     return 0;
 }
 
-static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file)
-{
+static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file) {
     FILE *fp;
     size_t write_size;
     size_t expected_size;
@@ -313,8 +304,7 @@ static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_f
     return (write_size == expected_size) ? 0 : -1;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 ret;
     DEMO_CONFIG_S config;
     V2DHandle handle = 0;
@@ -354,23 +344,19 @@ int main(int argc, char *argv[])
         DEMO_FAIL("VB_Init failed, ret=%d", ret);
     }
 
-    if (demo_prepare_pool(&bg_pool, &bg_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_NV12,
-                          config.width, config.height) != 0) {
+    if (demo_prepare_pool(&bg_pool, &bg_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_NV12, config.width, config.height) != 0) {
         goto EXIT;
     }
 
-    if (demo_prepare_pool(&fg_pool, &fg_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_BGRA,
-                          config.width, config.height) != 0) {
+    if (demo_prepare_pool(&fg_pool, &fg_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_BGRA, config.width, config.height) != 0) {
         goto EXIT;
     }
 
-    if (demo_prepare_pool(&mask_pool, &mask_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_A8,
-                          config.width, config.height) != 0) {
+    if (demo_prepare_pool(&mask_pool, &mask_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_A8, config.width, config.height) != 0) {
         goto EXIT;
     }
 
-    if (demo_prepare_pool(&dst_pool, &dst_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_NV12,
-                          config.width, config.height) != 0) {
+    if (demo_prepare_pool(&dst_pool, &dst_frame, MPP_ID_V2D, MPP_PIXEL_FORMAT_NV12, config.width, config.height) != 0) {
         goto EXIT;
     }
 
@@ -391,11 +377,7 @@ int main(int argc, char *argv[])
 
     ret = V2D_BeginJob(&handle);
     if (ret == 0) {
-        ret = V2D_DrawMask(handle,
-                           &bg_frame,
-                           &fg_frame,
-                           &mask_frame,
-                           &dst_frame);
+        ret = V2D_DrawMask(handle, &bg_frame, &fg_frame, &mask_frame, &dst_frame);
         if (ret != 0) {
             V2D_CancelJob(handle);
         } else {

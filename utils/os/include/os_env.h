@@ -4,8 +4,8 @@
  * that can be found in the LICENSE file.
  */
 
-#ifndef __MPP_OS_ENV_H__
-#define __MPP_OS_ENV_H__
+#ifndef OS_ENV_H
+#define OS_ENV_H
 
 #include "type.h"
 
@@ -23,4 +23,4 @@ S32 os_set_env_str(const char *name, char *value);
 }
 #endif
 
-#endif /*__MPP_OS_ENV_H__*/
+#endif /*OS_ENV_H*/

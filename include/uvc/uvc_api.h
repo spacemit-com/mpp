@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __UVC_API_H__
-#define __UVC_API_H__
+#ifndef UVC_API_H
+#define UVC_API_H
 
 #include "type.h"
 #include "uvc_type.h"
@@ -157,4 +157,4 @@ S32 UVC_ReleaseFrame(UVC_DEV dev, UVC_CHN chn, const VideoFrameInfo *pstFrameInf
 #endif
 #endif /* __cplusplus */
 
-#endif /*__UVC_API_H__ */
+#endif /*UVC_API_H */

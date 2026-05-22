@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __VI_API_H__
-#define __VI_API_H__
+#ifndef VI_API_H
+#define VI_API_H
 
 #include "type.h"
 #include "vb_type.h"
@@ -23,7 +23,6 @@
 extern "C" {
 #endif
 #endif /* __cplusplus */
-
 
 /**
  * @description: Initialize VI module, allocate VI-related resources, and prepare device/channel context.
@@ -133,7 +132,8 @@ S32 VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn);
  * @param {VI_DEV} ViDev VI device ID to which the channel belongs
  * @param {VI_CHN} ViChn VI channel ID
  * @param {VideoFrameInfo *} pstVideoFrame Output parameter to receive frame information
- * @param {S32} s32MilliSec Timeout in milliseconds, 0 for non-blocking, negative for blocking behavior defined by implementation
+ * @param {S32} s32MilliSec Timeout in milliseconds, 0 for non-blocking, negative for blocking behavior defined by
+ * implementation
  * @return {S32} Returns 0 on success, error code on failure or timeout
  */
 S32 VI_GetChnFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
@@ -163,7 +163,8 @@ S32 VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn);
  * @param {VI_DEV} ViDev VI device ID to which the channel belongs
  * @param {VI_CHN} ViChn Online physical VI channel ID
  * @param {VideoFrameInfo *} pstVideoFrame Output parameter to receive frame information
- * @param {S32} s32MilliSec Timeout in milliseconds, 0 for non-blocking, negative for blocking behavior defined by implementation
+ * @param {S32} s32MilliSec Timeout in milliseconds, 0 for non-blocking, negative for blocking behavior defined by
+ * implementation
  * @return {S32} Returns 0 on success, error code on failure or timeout
  */
 S32 VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
@@ -187,10 +188,7 @@ S32 VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pst
  * @param {U32} u32RawSize Raw buffer size in bytes
  * @return {S32} Returns 0 on success, error code on failure
  */
-S32 VI_OfflineSetInputAddr(VI_DEV ViDev,
-                           VI_CHN ViChn,
-                           const U8 *pu8RawVirAddr,
-                           U32 u32RawSize);
+S32 VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize);
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -198,4 +196,4 @@ S32 VI_OfflineSetInputAddr(VI_DEV ViDev,
 #endif
 #endif /* __cplusplus */
 
-#endif /* __VI_API_H__ */
+#endif /* VI_API_H */

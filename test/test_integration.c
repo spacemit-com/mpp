@@ -38,11 +38,14 @@
 extern VOID VB_DumpPools(VOID);
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg)                      \
+    do {                                          \
+        printf("[FAIL] %s: %s\n", (name), (msg)); \
+        exit(1);                                  \
+    } while (0)
 
 /* ======================== Test 1: VB Export / Import / Unexport ======================== */
-static void test_export_import(void)
-{
+static void test_export_import(void) {
     const char *name = "export_import";
     S32 ret;
     U64 token = 0;
@@ -53,8 +56,7 @@ static void test_export_import(void)
     ret = VB_Init();
     assert(ret == 0);
 
-    VbPoolCfg cfg = { .u32BufSize = 2048, .u32BufCnt = 4,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 2048, .u32BufCnt = 4, .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -111,8 +113,7 @@ static void test_export_import(void)
 }
 
 /* ======================== Test 2: Export Free Block ======================== */
-static void test_export_invalid(void)
-{
+static void test_export_invalid(void) {
     const char *name = "export_invalid";
     S32 ret;
     U64 token = 0;
@@ -122,8 +123,7 @@ static void test_export_invalid(void)
     ret = VB_Init();
     assert(ret == 0);
 
-    VbPoolCfg cfg = { .u32BufSize = 1024, .u32BufCnt = 2,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 1024, .u32BufCnt = 2, .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -161,8 +161,7 @@ static void test_export_invalid(void)
 }
 
 /* ======================== Test 3: SYS + VB Combined Flow ======================== */
-static void test_sys_vb_combined(void)
-{
+static void test_sys_vb_combined(void) {
     const char *name = "sys_vb_combined";
     S32 ret;
 
@@ -177,8 +176,7 @@ static void test_sys_vb_combined(void)
     assert(ret == 0);
 
     /* create a pool and allocate a buffer */
-    VbPoolCfg cfg = { .u32BufSize = 4096, .u32BufCnt = 4,
-                       .eModId = MPP_ID_VI, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 4096, .u32BufCnt = 4, .eModId = MPP_ID_VI, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -203,8 +201,8 @@ static void test_sys_vb_combined(void)
     assert(ret == 0);
 
     /* simulate bind: VI -> VENC */
-    MppNode src  = { .eModId = MPP_ID_VI,   .s32DevId = 0, .s32ChnId = 0 };
-    MppNode sink = { .eModId = MPP_ID_VENC,  .s32DevId = 0, .s32ChnId = 0 };
+    MppNode src = {.eModId = MPP_ID_VI, .s32DevId = 0, .s32ChnId = 0};
+    MppNode sink = {.eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = 0};
     ret = SYS_Bind(&src, &sink);
     assert(ret == 0);
 
@@ -216,8 +214,7 @@ static void test_sys_vb_combined(void)
     VideoFrameInfo read_fi;
     ret = VB_GetFrameInfo(buf, &read_fi);
     assert(ret == 0);
-    if (read_fi.stCommFrameInfo.u32Width != 1920 ||
-        read_fi.stCommFrameInfo.u32Height != 1080)
+    if (read_fi.stCommFrameInfo.u32Width != 1920 || read_fi.stCommFrameInfo.u32Height != 1080)
         TEST_FAIL(name, "frame info mismatch");
     if (read_fi.stVFrame.u64PTS != pts)
         TEST_FAIL(name, "PTS mismatch");
@@ -259,8 +256,7 @@ typedef struct {
     int errors;
 } StressArg;
 
-static void *stress_worker(void *arg)
-{
+static void *stress_worker(void *arg) {
     StressArg *sa = (StressArg *)arg;
     sa->errors = 0;
     sa->get_count = 0;
@@ -288,7 +284,8 @@ static void *stress_worker(void *arg)
             }
             usleep(50);
             r = VB_RefSub(buf);
-            if (r != 0) sa->errors++;
+            if (r != 0)
+                sa->errors++;
         }
 
         usleep(50 + (sa->thread_id * 7) % 100);
@@ -304,8 +301,7 @@ static void *stress_worker(void *arg)
     return NULL;
 }
 
-static void test_concurrent_stress(void)
-{
+static void test_concurrent_stress(void) {
     const char *name = "concurrent_stress";
     S32 ret;
     int num_threads = 16;
@@ -317,8 +313,7 @@ static void test_concurrent_stress(void)
     assert(ret == 0);
 
     /* small pool to maximize contention */
-    VbPoolCfg cfg = { .u32BufSize = 256, .u32BufCnt = 4,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 256, .u32BufCnt = 4, .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -326,9 +321,9 @@ static void test_concurrent_stress(void)
     StressArg args[16];
 
     for (int i = 0; i < num_threads; i++) {
-        args[i].pool_id    = pool_id;
+        args[i].pool_id = pool_id;
         args[i].iterations = iterations;
-        args[i].thread_id  = i;
+        args[i].thread_id = i;
         pthread_create(&threads[i], NULL, stress_worker, &args[i]);
     }
 
@@ -341,14 +336,20 @@ static void test_concurrent_stress(void)
     int total_releases = 0;
     int total_timeouts = 0;
     for (int i = 0; i < num_threads; i++) {
-        total_errors   += args[i].errors;
-        total_gets     += args[i].get_count;
+        total_errors += args[i].errors;
+        total_gets += args[i].get_count;
         total_releases += args[i].release_count;
         total_timeouts += args[i].timeout_count;
     }
 
-    printf("  stress stats: threads=%d iters=%d gets=%d releases=%d timeouts=%d errors=%d\n",
-           num_threads, iterations, total_gets, total_releases, total_timeouts, total_errors);
+    printf(
+        "  stress stats: threads=%d iters=%d gets=%d releases=%d timeouts=%d errors=%d\n",
+        num_threads,
+        iterations,
+        total_gets,
+        total_releases,
+        total_timeouts,
+        total_errors);
 
     if (total_errors > 0)
         TEST_FAIL(name, "errors in concurrent stress");
@@ -356,8 +357,7 @@ static void test_concurrent_stress(void)
     /* leak check: all gets should equal releases */
     if (total_gets != total_releases) {
         char msg[128];
-        snprintf(msg, sizeof(msg), "leak detected: gets=%d releases=%d",
-                 total_gets, total_releases);
+        snprintf(msg, sizeof(msg), "leak detected: gets=%d releases=%d", total_gets, total_releases);
         TEST_FAIL(name, msg);
     }
 
@@ -382,8 +382,7 @@ typedef struct {
     int errors;
 } ImportArg;
 
-static void *import_worker(void *arg)
-{
+static void *import_worker(void *arg) {
     ImportArg *ia = (ImportArg *)arg;
     ia->errors = 0;
     ia->import_count = 0;
@@ -407,8 +406,7 @@ static void *import_worker(void *arg)
     return NULL;
 }
 
-static void test_export_concurrent(void)
-{
+static void test_export_concurrent(void) {
     const char *name = "export_concurrent";
     S32 ret;
 
@@ -417,8 +415,7 @@ static void test_export_concurrent(void)
     ret = VB_Init();
     assert(ret == 0);
 
-    VbPoolCfg cfg = { .u32BufSize = 1024, .u32BufCnt = 2,
-                       .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE };
+    VbPoolCfg cfg = {.u32BufSize = 1024, .u32BufCnt = 2, .eModId = MPP_ID_SYS, .eRemapMode = VB_REMAP_MODE_NONE};
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
 
@@ -448,7 +445,7 @@ static void test_export_concurrent(void)
     int total_errors = 0;
     for (int i = 0; i < num_importers; i++) {
         total_imports += iargs[i].import_count;
-        total_errors  += iargs[i].errors;
+        total_errors += iargs[i].errors;
     }
 
     printf("  export_concurrent: imports=%d errors=%d\n", total_imports, total_errors);
@@ -473,8 +470,7 @@ static void test_export_concurrent(void)
 }
 
 /* ======================== Main ======================== */
-int main(void)
-{
+int main(void) {
     printf("=== Integration Tests (SYS + VB) ===\n\n");
 
     test_export_import();

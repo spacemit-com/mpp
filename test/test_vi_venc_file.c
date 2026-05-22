@@ -33,23 +33,23 @@
 #include "vi_api.h"
 #include "venc/venc_api.h"
 
-#define DEMO_DEFAULT_DEV          0
-#define DEMO_DEFAULT_PHY_CHN      0
-#define DEMO_DEFAULT_TIMEOUT_MS   1000
-#define DEMO_DEFAULT_FRAME_COUNT  30
-#define DEMO_DEFAULT_WIDTH        1920U
-#define DEMO_DEFAULT_HEIGHT       1080U
-#define DEMO_DEFAULT_BITRATE      4000000U
-#define DEMO_DEFAULT_FRAMERATE    30U
-#define DEMO_DEFAULT_GOP          30U
-#define DEMO_DEFAULT_ALIGN        16U
-#define DEMO_DEFAULT_VENC_CHN     0
-#define DEMO_STARTUP_WAIT_US      (200 * 1000)
-#define DEMO_RETRY_INTERVAL_US    (33 * 1000)
-#define DEMO_VENC_TIMEOUT_MS      3000
+#define DEMO_DEFAULT_DEV 0
+#define DEMO_DEFAULT_PHY_CHN 0
+#define DEMO_DEFAULT_TIMEOUT_MS 1000
+#define DEMO_DEFAULT_FRAME_COUNT 30
+#define DEMO_DEFAULT_WIDTH 1920U
+#define DEMO_DEFAULT_HEIGHT 1080U
+#define DEMO_DEFAULT_BITRATE 4000000U
+#define DEMO_DEFAULT_FRAMERATE 30U
+#define DEMO_DEFAULT_GOP 30U
+#define DEMO_DEFAULT_ALIGN 16U
+#define DEMO_DEFAULT_VENC_CHN 0
+#define DEMO_STARTUP_WAIT_US (200 * 1000)
+#define DEMO_RETRY_INTERVAL_US (33 * 1000)
+#define DEMO_VENC_TIMEOUT_MS 3000
 
-#define LOG_INFO(fmt, ...)  printf("[INFO] " fmt, ##__VA_ARGS__)
-#define LOG_WARN(fmt, ...)  printf("[WARN] " fmt, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...) printf("[INFO] " fmt, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...) printf("[WARN] " fmt, ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...) fprintf(stderr, "[ERROR] " fmt, ##__VA_ARGS__)
 
 typedef struct _ViVencDemoConfig {
@@ -65,17 +65,16 @@ typedef struct _ViVencDemoConfig {
     VencChnAttr stVencAttr;
 } ViVencDemoConfig;
 
-static void usage(const char *prog)
-{
-    fprintf(stderr,
-            "Usage: %s <output_file> [codec] [frames]\n"
-            "  codec : h264 | h265 | mjpeg (default: h264)\n"
-            "  frames: number of frames to capture and encode (default: 30)\n",
-            prog);
+static void usage(const char *prog) {
+    fprintf(
+        stderr,
+        "Usage: %s <output_file> [codec] [frames]\n"
+        "  codec : h264 | h265 | mjpeg (default: h264)\n"
+        "  frames: number of frames to capture and encode (default: 30)\n",
+        prog);
 }
 
-static MppStreamCodecType parse_codec(const char *codec)
-{
+static MppStreamCodecType parse_codec(const char *codec) {
     if (codec == NULL || strcmp(codec, "h264") == 0)
         return MPP_STREAM_CODEC_H264;
     if (strcmp(codec, "h265") == 0)
@@ -85,27 +84,24 @@ static MppStreamCodecType parse_codec(const char *codec)
     return MPP_STREAM_CODEC_UNKNOWN;
 }
 
-static const char *codec_name(MppStreamCodecType codec)
-{
+static const char *codec_name(MppStreamCodecType codec) {
     switch (codec) {
-    case MPP_STREAM_CODEC_H264:
-        return "H.264";
-    case MPP_STREAM_CODEC_H265:
-        return "H.265";
-    case MPP_STREAM_CODEC_MJPEG:
-        return "MJPEG";
-    default:
-        return "UNKNOWN";
+        case MPP_STREAM_CODEC_H264:
+            return "H.264";
+        case MPP_STREAM_CODEC_H265:
+            return "H.265";
+        case MPP_STREAM_CODEC_MJPEG:
+            return "MJPEG";
+        default:
+            return "UNKNOWN";
     }
 }
 
-static BOOL is_vi_no_frame_error(S32 ret)
-{
+static BOOL is_vi_no_frame_error(S32 ret) {
     return (ret == -4) ? MPP_TRUE : MPP_FALSE;
 }
 
-static void init_config(ViVencDemoConfig *pstCfg)
-{
+static void init_config(ViVencDemoConfig *pstCfg) {
     if (pstCfg == NULL)
         return;
 
@@ -140,8 +136,7 @@ static void init_config(ViVencDemoConfig *pstCfg)
     pstCfg->stVencAttr.eRcMode = VENC_RC_MODE_CBR;
 }
 
-static S32 setup_vi(const ViVencDemoConfig *pstCfg)
-{
+static S32 setup_vi(const ViVencDemoConfig *pstCfg) {
     S32 ret;
 
     ret = VI_Init();
@@ -177,8 +172,7 @@ static S32 setup_vi(const ViVencDemoConfig *pstCfg)
     return 0;
 }
 
-static void teardown_vi(const ViVencDemoConfig *pstCfg)
-{
+static void teardown_vi(const ViVencDemoConfig *pstCfg) {
     if (pstCfg == NULL)
         return;
 
@@ -187,8 +181,7 @@ static void teardown_vi(const ViVencDemoConfig *pstCfg)
     (void)VI_DeInit();
 }
 
-static S32 setup_venc(const ViVencDemoConfig *pstCfg)
-{
+static S32 setup_venc(const ViVencDemoConfig *pstCfg) {
     S32 ret;
 
     ret = VENC_Init();
@@ -212,8 +205,7 @@ static S32 setup_venc(const ViVencDemoConfig *pstCfg)
     return 0;
 }
 
-static void teardown_venc(const ViVencDemoConfig *pstCfg)
-{
+static void teardown_venc(const ViVencDemoConfig *pstCfg) {
     if (pstCfg == NULL)
         return;
 
@@ -222,8 +214,7 @@ static void teardown_venc(const ViVencDemoConfig *pstCfg)
     (void)VENC_Exit();
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     ViVencDemoConfig stCfg;
     const char *codec_arg = "h264";
     FILE *fout = NULL;
@@ -288,14 +279,15 @@ int main(int argc, char *argv[])
         goto fail;
     venc_ready = MPP_TRUE;
 
-    LOG_INFO("VI->VENC demo start: dev=%d chn=%d %ux%u -> %s (%s), frames=%u\n",
-             stCfg.ViDev,
-             stCfg.ViChn,
-             stCfg.stViChnAttr.u32Width,
-             stCfg.stViChnAttr.u32Height,
-             stCfg.pszOutputPath,
-             codec_name(stCfg.eCodecType),
-             stCfg.u32FrameCount);
+    LOG_INFO(
+        "VI->VENC demo start: dev=%d chn=%d %ux%u -> %s (%s), frames=%u\n",
+        stCfg.ViDev,
+        stCfg.ViChn,
+        stCfg.stViChnAttr.u32Width,
+        stCfg.stViChnAttr.u32Height,
+        stCfg.pszOutputPath,
+        codec_name(stCfg.eCodecType),
+        stCfg.u32FrameCount);
     usleep(DEMO_STARTUP_WAIT_US); /* wait for VI stable; K1 may return -4 before first frame is ready */
 
     for (U32 i = 0; i < stCfg.u32FrameCount; ++i) {
@@ -341,11 +333,12 @@ int main(int argc, char *argv[])
             goto fail;
         }
 
-        LOG_INFO("encoded frame %u: size=%u key=%d pts=%llu\n",
-                 i,
-                 stStream.u32Size,
-                 stStream.bKeyFrame,
-                 (unsigned long long)stStream.u64PTS);
+        LOG_INFO(
+            "encoded frame %u: size=%u key=%d pts=%" PRIu64 "\n",
+            i,
+            stStream.u32Size,
+            stStream.bKeyFrame,
+            (uint64_t)stStream.u64PTS);
         VENC_ReleaseStream(stCfg.vencChn, &stStream);
 
         ret = VI_ReleaseChnFrame(stCfg.ViDev, stCfg.ViChn, &stFrame);

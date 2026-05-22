@@ -15,8 +15,7 @@
 
 static BOOL g_bK1ViCcicInit = MPP_FALSE;
 
-S32 K1_VI_CcicInit(VOID)
-{
+S32 K1_VI_CcicInit(VOID) {
     if (g_bK1ViCcicInit == MPP_TRUE)
         return K1_VI_SUCCESS;
 
@@ -27,8 +26,7 @@ S32 K1_VI_CcicInit(VOID)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_CcicDeInit(VOID)
-{
+S32 K1_VI_CcicDeInit(VOID) {
     if (g_bK1ViCcicInit != MPP_TRUE)
         return K1_VI_SUCCESS;
 
@@ -37,8 +35,7 @@ S32 K1_VI_CcicDeInit(VOID)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_CcicSetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
-{
+S32 K1_VI_CcicSetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) {
     K1_ASR_CCIC_DEV_ATTR_S stCcicDevAttr;
 
     if (K1_VI_ToAsrCcicDevAttr(ViDev, pstDevAttr, &stCcicDevAttr) != K1_VI_SUCCESS)
@@ -47,8 +44,7 @@ S32 K1_VI_CcicSetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
     return (ASR_CCIC_SetDevAttr((U32)ViDev, &stCcicDevAttr) == SUCCESS) ? K1_VI_SUCCESS : K1_VI_ERR_BUSY;
 }
 
-S32 K1_VI_CcicSetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr, U32 *pu32CcicChn)
-{
+S32 K1_VI_CcicSetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr, U32 *pu32CcicChn) {
     K1_ASR_CCIC_CHN_ATTR_S stCcicChnAttr;
     U32 u32CcicChn = 0;
     S32 s32Ret;
@@ -71,8 +67,7 @@ S32 K1_VI_CcicSetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAtt
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_CcicQueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
-{
+S32 K1_VI_CcicQueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode) {
     if (pstChnCtx == NULL || pstBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -83,8 +78,7 @@ S32 K1_VI_CcicQueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufN
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_StartCcicChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
-{
+S32 K1_VI_StartCcicChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx) {
     S32 s32Ret;
 
     if (pstChnCtx == NULL)
@@ -131,8 +125,7 @@ S32 K1_VI_StartCcicChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_StopCcicChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool)
-{
+S32 K1_VI_StopCcicChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool) {
     if (pstChnCtx == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -149,8 +142,7 @@ S32 K1_VI_StopCcicChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroy
     return K1_VI_SUCCESS;
 }
 
-int32_t K1_VI_CcicBufferCallback(uint32_t nChn, CCIC_IMAGE_BUFFER_S *ccic_buffer)
-{
+int32_t K1_VI_CcicBufferCallback(uint32_t nChn, CCIC_IMAGE_BUFFER_S *ccic_buffer) {
     K1_VI_CHN_CTX_S *pstChnCtx;
     K1_VI_BUF_NODE_S *pstBufNode;
 

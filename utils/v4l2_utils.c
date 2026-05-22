@@ -526,6 +526,8 @@ BOOL check_v4l2(void) {
  * @param {S32} coding_type : input, the stream format we need to decode
  * @return {S32} : video device fd
  */
+#define V4L2_DEVICE_PATH_LEN 20
+
 S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
   S32 video_fd = -1;
   struct v4l2_capability vcap;
@@ -540,7 +542,7 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
       video_fd = -1;
     }
 
-    sprintf((char *)device_path, "%s%d", (char *)path_base, i);
+    snprintf((char *)device_path, V4L2_DEVICE_PATH_LEN, "%s%d", (char *)path_base, i);
     debug("now open '%s' and check it!", device_path);
     video_fd = open((const char *)device_path, O_RDWR | O_CLOEXEC);
 
@@ -558,7 +560,7 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
       continue;
     }
 
-    debug("v4l2_capability.capabilities = %u, v4l2_capability.device_caps = %u",
+    error("v4l2_capability.capabilities = %u, v4l2_capability.device_caps = %u",
           vcap.capabilities, vcap.device_caps);
 
     if (vcap.capabilities & V4L2_CAP_DEVICE_CAPS) {
@@ -568,7 +570,8 @@ S32 find_v4l2_decoder(U8 *device_path, S32 coding_type) {
     }
 
     if (!V4L2_IS_M2M(device_caps)) {
-      error("device is not a M2M device!");
+      error("%s is not a M2M device (caps=0x%08x), skip", device_path,
+            device_caps);
       continue;
     }
 
@@ -608,7 +611,7 @@ S32 find_v4l2_encoder(U8 *device_path, S32 coding_type) {
       video_fd = -1;
     }
 
-    sprintf((char *)device_path, "%s%d", (char *)path_base, i);
+    snprintf((char *)device_path, V4L2_DEVICE_PATH_LEN, "%s%d", (char *)path_base, i);
     debug("now open '%s' and check it!", device_path);
     video_fd = open((const char *)device_path, O_RDWR | O_CLOEXEC);
 
@@ -822,8 +825,11 @@ BOOL check_v4l2_linlonv5v7(void) {
       device_caps = vcap.capabilities;
     }
 
+    error("%s is not a M2M device (caps=0x%08x), skip", device_path,
+            device_caps);
     if (!V4L2_IS_M2M(device_caps)) {
-      error("device is not a M2M device!");
+      error("%s is not a M2M device (caps=0x%08x), skip", device_path,
+            device_caps);
       continue;
     }
 

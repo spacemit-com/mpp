@@ -37,30 +37,30 @@
 #include "vb_api.h"
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg)                      \
+    do {                                          \
+        printf("[FAIL] %s: %s\n", (name), (msg)); \
+        exit(1);                                  \
+    } while (0)
 
 /* Shared between parent and child via mmap'd anonymous page */
 typedef struct {
-    UL   pool_id;
-    UL   buf_handle;
-    U64  export_token;
-    U64  phy_addr;
-    int  child_ready;
-    int  parent_done;
+    UL pool_id;
+    UL buf_handle;
+    U64 export_token;
+    U64 phy_addr;
+    int child_ready;
+    int parent_done;
 } SharedTestData;
 
-static SharedTestData *alloc_shared_data(void)
-{
-    SharedTestData *sd = mmap(NULL, sizeof(SharedTestData),
-                               PROT_READ | PROT_WRITE,
-                               MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+static SharedTestData *alloc_shared_data(void) {
+    SharedTestData *sd = mmap(NULL, sizeof(SharedTestData), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
     assert(sd != MAP_FAILED);
     memset(sd, 0, sizeof(*sd));
     return sd;
 }
 
-static void free_shared_data(SharedTestData *sd)
-{
+static void free_shared_data(SharedTestData *sd) {
     munmap(sd, sizeof(SharedTestData));
 }
 
@@ -71,8 +71,7 @@ static void free_shared_data(SharedTestData *sd)
  *         write to buffer, ReleaseBuffer.
  * Parent: wait for child, verify buffer content, ReleaseBuffer, DestroyPool.
  */
-static void test_cross_process_pool(void)
-{
+static void test_cross_process_pool(void) {
     const char *name = "cross_process_pool";
     SharedTestData *sd = alloc_shared_data();
     S32 ret;
@@ -84,10 +83,10 @@ static void test_cross_process_pool(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = {
-        .u32BufSize  = 4096,
-        .u32BufCnt   = 4,
-        .eModId      = MPP_ID_SYS,
-        .eRemapMode  = VB_REMAP_MODE_NONE,
+        .u32BufSize = 4096,
+        .u32BufCnt = 4,
+        .eModId = MPP_ID_SYS,
+        .eRemapMode = VB_REMAP_MODE_NONE,
     };
     sd->pool_id = VB_CreatePool(&cfg);
     assert(sd->pool_id != 0);
@@ -112,9 +111,9 @@ static void test_cross_process_pool(void)
     pid_t child = fork();
     if (child == 0) {
         /* Child process */
-        ret = SYS_Init();   /* attach to existing SHM */
+        ret = SYS_Init(); /* attach to existing SHM */
         assert(ret == 0);
-        ret = VB_Init();    /* attach to existing VB */
+        ret = VB_Init(); /* attach to existing VB */
         assert(ret == 0);
 
         /* Import the buffer */
@@ -129,8 +128,11 @@ static void test_cross_process_pool(void)
         U64 child_phy = 0;
         ret = VB_GetPhyAddr(imported, &child_phy);
         if (ret != 0 || child_phy != sd->phy_addr) {
-            fprintf(stderr, "child: phy mismatch parent=0x%lx child=0x%lx\n",
-                    (unsigned long)sd->phy_addr, (unsigned long)child_phy);
+            fprintf(
+                stderr,
+                "child: phy mismatch parent=0x%lx child=0x%lx\n",
+                (uintptr_t)sd->phy_addr,
+                (uintptr_t)child_phy);
             _exit(2);
         }
 
@@ -145,8 +147,7 @@ static void test_cross_process_pool(void)
         /* Verify parent's written pattern */
         unsigned char *p = (unsigned char *)child_vir;
         if (p[0] != 0xDE || p[4095] != 0xDE) {
-            fprintf(stderr, "child: pattern mismatch: [0]=0x%02x [4095]=0x%02x\n",
-                    p[0], p[4095]);
+            fprintf(stderr, "child: pattern mismatch: [0]=0x%02x [4095]=0x%02x\n", p[0], p[4095]);
             _exit(4);
         }
 
@@ -196,8 +197,7 @@ static void test_cross_process_pool(void)
  * Parent: bind VI->VENC, create pool, get buffer, SendFrame.
  * Child:  SYS_Init (attach), RecvFrame, verify handle and phy addr, ReleaseBuffer.
  */
-static void test_sendrecv_frame(void)
-{
+static void test_sendrecv_frame(void) {
     const char *name = "sendrecv_frame";
     SharedTestData *sd = alloc_shared_data();
     S32 ret;
@@ -209,17 +209,17 @@ static void test_sendrecv_frame(void)
 
     /* Create pool */
     VbPoolCfg cfg = {
-        .u32BufSize  = 2048,
-        .u32BufCnt   = 4,
-        .eModId      = MPP_ID_VI,
-        .eRemapMode  = VB_REMAP_MODE_NONE,
+        .u32BufSize = 2048,
+        .u32BufCnt = 4,
+        .eModId = MPP_ID_VI,
+        .eRemapMode = VB_REMAP_MODE_NONE,
     };
     sd->pool_id = VB_CreatePool(&cfg);
     assert(sd->pool_id != 0);
 
     /* Bind VI ch0 -> VENC ch0 */
-    MppNode src  = { .eModId = MPP_ID_VI,   .s32DevId = 0, .s32ChnId = 0 };
-    MppNode sink = { .eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = 0 };
+    MppNode src = {.eModId = MPP_ID_VI, .s32DevId = 0, .s32ChnId = 0};
+    MppNode sink = {.eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = 0};
     ret = SYS_Bind(&src, &sink);
     assert(ret == 0);
 
@@ -247,7 +247,7 @@ static void test_sendrecv_frame(void)
 
         /* RecvFrame should block until parent sends */
         UL recv_buf = 0;
-        ret = SYS_RecvFrame(&sink, &recv_buf, 3000);  /* 3s timeout */
+        ret = SYS_RecvFrame(&sink, &recv_buf, 3000); /* 3s timeout */
         if (ret != 0) {
             fprintf(stderr, "child: RecvFrame failed ret=%d\n", ret);
             _exit(1);
@@ -260,23 +260,26 @@ static void test_sendrecv_frame(void)
             fprintf(stderr, "child: VB_GetFrameInfo failed ret=%d\n", ret);
             _exit(2);
         }
-        if (recv_frame.stVFrame.u64PTS != 1234567 ||
-            recv_frame.stVFrame.u32TotalSize != 2048 ||
-            recv_frame.stVFrame.u32PlaneNum != 1 ||
-            recv_frame.stVFrame.u32PlaneSizeValid[0] != 2048 ||
+        if (recv_frame.stVFrame.u64PTS != 1234567 || recv_frame.stVFrame.u32TotalSize != 2048 ||
+            recv_frame.stVFrame.u32PlaneNum != 1 || recv_frame.stVFrame.u32PlaneSizeValid[0] != 2048 ||
             recv_frame.ulBufferId != recv_buf) {
-            fprintf(stderr, "child: frame info mismatch pts=%llu total=%u planes=%u valid0=%u buf=%lu/%lu\n",
-                    (unsigned long long)recv_frame.stVFrame.u64PTS,
-                    recv_frame.stVFrame.u32TotalSize,
-                    recv_frame.stVFrame.u32PlaneNum,
-                    recv_frame.stVFrame.u32PlaneSizeValid[0],
-                    recv_frame.ulBufferId,
-                    recv_buf);
+            fprintf(
+                stderr,
+                "child: frame info mismatch pts=%" PRIu64 " total=%u planes=%u valid0=%u buf=%lu/%lu\n",
+                (uint64_t)recv_frame.stVFrame.u64PTS,
+                recv_frame.stVFrame.u32TotalSize,
+                recv_frame.stVFrame.u32PlaneNum,
+                recv_frame.stVFrame.u32PlaneSizeValid[0],
+                recv_frame.ulBufferId,
+                recv_buf);
             _exit(3);
         }
         if (recv_frame.stVFrame.ulPlaneVirAddr[0] == 0 || recv_frame.stVFrame.u32Fd[0] == 0) {
-            fprintf(stderr, "child: frame local addr/fd not auto-filled vir=%lu fd=%lu\n",
-                    recv_frame.stVFrame.ulPlaneVirAddr[0], recv_frame.stVFrame.u32Fd[0]);
+            fprintf(
+                stderr,
+                "child: frame local addr/fd not auto-filled vir=%lu fd=%lu\n",
+                recv_frame.stVFrame.ulPlaneVirAddr[0],
+                recv_frame.stVFrame.u32Fd[0]);
             _exit(4);
         }
 
@@ -284,8 +287,11 @@ static void test_sendrecv_frame(void)
         U64 recv_phy = 0;
         ret = VB_GetPhyAddr(recv_buf, &recv_phy);
         if (ret != 0 || recv_phy != sd->phy_addr) {
-            fprintf(stderr, "child: phy mismatch send=0x%lx recv=0x%lx\n",
-                    (unsigned long)sd->phy_addr, (unsigned long)recv_phy);
+            fprintf(
+                stderr,
+                "child: phy mismatch send=0x%lx recv=0x%lx\n",
+                (uintptr_t)sd->phy_addr,
+                (uintptr_t)recv_phy);
             _exit(5);
         }
 
@@ -298,8 +304,7 @@ static void test_sendrecv_frame(void)
         }
         unsigned char *p = (unsigned char *)recv_vir;
         if (p[0] != 0xCC || p[2047] != 0xCC) {
-            fprintf(stderr, "child: data mismatch [0]=0x%02x [2047]=0x%02x\n",
-                    p[0], p[2047]);
+            fprintf(stderr, "child: data mismatch [0]=0x%02x [2047]=0x%02x\n", p[0], p[2047]);
             _exit(7);
         }
 
@@ -313,7 +318,7 @@ static void test_sendrecv_frame(void)
     }
 
     /* Parent: give child a moment to call RecvFrame, then SendFrame */
-    usleep(100000);  /* 100ms */
+    usleep(100000); /* 100ms */
     ret = SYS_SendFrame(&src, sd->buf_handle);
     assert(ret == 0);
 
@@ -348,8 +353,7 @@ static void test_sendrecv_frame(void)
  * Parent creates pool. Fork N children, each does get/release in a loop.
  * Wait for all children. Verify pool is clean, destroy.
  */
-static void test_multiproc_stress(void)
-{
+static void test_multiproc_stress(void) {
     const char *name = "multiproc_stress";
     S32 ret;
     int num_children = 4;
@@ -361,10 +365,10 @@ static void test_multiproc_stress(void)
     assert(ret == 0);
 
     VbPoolCfg cfg = {
-        .u32BufSize  = 512,
-        .u32BufCnt   = 4,
-        .eModId      = MPP_ID_SYS,
-        .eRemapMode  = VB_REMAP_MODE_NONE,
+        .u32BufSize = 512,
+        .u32BufCnt = 4,
+        .eModId = MPP_ID_SYS,
+        .eRemapMode = VB_REMAP_MODE_NONE,
     };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
@@ -382,7 +386,7 @@ static void test_multiproc_stress(void)
 
             int errors = 0;
             for (int i = 0; i < iterations; i++) {
-                UL buf = VB_GetBuffer(pool_id, 200);  /* 200ms timeout */
+                UL buf = VB_GetBuffer(pool_id, 200); /* 200ms timeout */
                 if (buf == 0) {
                     /* timeout under contention is acceptable */
                     continue;
@@ -433,8 +437,7 @@ static void test_multiproc_stress(void)
  * Verify that VB buffers have real CMA physical addresses (phy != vir).
  * Also verify MmzAlloc returns real physical addresses.
  */
-static void test_real_phy_addr(void)
-{
+static void test_real_phy_addr(void) {
     const char *name = "real_phy_addr";
     S32 ret;
 
@@ -445,10 +448,10 @@ static void test_real_phy_addr(void)
 
     /* VB buffer */
     VbPoolCfg cfg = {
-        .u32BufSize  = 4096,
-        .u32BufCnt   = 2,
-        .eModId      = MPP_ID_SYS,
-        .eRemapMode  = VB_REMAP_MODE_NONE,
+        .u32BufSize = 4096,
+        .u32BufCnt = 2,
+        .eModId = MPP_ID_SYS,
+        .eRemapMode = VB_REMAP_MODE_NONE,
     };
     UL pool_id = VB_CreatePool(&cfg);
     assert(pool_id != 0);
@@ -462,7 +465,7 @@ static void test_real_phy_addr(void)
     assert(ret == 0);
     ret = VB_GetVirAddr(buf, &vir);
     assert(ret == 0);
-    printf("  VB: phy=0x%lx vir=%p\n", (unsigned long)phy, vir);
+    printf("  VB: phy=0x%lx vir=%p\n", (uintptr_t)phy, vir);
 
     if (phy == 0)
         TEST_FAIL(name, "VB phy addr is 0");
@@ -480,7 +483,7 @@ static void test_real_phy_addr(void)
     ret = SYS_MmzAlloc(&mmz_phy, &mmz_vir, "test_phy", NULL, 8192);
     assert(ret == 0);
 
-    printf("  MMZ: phy=0x%lx vir=%p\n", (unsigned long)mmz_phy, mmz_vir);
+    printf("  MMZ: phy=0x%lx vir=%p\n", (uintptr_t)mmz_phy, mmz_vir);
 
     if (mmz_phy == 0)
         TEST_FAIL(name, "MMZ phy addr is 0");
@@ -499,8 +502,7 @@ static void test_real_phy_addr(void)
 }
 
 /* ======================== Main ======================== */
-int main(void)
-{
+int main(void) {
     printf("=== Multi-Process Tests (SYS + VB) ===\n\n");
 
     test_real_phy_addr();

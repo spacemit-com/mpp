@@ -47,55 +47,66 @@
 /* ======================== Helpers ======================== */
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
-#define TEST_SKIP(name, msg) do { printf("[SKIP] %s: %s\n", (name), (msg)); return; } while(0)
+#define TEST_FAIL(name, msg)                      \
+    do {                                          \
+        printf("[FAIL] %s: %s\n", (name), (msg)); \
+        exit(1);                                  \
+    } while (0)
+#define TEST_SKIP(name, msg)                      \
+    do {                                          \
+        printf("[SKIP] %s: %s\n", (name), (msg)); \
+        return;                                   \
+    } while (0)
 
 static const char *g_devNode = "/dev/video13";
 static BOOL g_hasHw = MPP_FALSE;
 static MppPixelFormat g_pixelFormat = MPP_PIXEL_FORMAT_MJPEG;
-static U32 g_duration = 0; /* duration in seconds, 0 means use frame count */
+static U32 g_duration = 0;    /* duration in seconds, 0 means use frame count */
 static S32 g_brightness = -1; /* -1 means not set (use default) */
 static S32 g_hue = -1;
 static S32 g_saturation = -1;
 static S32 g_sharpness = -1;
 
-static MppPixelFormat parse_format(const char *str)
-{
-    if (!str) return MPP_PIXEL_FORMAT_MJPEG;
+static MppPixelFormat parse_format(const char *str) {
+    if (!str)
+        return MPP_PIXEL_FORMAT_MJPEG;
     if (strcasecmp(str, "MJPEG") == 0 || strcasecmp(str, "mjpeg") == 0)
         return MPP_PIXEL_FORMAT_MJPEG;
-    if (strcasecmp(str, "YUYV") == 0 || strcasecmp(str, "YUV2") == 0 ||
-        strcasecmp(str, "yuyv") == 0 || strcasecmp(str, "yuv2") == 0)
+    if (strcasecmp(str, "YUYV") == 0 || strcasecmp(str, "YUV2") == 0 || strcasecmp(str, "yuyv") == 0 ||
+        strcasecmp(str, "yuv2") == 0)
         return MPP_PIXEL_FORMAT_YUYV;
-    if (strcasecmp(str, "H264") == 0 || strcasecmp(str, "h264") == 0 ||
-        strcasecmp(str, "H.264") == 0)
+    if (strcasecmp(str, "H264") == 0 || strcasecmp(str, "h264") == 0 || strcasecmp(str, "H.264") == 0)
         return MPP_PIXEL_FORMAT_H264;
     if (strcasecmp(str, "NV12") == 0 || strcasecmp(str, "nv12") == 0)
         return MPP_PIXEL_FORMAT_NV12;
     if (strcasecmp(str, "NV21") == 0 || strcasecmp(str, "nv21") == 0)
         return MPP_PIXEL_FORMAT_NV21;
-    if (strcasecmp(str, "I420") == 0 || strcasecmp(str, "i420") == 0 ||
-        strcasecmp(str, "YU12") == 0)
+    if (strcasecmp(str, "I420") == 0 || strcasecmp(str, "i420") == 0 || strcasecmp(str, "YU12") == 0)
         return MPP_PIXEL_FORMAT_I420;
     printf("[WARN] Unknown format '%s', defaulting to MJPEG\n", str);
     return MPP_PIXEL_FORMAT_MJPEG;
 }
 
-static const char *format_to_str(MppPixelFormat fmt)
-{
+static const char *format_to_str(MppPixelFormat fmt) {
     switch (fmt) {
-    case MPP_PIXEL_FORMAT_MJPEG: return "MJPEG";
-    case MPP_PIXEL_FORMAT_YUYV:  return "YUYV";
-    case MPP_PIXEL_FORMAT_H264:  return "H264";
-    case MPP_PIXEL_FORMAT_NV12:  return "NV12";
-    case MPP_PIXEL_FORMAT_NV21:  return "NV21";
-    case MPP_PIXEL_FORMAT_I420:  return "I420";
-    default:                     return "UNKNOWN";
+        case MPP_PIXEL_FORMAT_MJPEG:
+            return "MJPEG";
+        case MPP_PIXEL_FORMAT_YUYV:
+            return "YUYV";
+        case MPP_PIXEL_FORMAT_H264:
+            return "H264";
+        case MPP_PIXEL_FORMAT_NV12:
+            return "NV12";
+        case MPP_PIXEL_FORMAT_NV21:
+            return "NV21";
+        case MPP_PIXEL_FORMAT_I420:
+            return "I420";
+        default:
+            return "UNKNOWN";
     }
 }
 
-static void print_usage(const char *prog)
-{
+static void print_usage(const char *prog) {
     printf("Usage: %s [OPTIONS]\n", prog);
     printf("Options:\n");
     printf("  --device <dev>       Video device node (default: /dev/video13)\n");
@@ -109,30 +120,26 @@ static void print_usage(const char *prog)
     printf("  --help               Show this help message\n");
 }
 
-static void check_hw(void)
-{
+static void check_hw(void) {
     g_hasHw = (access(g_devNode, F_OK) == 0) ? MPP_TRUE : MPP_FALSE;
 }
 
-static void fill_default_dev_attr(UvcDevAttr *attr)
-{
+static void fill_default_dev_attr(UvcDevAttr *attr) {
     memset(attr, 0, sizeof(*attr));
     strncpy(attr->acDevNode, g_devNode, sizeof(attr->acDevNode) - 1);
 }
 
-static void fill_default_chn_attr(UvcChnAttr *attr)
-{
+static void fill_default_chn_attr(UvcChnAttr *attr) {
     memset(attr, 0, sizeof(*attr));
-    attr->u32Width      = 640;
-    attr->u32Height     = 480;
-    attr->ePixelFormat  = g_pixelFormat;
-    attr->u32Fps        = 30;
+    attr->u32Width = 640;
+    attr->u32Height = 480;
+    attr->ePixelFormat = g_pixelFormat;
+    attr->u32Fps = 30;
 }
 
 /* ======================== Test 1: Init / Exit ======================== */
 
-static void test_init_exit(void)
-{
+static void test_init_exit(void) {
     const char *name = "init_exit";
     S32 ret;
 
@@ -151,8 +158,7 @@ static void test_init_exit(void)
 
 /* ======================== Test 2: Create / Destroy Device ======================== */
 
-static void test_create_destroy_dev(void)
-{
+static void test_create_destroy_dev(void) {
     const char *name = "create_destroy_dev";
     S32 ret;
     UVC_DEV dev = 0;
@@ -187,8 +193,7 @@ static void test_create_destroy_dev(void)
 
 /* ======================== Test 3: Create Multiple Devices ======================== */
 
-static void test_create_multi_dev(void)
-{
+static void test_create_multi_dev(void) {
     const char *name = "create_multi_dev";
     S32 ret;
     UvcDevAttr attr;
@@ -226,8 +231,7 @@ static void test_create_multi_dev(void)
 
 /* ======================== Test 5: Invalid Parameters ======================== */
 
-static void test_invalid_params(void)
-{
+static void test_invalid_params(void) {
     const char *name = "invalid_params";
     S32 ret;
     UVC_DEV dev = 0;
@@ -286,8 +290,7 @@ static void test_invalid_params(void)
 
 /* ======================== Test 6: State Machine Errors ======================== */
 
-static void test_state_machine(void)
-{
+static void test_state_machine(void) {
     const char *name = "state_machine";
     S32 ret;
     UVC_DEV dev = 0;
@@ -331,8 +334,7 @@ static void test_state_machine(void)
 
 /* ======================== Test 7: Effect Attr Without Enable ======================== */
 
-static void test_effect_not_enabled(void)
-{
+static void test_effect_not_enabled(void) {
     const char *name = "effect_not_enabled";
     S32 ret;
     UVC_DEV dev = 0;
@@ -367,8 +369,7 @@ static void test_effect_not_enabled(void)
 
 /* ======================== Test 8: Full HW Pipeline ======================== */
 
-static void test_hw_full_pipeline(void)
-{
+static void test_hw_full_pipeline(void) {
     const char *name = "hw_full_pipeline";
     S32 ret;
     UVC_DEV dev = 0;
@@ -425,7 +426,7 @@ static void test_hw_full_pipeline(void)
     /* set effect */
     memset(&effect, 0, sizeof(effect));
     effect.s32Brightness = 10;
-    effect.s32Contrast   = 32;
+    effect.s32Contrast = 32;
     effect.bAutoExposure = MPP_TRUE;
     ret = UVC_SetEffectAttr(dev, &effect);
     assert(ret == 0);
@@ -462,16 +463,22 @@ static void test_hw_full_pipeline(void)
 
 /* ======================== Test 9: GetFrame and Save to File ======================== */
 
-static const char *get_format_ext(MppPixelFormat fmt)
-{
+static const char *get_format_ext(MppPixelFormat fmt) {
     switch (fmt) {
-    case MPP_PIXEL_FORMAT_MJPEG: return "mjpeg";
-    case MPP_PIXEL_FORMAT_H264:  return "h264";
-    case MPP_PIXEL_FORMAT_I420:  return "yuv";
-    case MPP_PIXEL_FORMAT_NV12:  return "nv12";
-    case MPP_PIXEL_FORMAT_NV21:  return "nv21";
-    case MPP_PIXEL_FORMAT_YUYV:  return "yuyv";
-    default:                 return "bin";
+        case MPP_PIXEL_FORMAT_MJPEG:
+            return "mjpeg";
+        case MPP_PIXEL_FORMAT_H264:
+            return "h264";
+        case MPP_PIXEL_FORMAT_I420:
+            return "yuv";
+        case MPP_PIXEL_FORMAT_NV12:
+            return "nv12";
+        case MPP_PIXEL_FORMAT_NV21:
+            return "nv21";
+        case MPP_PIXEL_FORMAT_YUYV:
+            return "yuyv";
+        default:
+            return "bin";
     }
 }
 
@@ -480,18 +487,17 @@ static const char *get_format_ext(MppPixelFormat fmt)
  *        Scans for start codes (0x00000001 or 0x000001) and checks NAL type.
  *        Returns MPP_TRUE if SPS (type 7) is found, indicating a keyframe with headers.
  */
-static BOOL h264_has_sps(const U8 *data, U32 size)
-{
+static BOOL h264_has_sps(const U8 *data, U32 size) {
     if (!data || size < 5)
         return MPP_FALSE;
 
     for (U32 i = 0; i < size - 4; i++) {
         /* look for start code: 0x00 0x00 0x01 or 0x00 0x00 0x00 0x01 */
         U32 nalOffset = 0;
-        if (data[i] == 0x00 && data[i+1] == 0x00) {
-            if (data[i+2] == 0x01) {
+        if (data[i] == 0x00 && data[i + 1] == 0x00) {
+            if (data[i + 2] == 0x01) {
                 nalOffset = i + 3;
-            } else if (data[i+2] == 0x00 && i + 3 < size && data[i+3] == 0x01) {
+            } else if (data[i + 2] == 0x00 && i + 3 < size && data[i + 3] == 0x01) {
                 nalOffset = i + 4;
             } else {
                 continue;
@@ -506,8 +512,7 @@ static BOOL h264_has_sps(const U8 *data, U32 size)
     return MPP_FALSE;
 }
 
-static void test_getframe_save_file(void)
-{
+static void test_getframe_save_file(void) {
     const char *name = "getframe_save_file";
     S32 ret;
     UVC_DEV dev = 0;
@@ -517,8 +522,7 @@ static void test_getframe_save_file(void)
     const S32 s32Timeout = 3000; /* 3s timeout */
     U32 u32SaveCnt = 5;          /* default save 5 frames */
 
-    printf("  [INFO] Format: %s, Duration: %u sec\n",
-           format_to_str(g_pixelFormat), g_duration);
+    printf("  [INFO] Format: %s, Duration: %u sec\n", format_to_str(g_pixelFormat), g_duration);
 
     if (!g_hasHw)
         TEST_SKIP(name, "no UVC device found");
@@ -560,18 +564,22 @@ static void test_getframe_save_file(void)
     UvcEffectAttr effect;
     memset(&effect, 0, sizeof(effect));
     effect.bAutoWhiteBalance = MPP_TRUE;
-    effect.bAutoExposure     = MPP_TRUE;
-    effect.s32Brightness     = (g_brightness >= 0) ? g_brightness : 100;
-    effect.s32Contrast       = 128;
-    effect.s32Saturation     = (g_saturation >= 0) ? g_saturation : 128;
-    effect.s32Hue            = (g_hue >= 0) ? g_hue : 100;
-    effect.s32Sharpness      = (g_sharpness >= 0) ? g_sharpness : 100;
+    effect.bAutoExposure = MPP_TRUE;
+    effect.s32Brightness = (g_brightness >= 0) ? g_brightness : 100;
+    effect.s32Contrast = 128;
+    effect.s32Saturation = (g_saturation >= 0) ? g_saturation : 128;
+    effect.s32Hue = (g_hue >= 0) ? g_hue : 100;
+    effect.s32Sharpness = (g_sharpness >= 0) ? g_sharpness : 100;
     ret = UVC_SetEffectAttr(dev, &effect);
     if (ret != 0)
         printf("  [WARN] SetEffectAttr failed (ret=%d), colors may be off\n", ret);
     else
-        printf("  [INFO] SetEffectAttr OK: AWB=on, AE=on, brightness=%d, hue=%d, sat=%d, sharpness=%d\n",
-               effect.s32Brightness, effect.s32Hue, effect.s32Saturation, effect.s32Sharpness);
+        printf(
+            "  [INFO] SetEffectAttr OK: AWB=on, AE=on, brightness=%d, hue=%d, sat=%d, sharpness=%d\n",
+            effect.s32Brightness,
+            effect.s32Hue,
+            effect.s32Saturation,
+            effect.s32Sharpness);
 
     for (U32 i = 0; i < u32WarmUpCnt; i++) {
         memset(&frame, 0, sizeof(frame));
@@ -594,9 +602,12 @@ static void test_getframe_save_file(void)
 
     /* Open a single output file for all frames */
     char filename[256];
-    snprintf(filename, sizeof(filename), "uvc_output_%s_640x480.%s",
-             format_to_str(g_pixelFormat),
-             get_format_ext(g_pixelFormat));
+    snprintf(
+        filename,
+        sizeof(filename),
+        "uvc_output_%s_640x480.%s",
+        format_to_str(g_pixelFormat),
+        get_format_ext(g_pixelFormat));
 
     FILE *fp = fopen(filename, "wb");
     if (!fp) {
@@ -637,8 +648,7 @@ static void test_getframe_save_file(void)
             const U8 *pData = (const U8 *)frame.stVFrame.ulPlaneVirAddr[0];
             U32 dataSize = frame.stVFrame.u32PlaneSizeValid[0];
             if (!h264_has_sps(pData, dataSize)) {
-                printf("  [INFO] H264: frame #%u has no SPS, skipping (waiting for keyframe)\n",
-                       u32FrameIdx);
+                printf("  [INFO] H264: frame #%u has no SPS, skipping (waiting for keyframe)\n", u32FrameIdx);
                 UVC_ReleaseFrame(dev, 0, &frame);
                 u32FrameIdx++;
                 continue;
@@ -648,13 +658,15 @@ static void test_getframe_save_file(void)
         }
 
         /* Append frame data to the single output file */
-        size_t written = fwrite((void *)frame.stVFrame.ulPlaneVirAddr[0], 1,
-                                frame.stVFrame.u32PlaneSizeValid[0], fp);
+        size_t written = fwrite((void *)frame.stVFrame.ulPlaneVirAddr[0], 1, frame.stVFrame.u32PlaneSizeValid[0], fp);
         totalWritten += written;
 
         if (written != frame.stVFrame.u32PlaneSizeValid[0]) {
-            printf("  [WARN] Frame #%u: expected %u bytes, wrote %zu\n",
-                   u32FrameIdx, frame.stVFrame.u32PlaneSizeValid[0], written);
+            printf(
+                "  [WARN] Frame #%u: expected %u bytes, wrote %zu\n",
+                u32FrameIdx,
+                frame.stVFrame.u32PlaneSizeValid[0],
+                written);
         }
 
         ret = UVC_ReleaseFrame(dev, 0, &frame);
@@ -665,8 +677,12 @@ static void test_getframe_save_file(void)
     }
 
     fclose(fp);
-    printf("  [INFO] Capture done: saved %u frames (%zu bytes total) to %s in %ld seconds\n",
-           u32SavedCnt, totalWritten, filename, (long)(time(NULL) - tStart));
+    printf(
+        "  [INFO] Capture done: saved %u frames (%zu bytes total) to %s in %ld seconds\n",
+        u32SavedCnt,
+        totalWritten,
+        filename,
+        (int64_t)(time(NULL) - tStart));
 
     /* --- ReleaseFrame with invalid params should fail --- */
     memset(&frame, 0, sizeof(frame));
@@ -695,8 +711,7 @@ teardown:
 
 /* ======================== Test 10: Exit Force Cleanup ======================== */
 
-static void test_exit_force_cleanup(void)
-{
+static void test_exit_force_cleanup(void) {
     const char *name = "exit_force_cleanup";
     S32 ret;
     UVC_DEV dev = 0;
@@ -726,8 +741,7 @@ static void test_exit_force_cleanup(void)
 
 /* ======================== Main ======================== */
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     /* parse command-line arguments */
     for (int i = 1; i < argc; i++) {
         if ((strcmp(argv[i], "--device") == 0) && (i + 1 < argc)) {
@@ -760,10 +774,8 @@ int main(int argc, char *argv[])
     check_hw();
 
     printf("=== UVC Module Tests ===\n");
-    printf("Device node: %s (%s)\n",
-           g_devNode, g_hasHw ? "found" : "not found, hw tests will skip");
-    printf("Format: %s, Duration: %u sec\n\n",
-           format_to_str(g_pixelFormat), g_duration);
+    printf("Device node: %s (%s)\n", g_devNode, g_hasHw ? "found" : "not found, hw tests will skip");
+    printf("Format: %s, Duration: %u sec\n\n", format_to_str(g_pixelFormat), g_duration);
 
     /* initialize VB module for buffer management */
     S32 vbRet = SYS_Init();
@@ -780,7 +792,7 @@ int main(int argc, char *argv[])
     // test_exit_force_cleanup();
 
     /* hardware tests */
-    //test_hw_full_pipeline();
+    // test_hw_full_pipeline();
     test_getframe_save_file();
 
     printf("\n=== All tests passed ===\n");

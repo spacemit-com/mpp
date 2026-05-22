@@ -36,37 +36,34 @@ struct dma_heap_allocation_data {
     __u64 heap_flags;
 };
 
-#define DMA_HEAP_IOCTL_ALLOC \
-    _IOWR('H', 0x0, struct dma_heap_allocation_data)
+#define DMA_HEAP_IOCTL_ALLOC _IOWR('H', 0x0, struct dma_heap_allocation_data)
 
 /* From linux/dma-buf.h */
 struct dma_buf_sync {
     __u64 flags;
 };
 
-#define DMA_BUF_SYNC_READ   (1 << 0)
-#define DMA_BUF_SYNC_WRITE  (2 << 0)
-#define DMA_BUF_SYNC_RW     (DMA_BUF_SYNC_READ | DMA_BUF_SYNC_WRITE)
-#define DMA_BUF_SYNC_START  (0 << 2)
-#define DMA_BUF_SYNC_END    (1 << 2)
-#define DMA_BUF_BASE        'b'
-#define DMA_BUF_IOCTL_SYNC  _IOW(DMA_BUF_BASE, 0, struct dma_buf_sync)
+#define DMA_BUF_SYNC_READ (1 << 0)
+#define DMA_BUF_SYNC_WRITE (2 << 0)
+#define DMA_BUF_SYNC_RW (DMA_BUF_SYNC_READ | DMA_BUF_SYNC_WRITE)
+#define DMA_BUF_SYNC_START (0 << 2)
+#define DMA_BUF_SYNC_END (1 << 2)
+#define DMA_BUF_BASE 'b'
+#define DMA_BUF_IOCTL_SYNC _IOW(DMA_BUF_BASE, 0, struct dma_buf_sync)
 
 /* ======================== Constants ======================== */
 
-#define DMA_HEAP_PATH  "/dev/dma_heap/linux,cma"
-#define PAGE_SIZE_4K   4096
+#define DMA_HEAP_PATH "/dev/dma_heap/linux,cma"
+#define PAGE_SIZE_4K 4096
 
-#define DMA_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[DMA][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define DMA_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[DMA][INFO] " fmt "\n", ##__VA_ARGS__)
+#define DMA_LOG_ERR(fmt, ...) fprintf(stderr, "[DMA][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define DMA_LOG_INFO(fmt, ...) fprintf(stdout, "[DMA][INFO] " fmt "\n", ##__VA_ARGS__)
 
 /* ======================== State ======================== */
 
 static int g_heap_fd = -1;
-static U64 g_cma_base = 0;      /* CMA physical base from debugfs */
-static U64 g_cma_next = 0;      /* next assignable physical address */
+static U64 g_cma_base = 0; /* CMA physical base from debugfs */
+static U64 g_cma_next = 0; /* next assignable physical address */
 
 /* ======================== CMA base discovery ======================== */
 /*
@@ -85,8 +82,7 @@ static U64 g_cma_next = 0;      /* next assignable physical address */
  * physical address via dma_buf_map_attachment(); userspace physical
  * addresses are for identity/debugging only.
  */
-static S32 cma_discover_base(void)
-{
+static S32 cma_discover_base(void) {
     if (g_cma_base != 0)
         return 0;
 
@@ -108,7 +104,7 @@ static S32 cma_discover_base(void)
         return -1;
     }
 
-    unsigned long base_pfn = strtoul(buf, NULL, 10);
+    uint64_t base_pfn = strtoul(buf, NULL, 10);
     if (base_pfn == 0) {
         DMA_LOG_ERR("invalid CMA base_pfn: %s", buf);
         return -1;
@@ -116,12 +112,11 @@ static S32 cma_discover_base(void)
 
     g_cma_base = (U64)base_pfn * PAGE_SIZE_4K;
     g_cma_next = g_cma_base;
-    DMA_LOG_INFO("CMA base: pfn=%lu phy=0x%lx", base_pfn, (unsigned long)g_cma_base);
+    DMA_LOG_INFO("CMA base: pfn=%" PRIu64 " phy=0x%" PRIx64, base_pfn, g_cma_base);
     return 0;
 }
 
-static U64 cma_assign_phy(U32 alloc_size)
-{
+static U64 cma_assign_phy(U32 alloc_size) {
     U64 phy = g_cma_next;
     g_cma_next += alloc_size;
     return phy;
@@ -129,8 +124,7 @@ static U64 cma_assign_phy(U32 alloc_size)
 
 /* ======================== Public API ======================== */
 
-S32 dma_alloc_init(void)
-{
+S32 dma_alloc_init(void) {
     if (g_heap_fd >= 0)
         return 0; /* already open */
 
@@ -149,8 +143,7 @@ S32 dma_alloc_init(void)
     return 0;
 }
 
-void dma_alloc_deinit(void)
-{
+void dma_alloc_deinit(void) {
     if (g_heap_fd >= 0) {
         close(g_heap_fd);
         g_heap_fd = -1;
@@ -159,8 +152,7 @@ void dma_alloc_deinit(void)
     g_cma_next = 0;
 }
 
-S32 dma_alloc_buf(U32 size, int *p_fd, U64 *p_phy, void **p_vir)
-{
+S32 dma_alloc_buf(U32 size, int *p_fd, U64 *p_phy, void **p_vir) {
     if (g_heap_fd < 0) {
         DMA_LOG_ERR("DMA heap not initialized");
         return -1;
@@ -174,7 +166,7 @@ S32 dma_alloc_buf(U32 size, int *p_fd, U64 *p_phy, void **p_vir)
     U32 alloc_size = (size + PAGE_SIZE_4K - 1) & ~(PAGE_SIZE_4K - 1);
 
     struct dma_heap_allocation_data alloc = {
-        .len      = alloc_size,
+        .len = alloc_size,
         .fd_flags = O_CLOEXEC | O_RDWR,
         .heap_flags = 0,
     };
@@ -198,15 +190,14 @@ S32 dma_alloc_buf(U32 size, int *p_fd, U64 *p_phy, void **p_vir)
     /* assign physical address from CMA range */
     U64 phy = (g_cma_base != 0) ? cma_assign_phy(alloc_size) : 0;
 
-    *p_fd  = alloc.fd;
+    *p_fd = alloc.fd;
     *p_phy = phy;
     *p_vir = vir;
 
     return 0;
 }
 
-void dma_free_buf(int fd, void *vir, U32 size)
-{
+void dma_free_buf(int fd, void *vir, U32 size) {
     U32 alloc_size = (size + PAGE_SIZE_4K - 1) & ~(PAGE_SIZE_4K - 1);
     if (vir)
         munmap(vir, alloc_size);
@@ -214,8 +205,7 @@ void dma_free_buf(int fd, void *vir, U32 size)
         close(fd);
 }
 
-S32 dma_sync_buf(int fd, U32 flags)
-{
+S32 dma_sync_buf(int fd, U32 flags) {
     struct dma_buf_sync sync = {
         .flags = flags,
     };
@@ -227,8 +217,7 @@ S32 dma_sync_buf(int fd, U32 flags)
     return 0;
 }
 
-S32 dma_get_phy(void *vir, U64 *p_phy)
-{
+S32 dma_get_phy(void *vir, U64 *p_phy) {
     if (!vir || !p_phy)
         return -1;
     /* Physical address is assigned at allocation time and stored in

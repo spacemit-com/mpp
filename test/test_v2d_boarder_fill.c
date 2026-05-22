@@ -20,15 +20,19 @@
 #include "vb_api.h"
 #include "v2d_api.h"
 
-#define DEMO_INPUT_FILE   "./input.yuv"
-#define DEMO_OUTPUT_FILE  "./test_v2d_boarder_fill.yuv"
-#define SCALED_WIDTH      640U
-#define SCALED_HEIGHT     360U
-#define DST_WIDTH         640U
-#define DST_HEIGHT        640U
+#define DEMO_INPUT_FILE "./input.yuv"
+#define DEMO_OUTPUT_FILE "./test_v2d_boarder_fill.yuv"
+#define SCALED_WIDTH 640U
+#define SCALED_HEIGHT 360U
+#define DST_WIDTH 640U
+#define DST_HEIGHT 640U
 
-#define DEMO_LOG(fmt, ...)  printf("[test_v2d_boarder_fill] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[test_v2d_boarder_fill][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...) printf("[test_v2d_boarder_fill] " fmt "\n", ##__VA_ARGS__)
+#define DEMO_FAIL(fmt, ...)                                               \
+    do {                                                                  \
+        printf("[test_v2d_boarder_fill][FAIL] " fmt "\n", ##__VA_ARGS__); \
+        return -1;                                                        \
+    } while (0)
 
 typedef struct DEMO_CONFIG_S {
     const char *scaled_file;
@@ -42,8 +46,7 @@ typedef struct DEMO_CONFIG_S {
     U32 border_v;
 } DEMO_CONFIG_S;
 
-static void demo_set_default_config(DEMO_CONFIG_S *config)
-{
+static void demo_set_default_config(DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return;
     }
@@ -60,10 +63,9 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     config->border_v = 128U;
 }
 
-static int demo_parse_u32(const char *text, U32 *value)
-{
+static int demo_parse_u32(const char *text, U32 *value) {
     char *end_ptr = NULL;
-    unsigned long parsed;
+    uint64_t parsed;
 
     if ((text == NULL) || (value == NULL) || (text[0] == '\0')) {
         return -1;
@@ -78,10 +80,11 @@ static int demo_parse_u32(const char *text, U32 *value)
     return 0;
 }
 
-static void demo_print_usage(const char *prog)
-{
+static void demo_print_usage(const char *prog) {
     printf("Usage:\n");
-    printf("  %s [scaled_nv12 scaled_width scaled_height output_nv12 dst_width dst_height [border_y border_u border_v]]\n", prog);
+    printf(
+        "  %s [scaled_nv12 scaled_width scaled_height output_nv12 dst_width dst_height [border_y border_u border_v]]\n",
+        prog);
     printf("\nDefaults:\n");
     printf("  scaled_file : %s\n", DEMO_INPUT_FILE);
     printf("  scaled_width: %u\n", SCALED_WIDTH);
@@ -95,8 +98,7 @@ static void demo_print_usage(const char *prog)
     printf("  V2D only fills the destination canvas and copies the scaled image into the inner area.\n");
 }
 
-static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
-{
+static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return -1;
     }
@@ -114,15 +116,13 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     config->scaled_file = argv[1];
     config->output_file = argv[4];
     if ((demo_parse_u32(argv[2], &config->scaled_width) != 0) ||
-        (demo_parse_u32(argv[3], &config->scaled_height) != 0) ||
-        (demo_parse_u32(argv[5], &config->dst_width) != 0) ||
+        (demo_parse_u32(argv[3], &config->scaled_height) != 0) || (demo_parse_u32(argv[5], &config->dst_width) != 0) ||
         (demo_parse_u32(argv[6], &config->dst_height) != 0)) {
         return -1;
     }
 
     if (argc == 10) {
-        if ((demo_parse_u32(argv[7], &config->border_y) != 0) ||
-            (demo_parse_u32(argv[8], &config->border_u) != 0) ||
+        if ((demo_parse_u32(argv[7], &config->border_y) != 0) || (demo_parse_u32(argv[8], &config->border_u) != 0) ||
             (demo_parse_u32(argv[9], &config->border_v) != 0)) {
             return -1;
         }
@@ -135,8 +135,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     return 0;
 }
 
-static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -153,8 +152,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
         return -1;
     }
 
-    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] +
-                    (size_t)frame->stVFrame.u32PlaneSize[1];
+    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] + (size_t)frame->stVFrame.u32PlaneSize[1];
 
     fp = fopen(input_file, "rb");
     if (fp == NULL) {
@@ -172,16 +170,13 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     }
 
     if ((plane1 != NULL) && (plane1 != (plane0 + frame->stVFrame.u32PlaneSize[0]))) {
-        memcpy(plane1,
-               plane0 + frame->stVFrame.u32PlaneSize[0],
-               frame->stVFrame.u32PlaneSize[1]);
+        memcpy(plane1, plane0 + frame->stVFrame.u32PlaneSize[0], frame->stVFrame.u32PlaneSize[1]);
     }
 
     return 0;
 }
 
-static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file)
-{
+static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file) {
     FILE *fp;
     size_t write_size;
     size_t expected_size;
@@ -196,8 +191,7 @@ static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_f
         return -1;
     }
 
-    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] +
-                    (size_t)frame->stVFrame.u32PlaneSize[1];
+    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] + (size_t)frame->stVFrame.u32PlaneSize[1];
 
     fp = fopen(output_file, "wb");
     if (fp == NULL) {
@@ -216,8 +210,7 @@ static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_f
     return 0;
 }
 
-static void demo_reset_nv12_frame(VideoFrameInfo *frame)
-{
+static void demo_reset_nv12_frame(VideoFrameInfo *frame) {
     void *plane0;
     void *plane1;
 
@@ -241,8 +234,7 @@ static void demo_reset_nv12_frame(VideoFrameInfo *frame)
  * Allocate an NV12 VB pool, grab one buffer from it, and fill out the
  * VideoFrameInfo so V2D can consume it directly (UVC-style flow).
  */
-static int demo_prepare_pool(UL *pool_id, VideoFrameInfo *frame, ModId mod_id, U32 width, U32 height)
-{
+static int demo_prepare_pool(UL *pool_id, VideoFrameInfo *frame, ModId mod_id, U32 width, U32 height) {
     VbPoolCfg cfg;
     UL buffer = 0UL;
     U32 stride;
@@ -325,10 +317,9 @@ err_destroy_pool:
     return -1;
 }
 
-static int demo_run_border_fill(const DEMO_CONFIG_S *config,
-                                const VideoFrameInfo *scaled_frame,
-                                VideoFrameInfo *dst_frame)
-{
+static int demo_run_border_fill(
+    const DEMO_CONFIG_S *config, const VideoFrameInfo *scaled_frame, VideoFrameInfo *dst_frame
+) {
     V2DHandle handle = 0;
     V2DFillColor border_color;
     U32 left;
@@ -352,31 +343,22 @@ static int demo_run_border_fill(const DEMO_CONFIG_S *config,
     bottom = config->dst_height - config->scaled_height - top;
 
     if (((left | right | top | bottom) & 1U) != 0U) {
-        DEMO_LOG("border size must be even for NV12/NV21, got top=%u bottom=%u left=%u right=%u",
-                 top, bottom, left, right);
+        DEMO_LOG(
+            "border size must be even for NV12/NV21, got top=%u bottom=%u left=%u right=%u", top, bottom, left, right);
         return -1;
     }
 
     demo_reset_nv12_frame(dst_frame);
 
     border_color.enFormat = V2D_COLOR_FORMAT_NV12;
-    border_color.u32ColorValue = (config->border_v << 16) |
-                                 (config->border_u << 8) |
-                                 config->border_y;
+    border_color.u32ColorValue = (config->border_v << 16) | (config->border_u << 8) | config->border_y;
 
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return ret;
     }
 
-    ret = V2D_BorderFill(handle,
-                         scaled_frame,
-                         dst_frame,
-                         top,
-                         bottom,
-                         left,
-                         right,
-                         &border_color);
+    ret = V2D_BorderFill(handle, scaled_frame, dst_frame, top, bottom, left, right, &border_color);
     if (ret != 0) {
         V2D_CancelJob(handle);
         return ret;
@@ -391,8 +373,7 @@ static int demo_run_border_fill(const DEMO_CONFIG_S *config,
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 ret;
     DEMO_CONFIG_S config;
     UL scaled_pool = 0UL;

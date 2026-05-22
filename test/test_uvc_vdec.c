@@ -40,24 +40,30 @@
 /* ======================== Helpers ======================== */
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
-#define TEST_SKIP(name, msg) do { printf("[SKIP] %s: %s\n", (name), (msg)); return; } while(0)
+#define TEST_FAIL(name, msg)                      \
+    do {                                          \
+        printf("[FAIL] %s: %s\n", (name), (msg)); \
+        exit(1);                                  \
+    } while (0)
+#define TEST_SKIP(name, msg)                      \
+    do {                                          \
+        printf("[SKIP] %s: %s\n", (name), (msg)); \
+        return;                                   \
+    } while (0)
 
-static const char *g_devNode    = "/dev/video13";
-static const char *g_rtspUrl    = "rtsp://10.0.90.125:8554/live";
-static BOOL        g_hasHw      = MPP_FALSE;
-static U32         g_warmUpCnt  = 30;
+static const char *g_devNode = "/dev/video13";
+static const char *g_rtspUrl = "rtsp://10.0.90.125:8554/live";
+static BOOL g_hasHw = MPP_FALSE;
+static U32 g_warmUpCnt = 30;
 
-static volatile S32 g_running   = 1;
+static volatile S32 g_running = 1;
 
-static void sig_handler(int sig)
-{
+static void sig_handler(int sig) {
     (void)sig;
     g_running = 0;
 }
 
-static void check_hw(void)
-{
+static void check_hw(void) {
     g_hasHw = (access(g_devNode, F_OK) == 0) ? MPP_TRUE : MPP_FALSE;
 }
 
@@ -65,8 +71,7 @@ static void check_hw(void)
 
 /* ======================== Pipeline: UVC → VDEC → VENC → MUX (RTSP) ======================== */
 
-static void test_uvc_vdec_venc_mux_pipeline(void)
-{
+static void test_uvc_vdec_venc_mux_pipeline(void) {
     const char *name = "uvc_vdec_venc_mux_pipeline";
     S32 ret;
 
@@ -105,11 +110,11 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
     UVC_CHN uvcChn = 0;
     UvcChnAttr uvcChnAttr;
     memset(&uvcChnAttr, 0, sizeof(uvcChnAttr));
-    uvcChnAttr.u32Width     = 1280;
-    uvcChnAttr.u32Height    = 720;
+    uvcChnAttr.u32Width = 1280;
+    uvcChnAttr.u32Height = 720;
     uvcChnAttr.ePixelFormat = MPP_PIXEL_FORMAT_MJPEG;
-    uvcChnAttr.u32Fps       = 30;
-    uvcChnAttr.u32Depth     = 1;
+    uvcChnAttr.u32Fps = 30;
+    uvcChnAttr.u32Depth = 1;
 
     ret = UVC_SetChnAttr(uvcDev, uvcChn, &uvcChnAttr);
     assert(ret == 0);
@@ -129,11 +134,11 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
     S32 vdecChn = 0;
     VdecChnAttr vdecAttr;
     memset(&vdecAttr, 0, sizeof(vdecAttr));
-    vdecAttr.eCodecType         = MPP_STREAM_CODEC_MJPEG;
+    vdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    vdecAttr.u32Width           = 1280;
-    vdecAttr.u32Height          = 720;
-    vdecAttr.u32Align           = 16;
+    vdecAttr.u32Width = 1280;
+    vdecAttr.u32Height = 720;
+    vdecAttr.u32Align = 16;
     ret = VDEC_CreateChn(vdecChn, &vdecAttr);
     assert(ret == 0);
 
@@ -154,16 +159,16 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
     S32 vencChn = 0;
     VencChnAttr vencAttr;
     memset(&vencAttr, 0, sizeof(vencAttr));
-    vencAttr.eCodecType          = MPP_STREAM_CODEC_H264;
-    vencAttr.eInputPixelFormat   = MPP_PIXEL_FORMAT_NV12;
-    vencAttr.u32Width            = 1280;
-    vencAttr.u32Height           = 720;
-    vencAttr.u32Align            = 16;
-    vencAttr.u32Bitrate          = 4000000;
-    vencAttr.u32FrameRate        = 30;
-    vencAttr.u32Gop              = 30;
-    vencAttr.eFrameBufMode       = VENC_FRAME_BUF_DMABUF_EXTERNAL;
-    vencAttr.eRcMode             = VENC_RC_MODE_CBR;
+    vencAttr.eCodecType = MPP_STREAM_CODEC_H264;
+    vencAttr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;
+    vencAttr.u32Width = 1280;
+    vencAttr.u32Height = 720;
+    vencAttr.u32Align = 16;
+    vencAttr.u32Bitrate = 4000000;
+    vencAttr.u32FrameRate = 30;
+    vencAttr.u32Gop = 30;
+    vencAttr.eFrameBufMode = VENC_FRAME_BUF_DMABUF_EXTERNAL;
+    vencAttr.eRcMode = VENC_RC_MODE_CBR;
 
     ret = VENC_CreateChn(vencChn, &vencAttr);
     assert(ret == 0);
@@ -188,10 +193,10 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
     MuxChnAttr muxAttr;
     memset(&muxAttr, 0, sizeof(muxAttr));
     muxAttr.eOutputType = MUX_OUTPUT_RTSP;
-    muxAttr.stStreamAttr.eCodecType    = MUX_CODEC_H264;
-    muxAttr.stStreamAttr.u32Width      = 1280;
-    muxAttr.stStreamAttr.u32Height     = 720;
-    muxAttr.stStreamAttr.u32Fps        = 30;
+    muxAttr.stStreamAttr.eCodecType = MUX_CODEC_H264;
+    muxAttr.stStreamAttr.u32Width = 1280;
+    muxAttr.stStreamAttr.u32Height = 720;
+    muxAttr.stStreamAttr.u32Fps = 30;
     muxAttr.stStreamAttr.u32BitrateKbps = 4000;
     snprintf(muxAttr.szUrl, sizeof(muxAttr.szUrl), "%s", g_rtspUrl);
 
@@ -240,12 +245,12 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
         memset(&uvcFrame, 0, sizeof(uvcFrame));
         ret = UVC_GetFrame(uvcDev, uvcChn, &uvcFrame, uvcTimeout);
         if (ret != 0) {
-            if (!g_running) break;
+            if (!g_running)
+                break;
             continue;
         }
 
-        if (uvcFrame.stVFrame.ulPlaneVirAddr[0] == 0 ||
-            uvcFrame.stVFrame.u32PlaneSizeValid[0] == 0) {
+        if (uvcFrame.stVFrame.ulPlaneVirAddr[0] == 0 || uvcFrame.stVFrame.u32PlaneSizeValid[0] == 0) {
             UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
             continue;
         }
@@ -253,12 +258,12 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
         /* Send MJPEG to VDEC */
         StreamBufferInfo stream;
         memset(&stream, 0, sizeof(stream));
-        stream.pu8Addr       = (const U8 *)uvcFrame.stVFrame.ulPlaneVirAddr[0];
-        stream.u32Size       = uvcFrame.stVFrame.u32PlaneSizeValid[0];
-        stream.eCodecType    = MPP_STREAM_CODEC_MJPEG;
-        stream.bKeyFrame     = MPP_TRUE;
-        stream.bEndOfStream  = MPP_FALSE;
-        stream.u64PTS        = uvcFrame.stVFrame.u64PTS;
+        stream.pu8Addr = (const U8 *)uvcFrame.stVFrame.ulPlaneVirAddr[0];
+        stream.u32Size = uvcFrame.stVFrame.u32PlaneSizeValid[0];
+        stream.eCodecType = MPP_STREAM_CODEC_MJPEG;
+        stream.bKeyFrame = MPP_TRUE;
+        stream.bEndOfStream = MPP_FALSE;
+        stream.u64PTS = uvcFrame.stVFrame.u64PTS;
 
         ret = VDEC_SendStream(vdecChn, &stream, 0);
         if (ret != 0 && ret != ERR_VDEC_EOS) {
@@ -299,11 +304,11 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
         if (ret == ERR_VENC_OK) {
             MuxPacket muxPkt;
             memset(&muxPkt, 0, sizeof(muxPkt));
-            muxPkt.pu8Data    = encStream.pu8Addr;
-            muxPkt.u32Size    = encStream.u32Size;
-            muxPkt.bKeyFrame  = encStream.bKeyFrame;
+            muxPkt.pu8Data = encStream.pu8Addr;
+            muxPkt.u32Size = encStream.u32Size;
+            muxPkt.bKeyFrame = encStream.bKeyFrame;
             muxPkt.eCodecType = MUX_CODEC_H264;
-            muxPkt.u64PTS     = encStream.u64PTS;
+            muxPkt.u64PTS = encStream.u64PTS;
 
             ret = MUX_SendPacket(muxChn, &muxPkt);
             if (ret != 0) {
@@ -348,8 +353,7 @@ static void test_uvc_vdec_venc_mux_pipeline(void)
 
 /* ======================== Main ======================== */
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     if (argc > 1)
         g_devNode = argv[1];
     if (argc > 2)

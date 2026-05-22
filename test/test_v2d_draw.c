@@ -27,16 +27,20 @@
 #include "vb_api.h"
 #include "v2d_api.h"
 
-#define DEMO_INPUT_FILE   "./input_nv12.yuv"
-#define DEMO_OUTPUT_FILE  "./v2d_draw_out.yuv"
-#define DEMO_WIDTH        1920U
-#define DEMO_HEIGHT       1080U
-#define DEMO_MODE_RECT    "rect"
+#define DEMO_INPUT_FILE "./input_nv12.yuv"
+#define DEMO_OUTPUT_FILE "./v2d_draw_out.yuv"
+#define DEMO_WIDTH 1920U
+#define DEMO_HEIGHT 1080U
+#define DEMO_MODE_RECT "rect"
 #define DEMO_MODE_KEYPOINT "keypoint"
 #define DEMO_KEYPOINT_NUM 5U
 
-#define DEMO_LOG(fmt, ...)  printf("[v2d_draw_demo] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[v2d_draw_demo][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...) printf("[v2d_draw_demo] " fmt "\n", ##__VA_ARGS__)
+#define DEMO_FAIL(fmt, ...)                                       \
+    do {                                                          \
+        printf("[v2d_draw_demo][FAIL] " fmt "\n", ##__VA_ARGS__); \
+        return -1;                                                \
+    } while (0)
 
 typedef struct DEMO_CONFIG_S {
     const char *mode;
@@ -51,8 +55,7 @@ typedef struct DEMO_CONFIG_S {
     U32 yuv_color;
 } DEMO_CONFIG_S;
 
-static void demo_print_usage(const char *prog)
-{
+static void demo_print_usage(const char *prog) {
     printf("Usage:\n");
     printf("  %s [mode [input_file width height output_file rect_x rect_y rect_w rect_h [yuv_hex]]]\n", prog);
     printf("  %s %s [input_file [output_file]]\n", prog, DEMO_MODE_KEYPOINT);
@@ -73,10 +76,9 @@ static void demo_print_usage(const char *prog)
     printf("  %s %s in.yuv out.yuv\n", prog, DEMO_MODE_KEYPOINT);
 }
 
-static int demo_parse_u32(const char *text, U32 *value)
-{
+static int demo_parse_u32(const char *text, U32 *value) {
     char *end_ptr = NULL;
-    unsigned long parsed;
+    uint64_t parsed;
 
     if ((text == NULL) || (value == NULL) || (text[0] == '\0')) {
         return -1;
@@ -91,8 +93,7 @@ static int demo_parse_u32(const char *text, U32 *value)
     return 0;
 }
 
-static void demo_set_default_config(DEMO_CONFIG_S *config)
-{
+static void demo_set_default_config(DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return;
     }
@@ -110,8 +111,7 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     config->yuv_color = 0x00FF4C52U;
 }
 
-static int demo_is_mode(const char *mode, const char *expected)
-{
+static int demo_is_mode(const char *mode, const char *expected) {
     if ((mode == NULL) || (expected == NULL)) {
         return 0;
     }
@@ -119,8 +119,7 @@ static int demo_is_mode(const char *mode, const char *expected)
     return strcmp(mode, expected) == 0;
 }
 
-static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
-{
+static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config) {
     int arg_offset;
 
     if (config == NULL) {
@@ -181,8 +180,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         }
     }
 
-    if ((config->width == 0U) || (config->height == 0U) ||
-        (config->rect_w == 0U) || (config->rect_h == 0U)) {
+    if ((config->width == 0U) || (config->height == 0U) || (config->rect_w == 0U) || (config->rect_h == 0U)) {
         return -1;
     }
 
@@ -190,8 +188,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         return -1;
     }
 
-    if ((config->rect_x + config->rect_w) > config->width ||
-        (config->rect_y + config->rect_h) > config->height) {
+    if ((config->rect_x + config->rect_w) > config->width || (config->rect_y + config->rect_h) > config->height) {
         return -1;
     }
 
@@ -202,8 +199,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
  * Allocate an NV12 VB pool, grab one buffer from it, and fill out the
  * VideoFrameInfo so V2D can consume it directly (UVC-style flow).
  */
-static int demo_prepare_nv12_pool(UL *pool_id, VideoFrameInfo *frame, U32 width, U32 height)
-{
+static int demo_prepare_nv12_pool(UL *pool_id, VideoFrameInfo *frame, U32 width, U32 height) {
     VbPoolCfg cfg;
     UL buffer = 0UL;
     U32 stride;
@@ -286,8 +282,7 @@ err_destroy_pool:
     return -1;
 }
 
-static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -315,8 +310,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     return 0;
 }
 
-static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file)
-{
+static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file) {
     FILE *fp;
     size_t write_size;
     size_t expected_size;
@@ -344,8 +338,7 @@ static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_f
     return 0;
 }
 
-static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config)
-{
+static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config) {
     V2DHandle handle = 0;
     V2DArea rect;
     V2DFillColor color;
@@ -384,8 +377,7 @@ static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config)
     return 0;
 }
 
-static int demo_draw_keypoint(VideoFrameInfo *frame)
-{
+static int demo_draw_keypoint(VideoFrameInfo *frame) {
     static const struct {
         S32 x;
         S32 y;
@@ -457,8 +449,7 @@ static int demo_draw_keypoint(VideoFrameInfo *frame)
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 ret;
     UL pool = 0UL;
     VideoFrameInfo frame;
@@ -509,15 +500,16 @@ int main(int argc, char *argv[])
     if (demo_is_mode(config.mode, DEMO_MODE_KEYPOINT)) {
         DEMO_LOG("draw done: mode=%s input=%s output=%s", config.mode, config.input_file, config.output_file);
     } else {
-        DEMO_LOG("draw done: mode=%s input=%s output=%s rect=(%u,%u,%u,%u) yuv=0x%08x",
-                 config.mode,
-                 config.input_file,
-                 config.output_file,
-                 config.rect_x,
-                 config.rect_y,
-                 config.rect_w,
-                 config.rect_h,
-                 config.yuv_color);
+        DEMO_LOG(
+            "draw done: mode=%s input=%s output=%s rect=(%u,%u,%u,%u) yuv=0x%08x",
+            config.mode,
+            config.input_file,
+            config.output_file,
+            config.rect_x,
+            config.rect_y,
+            config.rect_w,
+            config.rect_h,
+            config.yuv_color);
     }
 
     VB_ReleaseBuffer(frame.ulBufferId);

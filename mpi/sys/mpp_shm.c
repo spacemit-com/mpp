@@ -30,20 +30,16 @@
 
 #include "sys/mpp_shm.h"
 
-#define SHM_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[SHM][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SHM_LOG_WARN(fmt, ...) \
-    fprintf(stderr, "[SHM][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SHM_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[SHM][INFO] " fmt "\n", ##__VA_ARGS__)
+#define SHM_LOG_ERR(fmt, ...) fprintf(stderr, "[SHM][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define SHM_LOG_WARN(fmt, ...) fprintf(stderr, "[SHM][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define SHM_LOG_INFO(fmt, ...) fprintf(stdout, "[SHM][INFO] " fmt "\n", ##__VA_ARGS__)
 
 static MppSharedMem *g_shm = NULL;
 static int g_shm_fd = -1;
 
 /* ======================== Init helpers ======================== */
 
-static S32 shm_init_mutex(pthread_mutex_t *mtx)
-{
+static S32 shm_init_mutex(pthread_mutex_t *mtx) {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
     pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
@@ -57,8 +53,7 @@ static S32 shm_init_mutex(pthread_mutex_t *mtx)
     return r == 0 ? 0 : -1;
 }
 
-static S32 shm_init_cond(pthread_cond_t *cnd)
-{
+static S32 shm_init_cond(pthread_cond_t *cnd) {
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
@@ -67,8 +62,7 @@ static S32 shm_init_cond(pthread_cond_t *cnd)
     return r == 0 ? 0 : -1;
 }
 
-static S32 shm_init_rwlock(pthread_rwlock_t *rw)
-{
+static S32 shm_init_rwlock(pthread_rwlock_t *rw) {
     pthread_rwlockattr_t attr;
     pthread_rwlockattr_init(&attr);
     pthread_rwlockattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
@@ -77,26 +71,28 @@ static S32 shm_init_rwlock(pthread_rwlock_t *rw)
     return r == 0 ? 0 : -1;
 }
 
-static S32 shm_init_pool_locks(VbPoolShm *pool)
-{
-    if (shm_init_mutex(&pool->lock) != 0)  return -1;
-    if (shm_init_cond(&pool->cond) != 0)   return -1;
+static S32 shm_init_pool_locks(VbPoolShm *pool) {
+    if (shm_init_mutex(&pool->lock) != 0)
+        return -1;
+    if (shm_init_cond(&pool->cond) != 0)
+        return -1;
     return 0;
 }
 
-static S32 shm_init_queue(MppChanQueue *q)
-{
-    if (shm_init_mutex(&q->lock) != 0)      return -1;
-    if (shm_init_cond(&q->not_empty) != 0)  return -1;
-    if (shm_init_cond(&q->not_full) != 0)   return -1;
+static S32 shm_init_queue(MppChanQueue *q) {
+    if (shm_init_mutex(&q->lock) != 0)
+        return -1;
+    if (shm_init_cond(&q->not_empty) != 0)
+        return -1;
+    if (shm_init_cond(&q->not_full) != 0)
+        return -1;
     q->head = 0;
     q->tail = 0;
     q->count = 0;
     return 0;
 }
 
-static bool mpp_shm_file_in_use(void)
-{
+static bool mpp_shm_file_in_use(void) {
     pid_t self_pid = getpid();
     DIR *proc_dir = opendir("/proc");
     if (!proc_dir)
@@ -137,8 +133,7 @@ static bool mpp_shm_file_in_use(void)
                 continue;
             target[len] = '\0';
 
-            if (strcmp(target, "/dev/shm/mpp_ctrl") == 0 ||
-                strcmp(target, "/dev/shm/mpp_ctrl (deleted)") == 0) {
+            if (strcmp(target, "/dev/shm/mpp_ctrl") == 0 || strcmp(target, "/dev/shm/mpp_ctrl (deleted)") == 0) {
                 closedir(fd_dir);
                 closedir(proc_dir);
                 return true;
@@ -151,11 +146,13 @@ static bool mpp_shm_file_in_use(void)
     return false;
 }
 
-static S32 shm_init_stream_queue(MppStreamQueue *q)
-{
-    if (shm_init_mutex(&q->lock) != 0)      return -1;
-    if (shm_init_cond(&q->not_empty) != 0)  return -1;
-    if (shm_init_cond(&q->not_full) != 0)   return -1;
+static S32 shm_init_stream_queue(MppStreamQueue *q) {
+    if (shm_init_mutex(&q->lock) != 0)
+        return -1;
+    if (shm_init_cond(&q->not_empty) != 0)
+        return -1;
+    if (shm_init_cond(&q->not_full) != 0)
+        return -1;
     q->head = 0;
     q->tail = 0;
     q->count = 0;
@@ -163,11 +160,10 @@ static S32 shm_init_stream_queue(MppStreamQueue *q)
     return 0;
 }
 
-static S32 shm_init_all(MppSharedMem *shm)
-{
+static S32 shm_init_all(MppSharedMem *shm) {
     memset(shm, 0, sizeof(*shm));
 
-    shm->magic   = MPP_SHM_MAGIC;
+    shm->magic = MPP_SHM_MAGIC;
     shm->version = MPP_SHM_VERSION;
     atomic_store(&shm->proc_ref, 1);
 
@@ -226,8 +222,7 @@ static S32 shm_init_all(MppSharedMem *shm)
 
 /* ======================== Public API ======================== */
 
-S32 mpp_shm_init(void)
-{
+S32 mpp_shm_init(void) {
     if (g_shm) {
         /* already attached in this process */
         atomic_fetch_add(&g_shm->proc_ref, 1);
@@ -260,13 +255,12 @@ S32 mpp_shm_init(void)
         }
     }
 
-    MppSharedMem *shm = (MppSharedMem *)mmap(NULL, sizeof(MppSharedMem),
-                                              PROT_READ | PROT_WRITE,
-                                              MAP_SHARED, fd, 0);
+    MppSharedMem *shm = (MppSharedMem *)mmap(NULL, sizeof(MppSharedMem), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (shm == MAP_FAILED) {
         SHM_LOG_ERR("mmap failed: %s", strerror(errno));
         close(fd);
-        if (created) shm_unlink(MPP_SHM_NAME);
+        if (created)
+            shm_unlink(MPP_SHM_NAME);
         return -1;
     }
 
@@ -314,8 +308,7 @@ S32 mpp_shm_init(void)
     return 0;
 }
 
-S32 mpp_shm_detach(void)
-{
+S32 mpp_shm_detach(void) {
     if (!g_shm)
         return -1;
 
@@ -337,7 +330,6 @@ S32 mpp_shm_detach(void)
     return 0;
 }
 
-MppSharedMem *mpp_shm_get(void)
-{
+MppSharedMem *mpp_shm_get(void) {
     return g_shm;
 }

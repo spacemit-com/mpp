@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __DEMUX_API_H__
-#define __DEMUX_API_H__
+#ifndef DEMUX_API_H
+#define DEMUX_API_H
 
 #include "sys/type.h"
 #include "demux_type.h"
@@ -99,4 +99,4 @@ S32 DEMUX_GetSrcNode(S32 s32ChnId, MppNode *pstNode);
 #endif
 #endif /* __cplusplus */
 
-#endif /* __DEMUX_API_H__ */
+#endif /* DEMUX_API_H */

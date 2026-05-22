@@ -42,43 +42,40 @@
 
 /* ======================== Config ======================== */
 
-#define SAMPLE_WIDTH          1280
-#define SAMPLE_HEIGHT         720
-#define SAMPLE_FPS            30
-#define SAMPLE_BITRATE        2000000 /* 2 Mbps */
-#define SAMPLE_GOP            30
-#define SAMPLE_WARMUP_COUNT   2
+#define SAMPLE_WIDTH 1280
+#define SAMPLE_HEIGHT 720
+#define SAMPLE_FPS 30
+#define SAMPLE_BITRATE 2000000 /* 2 Mbps */
+#define SAMPLE_GOP 30
+#define SAMPLE_WARMUP_COUNT 2
 
-static const char *g_devNode   = "/dev/video13";
-static const char *g_rtspUrl   = "rtsp://10.0.90.148:8554/live";
-static S32         g_bindMode  = 0;
+static const char *g_devNode = "/dev/video13";
+static const char *g_rtspUrl = "rtsp://10.0.90.148:8554/live";
+static S32 g_bindMode = 0;
 
 static volatile S32 g_running = 1;
 
-static void sig_handler(int sig)
-{
+static void sig_handler(int sig) {
     (void)sig;
     g_running = 0;
 }
 
-static S32 mux_send_enc_stream(S32 muxChn, const StreamBufferInfo *pstStream)
-{
+static S32 mux_send_enc_stream(S32 muxChn, const StreamBufferInfo *pstStream) {
     MuxPacket muxPkt;
 
     if (!pstStream->pu8Addr || pstStream->u32Size == 0)
         return -1;
 
     memset(&muxPkt, 0, sizeof(muxPkt));
-    muxPkt.pu8Data    = pstStream->pu8Addr;
-    muxPkt.u32Size    = pstStream->u32Size;
-    muxPkt.bKeyFrame  = pstStream->bKeyFrame;
+    muxPkt.pu8Data = pstStream->pu8Addr;
+    muxPkt.u32Size = pstStream->u32Size;
+    muxPkt.bKeyFrame = pstStream->bKeyFrame;
     muxPkt.eCodecType = MUX_CODEC_H264;
-    muxPkt.u64PTS     = pstStream->u64PTS;
+    muxPkt.u64PTS = pstStream->u64PTS;
     return MUX_SendPacket(muxChn, &muxPkt);
 }
 
-static S32 run_manual(void)
-{
+static S32 run_manual(void) {
     S32 ret;
     S32 muxChn = 0;
 
@@ -112,11 +109,11 @@ static S32 run_manual(void)
     UVC_CHN uvcChn = 0;
     UvcChnAttr uvcChnAttr;
     memset(&uvcChnAttr, 0, sizeof(uvcChnAttr));
-    uvcChnAttr.u32Width     = SAMPLE_WIDTH;
-    uvcChnAttr.u32Height    = SAMPLE_HEIGHT;
+    uvcChnAttr.u32Width = SAMPLE_WIDTH;
+    uvcChnAttr.u32Height = SAMPLE_HEIGHT;
     uvcChnAttr.ePixelFormat = MPP_PIXEL_FORMAT_MJPEG;
-    uvcChnAttr.u32Fps       = SAMPLE_FPS;
-    uvcChnAttr.u32Depth     = 1;
+    uvcChnAttr.u32Fps = SAMPLE_FPS;
+    uvcChnAttr.u32Depth = 1;
 
     ret = UVC_SetChnAttr(uvcDev, uvcChn, &uvcChnAttr);
     assert(ret == 0);
@@ -130,10 +127,10 @@ static S32 run_manual(void)
     S32 vdecChn = 0;
     VdecChnAttr vdecAttr;
     memset(&vdecAttr, 0, sizeof(vdecAttr));
-    vdecAttr.eCodecType         = MPP_STREAM_CODEC_MJPEG;
+    vdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    vdecAttr.u32Width           = SAMPLE_WIDTH;
-    vdecAttr.u32Height          = SAMPLE_HEIGHT;
+    vdecAttr.u32Width = SAMPLE_WIDTH;
+    vdecAttr.u32Height = SAMPLE_HEIGHT;
 
     ret = VDEC_CreateChn(vdecChn, &vdecAttr);
     assert(ret == 0);
@@ -148,14 +145,14 @@ static S32 run_manual(void)
     S32 vencChn = 0;
     VencChnAttr vencAttr;
     memset(&vencAttr, 0, sizeof(vencAttr));
-    vencAttr.eCodecType        = MPP_STREAM_CODEC_H264;
+    vencAttr.eCodecType = MPP_STREAM_CODEC_H264;
     vencAttr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    vencAttr.u32Width          = SAMPLE_WIDTH;
-    vencAttr.u32Height         = SAMPLE_HEIGHT;
-    vencAttr.u32Bitrate        = SAMPLE_BITRATE;
-    vencAttr.u32FrameRate      = SAMPLE_FPS;
-    vencAttr.u32Gop            = SAMPLE_GOP;
-    vencAttr.eRcMode           = VENC_RC_MODE_CBR;
+    vencAttr.u32Width = SAMPLE_WIDTH;
+    vencAttr.u32Height = SAMPLE_HEIGHT;
+    vencAttr.u32Bitrate = SAMPLE_BITRATE;
+    vencAttr.u32FrameRate = SAMPLE_FPS;
+    vencAttr.u32Gop = SAMPLE_GOP;
+    vencAttr.eRcMode = VENC_RC_MODE_CBR;
 
     ret = VENC_CreateChn(vencChn, &vencAttr);
     assert(ret == 0);
@@ -170,10 +167,10 @@ static S32 run_manual(void)
     MuxChnAttr muxAttr;
     memset(&muxAttr, 0, sizeof(muxAttr));
     muxAttr.eOutputType = MUX_OUTPUT_RTSP;
-    muxAttr.stStreamAttr.eCodecType     = MUX_CODEC_H264;
-    muxAttr.stStreamAttr.u32Width       = SAMPLE_WIDTH;
-    muxAttr.stStreamAttr.u32Height      = SAMPLE_HEIGHT;
-    muxAttr.stStreamAttr.u32Fps          = SAMPLE_FPS;
+    muxAttr.stStreamAttr.eCodecType = MUX_CODEC_H264;
+    muxAttr.stStreamAttr.u32Width = SAMPLE_WIDTH;
+    muxAttr.stStreamAttr.u32Height = SAMPLE_HEIGHT;
+    muxAttr.stStreamAttr.u32Fps = SAMPLE_FPS;
     muxAttr.stStreamAttr.u32BitrateKbps = SAMPLE_BITRATE / 1000;
     snprintf(muxAttr.szUrl, sizeof(muxAttr.szUrl), "%s", g_rtspUrl);
 
@@ -209,20 +206,19 @@ static S32 run_manual(void)
             continue;
         }
 
-        if (uvcFrame.stVFrame.ulPlaneVirAddr[0] == 0 ||
-            uvcFrame.stVFrame.u32PlaneSizeValid[0] == 0) {
+        if (uvcFrame.stVFrame.ulPlaneVirAddr[0] == 0 || uvcFrame.stVFrame.u32PlaneSizeValid[0] == 0) {
             UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
             continue;
         }
 
         StreamBufferInfo stream;
         memset(&stream, 0, sizeof(stream));
-        stream.pu8Addr      = (const U8 *)uvcFrame.stVFrame.ulPlaneVirAddr[0];
-        stream.u32Size      = uvcFrame.stVFrame.u32PlaneSizeValid[0];
-        stream.eCodecType   = MPP_STREAM_CODEC_MJPEG;
-        stream.bKeyFrame    = MPP_TRUE;
+        stream.pu8Addr = (const U8 *)uvcFrame.stVFrame.ulPlaneVirAddr[0];
+        stream.u32Size = uvcFrame.stVFrame.u32PlaneSizeValid[0];
+        stream.eCodecType = MPP_STREAM_CODEC_MJPEG;
+        stream.bKeyFrame = MPP_TRUE;
         stream.bEndOfStream = MPP_FALSE;
-        stream.u64PTS       = uvcFrame.stVFrame.u64PTS;
+        stream.u64PTS = uvcFrame.stVFrame.u64PTS;
 
         ret = VDEC_SendStream(vdecChn, &stream, 0);
         UVC_ReleaseFrame(uvcDev, uvcChn, &uvcFrame);
@@ -266,8 +262,7 @@ static S32 run_manual(void)
         if (u32MuxPkts % 100 == 0) {
             MuxChnStat st;
             if (MUX_GetChnStat(muxChn, &st) == 0) {
-                printf("  [INFO] mux pkts=%u  clients=%u\n",
-                       u32MuxPkts, st.u32ActiveClients);
+                printf("  [INFO] mux pkts=%u  clients=%u\n", u32MuxPkts, st.u32ActiveClients);
             }
         }
     }
@@ -300,8 +295,7 @@ manual_cleanup_uvc_dev:
     return (S32)u32MuxPkts;
 }
 
-static S32 run_bind(void)
-{
+static S32 run_bind(void) {
     S32 ret;
     S32 muxChn = 0;
 
@@ -335,11 +329,11 @@ static S32 run_bind(void)
     UVC_CHN uvcChn = 0;
     UvcChnAttr uvcChnAttr;
     memset(&uvcChnAttr, 0, sizeof(uvcChnAttr));
-    uvcChnAttr.u32Width     = SAMPLE_WIDTH;
-    uvcChnAttr.u32Height    = SAMPLE_HEIGHT;
+    uvcChnAttr.u32Width = SAMPLE_WIDTH;
+    uvcChnAttr.u32Height = SAMPLE_HEIGHT;
     uvcChnAttr.ePixelFormat = MPP_PIXEL_FORMAT_MJPEG;
-    uvcChnAttr.u32Fps       = SAMPLE_FPS;
-    uvcChnAttr.u32Depth     = 0;
+    uvcChnAttr.u32Fps = SAMPLE_FPS;
+    uvcChnAttr.u32Depth = 0;
 
     ret = UVC_SetChnAttr(uvcDev, uvcChn, &uvcChnAttr);
     assert(ret == 0);
@@ -353,10 +347,10 @@ static S32 run_bind(void)
     S32 vdecChn = 0;
     VdecChnAttr vdecAttr;
     memset(&vdecAttr, 0, sizeof(vdecAttr));
-    vdecAttr.eCodecType         = MPP_STREAM_CODEC_MJPEG;
+    vdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    vdecAttr.u32Width           = SAMPLE_WIDTH;
-    vdecAttr.u32Height          = SAMPLE_HEIGHT;
+    vdecAttr.u32Width = SAMPLE_WIDTH;
+    vdecAttr.u32Height = SAMPLE_HEIGHT;
 
     ret = VDEC_CreateChn(vdecChn, &vdecAttr);
     assert(ret == 0);
@@ -371,14 +365,14 @@ static S32 run_bind(void)
     S32 vencChn = 0;
     VencChnAttr vencAttr;
     memset(&vencAttr, 0, sizeof(vencAttr));
-    vencAttr.eCodecType        = MPP_STREAM_CODEC_H264;
+    vencAttr.eCodecType = MPP_STREAM_CODEC_H264;
     vencAttr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    vencAttr.u32Width          = SAMPLE_WIDTH;
-    vencAttr.u32Height         = SAMPLE_HEIGHT;
-    vencAttr.u32Bitrate        = SAMPLE_BITRATE;
-    vencAttr.u32FrameRate      = SAMPLE_FPS;
-    vencAttr.u32Gop            = SAMPLE_GOP;
-    vencAttr.eRcMode           = VENC_RC_MODE_CBR;
+    vencAttr.u32Width = SAMPLE_WIDTH;
+    vencAttr.u32Height = SAMPLE_HEIGHT;
+    vencAttr.u32Bitrate = SAMPLE_BITRATE;
+    vencAttr.u32FrameRate = SAMPLE_FPS;
+    vencAttr.u32Gop = SAMPLE_GOP;
+    vencAttr.eRcMode = VENC_RC_MODE_CBR;
 
     ret = VENC_CreateChn(vencChn, &vencAttr);
     assert(ret == 0);
@@ -390,9 +384,9 @@ static S32 run_bind(void)
         goto bind_cleanup_vdec;
     }
 
-    MppNode stUvcNode   = { .eModId = MPP_ID_UVC,  .s32DevId = uvcDev, .s32ChnId = uvcChn };
-    MppNode stVdecNode = { .eModId = MPP_ID_VDEC, .s32DevId = 0,      .s32ChnId = vdecChn };
-    MppNode stVencNode = { .eModId = MPP_ID_VENC, .s32DevId = 0,      .s32ChnId = vencChn };
+    MppNode stUvcNode = {.eModId = MPP_ID_UVC, .s32DevId = uvcDev, .s32ChnId = uvcChn};
+    MppNode stVdecNode = {.eModId = MPP_ID_VDEC, .s32DevId = 0, .s32ChnId = vdecChn};
+    MppNode stVencNode = {.eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = vencChn};
 
     ret = SYS_Bind(&stUvcNode, &stVdecNode);
     if (ret != 0) {
@@ -412,10 +406,10 @@ static S32 run_bind(void)
     MuxChnAttr muxAttr;
     memset(&muxAttr, 0, sizeof(muxAttr));
     muxAttr.eOutputType = MUX_OUTPUT_RTSP;
-    muxAttr.stStreamAttr.eCodecType     = MUX_CODEC_H264;
-    muxAttr.stStreamAttr.u32Width       = SAMPLE_WIDTH;
-    muxAttr.stStreamAttr.u32Height      = SAMPLE_HEIGHT;
-    muxAttr.stStreamAttr.u32Fps          = SAMPLE_FPS;
+    muxAttr.stStreamAttr.eCodecType = MUX_CODEC_H264;
+    muxAttr.stStreamAttr.u32Width = SAMPLE_WIDTH;
+    muxAttr.stStreamAttr.u32Height = SAMPLE_HEIGHT;
+    muxAttr.stStreamAttr.u32Fps = SAMPLE_FPS;
     muxAttr.stStreamAttr.u32BitrateKbps = SAMPLE_BITRATE / 1000;
     snprintf(muxAttr.szUrl, sizeof(muxAttr.szUrl), "%s", g_rtspUrl);
 
@@ -458,8 +452,7 @@ static S32 run_bind(void)
         if (u32MuxPkts % 100 == 0) {
             MuxChnStat st;
             if (MUX_GetChnStat(muxChn, &st) == 0) {
-                printf("  [INFO] mux pkts=%u  clients=%u\n",
-                       u32MuxPkts, st.u32ActiveClients);
+                printf("  [INFO] mux pkts=%u  clients=%u\n", u32MuxPkts, st.u32ActiveClients);
             }
         }
     }
@@ -495,26 +488,27 @@ bind_cleanup_uvc_dev:
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 argIdx = 1;
 
     while (argIdx < argc && argv[argIdx][0] == '-') {
         if (strcmp(argv[argIdx], "--bind") == 0) {
             g_bindMode = 1;
-        } else if (strcmp(argv[argIdx], "--help") == 0 ||
-                   strcmp(argv[argIdx], "-h") == 0) {
-            printf("Usage: %s [OPTIONS] [devNode] [rtspUrl]\n\n"
-                   "  UVC capture -> VDEC -> VENC -> RTSP (Annex-B H.264).\n\n"
-                   "Options:\n"
-                   "  --bind    Use SYS_Bind (UVC→VDEC→VENC).\n"
-                   "  -h        This help.\n\n"
-                   "Positional:\n"
-                   "  devNode   UVC device (default: %s)\n"
-                   "  rtspUrl   MUX listen URL (default: %s)\n\n"
-                   "Example playback:\n"
-                   "  ffplay rtsp://127.0.0.1:8554/live\n",
-                   argv[0], g_devNode, g_rtspUrl);
+        } else if (strcmp(argv[argIdx], "--help") == 0 || strcmp(argv[argIdx], "-h") == 0) {
+            printf(
+                "Usage: %s [OPTIONS] [devNode] [rtspUrl]\n\n"
+                "  UVC capture -> VDEC -> VENC -> RTSP (Annex-B H.264).\n\n"
+                "Options:\n"
+                "  --bind    Use SYS_Bind (UVC→VDEC→VENC).\n"
+                "  -h        This help.\n\n"
+                "Positional:\n"
+                "  devNode   UVC device (default: %s)\n"
+                "  rtspUrl   MUX listen URL (default: %s)\n\n"
+                "Example playback:\n"
+                "  ffplay rtsp://127.0.0.1:8554/live\n",
+                argv[0],
+                g_devNode,
+                g_rtspUrl);
             return 0;
         }
         argIdx++;
@@ -524,15 +518,13 @@ int main(int argc, char *argv[])
     if (argIdx < argc)
         g_rtspUrl = argv[argIdx++];
 
-    signal(SIGINT,  sig_handler);
+    signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    printf("=== Sample: UVC → VDEC → VENC → RTSP (%s) ===\n",
-           g_bindMode ? "bind" : "manual");
+    printf("=== Sample: UVC → VDEC → VENC → RTSP (%s) ===\n", g_bindMode ? "bind" : "manual");
     printf("  Device : %s\n", g_devNode);
     printf("  RTSP   : %s\n", g_rtspUrl);
-    printf("  Video  : %ux%u @ %u fps, %u bps H.264\n\n",
-           SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_FPS, SAMPLE_BITRATE);
+    printf("  Video  : %ux%u @ %u fps, %u bps H.264\n\n", SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_FPS, SAMPLE_BITRATE);
 
     S32 ret = SYS_Init();
     assert(ret == 0);

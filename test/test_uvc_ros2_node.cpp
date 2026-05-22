@@ -22,6 +22,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "mpp_msgs/msg/mpp_video_frame_desc.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -35,9 +36,7 @@ extern "C" {
 
 class UvcCameraNode final : public rclcpp::Node {
 public:
-    UvcCameraNode()
-        : Node("mpp_uvc_camera_node")
-    {
+    UvcCameraNode() : Node("mpp_uvc_camera_node") {
         devNode_ = declare_parameter<std::string>("uvc_device", "/dev/video0");
         width_ = declare_parameter<int>("width", 1280);
         height_ = declare_parameter<int>("height", 720);
@@ -50,7 +49,8 @@ public:
 
         if (publishMode_ == "copy") {
             imagePublisher_ = create_publisher<sensor_msgs::msg::Image>(copyTopicName_, rclcpp::SensorDataQoS());
-            RCLCPP_WARN(get_logger(), "publish_mode=copy uses memcpy into sensor_msgs/Image; this is not MPP zero-copy");
+            RCLCPP_WARN(
+                get_logger(), "publish_mode=copy uses memcpy into sensor_msgs/Image; this is not MPP zero-copy");
         } else if (publishMode_ == "mpp_zero_copy") {
             descPublisher_ = create_publisher<mpp_msgs::msg::MppVideoFrameDesc>(topicName_, rclcpp::SensorDataQoS());
         } else {
@@ -63,18 +63,21 @@ public:
 
         auto period = std::chrono::milliseconds(1000 / (fps_ > 0 ? fps_ : 30));
         timer_ = create_wall_timer(period, std::bind(&UvcCameraNode::capture_once, this));
-        RCLCPP_INFO(get_logger(), "MPP UVC camera node started: device=%s %dx%d@%d mode=%s topic=%s",
-                    devNode_.c_str(), width_, height_, fps_, publishMode_.c_str(), topicName_.c_str());
+        RCLCPP_INFO(
+            get_logger(),
+            "MPP UVC camera node started: device=%s %dx%d@%d mode=%s topic=%s",
+            devNode_.c_str(),
+            width_,
+            height_,
+            fps_,
+            publishMode_.c_str(),
+            topicName_.c_str());
     }
 
-    ~UvcCameraNode() override
-    {
-        close_camera();
-    }
+    ~UvcCameraNode() override { close_camera(); }
 
 private:
-    bool open_camera()
-    {
+    bool open_camera() {
         S32 ret;
         UvcDevAttr devAttr{};
         UvcChnAttr chnAttr{};
@@ -144,8 +147,7 @@ private:
         return true;
     }
 
-    void close_camera()
-    {
+    void close_camera() {
         release_exported_frames(true);
 
         if (uvcChnEnabled_) {
@@ -174,8 +176,7 @@ private:
         }
     }
 
-    void capture_once()
-    {
+    void capture_once() {
         VideoFrameInfo frame{};
         S32 ret = UVC_GetFrame(0, 0, &frame, 1000);
         if (ret != 0) {
@@ -202,12 +203,13 @@ private:
         U64 token{0};
     };
 
-    void publish_mpp_zero_copy(const VideoFrameInfo &frame)
-    {
+    void publish_mpp_zero_copy(const VideoFrameInfo &frame) {
         U64 token = 0;
         S32 ret = VB_Export(frame.ulBufferId, &token);
         if (ret != 0) {
-            RCLCPP_ERROR(get_logger(), "VB_Export buffer=0x%lx failed: %d", static_cast<unsigned long>(frame.ulBufferId), ret);
+            RCLCPP_ERROR(
+                get_logger(), "VB_Export buffer=0x%" PRIx64 " failed: %d",
+                static_cast<uint64_t>(frame.ulBufferId), ret);
             return;
         }
 
@@ -243,8 +245,7 @@ private:
         descPublisher_->publish(std::move(msg));
     }
 
-    void publish_nv12_copy(const VideoFrameInfo &frame)
-    {
+    void publish_nv12_copy(const VideoFrameInfo &frame) {
         if (frame.stVFrame.u32PlaneNum < 2) {
             RCLCPP_WARN(get_logger(), "UVC frame plane count %u not supported for copy", frame.stVFrame.u32PlaneNum);
             return;
@@ -261,13 +262,18 @@ private:
         size_t ySize = frame.stVFrame.u32PlaneSizeValid[0];
         size_t uvSize = frame.stVFrame.u32PlaneSizeValid[1];
         msg.data.resize(ySize + uvSize);
-        memcpy(msg.data.data(), reinterpret_cast<const void *>(static_cast<uintptr_t>(frame.stVFrame.ulPlaneVirAddr[0])), ySize);
-        memcpy(msg.data.data() + ySize, reinterpret_cast<const void *>(static_cast<uintptr_t>(frame.stVFrame.ulPlaneVirAddr[1])), uvSize);
+        memcpy(
+            msg.data.data(),
+            reinterpret_cast<const void *>(static_cast<uintptr_t>(frame.stVFrame.ulPlaneVirAddr[0])),
+            ySize);
+        memcpy(
+            msg.data.data() + ySize,
+            reinterpret_cast<const void *>(static_cast<uintptr_t>(frame.stVFrame.ulPlaneVirAddr[1])),
+            uvSize);
         imagePublisher_->publish(std::move(msg));
     }
 
-    void release_exported_frames(bool releaseAll)
-    {
+    void release_exported_frames(bool releaseAll) {
         const int keepCount = maxExportedFrames_ > 0 ? maxExportedFrames_ : 1;
         while (!exportedFrames_.empty() && (releaseAll || static_cast<int>(exportedFrames_.size()) > keepCount)) {
             const auto exported = exportedFrames_.front();
@@ -300,8 +306,7 @@ private:
     rclcpp::TimerBase::SharedPtr timer_;
 };
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<UvcCameraNode>());
     rclcpp::shutdown();

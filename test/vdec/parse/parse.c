@@ -18,41 +18,42 @@
 
 #include "log.h"
 
-MppParseContext* PARSE_Create(MppCodingType type) {
-  MppParseContext* parse_context =
-      (MppParseContext*)malloc(sizeof(MppParseContext));
-  if (!parse_context) {
-    error("can not malloc MppParseContext, please check!");
-    return NULL;
-  }
+MppParseContext *PARSE_Create(MppCodingType type) {
+    MppParseContext *parse_context = (MppParseContext *)malloc(sizeof(MppParseContext));
+    if (!parse_context) {
+        error("can not malloc MppParseContext, please check!");
+        return NULL;
+    }
 
-  parse_context->ops = (ParseOps*)malloc(sizeof(ParseOps));
-  if (!parse_context->ops) {
-    error("can not malloc MppParseContext->ops, please check!");
-    free(parse_context);
-    return NULL;
-  }
+    parse_context->ops = (ParseOps *)malloc(sizeof(ParseOps));
+    if (!parse_context->ops) {
+        error("can not malloc MppParseContext->ops, please check!");
+        free(parse_context);
+        return NULL;
+    }
 
-  if (CODING_H264 == type) {
-    parse_context->ops->init = &PARSE_H264_Init;
-    parse_context->ops->parse = &PARSE_H264_Parse;
-  } else if (CODING_H265 == type) {
-    parse_context->ops->init = &PARSE_H265_Init;
-    parse_context->ops->parse = &PARSE_H265_Parse;
-  } else if (CODING_MJPEG == type) {
-    parse_context->ops->init = &PARSE_MJPEG_Init;
-    parse_context->ops->parse = &PARSE_MJPEG_Parse;
-  } else {
-    parse_context->ops->init = &PARSE_DEFAULT_Init;
-    parse_context->ops->parse = &PARSE_DEFAULT_Parse;
-  }
+    if (CODING_H264 == type) {
+        parse_context->ops->init = &PARSE_H264_Init;
+        parse_context->ops->parse = &PARSE_H264_Parse;
+    } else if (CODING_H265 == type) {
+        parse_context->ops->init = &PARSE_H265_Init;
+        parse_context->ops->parse = &PARSE_H265_Parse;
+    } else if (CODING_MJPEG == type) {
+        parse_context->ops->init = &PARSE_MJPEG_Init;
+        parse_context->ops->parse = &PARSE_MJPEG_Parse;
+    } else {
+        parse_context->ops->init = &PARSE_DEFAULT_Init;
+        parse_context->ops->parse = &PARSE_DEFAULT_Parse;
+    }
 
-  return parse_context;
+    return parse_context;
 }
 
-void PARSE_Destory(MppParseContext* ctx) {
-  if (!ctx) return;
+void PARSE_Destory(MppParseContext *ctx) {
+    if (!ctx)
+        return;
 
-  if (ctx->ops) free(ctx->ops);
-  free(ctx);
+    if (ctx->ops)
+        free(ctx->ops);
+    free(ctx);
 }

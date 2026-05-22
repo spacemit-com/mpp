@@ -31,16 +31,16 @@
 #include "vb_api.h"
 #include "v2d_api.h"
 
-#define DEMO_INPUT_FILE          "./vi_phy0_first_frame.yuv"
-#define DEMO_INPUT_FILE_OVERLAY  "./v2d_overlay.bgra"
-#define DEMO_OUTPUT_FILE_RESIZE  "./v2d_case1_resize_out.yuv"
+#define DEMO_INPUT_FILE "./vi_phy0_first_frame.yuv"
+#define DEMO_INPUT_FILE_OVERLAY "./v2d_overlay.bgra"
+#define DEMO_OUTPUT_FILE_RESIZE "./v2d_case1_resize_out.yuv"
 #define DEMO_OUTPUT_FILE_CONVERT "./v2d_case1_convert_out.bgra"
-#define DEMO_OUTPUT_FILE_ROTATE  "./v2d_case1_rotate_out.yuv"
-#define DEMO_OUTPUT_FILE_BLEND   "./v2d_case1_adv2layers_out.yuv"
-#define DEFAULT_SRC_WIDTH   1920U
-#define DEFAULT_SRC_HEIGHT  1080U
-#define DEFAULT_DST_WIDTH   640U
-#define DEFAULT_DST_HEIGHT  480U
+#define DEMO_OUTPUT_FILE_ROTATE "./v2d_case1_rotate_out.yuv"
+#define DEMO_OUTPUT_FILE_BLEND "./v2d_case1_adv2layers_out.yuv"
+#define DEFAULT_SRC_WIDTH 1920U
+#define DEFAULT_SRC_HEIGHT 1080U
+#define DEFAULT_DST_WIDTH 640U
+#define DEFAULT_DST_HEIGHT 480U
 
 typedef enum DEMO_MODE_E {
     DEMO_MODE_RESIZE = 0,
@@ -63,41 +63,43 @@ typedef struct DEMO_CONFIG_S {
     MppPixelFormat overlay_format;
 } DEMO_CONFIG_S;
 
-#define DEMO_LOG(fmt, ...)  printf("[v2d_vb_demo] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[v2d_vb_demo][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...) printf("[v2d_vb_demo] " fmt "\n", ##__VA_ARGS__)
+#define DEMO_FAIL(fmt, ...)                                     \
+    do {                                                        \
+        printf("[v2d_vb_demo][FAIL] " fmt "\n", ##__VA_ARGS__); \
+        return -1;                                              \
+    } while (0)
 
-static const char *demo_pixel_format_name(MppPixelFormat pixel_format)
-{
+static const char *demo_pixel_format_name(MppPixelFormat pixel_format) {
     switch (pixel_format) {
-    case MPP_PIXEL_FORMAT_NV12:
-        return "nv12";
-    case MPP_PIXEL_FORMAT_NV21:
-        return "nv21";
-    case MPP_PIXEL_FORMAT_BGRA:
-        return "bgra";
-    case MPP_PIXEL_FORMAT_RGBA:
-        return "rgba";
-    case MPP_PIXEL_FORMAT_ARGB:
-        return "argb";
-    case MPP_PIXEL_FORMAT_ABGR:
-        return "abgr";
-    case MPP_PIXEL_FORMAT_RGB_888:
-        return "rgb888";
-    case MPP_PIXEL_FORMAT_BGR_888:
-        return "bgr888";
-    case MPP_PIXEL_FORMAT_RGB_565:
-        return "rgb565";
-    case MPP_PIXEL_FORMAT_BGR_565:
-        return "bgr565";
-    case MPP_PIXEL_FORMAT_A8:
-        return "a8";
-    default:
-        return "unknown";
+        case MPP_PIXEL_FORMAT_NV12:
+            return "nv12";
+        case MPP_PIXEL_FORMAT_NV21:
+            return "nv21";
+        case MPP_PIXEL_FORMAT_BGRA:
+            return "bgra";
+        case MPP_PIXEL_FORMAT_RGBA:
+            return "rgba";
+        case MPP_PIXEL_FORMAT_ARGB:
+            return "argb";
+        case MPP_PIXEL_FORMAT_ABGR:
+            return "abgr";
+        case MPP_PIXEL_FORMAT_RGB_888:
+            return "rgb888";
+        case MPP_PIXEL_FORMAT_BGR_888:
+            return "bgr888";
+        case MPP_PIXEL_FORMAT_RGB_565:
+            return "rgb565";
+        case MPP_PIXEL_FORMAT_BGR_565:
+            return "bgr565";
+        case MPP_PIXEL_FORMAT_A8:
+            return "a8";
+        default:
+            return "unknown";
     }
 }
 
-static int demo_parse_pixel_format(const char *text, MppPixelFormat *pixel_format)
-{
+static int demo_parse_pixel_format(const char *text, MppPixelFormat *pixel_format) {
     if ((text == NULL) || (pixel_format == NULL)) {
         return -1;
     }
@@ -160,13 +162,16 @@ static int demo_parse_pixel_format(const char *text, MppPixelFormat *pixel_forma
     return -1;
 }
 
-static void demo_print_usage(const char *prog)
-{
+static void demo_print_usage(const char *prog) {
     printf("Usage:\n");
-    printf("  %s resize [input_file src_width src_height src_format output_file dst_width dst_height dst_format]\n", prog);
+    printf(
+        "  %s resize [input_file src_width src_height src_format output_file dst_width dst_height dst_format]\n", prog);
     printf("  %s convert [input_file src_width src_height src_format output_file dst_format]\n", prog);
     printf("  %s rotate [input_file src_width src_height src_format output_file dst_format]\n", prog);
-    printf("  %s adv2layers [background_file foreground_file width height background_format foreground_format output_file dst_format]\n", prog);
+    printf(
+        "  %s adv2layers [background_file foreground_file width height background_format foreground_format output_file "
+        "dst_format]\n",
+        prog);
     printf("\nSupported formats: nv12 nv21 bgra rgba argb abgr rgb888 bgr888 rgb565 bgr565 a8\n");
     printf("\nresize defaults:\n");
     printf("  input_file  : %s\n", DEMO_INPUT_FILE);
@@ -207,8 +212,7 @@ static void demo_print_usage(const char *prog)
     printf("  %s adv2layers bg.yuv fg.bgra 1920 1080 nv12 bgra output.yuv nv12\n", prog);
 }
 
-static int demo_parse_mode(const char *mode_str, DEMO_MODE_E *mode)
-{
+static int demo_parse_mode(const char *mode_str, DEMO_MODE_E *mode) {
     if (mode_str == NULL || mode == NULL) {
         return -1;
     }
@@ -236,10 +240,9 @@ static int demo_parse_mode(const char *mode_str, DEMO_MODE_E *mode)
     return -1;
 }
 
-static int demo_parse_u32(const char *text, U32 *value)
-{
+static int demo_parse_u32(const char *text, U32 *value) {
     char *end_ptr = NULL;
-    unsigned long parsed;
+    uint64_t parsed;
 
     if (text == NULL || value == NULL || text[0] == '\0') {
         return -1;
@@ -254,8 +257,7 @@ static int demo_parse_u32(const char *text, U32 *value)
     return 0;
 }
 
-static void demo_set_default_config(DEMO_CONFIG_S *config)
-{
+static void demo_set_default_config(DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return;
     }
@@ -274,8 +276,7 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     config->overlay_format = MPP_PIXEL_FORMAT_BGRA;
 }
 
-static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
-{
+static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return -1;
     }
@@ -304,11 +305,9 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
 
         config->input_file = argv[2];
         config->output_file = argv[6];
-        if (demo_parse_u32(argv[3], &config->src_width) != 0 ||
-            demo_parse_u32(argv[4], &config->src_height) != 0 ||
+        if (demo_parse_u32(argv[3], &config->src_width) != 0 || demo_parse_u32(argv[4], &config->src_height) != 0 ||
             demo_parse_pixel_format(argv[5], &config->src_format) != 0 ||
-            demo_parse_u32(argv[7], &config->dst_width) != 0 ||
-            demo_parse_u32(argv[8], &config->dst_height) != 0 ||
+            demo_parse_u32(argv[7], &config->dst_width) != 0 || demo_parse_u32(argv[8], &config->dst_height) != 0 ||
             demo_parse_pixel_format(argv[9], &config->dst_format) != 0) {
             return -1;
         }
@@ -336,8 +335,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         config->input_file = argv[2];
         config->overlay_file = argv[3];
         config->output_file = argv[8];
-        if (demo_parse_u32(argv[4], &config->src_width) != 0 ||
-            demo_parse_u32(argv[5], &config->src_height) != 0 ||
+        if (demo_parse_u32(argv[4], &config->src_width) != 0 || demo_parse_u32(argv[5], &config->src_height) != 0 ||
             demo_parse_pixel_format(argv[6], &config->src_format) != 0 ||
             demo_parse_pixel_format(argv[7], &config->overlay_format) != 0 ||
             demo_parse_pixel_format(argv[9], &config->dst_format) != 0) {
@@ -365,8 +363,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
 
         config->input_file = argv[2];
         config->output_file = argv[6];
-        if (demo_parse_u32(argv[3], &config->src_width) != 0 ||
-            demo_parse_u32(argv[4], &config->src_height) != 0 ||
+        if (demo_parse_u32(argv[3], &config->src_width) != 0 || demo_parse_u32(argv[4], &config->src_height) != 0 ||
             demo_parse_pixel_format(argv[5], &config->src_format) != 0 ||
             demo_parse_pixel_format(argv[7], &config->dst_format) != 0) {
             return -1;
@@ -393,8 +390,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
 
     config->input_file = argv[2];
     config->output_file = argv[6];
-    if (demo_parse_u32(argv[3], &config->src_width) != 0 ||
-        demo_parse_u32(argv[4], &config->src_height) != 0 ||
+    if (demo_parse_u32(argv[3], &config->src_width) != 0 || demo_parse_u32(argv[4], &config->src_height) != 0 ||
         demo_parse_pixel_format(argv[5], &config->src_format) != 0 ||
         demo_parse_pixel_format(argv[7], &config->dst_format) != 0) {
         return -1;
@@ -405,8 +401,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     return 0;
 }
 
-static int demo_load_yuv420sp_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_yuv420sp_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -425,8 +420,7 @@ static int demo_load_yuv420sp_file(VideoFrameInfo *frame, const char *input_file
     }
 
     base = plane0;
-    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] +
-                    (size_t)frame->stVFrame.u32PlaneSize[1];
+    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] + (size_t)frame->stVFrame.u32PlaneSize[1];
 
     fp = fopen(input_file, "rb");
     if (fp == NULL) {
@@ -445,16 +439,13 @@ static int demo_load_yuv420sp_file(VideoFrameInfo *frame, const char *input_file
     }
 
     if (plane1 != (plane0 + frame->stVFrame.u32PlaneSize[0])) {
-        memcpy(plane1,
-               base + frame->stVFrame.u32PlaneSize[0],
-               frame->stVFrame.u32PlaneSize[1]);
+        memcpy(plane1, base + frame->stVFrame.u32PlaneSize[0], frame->stVFrame.u32PlaneSize[1]);
     }
 
     return 0;
 }
 
-static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size = 0;
@@ -492,8 +483,7 @@ static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file)
     return 0;
 }
 
-static int demo_dump_nv12_file_as(const VideoFrameInfo *frame, const char *file_name)
-{
+static int demo_dump_nv12_file_as(const VideoFrameInfo *frame, const char *file_name) {
     FILE *fp;
     size_t write_size;
     const void *plane0;
@@ -513,24 +503,21 @@ static int demo_dump_nv12_file_as(const VideoFrameInfo *frame, const char *file_
         return -1;
     }
 
-    write_size = fwrite(plane0,
-                        1,
-                        frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1],
-                        fp);
+    write_size = fwrite(plane0, 1, frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1], fp);
     fclose(fp);
 
     if (write_size != frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]) {
-        DEMO_LOG("write output file size mismatch, got=%zu expect=%u",
-                 write_size,
-                 frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]);
+        DEMO_LOG(
+            "write output file size mismatch, got=%zu expect=%u",
+            write_size,
+            frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]);
         return -1;
     }
 
     return 0;
 }
 
-static int demo_dump_frame_file_as(const VideoFrameInfo *frame, const char *file_name)
-{
+static int demo_dump_frame_file_as(const VideoFrameInfo *frame, const char *file_name) {
     FILE *fp;
     size_t write_size;
     size_t expected_size = 0;
@@ -567,35 +554,31 @@ static int demo_dump_frame_file_as(const VideoFrameInfo *frame, const char *file
     return 0;
 }
 
-static int demo_is_yuv420sp_format(MppPixelFormat pixel_format)
-{
-    return ((pixel_format == MPP_PIXEL_FORMAT_NV12) ||
-            (pixel_format == MPP_PIXEL_FORMAT_NV21)) ? 1 : 0;
+static int demo_is_yuv420sp_format(MppPixelFormat pixel_format) {
+    return ((pixel_format == MPP_PIXEL_FORMAT_NV12) || (pixel_format == MPP_PIXEL_FORMAT_NV21)) ? 1 : 0;
 }
 
-static U32 demo_get_packed_bpp(MppPixelFormat pixel_format)
-{
+static U32 demo_get_packed_bpp(MppPixelFormat pixel_format) {
     switch (pixel_format) {
-    case MPP_PIXEL_FORMAT_BGRA:
-    case MPP_PIXEL_FORMAT_RGBA:
-    case MPP_PIXEL_FORMAT_ARGB:
-    case MPP_PIXEL_FORMAT_ABGR:
-        return 4U;
-    case MPP_PIXEL_FORMAT_RGB_888:
-    case MPP_PIXEL_FORMAT_BGR_888:
-        return 3U;
-    case MPP_PIXEL_FORMAT_RGB_565:
-    case MPP_PIXEL_FORMAT_BGR_565:
-        return 2U;
-    case MPP_PIXEL_FORMAT_A8:
-        return 1U;
-    default:
-        return 0U;
+        case MPP_PIXEL_FORMAT_BGRA:
+        case MPP_PIXEL_FORMAT_RGBA:
+        case MPP_PIXEL_FORMAT_ARGB:
+        case MPP_PIXEL_FORMAT_ABGR:
+            return 4U;
+        case MPP_PIXEL_FORMAT_RGB_888:
+        case MPP_PIXEL_FORMAT_BGR_888:
+            return 3U;
+        case MPP_PIXEL_FORMAT_RGB_565:
+        case MPP_PIXEL_FORMAT_BGR_565:
+            return 2U;
+        case MPP_PIXEL_FORMAT_A8:
+            return 1U;
+        default:
+            return 0U;
     }
 }
 
-static void demo_reset_frame(VideoFrameInfo *frame)
-{
+static void demo_reset_frame(VideoFrameInfo *frame) {
     void *plane0;
     void *plane1;
 
@@ -628,9 +611,9 @@ static void demo_reset_frame(VideoFrameInfo *frame)
  * is filled for completeness and CPU-side load/dump helpers, but is not read
  * by the V2D driver itself.
  */
-static int demo_prepare_pool(UL *pool_id, VideoFrameInfo *frame, ModId mod_id,
-                             MppPixelFormat pixel_format, U32 width, U32 height)
-{
+static int demo_prepare_pool(
+    UL *pool_id, VideoFrameInfo *frame, ModId mod_id, MppPixelFormat pixel_format, U32 width, U32 height
+) {
     VbPoolCfg cfg;
     UL buffer = 0UL;
     S32 ret;
@@ -666,7 +649,7 @@ static int demo_prepare_pool(UL *pool_id, VideoFrameInfo *frame, ModId mod_id,
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.u32BufSize = total_size;
-    cfg.u32BufCnt = 1;   /* single-shot demo: one buffer per pool, bound to `frame` */
+    cfg.u32BufCnt = 1; /* single-shot demo: one buffer per pool, bound to `frame` */
     cfg.eModId = mod_id;
     cfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
 
@@ -732,10 +715,7 @@ err_destroy_pool:
     return -1;
 }
 
-static int demo_run_resize(const DEMO_CONFIG_S *config,
-                           const VideoFrameInfo *src_frame,
-                           VideoFrameInfo *dst_frame)
-{
+static int demo_run_resize(const DEMO_CONFIG_S *config, const VideoFrameInfo *src_frame, VideoFrameInfo *dst_frame) {
     V2DHandle handle = 0;
     S32 ret;
 
@@ -764,10 +744,7 @@ static int demo_run_resize(const DEMO_CONFIG_S *config,
     return 0;
 }
 
-static int demo_run_convert(const DEMO_CONFIG_S *config,
-                            const VideoFrameInfo *src_frame,
-                            VideoFrameInfo *dst_frame)
-{
+static int demo_run_convert(const DEMO_CONFIG_S *config, const VideoFrameInfo *src_frame, VideoFrameInfo *dst_frame) {
     void *plane0;
     V2DHandle handle = 0;
     S32 ret;
@@ -804,11 +781,12 @@ static int demo_run_convert(const DEMO_CONFIG_S *config,
     return 0;
 }
 
-static int demo_run_adv2layers(const DEMO_CONFIG_S *config,
-                               const VideoFrameInfo *background_frame,
-                               const VideoFrameInfo *foreground_frame,
-                               VideoFrameInfo *dst_frame)
-{
+static int demo_run_adv2layers(
+    const DEMO_CONFIG_S *config,
+    const VideoFrameInfo *background_frame,
+    const VideoFrameInfo *foreground_frame,
+    VideoFrameInfo *dst_frame
+) {
     V2DHandle handle = 0;
     S32 ret;
 
@@ -837,10 +815,7 @@ static int demo_run_adv2layers(const DEMO_CONFIG_S *config,
     return 0;
 }
 
-static int demo_run_rotate(const DEMO_CONFIG_S *config,
-                          const VideoFrameInfo *src_frame,
-                          VideoFrameInfo *dst_frame)
-{
+static int demo_run_rotate(const DEMO_CONFIG_S *config, const VideoFrameInfo *src_frame, VideoFrameInfo *dst_frame) {
     V2DHandle handle = 0;
     S32 ret;
 
@@ -869,8 +844,7 @@ static int demo_run_rotate(const DEMO_CONFIG_S *config,
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 ret;
     DEMO_CONFIG_S config;
     UL src_pool = 0UL;
@@ -888,17 +862,20 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    DEMO_LOG("Mode: %s",
-             (config.enMode == DEMO_MODE_RESIZE) ? "resize" :
-             (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
-             (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
-    DEMO_LOG("Configuration: src=%ux%u(%s) dst=%ux%u(%s)",
-             config.src_width,
-             config.src_height,
-             demo_pixel_format_name(config.src_format),
-             config.dst_width,
-             config.dst_height,
-             demo_pixel_format_name(config.dst_format));
+    DEMO_LOG(
+        "Mode: %s",
+        (config.enMode == DEMO_MODE_RESIZE)        ? "resize"
+            : (config.enMode == DEMO_MODE_CONVERT) ? "convert"
+            : (config.enMode == DEMO_MODE_ROTATE)  ? "rotate"
+                                                    : "adv2layers");
+    DEMO_LOG(
+        "Configuration: src=%ux%u(%s) dst=%ux%u(%s)",
+        config.src_width,
+        config.src_height,
+        demo_pixel_format_name(config.src_format),
+        config.dst_width,
+        config.dst_height,
+        demo_pixel_format_name(config.dst_format));
     DEMO_LOG("Input: %s", config.input_file);
     if (config.enMode == DEMO_MODE_ADV2LAYERS) {
         DEMO_LOG("Overlay: %s", config.overlay_file);
@@ -916,18 +893,19 @@ int main(int argc, char *argv[])
         DEMO_FAIL("VB_Init failed, ret=%d", ret);
     }
 
-    if (demo_prepare_pool(&src_pool, &src_frame, MPP_ID_V2D, config.src_format,
-                          config.src_width, config.src_height) != 0) {
+    if (demo_prepare_pool(&src_pool, &src_frame, MPP_ID_V2D, config.src_format, config.src_width, config.src_height) !=
+        0) {
         goto EXIT;
     }
     if (config.enMode == DEMO_MODE_ADV2LAYERS) {
-        if (demo_prepare_pool(&overlay_pool, &overlay_frame, MPP_ID_V2D, config.overlay_format,
-                              config.src_width, config.src_height) != 0) {
+        if (demo_prepare_pool(
+                &overlay_pool, &overlay_frame, MPP_ID_V2D,
+                config.overlay_format, config.src_width, config.src_height) != 0) {
             goto EXIT;
         }
     }
-    if (demo_prepare_pool(&dst_pool, &dst_frame, MPP_ID_V2D, config.dst_format,
-                          config.dst_width, config.dst_height) != 0) {
+    if (demo_prepare_pool(&dst_pool, &dst_frame, MPP_ID_V2D, config.dst_format, config.dst_width, config.dst_height) !=
+        0) {
         goto EXIT;
     }
 
@@ -985,19 +963,22 @@ int main(int argc, char *argv[])
         goto EXIT;
     }
 
-    DEMO_LOG("V2D %s experiment finished",
-             (config.enMode == DEMO_MODE_RESIZE) ? "resize" :
-             (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
-             (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
+    DEMO_LOG(
+        "V2D %s experiment finished",
+        (config.enMode == DEMO_MODE_RESIZE)        ? "resize"
+            : (config.enMode == DEMO_MODE_CONVERT) ? "convert"
+            : (config.enMode == DEMO_MODE_ROTATE)  ? "rotate"
+                                                    : "adv2layers");
     DEMO_LOG("input file: %s", config.input_file);
     DEMO_LOG("output file: %s", config.output_file);
-    DEMO_LOG("src=%ux%u(%s) dst=%ux%u(%s)",
-             config.src_width,
-             config.src_height,
-             demo_pixel_format_name(config.src_format),
-             config.dst_width,
-             config.dst_height,
-             demo_pixel_format_name(config.dst_format));
+    DEMO_LOG(
+        "src=%ux%u(%s) dst=%ux%u(%s)",
+        config.src_width,
+        config.src_height,
+        demo_pixel_format_name(config.src_format),
+        config.dst_width,
+        config.dst_height,
+        demo_pixel_format_name(config.dst_format));
     DEMO_LOG("src fd=%d dst fd=%d", (int)src_frame.stVFrame.u32Fd[0], (int)dst_frame.stVFrame.u32Fd[0]);
 
 EXIT:

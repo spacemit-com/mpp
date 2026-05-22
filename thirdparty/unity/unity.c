@@ -6,74 +6,75 @@
  * ========================================================================= */
 
 #include "unity.h"
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <setjmp.h>
 
 /* Global state */
 UNITY_STORAGE_T Unity;
-jmp_buf         UnityJumpBuffer;
+jmp_buf UnityJumpBuffer;
 
 /* -----------------------------------------------------------------------
  * Internal print helpers
  * ----------------------------------------------------------------------- */
-static void UnityPrintNewline(void)   { putchar('\n'); }
-static void UnityPrintColon(void)     { putchar(':'); }
-static void UnityPrintSpace(void)     { putchar(' '); }
+static void UnityPrintNewline(void) {
+    putchar('\n');
+}
+static void UnityPrintColon(void) {
+    putchar(':');
+}
+static void UnityPrintSpace(void) {
+    putchar(' ');
+}
 
-void UnityPrintChar(const char *pch)
-{
+void UnityPrintChar(const char *pch) {
     if (*pch && *pch >= ' ')
         putchar(*pch);
     else
         putchar('?');
 }
 
-void UnityPrint(const char *string)
-{
-    if (string) fputs(string, stdout);
+void UnityPrint(const char *string) {
+    if (string)
+        fputs(string, stdout);
 }
 
-void UnityPrintLen(const char *string, UNITY_UINT32 length)
-{
+void UnityPrintLen(const char *string, UNITY_UINT32 length) {
     if (string) {
-        while (*string && length--) putchar(*string++);
+        while (*string && length--)
+            putchar(*string++);
     }
 }
 
-void Unity_PrintNumber(UNITY_INT number)
-{
-    printf("%ld", (long)number);
+void Unity_PrintNumber(UNITY_INT number) {
+    printf("%" PRId64, (int64_t)number);
 }
 
-void Unity_PrintNumberUnsigned(UNITY_UINT number)
-{
-    printf("%lu", (unsigned long)number);
+void Unity_PrintNumberUnsigned(UNITY_UINT number) {
+    printf("%" PRIu64, (uint64_t)number);
 }
 
-void Unity_PrintNumberHex(UNITY_UINT number, char nibbles)
-{
-    printf("%0*lX", (int)nibbles, (unsigned long)number);
+void Unity_PrintNumberHex(UNITY_UINT number, char nibbles) {
+    printf("%0*" PRIX64, (int)nibbles, (uint64_t)number);
 }
 
 /* -----------------------------------------------------------------------
  * Core framework
  * ----------------------------------------------------------------------- */
-void UnityBegin(const char *filename)
-{
-    Unity.TestFile            = filename;
-    Unity.CurrentTestName     = NULL;
+void UnityBegin(const char *filename) {
+    Unity.TestFile = filename;
+    Unity.CurrentTestName = NULL;
     Unity.CurrentTestLineNumber = 0;
-    Unity.NumberOfTests       = 0;
-    Unity.TestFailures        = 0;
-    Unity.TestIgnores         = 0;
-    Unity.CurrentTestFailed   = 0;
-    Unity.CurrentTestIgnored  = 0;
+    Unity.NumberOfTests = 0;
+    Unity.TestFailures = 0;
+    Unity.TestIgnores = 0;
+    Unity.CurrentTestFailed = 0;
+    Unity.CurrentTestIgnored = 0;
     printf("--- Test file: %s ---\n", filename ? filename : "unknown");
 }
 
-int UnityEnd(void)
-{
+int UnityEnd(void) {
     printf("\n-----------------------\n");
     Unity_PrintNumberUnsigned(Unity.NumberOfTests);
     UnityPrint(" Tests ");
@@ -89,27 +90,24 @@ int UnityEnd(void)
     return (int)(Unity.TestFailures);
 }
 
-void UnitySetTestFile(const char *filename)
-{
+void UnitySetTestFile(const char *filename) {
     Unity.TestFile = filename;
 }
 
-void UnityConcludeTest(void)
-{
+void UnityConcludeTest(void) {
     if (Unity.CurrentTestIgnored) {
         Unity.TestIgnores++;
     } else if (Unity.CurrentTestFailed == 0) {
         UnityPrint("PASS\n");
     }
-    Unity.CurrentTestFailed  = 0;
+    Unity.CurrentTestFailed = 0;
     Unity.CurrentTestIgnored = 0;
 }
 
 /* -----------------------------------------------------------------------
  * Failure / ignore / message
  * ----------------------------------------------------------------------- */
-void UnityFail(const char *message, UNITY_UINT line)
-{
+void UnityFail(const char *message, UNITY_UINT line) {
     printf("%s:", Unity.CurrentTestName ? Unity.CurrentTestName : "?");
     Unity_PrintNumberUnsigned(line);
     UnityPrint(":FAIL");
@@ -124,8 +122,7 @@ void UnityFail(const char *message, UNITY_UINT line)
     longjmp(UnityJumpBuffer, 1);
 }
 
-void UnityIgnore(const char *message, UNITY_UINT line)
-{
+void UnityIgnore(const char *message, UNITY_UINT line) {
     (void)line;
     UnityPrint(":IGNORE");
     if (message) {
@@ -138,22 +135,21 @@ void UnityIgnore(const char *message, UNITY_UINT line)
     longjmp(UnityJumpBuffer, 1);
 }
 
-void UnityMessage(const char *message, UNITY_UINT line)
-{
+void UnityMessage(const char *message, UNITY_UINT line) {
     (void)line;
-    if (message) UnityPrint(message);
+    if (message)
+        UnityPrint(message);
     UnityPrintNewline();
 }
 
 /* -----------------------------------------------------------------------
  * Test runner
  * ----------------------------------------------------------------------- */
-void UnityDefaultTestRun(void (*func)(void), const char *funcName, int funcLineNum)
-{
+void UnityDefaultTestRun(void (*func)(void), const char *funcName, int funcLineNum) {
     (void)funcLineNum;
     Unity.CurrentTestName = funcName;
     Unity.NumberOfTests++;
-    Unity.CurrentTestFailed  = 0;
+    Unity.CurrentTestFailed = 0;
     Unity.CurrentTestIgnored = 0;
 
     printf("  %-50s ... ", funcName);

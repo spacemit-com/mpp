@@ -9,8 +9,8 @@
  * @Description:
  */
 
-#ifndef _MPP_MJPEGPARSE_H_
-#define _MPP_MJPEGPARSE_H_
+#ifndef MJPEGPARSE_H
+#define MJPEGPARSE_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,4 +18,4 @@
 
 #include "type.h"
 
-#endif /*_MPP_MJPEGPARSE_H_*/
+#endif /*MJPEGPARSE_H*/

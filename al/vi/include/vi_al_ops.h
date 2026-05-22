@@ -24,8 +24,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __VI_AL_OPS_H__
-#define __VI_AL_OPS_H__
+#ifndef VI_AL_OPS_H
+#define VI_AL_OPS_H
 
 #include "type.h"
 #include "vi_type.h"
@@ -51,21 +51,16 @@ typedef struct _ViAlOps {
 
     S32 (*set_chn_attr)(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr);
     S32 (*get_chn_attr)(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr);
-    S32 (*set_chn_framerate)(VI_DEV ViDev, VI_CHN ViChn,
-                             const ViFrameRateCtrlS *pstFrameRateCtrl);
-    S32 (*get_chn_framerate)(VI_DEV ViDev, VI_CHN ViChn,
-                             ViFrameRateCtrlS *pstFrameRateCtrl);
+    S32 (*set_chn_framerate)(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl);
+    S32 (*get_chn_framerate)(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl);
     S32 (*enable_chn)(VI_DEV ViDev, VI_CHN ViChn);
     S32 (*disable_chn)(VI_DEV ViDev, VI_CHN ViChn);
 
-    S32 (*dequeue_done_buffer)(VI_DEV ViDev, VI_CHN ViChn,
-                               U32 *pu32Index, S32 s32MilliSec);
+    S32 (*dequeue_done_buffer)(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec);
     S32 (*queue_buffer)(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index);
 
-    S32 (*attach_bind_sink)(VI_DEV ViDev, VI_CHN ViChn,
-                            const MppNode *pstSinkNode);
-    S32 (*detach_bind_sink)(VI_DEV ViDev, VI_CHN ViChn,
-                            const MppNode *pstSinkNode);
+    S32 (*attach_bind_sink)(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
+    S32 (*detach_bind_sink)(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
 
     /*
      * MPI passes the full VideoFrameInfo array (one entry per slot).
@@ -74,10 +69,13 @@ typedef struct _ViAlOps {
      * plane sizes and strides.  The plugin extracts whatever it needs and
      * converts to its internal buffer representation.
      */
-    S32 (*set_external_buf_pool)(VI_DEV ViDev, VI_CHN ViChn,
-                                 UL ulPoolId, U32 u32BufCnt,
-                                 const UL *paulBufferId,
-                                 const VideoFrameInfo *pastFrameInfo);
+    S32 (*set_external_buf_pool)(
+        VI_DEV ViDev,
+        VI_CHN ViChn,
+        UL ulPoolId,
+        U32 u32BufCnt,
+        const UL *paulBufferId,
+        const VideoFrameInfo *pastFrameInfo);
 
     /* ------------------------------------------------------------------ */
     /* Optional: rawdump — set to NULL if not supported by this platform. */
@@ -85,23 +83,19 @@ typedef struct _ViAlOps {
 
     S32 (*trigger_raw_dump)(VI_DEV ViDev, VI_CHN ViChn);
 
-    S32 (*get_raw_dump_frame)(VI_DEV ViDev, VI_CHN ViChn,
-                              VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
+    S32 (*get_raw_dump_frame)(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
 
-    S32 (*release_raw_dump_frame)(VI_DEV ViDev, VI_CHN ViChn,
-                                  const VideoFrameInfo *pstVideoFrame);
+    S32 (*release_raw_dump_frame)(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame);
 
     /* Returns the chn attr that should be used to size the rawdump buffer. */
-    S32 (*get_rawdump_attr)(VI_DEV ViDev, VI_CHN ViChn,
-                            ViChnAttrS *pstRawAttr);
+    S32 (*get_rawdump_attr)(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr);
 
     /*
      * Import the pre-allocated rawdump buffer described by pstFrameInfo
      * into the plugin so it can be targeted by the ISP.
      * The plugin converts VideoFrameInfo to its internal buffer type.
      */
-    S32 (*set_rawdump_buf)(VI_DEV ViDev, VI_CHN ViChn,
-                           const VideoFrameInfo *pstFrameInfo);
+    S32 (*set_rawdump_buf)(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstFrameInfo);
 
     /* ------------------------------------------------------------------ */
     /* Optional: offline — set to NULL if not supported.                  */
@@ -113,10 +107,14 @@ typedef struct _ViAlOps {
      * by MPI); the plugin converts it to its internal buffer type.
      * pu8RawVirAddr / u32RawSize are the source CPU data.
      */
-    S32 (*offline_set_input_addr)(VI_DEV ViDev, VI_CHN ViChn,
-                                  UL ulPoolId, UL ulBufferId,
-                                  const VideoFrameInfo *pstFrameInfo,
-                                  const U8 *pu8RawVirAddr, U32 u32RawSize);
+    S32 (*offline_set_input_addr)(
+        VI_DEV ViDev,
+        VI_CHN ViChn,
+        UL ulPoolId,
+        UL ulBufferId,
+        const VideoFrameInfo *pstFrameInfo,
+        const U8 *pu8RawVirAddr,
+        U32 u32RawSize);
 
     /* ------------------------------------------------------------------ */
     /* Optional: platform-specific extensions — set to NULL if unused.   */
@@ -126,16 +124,14 @@ typedef struct _ViAlOps {
      * Query per-slot DQBUF metadata captured at the last dequeue.
      * K3 extension: timestamp / sequence / bytesused per plane.
      */
-    S32 (*query_dqbuf_meta)(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId,
-                            U64 *pu64PtsUs, U32 *pu32Sequence,
-                            U32 *pau32BytesUsed);
+    S32 (*query_dqbuf_meta)(
+        VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, U64 *pu64PtsUs, U32 *pu32Sequence, U32 *pau32BytesUsed);
 
     /*
      * Query ISP frame metadata (exposure, WB, gains, …).
      * Returns zeroed struct on platforms that don't expose ISP stats.
      */
-    S32 (*query_frame_meta)(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId,
-                            ViFrameMetaInfo *pstFrameInfo);
+    S32 (*query_frame_meta)(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, ViFrameMetaInfo *pstFrameInfo);
 } ViAlOps;
 
 /*
@@ -148,4 +144,4 @@ typedef const ViAlOps *(*PFN_al_vi_get_ops)(void);
 }
 #endif
 
-#endif /* __VI_AL_OPS_H__ */
+#endif /* VI_AL_OPS_H */

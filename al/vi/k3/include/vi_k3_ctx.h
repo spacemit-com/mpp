@@ -6,8 +6,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __AL_VI_K3_CTX_H__
-#define __AL_VI_K3_CTX_H__
+#ifndef VI_K3_CTX_H
+#define VI_K3_CTX_H
 
 #include "vi_k3_defs.h"
 #include <linux/videodev2.h>
@@ -74,7 +74,6 @@ S32 K3_V4L2_Close(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx);
 
 /* DMABUF helpers (vi_k3_v4l2.c) */
 S32 K3_V4L2_QBuf_DmaBuf(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx, U32 u32BufIdx);
-S32 K3_V4L2_DQBuf_Wait(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx,
-                       S32 s32MilliSec, U32 *pu32BufIdx);
+S32 K3_V4L2_DQBuf_Wait(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx, S32 s32MilliSec, U32 *pu32BufIdx);
 
-#endif /* __AL_VI_K3_CTX_H__ */
+#endif /* VI_K3_CTX_H */

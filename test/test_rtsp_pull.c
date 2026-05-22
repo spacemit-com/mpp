@@ -26,16 +26,24 @@
 #include "demux/demux_api.h"
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); return 1; } while (0)
-#define TEST_SKIP(name, msg) do { printf("[SKIP] %s: %s\n", (name), (msg)); return 0; } while (0)
+#define TEST_FAIL(name, msg)                      \
+    do {                                          \
+        printf("[FAIL] %s: %s\n", (name), (msg)); \
+        return 1;                                 \
+    } while (0)
+#define TEST_SKIP(name, msg)                      \
+    do {                                          \
+        printf("[SKIP] %s: %s\n", (name), (msg)); \
+        return 0;                                 \
+    } while (0)
 
 typedef struct RtspPullTestCtx {
     volatile S32 s32Running;
-    U32          u32LimitPackets;
-    U32          u32PacketCount;
-    U32          u32KeyFrameCount;
-    U64          u64TotalBytes;
-    BOOL         bSawKnownCodec;
+    U32 u32LimitPackets;
+    U32 u32PacketCount;
+    U32 u32KeyFrameCount;
+    U64 u64TotalBytes;
+    BOOL bSawKnownCodec;
 } RtspPullTestCtx;
 
 static RtspPullTestCtx g_stCtx = {
@@ -43,24 +51,25 @@ static RtspPullTestCtx g_stCtx = {
     .u32LimitPackets = 60,
 };
 
-static VOID sig_handler(int sig)
-{
+static VOID sig_handler(int sig) {
     (void)sig;
     g_stCtx.s32Running = 0;
 }
 
-static const CHAR *codec_name(DemuxCodecType eCodecType)
-{
+static const CHAR *codec_name(DemuxCodecType eCodecType) {
     switch (eCodecType) {
-        case DEMUX_CODEC_H264:  return "H.264";
-        case DEMUX_CODEC_H265:  return "H.265";
-        case DEMUX_CODEC_MJPEG: return "MJPEG";
-        default:                return "UNKNOWN";
+        case DEMUX_CODEC_H264:
+            return "H.264";
+        case DEMUX_CODEC_H265:
+            return "H.265";
+        case DEMUX_CODEC_MJPEG:
+            return "MJPEG";
+        default:
+            return "UNKNOWN";
     }
 }
 
-static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
-{
+static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv) {
     RtspPullTestCtx *pstCtx = (RtspPullTestCtx *)pPriv;
 
     (void)s32ChnId;
@@ -79,11 +88,12 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
     }
 
     if ((pstCtx->u32PacketCount % 20U) == 0U) {
-        printf("[INFO] packets=%u bytes=%llu codec=%s keyframes=%u\n",
-               pstCtx->u32PacketCount,
-               (unsigned long long)pstCtx->u64TotalBytes,
-               codec_name(pstPkt->eCodecType),
-               pstCtx->u32KeyFrameCount);
+        printf(
+            "[INFO] packets=%u bytes=%" PRIu64 "codec=%s keyframes=%u\n",
+            pstCtx->u32PacketCount,
+            (uint64_t)pstCtx->u64TotalBytes,
+            codec_name(pstPkt->eCodecType),
+            pstCtx->u32KeyFrameCount);
     }
 
     if (pstCtx->u32PacketCount >= pstCtx->u32LimitPackets) {
@@ -94,8 +104,7 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     const char *pszName = "rtsp_pull";
     const char *pszUrl;
     S32 ret;
@@ -175,10 +184,11 @@ int main(int argc, char *argv[])
         TEST_FAIL(pszName, "codec stayed UNKNOWN");
     }
 
-    printf("[INFO] final packets=%u keyframes=%u bytes=%llu\n",
-           g_stCtx.u32PacketCount,
-           g_stCtx.u32KeyFrameCount,
-           (unsigned long long)g_stCtx.u64TotalBytes);
+    printf(
+        "[INFO] final packets=%u keyframes=%u bytes=%" PRIu64 "\n",
+        g_stCtx.u32PacketCount,
+        g_stCtx.u32KeyFrameCount,
+        (uint64_t)g_stCtx.u64TotalBytes);
     TEST_PASS(pszName);
     return 0;
 }

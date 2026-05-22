@@ -26,35 +26,36 @@
 
 typedef struct SampleStats {
     volatile S32 s32Running;
-    U32          u32LimitPackets;
-    U32          u32PacketCount;
-    U32          u32KeyFrameCount;
-    U64          u64TotalBytes;
-    BOOL         bStreamInfoPrinted;
+    U32 u32LimitPackets;
+    U32 u32PacketCount;
+    U32 u32KeyFrameCount;
+    U64 u64TotalBytes;
+    BOOL bStreamInfoPrinted;
 } SampleStats;
 
 static SampleStats g_stStats = {
     .s32Running = 1,
 };
 
-static const CHAR *codec_name(DemuxCodecType eCodecType)
-{
+static const CHAR *codec_name(DemuxCodecType eCodecType) {
     switch (eCodecType) {
-        case DEMUX_CODEC_H264:  return "H.264";
-        case DEMUX_CODEC_H265:  return "H.265";
-        case DEMUX_CODEC_MJPEG: return "MJPEG";
-        default:                return "UNKNOWN";
+        case DEMUX_CODEC_H264:
+            return "H.264";
+        case DEMUX_CODEC_H265:
+            return "H.265";
+        case DEMUX_CODEC_MJPEG:
+            return "MJPEG";
+        default:
+            return "UNKNOWN";
     }
 }
 
-static VOID sig_handler(int sig)
-{
+static VOID sig_handler(int sig) {
     (void)sig;
     g_stStats.s32Running = 0;
 }
 
-static VOID print_stream_info_once(S32 s32ChnId, const DemuxPacket *pstPkt)
-{
+static VOID print_stream_info_once(S32 s32ChnId, const DemuxPacket *pstPkt) {
     DemuxStreamInfo stInfo;
 
     if (g_stStats.bStreamInfoPrinted) {
@@ -63,23 +64,20 @@ static VOID print_stream_info_once(S32 s32ChnId, const DemuxPacket *pstPkt)
 
     memset(&stInfo, 0, sizeof(stInfo));
     if (DEMUX_GetStreamInfo(s32ChnId, &stInfo) == 0) {
-        printf("[INFO] stream codec=%s, %ux%u @ %u fps\n",
-               codec_name(stInfo.eCodecType),
-               stInfo.u32Width,
-               stInfo.u32Height,
-               stInfo.u32Fps);
+        printf(
+            "[INFO] stream codec=%s, %ux%u @ %u fps\n",
+            codec_name(stInfo.eCodecType),
+            stInfo.u32Width,
+            stInfo.u32Height,
+            stInfo.u32Fps);
     } else {
-        printf("[INFO] stream codec=%s, %ux%u\n",
-               codec_name(pstPkt->eCodecType),
-               pstPkt->u32Width,
-               pstPkt->u32Height);
+        printf("[INFO] stream codec=%s, %ux%u\n", codec_name(pstPkt->eCodecType), pstPkt->u32Width, pstPkt->u32Height);
     }
 
     g_stStats.bStreamInfoPrinted = MPP_TRUE;
 }
 
-static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
-{
+static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv) {
     SampleStats *pstStats = (SampleStats *)pPriv;
 
     if (!pstPkt || !pstStats) {
@@ -95,13 +93,14 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
     }
 
     if ((pstStats->u32PacketCount % 30U) == 1U) {
-        printf("[PKT ] #%u codec=%s size=%u key=%d pts=%llu us total=%llu bytes\n",
-               pstStats->u32PacketCount,
-               codec_name(pstPkt->eCodecType),
-               pstPkt->u32Size,
-               pstPkt->bKeyFrame,
-               (unsigned long long)pstPkt->u64PTS,
-               (unsigned long long)pstStats->u64TotalBytes);
+        printf(
+            "[PKT ] #%u codec=%s size=%u key=%d pts=%" PRIu64 "us total=%" PRIu64 "bytes\n",
+            pstStats->u32PacketCount,
+            codec_name(pstPkt->eCodecType),
+            pstPkt->u32Size,
+            pstPkt->bKeyFrame,
+            (uint64_t)pstPkt->u64PTS,
+            (uint64_t)pstStats->u64TotalBytes);
     }
 
     if (pstStats->u32LimitPackets > 0 && pstStats->u32PacketCount >= pstStats->u32LimitPackets) {
@@ -112,19 +111,21 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 ret;
     DemuxChnAttr stAttr;
     const char *pszUrl;
 
     if (argc < 2) {
-        fprintf(stderr,
-                "usage: %s <input_rtsp_url> [limit_packets]\n"
-                "  example:\n"
-                "    %s rtsp://192.168.1.100:554/live\n"
-                "    %s rtsp://192.168.1.100:554/live 200\n",
-                argv[0], argv[0], argv[0]);
+        fprintf(
+            stderr,
+            "usage: %s <input_rtsp_url> [limit_packets]\n"
+            "  example:\n"
+            "    %s rtsp://192.168.1.100:554/live\n"
+            "    %s rtsp://192.168.1.100:554/live 200\n",
+            argv[0],
+            argv[0],
+            argv[0]);
         return 1;
     }
 
@@ -188,10 +189,11 @@ int main(int argc, char *argv[])
         sleep(1);
     }
 
-    printf("[DONE] packets=%u keyframes=%u total_bytes=%llu\n",
-           g_stStats.u32PacketCount,
-           g_stStats.u32KeyFrameCount,
-           (unsigned long long)g_stStats.u64TotalBytes);
+    printf(
+        "[DONE] packets=%u keyframes=%u total_bytes=%" PRIu64 "\n",
+        g_stStats.u32PacketCount,
+        g_stStats.u32KeyFrameCount,
+        (uint64_t)g_stStats.u64TotalBytes);
 
     DEMUX_StopChn(0);
     DEMUX_DestroyChn(0);

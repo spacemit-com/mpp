@@ -42,8 +42,8 @@
 #include "vb_api.h"
 #include "vdec/vdec_api.h"
 
-#define TEST_API   0x01u
-#define TEST_FMT   0x02u
+#define TEST_API 0x01u
+#define TEST_FMT 0x02u
 #define TEST_PARAM 0x04u
 #define TEST_MULTI 0x08u
 
@@ -62,54 +62,52 @@ typedef struct {
     BOOL vdec_ok;
 } MediaRuntime;
 
-static void print_usage(const char *prog)
-{
-    fprintf(stderr,
-            "Usage: %s [options]\n"
-            "  -t, --test <list>     api, format, param, multi, all "
-            "(no multi in all)\n"
-            "  -i, --input <path>    elementary stream\n"
-            "  -W, --width <n>       nominal width (stream hint)\n"
-            "  -H, --height <n>      nominal height (stream hint)\n"
-            "  -c, --codec <name>    mjpeg | h264 | h265\n"
-            "  -n, --frames <n>      max decoded frames to write (0 = all)\n"
-            "      --cases <str>     codec|path|w|h;...\n"
-            "  -o, --output <path>   NV12: format/param = one file; multi = "
-            "name.ch00.nv12, ...\n"
-            "      --scale-width <n>  --scale-height <n>  (param suite)\n"
-            "      --rotate <deg>    0 | 90 | 180 | 270  (param suite)\n"
-            "  -h, --help\n"
-            "\n"
-            "Examples:\n"
-            "  --test api\n"
-            "  --test format -i clip.264 -W 1920 -H 1080 -c h264 \\\n"
-            "      -o out.nv12 -n 100\n"
-            "  --test param -i in.264 -W 1920 -H 1080 -c h264 \\\n"
-            "      --scale-width 640 --scale-height 360 -o scaled.nv12\n"
-            "  --test param -i in.264 -W 1920 -H 1080 -c h264 \\\n"
-            "      --rotate 90 -o rotated.nv12\n"
-            "  --test multi --cases "
-            "\"h264|a.264|1920|1080;h264|b.264|1280|720\" \\\n"
-            "      -o /tmp/m.nv12 -n 30\n",
-            prog);
+static void print_usage(const char *prog) {
+    fprintf(
+        stderr,
+        "Usage: %s [options]\n"
+        "  -t, --test <list>     api, format, param, multi, all "
+        "(no multi in all)\n"
+        "  -i, --input <path>    elementary stream\n"
+        "  -W, --width <n>       nominal width (stream hint)\n"
+        "  -H, --height <n>      nominal height (stream hint)\n"
+        "  -c, --codec <name>    mjpeg | h264 | h265\n"
+        "  -n, --frames <n>      max decoded frames to write (0 = all)\n"
+        "      --cases <str>     codec|path|w|h;...\n"
+        "  -o, --output <path>   NV12: format/param = one file; multi = "
+        "name.ch00.nv12, ...\n"
+        "      --scale-width <n>  --scale-height <n>  (param suite)\n"
+        "      --rotate <deg>    0 | 90 | 180 | 270  (param suite)\n"
+        "  -h, --help\n"
+        "\n"
+        "Examples:\n"
+        "  --test api\n"
+        "  --test format -i clip.264 -W 1920 -H 1080 -c h264 \\\n"
+        "      -o out.nv12 -n 100\n"
+        "  --test param -i in.264 -W 1920 -H 1080 -c h264 \\\n"
+        "      --scale-width 640 --scale-height 360 -o scaled.nv12\n"
+        "  --test param -i in.264 -W 1920 -H 1080 -c h264 \\\n"
+        "      --rotate 90 -o rotated.nv12\n"
+        "  --test multi --cases "
+        "\"h264|a.264|1920|1080;h264|b.264|1280|720\" \\\n"
+        "      -o /tmp/m.nv12 -n 30\n",
+        prog);
 }
 
-static MppCodingType stream_to_coding(MppStreamCodecType t)
-{
+static MppCodingType stream_to_coding(MppStreamCodecType t) {
     switch (t) {
-    case MPP_STREAM_CODEC_H264:
-        return CODING_H264;
-    case MPP_STREAM_CODEC_H265:
-        return CODING_H265;
-    case MPP_STREAM_CODEC_MJPEG:
-        return CODING_MJPEG;
-    default:
-        return CODING_H264;
+        case MPP_STREAM_CODEC_H264:
+            return CODING_H264;
+        case MPP_STREAM_CODEC_H265:
+            return CODING_H265;
+        case MPP_STREAM_CODEC_MJPEG:
+            return CODING_MJPEG;
+        default:
+            return CODING_H264;
     }
 }
 
-static MppStreamCodecType parse_codec_name(const char *name)
-{
+static MppStreamCodecType parse_codec_name(const char *name) {
     if (!name)
         return MPP_STREAM_CODEC_UNKNOWN;
     if (strcmp(name, "mjpeg") == 0 || strcmp(name, "jpeg") == 0)
@@ -121,40 +119,39 @@ static MppStreamCodecType parse_codec_name(const char *name)
     return MPP_STREAM_CODEC_UNKNOWN;
 }
 
-static const char *codec_name(MppStreamCodecType c)
-{
+static const char *codec_name(MppStreamCodecType c) {
     switch (c) {
-    case MPP_STREAM_CODEC_MJPEG:
-        return "mjpeg";
-    case MPP_STREAM_CODEC_H264:
-        return "h264";
-    case MPP_STREAM_CODEC_H265:
-        return "h265";
-    default:
-        return "unknown";
+        case MPP_STREAM_CODEC_MJPEG:
+            return "mjpeg";
+        case MPP_STREAM_CODEC_H264:
+            return "h264";
+        case MPP_STREAM_CODEC_H265:
+            return "h265";
+        default:
+            return "unknown";
     }
 }
 
-static U32 parse_test_mask(const char *s)
-{
+static U32 parse_test_mask(const char *s) {
     U32 m = 0;
     char *tmp = strdup(s);
     if (!tmp)
         return 0;
-    for (char *tok = strtok(tmp, ","); tok; tok = strtok(NULL, ",")) {
+    char *saveptr1 = NULL;
+    for (char *tok = strtok_r(tmp, ",", &saveptr1); tok; tok = strtok_r(NULL, ",", &saveptr1)) {
         while (*tok == ' ' || *tok == '\t')
             ++tok;
-        if (strcmp(tok, "api") == 0)
+        if (strcmp(tok, "api") == 0) {
             m |= TEST_API;
-        else if (strcmp(tok, "format") == 0)
+        } else if (strcmp(tok, "format") == 0) {
             m |= TEST_FMT;
-        else if (strcmp(tok, "param") == 0)
+        } else if (strcmp(tok, "param") == 0) {
             m |= TEST_PARAM;
-        else if (strcmp(tok, "multi") == 0)
+        } else if (strcmp(tok, "multi") == 0) {
             m |= TEST_MULTI;
-        else if (strcmp(tok, "all") == 0)
+        } else if (strcmp(tok, "all") == 0) {
             m |= TEST_API | TEST_FMT | TEST_PARAM;
-        else {
+        } else {
             free(tmp);
             return 0;
         }
@@ -163,8 +160,7 @@ static U32 parse_test_mask(const char *s)
     return m;
 }
 
-static int append_media_case(MediaCase *cases, int *n, const char *rec)
-{
+static int append_media_case(MediaCase *cases, int *n, const char *rec) {
     char buf[768];
     char *p0, *p1, *p2, *p3;
 
@@ -198,11 +194,10 @@ static int append_media_case(MediaCase *cases, int *n, const char *rec)
     }
     *p3++ = '\0';
 
-    cases[*n].codec  = parse_codec_name(p0);
-    cases[*n].width  = (U32)strtoul(p2, NULL, 10);
+    cases[*n].codec = parse_codec_name(p0);
+    cases[*n].width = (U32)strtoul(p2, NULL, 10);
     cases[*n].height = (U32)strtoul(p3, NULL, 10);
-    if (cases[*n].codec == MPP_STREAM_CODEC_UNKNOWN ||
-        cases[*n].width == 0 || cases[*n].height == 0) {
+    if (cases[*n].codec == MPP_STREAM_CODEC_UNKNOWN || cases[*n].width == 0 || cases[*n].height == 0) {
         fprintf(stderr, "invalid case line: %s\n", rec);
         return -1;
     }
@@ -215,12 +210,12 @@ static int append_media_case(MediaCase *cases, int *n, const char *rec)
     return 0;
 }
 
-static int parse_cases_arg(MediaCase *cases, int *n, const char *arg)
-{
+static int parse_cases_arg(MediaCase *cases, int *n, const char *arg) {
     char *buf = strdup(arg);
     if (!buf)
         return -1;
-    for (char *r = strtok(buf, ";"); r; r = strtok(NULL, ";")) {
+    char *saveptr2 = NULL;
+    for (char *r = strtok_r(buf, ";", &saveptr2); r; r = strtok_r(NULL, ";", &saveptr2)) {
         while (*r == ' ' || *r == '\t')
             ++r;
         if (*r == '\0')
@@ -234,10 +229,9 @@ static int parse_cases_arg(MediaCase *cases, int *n, const char *arg)
     return 0;
 }
 
-static U8 *read_whole_file(const char *path, long *size_out)
-{
+static U8 *read_whole_file(const char *path, int64_t *size_out) {
     FILE *fp = fopen(path, "rb");
-    long sz;
+    int64_t sz;
     U8 *buf;
 
     if (!fp) {
@@ -266,8 +260,7 @@ static U8 *read_whole_file(const char *path, long *size_out)
     return buf;
 }
 
-static void media_runtime_down(MediaRuntime *rt)
-{
+static void media_runtime_down(MediaRuntime *rt) {
     if (rt->vdec_ok) {
         (void)VDEC_Exit();
         rt->vdec_ok = MPP_FALSE;
@@ -282,8 +275,7 @@ static void media_runtime_down(MediaRuntime *rt)
     }
 }
 
-static int media_runtime_up(MediaRuntime *rt)
-{
+static int media_runtime_up(MediaRuntime *rt) {
     S32 ret;
 
     memset(rt, 0, sizeof(*rt));
@@ -310,8 +302,7 @@ static int media_runtime_up(MediaRuntime *rt)
     return 0;
 }
 
-static int save_nv12_frame(FILE *fp, const VideoFrameInfo *frame)
-{
+static int save_nv12_frame(FILE *fp, const VideoFrameInfo *frame) {
     const U8 *base;
     U32 width, height, stride;
     U32 y;
@@ -351,10 +342,9 @@ static int save_nv12_frame(FILE *fp, const VideoFrameInfo *frame)
 /**
  * Advance source pointer after a successful PARSE_*_Parse (payload in frame_buf).
  */
-static int advance_after_parse(MppStreamCodecType codec, U8 *p, S32 left,
-                               const U8 *frame_buf, S32 frame_sz, U8 **next_p,
-                               S32 *next_left)
-{
+static int advance_after_parse(
+    MppStreamCodecType codec, U8 *p, S32 left, const U8 *frame_buf, S32 frame_sz, U8 **next_p, S32 *next_left
+) {
     void *hit;
     S32 adv;
 
@@ -381,16 +371,16 @@ static int advance_after_parse(MppStreamCodecType codec, U8 *p, S32 left,
             adv += 2;
     }
 
-    *next_p    = (U8 *)hit + adv;
+    *next_p = (U8 *)hit + adv;
     *next_left = left - (S32)(*next_p - p);
     if (*next_left < 0)
         *next_left = 0;
     return 0;
 }
 
-static int drain_available_frames(S32 chn, FILE *nv12_out, U32 *decoded_count,
-                                 U32 max_frames, U32 *last_w, U32 *last_h)
-{
+static int drain_available_frames(
+    S32 chn, FILE *nv12_out, U32 *decoded_count, U32 max_frames, U32 *last_w, U32 *last_h
+) {
     VideoFrameInfo frame;
     S32 ret;
 
@@ -428,25 +418,33 @@ static int drain_available_frames(S32 chn, FILE *nv12_out, U32 *decoded_count,
     return 0;
 }
 
-static int send_eos_packet(S32 chn, MppStreamCodecType codec)
-{
+static int send_eos_packet(S32 chn, MppStreamCodecType codec) {
     static U8 dummy;
     StreamBufferInfo s;
     memset(&s, 0, sizeof(s));
-    s.pu8Addr      = &dummy;
-    s.u32Size      = 0;
-    s.bKeyFrame    = MPP_FALSE;
+    s.pu8Addr = &dummy;
+    s.u32Size = 0;
+    s.bKeyFrame = MPP_FALSE;
     s.bEndOfStream = MPP_TRUE;
-    s.eCodecType   = codec;
-    s.u64PTS       = 0;
+    s.eCodecType = codec;
+    s.u64PTS = 0;
     return VDEC_SendStream(chn, &s, 3000);
 }
 
-static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
-                                   long file_sz, BOOL scale_en, U32 sc_w, U32 sc_h,
-                                   U32 max_frames, FILE *nv12_out,
-                                   U32 *out_decoded, U32 *out_fw, U32 *out_fh)
-{
+static int decode_media_with_parse(
+    S32 chn,
+    const MediaCase *mc,
+    U8 *file_buf,
+    int64_t file_sz,
+    BOOL scale_en,
+    U32 sc_w,
+    U32 sc_h,
+    U32 max_frames,
+    FILE *nv12_out,
+    U32 *out_decoded,
+    U32 *out_fw,
+    U32 *out_fh
+) {
     MppParseContext *pctx = NULL;
     U8 *frame_buf = NULL;
     VdecChnAttr attr;
@@ -464,16 +462,16 @@ static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
     S32 pass;
 
     memset(&attr, 0, sizeof(attr));
-    attr.eCodecType         = mc->codec;
+    attr.eCodecType = mc->codec;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    attr.u32Align           = 0;
-    attr.u32Width           = mc->width;
-    attr.u32Height          = mc->height;
+    attr.u32Align = 0;
+    attr.u32Width = mc->width;
+    attr.u32Height = mc->height;
     attr.bIsFrameReordering = MPP_FALSE;
-    attr.bDispErrorFrame    = MPP_FALSE;
+    attr.bDispErrorFrame = MPP_FALSE;
     attr.stScale.bScaleEnable = scale_en;
-    attr.stScale.u32Width     = sc_w;
-    attr.stScale.u32Height    = sc_h;
+    attr.stScale.u32Width = sc_w;
+    attr.stScale.u32Height = sc_h;
 
     ret = VDEC_CreateChn(chn, &attr);
     if (ret != 0) {
@@ -503,7 +501,7 @@ static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
         goto err;
     }
 
-    p    = file_buf;
+    p = file_buf;
     left = (S32)file_sz;
 
     while (left > 0) {
@@ -537,24 +535,22 @@ static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
             goto err;
         }
 
-        if (advance_after_parse(mc->codec, p, left, frame_buf, frame_size,
-                                &next_p, &next_left) != 0) {
-            fprintf(stderr, "parse: could not align stream (size=%d)\n",
-                    frame_size);
+        if (advance_after_parse(mc->codec, p, left, frame_buf, frame_size, &next_p, &next_left) != 0) {
+            fprintf(stderr, "parse: could not align stream (size=%d)\n", frame_size);
             goto err;
         }
 
         {
             StreamBufferInfo stream;
             memset(&stream, 0, sizeof(stream));
-            stream.pu8Addr      = frame_buf;
-            stream.u32Size      = (U32)frame_size;
-            stream.bKeyFrame    = MPP_FALSE;
+            stream.pu8Addr = frame_buf;
+            stream.u32Size = (U32)frame_size;
+            stream.bKeyFrame = MPP_FALSE;
             stream.bEndOfStream = MPP_FALSE;
-            stream.eCodecType   = mc->codec;
-            stream.u64PTS       = pts++;
-            stream.u32Width     = mc->width;
-            stream.u32Height    = mc->height;
+            stream.eCodecType = mc->codec;
+            stream.u64PTS = pts++;
+            stream.u32Width = mc->width;
+            stream.u32Height = mc->height;
 
             ret = VDEC_SendStream(chn, &stream, 3000);
             if (ret != 0 && ret != ERR_VDEC_EOS) {
@@ -563,15 +559,14 @@ static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
             }
         }
 
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w,
-                                   &last_h) != 0) {
+        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
 
         if (max_frames > 0 && dec_count >= max_frames)
             break;
 
-        p    = next_p;
+        p = next_p;
         left = next_left;
     }
 
@@ -579,8 +574,7 @@ static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
 
     for (pass = 0; pass < 64; ++pass) {
         U32 before = dec_count;
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w,
-                                   &last_h) != 0) {
+        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
         if (max_frames > 0 && dec_count >= max_frames)
@@ -593,8 +587,8 @@ static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
     }
 
     *out_decoded = dec_count;
-    *out_fw      = last_w;
-    *out_fh      = last_h;
+    *out_fw = last_w;
+    *out_fh = last_h;
 
     free(frame_buf);
     PARSE_Destory(pctx);
@@ -604,8 +598,7 @@ static int decode_media_with_parse(S32 chn, const MediaCase *mc, U8 *file_buf,
     ret = VDEC_DestroyChn(chn);
     if (ret != 0)
         fprintf(stderr, "VDEC_DestroyChn: %d\n", ret);
-    printf("[decode] %s decoded_frames=%u last %ux%u\n", mc->path, dec_count,
-           last_w, last_h);
+    printf("[decode] %s decoded_frames=%u last %ux%u\n", mc->path, dec_count, last_w, last_h);
     return 0;
 
 err:
@@ -619,12 +612,21 @@ err:
 /**
  * Extended decode helper with rotation support.
  */
-static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf,
-                                      long file_sz, BOOL scale_en, U32 sc_w,
-                                      U32 sc_h, U32 rotate_deg, U32 max_frames,
-                                      FILE *nv12_out, U32 *out_decoded,
-                                      U32 *out_fw, U32 *out_fh)
-{
+static int decode_media_with_parse_ex(
+    S32 chn,
+    const MediaCase *mc,
+    U8 *file_buf,
+    int64_t file_sz,
+    BOOL scale_en,
+    U32 sc_w,
+    U32 sc_h,
+    U32 rotate_deg,
+    U32 max_frames,
+    FILE *nv12_out,
+    U32 *out_decoded,
+    U32 *out_fw,
+    U32 *out_fh
+) {
     MppParseContext *pctx = NULL;
     U8 *frame_buf = NULL;
     VdecChnAttr attr;
@@ -642,17 +644,17 @@ static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf
     S32 pass;
 
     memset(&attr, 0, sizeof(attr));
-    attr.eCodecType         = mc->codec;
+    attr.eCodecType = mc->codec;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    attr.u32Align           = 0;
-    attr.u32Width           = mc->width;
-    attr.u32Height          = mc->height;
+    attr.u32Align = 0;
+    attr.u32Width = mc->width;
+    attr.u32Height = mc->height;
     attr.bIsFrameReordering = MPP_FALSE;
-    attr.bDispErrorFrame    = MPP_FALSE;
-    attr.u32RotateDegree    = rotate_deg;
+    attr.bDispErrorFrame = MPP_FALSE;
+    attr.u32RotateDegree = rotate_deg;
     attr.stScale.bScaleEnable = scale_en;
-    attr.stScale.u32Width     = sc_w;
-    attr.stScale.u32Height    = sc_h;
+    attr.stScale.u32Width = sc_w;
+    attr.stScale.u32Height = sc_h;
 
     ret = VDEC_CreateChn(chn, &attr);
     if (ret != 0) {
@@ -682,7 +684,7 @@ static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf
         goto err;
     }
 
-    p    = file_buf;
+    p = file_buf;
     left = (S32)file_sz;
 
     while (left > 0) {
@@ -716,24 +718,22 @@ static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf
             goto err;
         }
 
-        if (advance_after_parse(mc->codec, p, left, frame_buf, frame_size,
-                                &next_p, &next_left) != 0) {
-            fprintf(stderr, "parse: could not align stream (size=%d)\n",
-                    frame_size);
+        if (advance_after_parse(mc->codec, p, left, frame_buf, frame_size, &next_p, &next_left) != 0) {
+            fprintf(stderr, "parse: could not align stream (size=%d)\n", frame_size);
             goto err;
         }
 
         {
             StreamBufferInfo stream;
             memset(&stream, 0, sizeof(stream));
-            stream.pu8Addr      = frame_buf;
-            stream.u32Size      = (U32)frame_size;
-            stream.bKeyFrame    = MPP_FALSE;
+            stream.pu8Addr = frame_buf;
+            stream.u32Size = (U32)frame_size;
+            stream.bKeyFrame = MPP_FALSE;
             stream.bEndOfStream = MPP_FALSE;
-            stream.eCodecType   = mc->codec;
-            stream.u64PTS       = pts++;
-            stream.u32Width     = mc->width;
-            stream.u32Height    = mc->height;
+            stream.eCodecType = mc->codec;
+            stream.u64PTS = pts++;
+            stream.u32Width = mc->width;
+            stream.u32Height = mc->height;
 
             ret = VDEC_SendStream(chn, &stream, 3000);
             if (ret != 0 && ret != ERR_VDEC_EOS) {
@@ -742,15 +742,14 @@ static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf
             }
         }
 
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w,
-                                   &last_h) != 0) {
+        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
 
         if (max_frames > 0 && dec_count >= max_frames)
             break;
 
-        p    = next_p;
+        p = next_p;
         left = next_left;
     }
 
@@ -758,8 +757,7 @@ static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf
 
     for (pass = 0; pass < 64; ++pass) {
         U32 before = dec_count;
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w,
-                                   &last_h) != 0) {
+        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
         if (max_frames > 0 && dec_count >= max_frames)
@@ -772,8 +770,8 @@ static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf
     }
 
     *out_decoded = dec_count;
-    *out_fw      = last_w;
-    *out_fh      = last_h;
+    *out_fw = last_w;
+    *out_fh = last_h;
 
     free(frame_buf);
     PARSE_Destory(pctx);
@@ -783,8 +781,7 @@ static int decode_media_with_parse_ex(S32 chn, const MediaCase *mc, U8 *file_buf
     ret = VDEC_DestroyChn(chn);
     if (ret != 0)
         fprintf(stderr, "VDEC_DestroyChn: %d\n", ret);
-    printf("[decode_ex] %s decoded_frames=%u last %ux%u (rot=%u)\n", mc->path,
-           dec_count, last_w, last_h, rotate_deg);
+    printf("[decode_ex] %s decoded_frames=%u last %ux%u (rot=%u)\n", mc->path, dec_count, last_w, last_h, rotate_deg);
     return 0;
 
 err:
@@ -795,28 +792,24 @@ err:
     return -1;
 }
 
-static int make_chn_nv12_path(const char *base, S32 chn, char *out, size_t outsz)
-{
+static int make_chn_nv12_path(const char *base, S32 chn, char *out, size_t outsz) {
     const char *dot = strrchr(base, '.');
 
     if (dot && dot != base) {
         if ((size_t)(dot - base) + strlen(dot) + 32 >= outsz)
             return -1;
-        snprintf(out, outsz, "%.*s.ch%02d%s", (int)(dot - base), base, (int)chn,
-                 dot);
+        snprintf(out, outsz, "%.*s.ch%02d%s", (int)(dot - base), base, (int)chn, dot);
     } else {
         snprintf(out, outsz, "%s.ch%02d.nv12", base, (int)chn);
     }
     return 0;
 }
 
-static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
-                              const char *nv12_base)
-{
+static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames, const char *nv12_base) {
     MediaRuntime rt;
     typedef struct {
         U8 *file;
-        long file_sz;
+        int64_t file_sz;
         MppParseContext *pctx;
         U8 *frame_buf;
         U8 *p;
@@ -834,8 +827,7 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
     S32 pass;
 
     if (n_chn < 2) {
-        fprintf(stderr,
-                "multi suite: need at least 2 streams (--cases or repeated inputs)\n");
+        fprintf(stderr, "multi suite: need at least 2 streams (--cases or repeated inputs)\n");
         return -1;
     }
     if (n_chn > MAX_MEDIA_CASES) {
@@ -853,12 +845,11 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
         if (!st[i].file) {
             goto fail_free;
         }
-        st[i].p        = st[i].file;
-        st[i].left     = (S32)st[i].file_sz;
+        st[i].p = st[i].file;
+        st[i].left = (S32)st[i].file_sz;
         st[i].is_first = 1;
-        st[i].pctx     = PARSE_Create(stream_to_coding(cases[i].codec));
-        if (!st[i].pctx || !st[i].pctx->ops || !st[i].pctx->ops->init ||
-            !st[i].pctx->ops->parse) {
+        st[i].pctx = PARSE_Create(stream_to_coding(cases[i].codec));
+        if (!st[i].pctx || !st[i].pctx->ops || !st[i].pctx->ops->init || !st[i].pctx->ops->parse) {
             fprintf(stderr, "PARSE_Create failed ch %d\n", i);
             goto fail_free;
         }
@@ -888,13 +879,13 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
     for (ch = 0; ch < n_chn; ++ch) {
         VdecChnAttr attr;
         memset(&attr, 0, sizeof(attr));
-        attr.eCodecType            = cases[ch].codec;
-        attr.eOutputPixelFormat    = MPP_PIXEL_FORMAT_NV12;
-        attr.u32Width              = cases[ch].width;
-        attr.u32Height             = cases[ch].height;
-        attr.bIsFrameReordering    = MPP_FALSE;
-        attr.bDispErrorFrame       = MPP_FALSE;
-        attr.stScale.bScaleEnable  = MPP_FALSE;
+        attr.eCodecType = cases[ch].codec;
+        attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
+        attr.u32Width = cases[ch].width;
+        attr.u32Height = cases[ch].height;
+        attr.bIsFrameReordering = MPP_FALSE;
+        attr.bDispErrorFrame = MPP_FALSE;
+        attr.stScale.bScaleEnable = MPP_FALSE;
 
         ret = VDEC_CreateChn(ch, &attr);
         if (ret != 0) {
@@ -927,9 +918,8 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
             if (max_frames > 0 && st[i].dec_count >= max_frames)
                 continue;
 
-            pret = st[i].pctx->ops->parse(st[i].pctx, st[i].p, st[i].left,
-                                         st[i].frame_buf, &frame_size,
-                                         st[i].is_first);
+            pret =
+                st[i].pctx->ops->parse(st[i].pctx, st[i].p, st[i].left, st[i].frame_buf, &frame_size, st[i].is_first);
             if (pret != 0) {
                 if (pret == 1 && cdec == MPP_STREAM_CODEC_H265) {
                     if (st[i].left <= 1) {
@@ -966,8 +956,7 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
                 goto fail_teardown_chn;
             }
 
-            if (advance_after_parse(cdec, st[i].p, st[i].left, st[i].frame_buf,
-                                    frame_size, &next_p, &next_left) != 0) {
+            if (advance_after_parse(cdec, st[i].p, st[i].left, st[i].frame_buf, frame_size, &next_p, &next_left) != 0) {
                 fprintf(stderr, "multi ch%d advance failed\n", i);
                 goto fail_teardown_chn;
             }
@@ -975,14 +964,14 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
             {
                 StreamBufferInfo stream;
                 memset(&stream, 0, sizeof(stream));
-                stream.pu8Addr      = st[i].frame_buf;
-                stream.u32Size      = (U32)frame_size;
-                stream.bKeyFrame    = MPP_FALSE;
+                stream.pu8Addr = st[i].frame_buf;
+                stream.u32Size = (U32)frame_size;
+                stream.bKeyFrame = MPP_FALSE;
                 stream.bEndOfStream = MPP_FALSE;
-                stream.eCodecType   = cdec;
-                stream.u64PTS       = st[i].pts++;
-                stream.u32Width     = cases[i].width;
-                stream.u32Height    = cases[i].height;
+                stream.eCodecType = cdec;
+                stream.u64PTS = st[i].pts++;
+                stream.u32Width = cases[i].width;
+                stream.u32Height = cases[i].height;
 
                 ret = VDEC_SendStream((S32)i, &stream, 3000);
                 if (ret != 0 && ret != ERR_VDEC_EOS) {
@@ -991,14 +980,13 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
                 }
             }
 
-            if (drain_available_frames((S32)i, st[i].out, &st[i].dec_count,
-                                       max_frames, &st[i].lw, &st[i].lh) != 0) {
+            if (drain_available_frames((S32)i, st[i].out, &st[i].dec_count, max_frames, &st[i].lw, &st[i].lh) != 0) {
                 goto fail_teardown_chn;
             }
 
-            st[i].p    = next_p;
+            st[i].p = next_p;
             st[i].left = next_left;
-            progress   = 1;
+            progress = 1;
         }
 
         if (!any_left)
@@ -1011,9 +999,7 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
         (void)send_eos_packet(ch, cases[ch].codec);
         for (pass = 0; pass < 64; ++pass) {
             U32 before = st[ch].dec_count;
-            if (drain_available_frames(ch, st[ch].out, &st[ch].dec_count,
-                                       max_frames, &st[ch].lw, &st[ch].lh) !=
-                0) {
+            if (drain_available_frames(ch, st[ch].out, &st[ch].dec_count, max_frames, &st[ch].lw, &st[ch].lh) != 0) {
                 goto fail_teardown_chn;
             }
             if (max_frames > 0 && st[ch].dec_count >= max_frames)
@@ -1027,8 +1013,13 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
     }
 
     for (ch = 0; ch < n_chn; ++ch) {
-        printf("[multi] ch%u: %s frames=%u last %ux%u\n", (unsigned)ch,
-               cases[ch].path, st[ch].dec_count, st[ch].lw, st[ch].lh);
+        printf(
+            "[multi] ch%u: %s frames=%u last %ux%u\n",
+            (unsigned)ch,
+            cases[ch].path,
+            st[ch].dec_count,
+            st[ch].lw,
+            st[ch].lh);
         ret = VDEC_DisableChn(ch);
         if (ret != 0)
             fprintf(stderr, "VDEC_DisableChn %d: %d\n", (int)ch, ret);
@@ -1066,16 +1057,13 @@ fail_free:
     return -1;
 }
 
-static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames,
-                            const char *nv12_path)
-{
+static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames, const char *nv12_path) {
     MediaRuntime rt;
     FILE *out = NULL;
     int i;
 
     if (n_case == 0) {
-        fprintf(stderr,
-                "format suite: use --input/--width/--height/--codec or --cases\n");
+        fprintf(stderr, "format suite: use --input/--width/--height/--codec or --cases\n");
         return -1;
     }
     if (media_runtime_up(&rt) != 0)
@@ -1091,7 +1079,7 @@ static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames,
     }
 
     for (i = 0; i < n_case; ++i) {
-        long sz;
+        int64_t sz;
         U8 *buf = read_whole_file(cases[i].path, &sz);
         U32 dc, fw, fh;
 
@@ -1102,8 +1090,7 @@ static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames,
             return -1;
         }
         printf("[format] %s (%s)\n", cases[i].path, codec_name(cases[i].codec));
-        if (decode_media_with_parse(0, &cases[i], buf, sz, MPP_FALSE, 0, 0,
-                                    max_frames, out, &dc, &fw, &fh) != 0) {
+        if (decode_media_with_parse(0, &cases[i], buf, sz, MPP_FALSE, 0, 0, max_frames, out, &dc, &fw, &fh) != 0) {
             free(buf);
             if (out)
                 fclose(out);
@@ -1120,27 +1107,24 @@ static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames,
     return 0;
 }
 
-static int run_param_suite(const MediaCase *cases, int n_case, U32 sc_w, U32 sc_h,
-                           U32 rotate_deg, U32 max_frames, const char *nv12_path)
-{
+static int run_param_suite(
+    const MediaCase *cases, int n_case, U32 sc_w, U32 sc_h, U32 rotate_deg, U32 max_frames, const char *nv12_path
+) {
     MediaRuntime rt;
     FILE *out = NULL;
     int i;
     BOOL has_scale = (sc_w > 0 && sc_h > 0) ? MPP_TRUE : MPP_FALSE;
-    BOOL has_rot   = (rotate_deg == 90 || rotate_deg == 180 || rotate_deg == 270)
-                         ? MPP_TRUE : MPP_FALSE;
+    BOOL has_rot = (rotate_deg == 90 || rotate_deg == 180 || rotate_deg == 270) ? MPP_TRUE : MPP_FALSE;
 
     if (n_case == 0) {
         fprintf(stderr, "param suite: need media\n");
         return -1;
     }
     if (!has_scale && !has_rot) {
-        fprintf(stderr,
-                "param suite: need --scale-width/--scale-height and/or --rotate\n");
+        fprintf(stderr, "param suite: need --scale-width/--scale-height and/or --rotate\n");
         return -1;
     }
-    if (has_rot && rotate_deg != 0 && rotate_deg != 90 &&
-        rotate_deg != 180 && rotate_deg != 270) {
+    if (has_rot && rotate_deg != 0 && rotate_deg != 90 && rotate_deg != 180 && rotate_deg != 270) {
         fprintf(stderr, "param suite: --rotate must be 0, 90, 180, or 270\n");
         return -1;
     }
@@ -1157,7 +1141,7 @@ static int run_param_suite(const MediaCase *cases, int n_case, U32 sc_w, U32 sc_
     }
 
     for (i = 0; i < n_case; ++i) {
-        long sz;
+        int64_t sz;
         U8 *buf = read_whole_file(cases[i].path, &sz);
         U32 dc, fw, fh;
 
@@ -1167,11 +1151,11 @@ static int run_param_suite(const MediaCase *cases, int n_case, U32 sc_w, U32 sc_
             media_runtime_down(&rt);
             return -1;
         }
-        printf("[param] %s scale=%s(%ux%u) rotate=%u\n", cases[i].path,
-               has_scale ? "on" : "off", sc_w, sc_h, rotate_deg);
-        if (decode_media_with_parse_ex(0, &cases[i], buf, sz, has_scale, sc_w,
-                                       sc_h, rotate_deg, max_frames, out, &dc,
-                                       &fw, &fh) != 0) {
+        printf(
+            "[param] %s scale=%s(%ux%u) rotate=%u\n", cases[i].path, has_scale ? "on" : "off", sc_w, sc_h, rotate_deg);
+        if (decode_media_with_parse_ex(
+                0, &cases[i], buf, sz, has_scale, sc_w, sc_h,
+                rotate_deg, max_frames, out, &dc, &fw, &fh) != 0) {
             free(buf);
             if (out)
                 fclose(out);
@@ -1180,8 +1164,7 @@ static int run_param_suite(const MediaCase *cases, int n_case, U32 sc_w, U32 sc_
         }
         if (dc > 0 && has_scale) {
             if (fw + 16 < sc_w || fh + 16 < sc_h) {
-                fprintf(stderr, "param(scale): %ux%u vs target %ux%u\n", fw, fh,
-                        sc_w, sc_h);
+                fprintf(stderr, "param(scale): %ux%u vs target %ux%u\n", fw, fh, sc_w, sc_h);
                 free(buf);
                 if (out)
                     fclose(out);
@@ -1203,13 +1186,11 @@ static int run_param_suite(const MediaCase *cases, int n_case, U32 sc_w, U32 sc_
     if (out)
         fclose(out);
     media_runtime_down(&rt);
-    printf("[PASS] param suite (%d case(s), scale=%s rot=%u)\n", n_case,
-           has_scale ? "on" : "off", rotate_deg);
+    printf("[PASS] param suite (%d case(s), scale=%s rot=%u)\n", n_case, has_scale ? "on" : "off", rotate_deg);
     return 0;
 }
 
-static int run_api_suite(void)
-{
+static int run_api_suite(void) {
     VdecChnAttr attr;
     VdecChnStatus st;
     StreamBufferInfo stream;
@@ -1238,10 +1219,10 @@ static int run_api_suite(void)
     }
 
     memset(&attr, 0, sizeof(attr));
-    attr.eCodecType         = MPP_STREAM_CODEC_MJPEG;
+    attr.eCodecType = MPP_STREAM_CODEC_MJPEG;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    attr.u32Width           = 128;
-    attr.u32Height          = 128;
+    attr.u32Width = 128;
+    attr.u32Height = 128;
 
     r = VDEC_CreateChn(-1, &attr);
     if (r != ERR_VDEC_INVALID_CHN) {
@@ -1348,18 +1329,17 @@ static int run_api_suite(void)
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
-    U32 test_mask             = TEST_API;
+int main(int argc, char *argv[]) {
+    U32 test_mask = TEST_API;
     MediaCase cases[MAX_MEDIA_CASES];
-    int n_case                = 0;
-    const char *inp           = NULL;
+    int n_case = 0;
+    const char *inp = NULL;
     U32 iw = 0, ih = 0;
     MppStreamCodecType icodec = MPP_STREAM_CODEC_UNKNOWN;
     U32 sc_w = 0, sc_h = 0;
-    U32 rotate_deg            = 0;
-    U32 max_frames            = 0;
-    const char *nv12_path     = NULL;
+    U32 rotate_deg = 0;
+    U32 max_frames = 0;
+    const char *nv12_path = NULL;
     int opt;
     static struct option long_opts[] = {
         {"test", required_argument, NULL, 't'},
@@ -1374,59 +1354,59 @@ int main(int argc, char *argv[])
         {"rotate", required_argument, NULL, 1003},
         {"output", required_argument, NULL, 'o'},
         {"help", no_argument, NULL, 'h'},
-        {NULL, 0, NULL, 0}};
+        {NULL, 0, NULL, 0}
+    };
 
     memset(cases, 0, sizeof(cases));
 
-    while ((opt = getopt_long(argc, argv, "t:i:W:H:c:n:o:h", long_opts, NULL)) !=
-           -1) {
+    while ((opt = getopt_long(argc, argv, "t:i:W:H:c:n:o:h", long_opts, NULL)) != -1) {
         switch (opt) {
-        case 't': {
-            U32 m = parse_test_mask(optarg);
-            if (m == 0) {
+            case 't': {
+                U32 m = parse_test_mask(optarg);
+                if (m == 0) {
+                    print_usage(argv[0]);
+                    return 1;
+                }
+                test_mask = m;
+                break;
+            }
+            case 'i':
+                inp = optarg;
+                break;
+            case 'W':
+                iw = (U32)strtoul(optarg, NULL, 10);
+                break;
+            case 'H':
+                ih = (U32)strtoul(optarg, NULL, 10);
+                break;
+            case 'c':
+                icodec = parse_codec_name(optarg);
+                break;
+            case 'n':
+                max_frames = (U32)strtoul(optarg, NULL, 10);
+                break;
+            case 'o':
+                nv12_path = optarg;
+                break;
+            case 1000:
+                if (parse_cases_arg(cases, &n_case, optarg) != 0)
+                    return 1;
+                break;
+            case 1001:
+                sc_w = (U32)strtoul(optarg, NULL, 10);
+                break;
+            case 1002:
+                sc_h = (U32)strtoul(optarg, NULL, 10);
+                break;
+            case 1003:
+                rotate_deg = (U32)strtoul(optarg, NULL, 10);
+                break;
+            case 'h':
+                print_usage(argv[0]);
+                return 0;
+            default:
                 print_usage(argv[0]);
                 return 1;
-            }
-            test_mask = m;
-            break;
-        }
-        case 'i':
-            inp = optarg;
-            break;
-        case 'W':
-            iw = (U32)strtoul(optarg, NULL, 10);
-            break;
-        case 'H':
-            ih = (U32)strtoul(optarg, NULL, 10);
-            break;
-        case 'c':
-            icodec = parse_codec_name(optarg);
-            break;
-        case 'n':
-            max_frames = (U32)strtoul(optarg, NULL, 10);
-            break;
-        case 'o':
-            nv12_path = optarg;
-            break;
-        case 1000:
-            if (parse_cases_arg(cases, &n_case, optarg) != 0)
-                return 1;
-            break;
-        case 1001:
-            sc_w = (U32)strtoul(optarg, NULL, 10);
-            break;
-        case 1002:
-            sc_h = (U32)strtoul(optarg, NULL, 10);
-            break;
-        case 1003:
-            rotate_deg = (U32)strtoul(optarg, NULL, 10);
-            break;
-        case 'h':
-            print_usage(argv[0]);
-            return 0;
-        default:
-            print_usage(argv[0]);
-            return 1;
         }
     }
 
@@ -1436,13 +1416,12 @@ int main(int argc, char *argv[])
             return 1;
         }
         memcpy(cases[n_case].path, inp, strlen(inp) + 1);
-        cases[n_case].width  = iw;
+        cases[n_case].width = iw;
         cases[n_case].height = ih;
-        cases[n_case].codec  = icodec;
+        cases[n_case].codec = icodec;
         n_case++;
     } else if (inp || iw || ih || icodec != MPP_STREAM_CODEC_UNKNOWN) {
-        fprintf(stderr,
-                "single-input mode needs --input, --width, --height, --codec\n");
+        fprintf(stderr, "single-input mode needs --input, --width, --height, --codec\n");
         return 1;
     }
 
@@ -1455,8 +1434,7 @@ int main(int argc, char *argv[])
             return 1;
     }
     if (test_mask & TEST_PARAM) {
-        if (run_param_suite(cases, n_case, sc_w, sc_h, rotate_deg, max_frames,
-                            nv12_path) != 0)
+        if (run_param_suite(cases, n_case, sc_w, sc_h, rotate_deg, max_frames, nv12_path) != 0)
             return 1;
     }
     if (test_mask & TEST_MULTI) {

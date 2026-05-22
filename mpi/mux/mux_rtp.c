@@ -26,8 +26,7 @@
 #define MUX_HEVC_NAL_TYPE_AP 48
 #define MUX_HEVC_NAL_TYPE_FU 49
 
-static S32 mux_rtsp_send_all(S32 s32Fd, const U8 *pu8Data, U32 u32Len)
-{
+static S32 mux_rtsp_send_all(S32 s32Fd, const U8 *pu8Data, U32 u32Len) {
     U32 sent = 0;
     while (sent < u32Len) {
         ssize_t ret = send(s32Fd, pu8Data + sent, u32Len - sent, 0);
@@ -45,9 +44,9 @@ static S32 mux_rtsp_send_all(S32 s32Fd, const U8 *pu8Data, U32 u32Len)
     return 0;
 }
 
-static S32 mux_rtsp_send_rtp_raw(MuxRtspClient *pstClient, const U8 *pu8Pkt, U32 u32PktLen,
-                                 BOOL bInterleaved, U8 u8Channel)
-{
+static S32 mux_rtsp_send_rtp_raw(
+    MuxRtspClient *pstClient, const U8 *pu8Pkt, U32 u32PktLen, BOOL bInterleaved, U8 u8Channel
+) {
     if (bInterleaved) {
         U8 hdr[4];
         hdr[0] = '$';
@@ -63,16 +62,19 @@ static S32 mux_rtsp_send_rtp_raw(MuxRtspClient *pstClient, const U8 *pu8Pkt, U32
         return 0;
     }
 
-    if (sendto(pstClient->s32RtpSock, pu8Pkt, u32PktLen, 0,
-               (const struct sockaddr *)&pstClient->stClientRtpAddr,
-               sizeof(pstClient->stClientRtpAddr)) < 0) {
+    if (sendto(
+            pstClient->s32RtpSock,
+            pu8Pkt,
+            u32PktLen,
+            0,
+            (const struct sockaddr *)&pstClient->stClientRtpAddr,
+            sizeof(pstClient->stClientRtpAddr)) < 0) {
         return -1;
     }
     return 0;
 }
 
-static U32 mux_rtp_build_header(U8 *pu8Hdr, U16 u16Seq, U32 u32Ts, U32 u32Ssrc, BOOL bMarker, U8 u8Pt)
-{
+static U32 mux_rtp_build_header(U8 *pu8Hdr, U16 u16Seq, U32 u32Ts, U32 u32Ssrc, BOOL bMarker, U8 u8Pt) {
     pu8Hdr[0] = (MUX_RTP_VERSION << 6);
     pu8Hdr[1] = (bMarker ? 0x80 : 0x00) | (u8Pt & 0x7f);
     pu8Hdr[2] = (U8)(u16Seq >> 8);
@@ -88,8 +90,7 @@ static U32 mux_rtp_build_header(U8 *pu8Hdr, U16 u16Seq, U32 u32Ts, U32 u32Ssrc, 
     return 12;
 }
 
-static const U8 *mux_find_start_code(const U8 *pu8Data, U32 u32Size, U32 *pu32Prefix)
-{
+static const U8 *mux_find_start_code(const U8 *pu8Data, U32 u32Size, U32 *pu32Prefix) {
     if (!pu8Data || u32Size < 4) {
         return NULL;
     }
@@ -107,17 +108,17 @@ static const U8 *mux_find_start_code(const U8 *pu8Data, U32 u32Size, U32 *pu32Pr
     return NULL;
 }
 
-static S32 mux_rtp_send_h264_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstClient,
-                                  const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker)
-{
+static S32 mux_rtp_send_h264_nalu(
+    MuxRtspServer *pstServer, MuxRtspClient *pstClient, const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker
+) {
     U8 au8Pkt[1600];
     U32 hdrLen;
 
     if (u32NaluLen + 12 <= sizeof(au8Pkt) && u32NaluLen <= MUX_RTP_MAX_PAYLOAD) {
         hdrLen = mux_rtp_build_header(au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bMarker, 96);
         memcpy(au8Pkt + hdrLen, pu8Nalu, u32NaluLen);
-        return mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + u32NaluLen,
-                                     pstClient->bInterleaved, pstClient->u8RtpChannel);
+        return mux_rtsp_send_rtp_raw(
+            pstClient, au8Pkt, hdrLen + u32NaluLen, pstClient->bInterleaved, pstClient->u8RtpChannel);
     }
 
     {
@@ -134,13 +135,15 @@ static S32 mux_rtp_send_h264_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
             }
             bEnd = ((offset + chunk) >= u32NaluLen) ? MPP_TRUE : MPP_FALSE;
 
-            hdrLen = mux_rtp_build_header(au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bEnd ? bMarker : MPP_FALSE, 96);
+            hdrLen = mux_rtp_build_header(
+                au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bEnd ? bMarker : MPP_FALSE, 96);
             au8Pkt[hdrLen + 0] = fuIndicator;
             au8Pkt[hdrLen + 1] = fuHeaderBase | (bStart ? 0x80 : 0x00) | (bEnd ? 0x40 : 0x00);
             memcpy(au8Pkt + hdrLen + 2, pu8Nalu + offset, chunk);
 
-            if (mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + 2 + chunk,
-                                      pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
+            if (mux_rtsp_send_rtp_raw(
+                    pstClient, au8Pkt, hdrLen + 2 + chunk,
+                    pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
                 return -1;
             }
             bStart = MPP_FALSE;
@@ -151,17 +154,17 @@ static S32 mux_rtp_send_h264_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
     return 0;
 }
 
-static S32 mux_rtp_send_h265_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstClient,
-                                  const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker)
-{
+static S32 mux_rtp_send_h265_nalu(
+    MuxRtspServer *pstServer, MuxRtspClient *pstClient, const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker
+) {
     U8 au8Pkt[1600];
     U32 hdrLen;
 
     if (u32NaluLen + 12 <= sizeof(au8Pkt) && u32NaluLen <= MUX_RTP_MAX_PAYLOAD) {
         hdrLen = mux_rtp_build_header(au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bMarker, 96);
         memcpy(au8Pkt + hdrLen, pu8Nalu, u32NaluLen);
-        return mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + u32NaluLen,
-                                     pstClient->bInterleaved, pstClient->u8RtpChannel);
+        return mux_rtsp_send_rtp_raw(
+            pstClient, au8Pkt, hdrLen + u32NaluLen, pstClient->bInterleaved, pstClient->u8RtpChannel);
     }
 
     {
@@ -181,14 +184,16 @@ static S32 mux_rtp_send_h265_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
             }
             bEnd = ((offset + chunk) >= u32NaluLen) ? MPP_TRUE : MPP_FALSE;
 
-            hdrLen = mux_rtp_build_header(au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bEnd ? bMarker : MPP_FALSE, 96);
+            hdrLen = mux_rtp_build_header(
+                au8Pkt, pstServer->u16Seq++, u32Ts, pstServer->u32Ssrc, bEnd ? bMarker : MPP_FALSE, 96);
             au8Pkt[hdrLen + 0] = fuIndicator0;
             au8Pkt[hdrLen + 1] = fuIndicator1;
             au8Pkt[hdrLen + 2] = fuHeaderBase | (bStart ? 0x80 : 0x00) | (bEnd ? 0x40 : 0x00);
             memcpy(au8Pkt + hdrLen + 3, pu8Nalu + offset, chunk);
 
-            if (mux_rtsp_send_rtp_raw(pstClient, au8Pkt, hdrLen + 3 + chunk,
-                                      pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
+            if (mux_rtsp_send_rtp_raw(
+                    pstClient, au8Pkt, hdrLen + 3 + chunk,
+                    pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
                 return -1;
             }
             bStart = MPP_FALSE;
@@ -199,9 +204,7 @@ static S32 mux_rtp_send_h265_nalu(MuxRtspServer *pstServer, MuxRtspClient *pstCl
     return 0;
 }
 
-S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient,
-                              const MuxPacket *pstPkt)
-{
+S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient, const MuxPacket *pstPkt) {
     const U8 *cur = pstPkt->pu8Data;
     U32 left = pstPkt->u32Size;
     U32 rtpTs;
@@ -247,11 +250,13 @@ S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient
         }
 
         if (pstPkt->eCodecType == MUX_CODEC_H264) {
-            if (mux_rtp_send_h264_nalu(pstServer, pstClient, nalu, naluLen, rtpTs, left == 0 ? MPP_TRUE : MPP_FALSE) != 0) {
+            if (mux_rtp_send_h264_nalu(pstServer, pstClient, nalu, naluLen, rtpTs, left == 0 ? MPP_TRUE : MPP_FALSE) !=
+                0) {
                 return -1;
             }
         } else if (pstPkt->eCodecType == MUX_CODEC_H265) {
-            if (mux_rtp_send_h265_nalu(pstServer, pstClient, nalu, naluLen, rtpTs, left == 0 ? MPP_TRUE : MPP_FALSE) != 0) {
+            if (mux_rtp_send_h265_nalu(pstServer, pstClient, nalu, naluLen, rtpTs, left == 0 ? MPP_TRUE : MPP_FALSE) !=
+                0) {
                 return -1;
             }
         } else {
@@ -266,8 +271,7 @@ S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient
  * Extract SPS/PPS/VPS from Annex-B bitstream and cache into MuxRtspServer.
  * Called on every keyframe so the server always has the latest parameter sets.
  */
-VOID mux_rtsp_cache_param_sets(MuxRtspServer *pstServer, const MuxPacket *pstPkt)
-{
+VOID mux_rtsp_cache_param_sets(MuxRtspServer *pstServer, const MuxPacket *pstPkt) {
     const U8 *cur;
     U32 left;
 

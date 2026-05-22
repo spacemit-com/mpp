@@ -23,8 +23,7 @@
 
 K3_VI_CTX_S g_stK3ViCtx;
 
-S32 K3_VI_Init(VOID)
-{
+S32 K3_VI_Init(VOID) {
     S32 i, j, k;
 
     memset(&g_stK3ViCtx, 0, sizeof(g_stK3ViCtx));
@@ -44,8 +43,7 @@ S32 K3_VI_Init(VOID)
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_DeInit(VOID)
-{
+S32 K3_VI_DeInit(VOID) {
     S32 d, c;
 
     /* Warn if any channel is still enabled */
@@ -61,8 +59,7 @@ S32 K3_VI_DeInit(VOID)
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
-{
+S32 K3_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) {
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || pstDevAttr == NULL)
         return K3_VI_ERR_INVALID_PARAM;
     g_stK3ViCtx.astDevCtx[ViDev].stAttr = *pstDevAttr;
@@ -70,32 +67,28 @@ S32 K3_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_GetDevAttr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
-{
+S32 K3_VI_GetDevAttr(VI_DEV ViDev, ViDevAttrS *pstDevAttr) {
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || pstDevAttr == NULL)
         return K3_VI_ERR_INVALID_PARAM;
     *pstDevAttr = g_stK3ViCtx.astDevCtx[ViDev].stAttr;
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_EnableDev(VI_DEV ViDev)
-{
+S32 K3_VI_EnableDev(VI_DEV ViDev) {
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM)
         return K3_VI_ERR_INVALID_PARAM;
     g_stK3ViCtx.astDevCtx[ViDev].bEnabled = MPP_TRUE;
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_DisableDev(VI_DEV ViDev)
-{
+S32 K3_VI_DisableDev(VI_DEV ViDev) {
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM)
         return K3_VI_ERR_INVALID_PARAM;
     g_stK3ViCtx.astDevCtx[ViDev].bEnabled = MPP_FALSE;
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
-{
+S32 K3_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || ViChn < 0 || ViChn >= K3_VI_MAX_CHN_NUM || pstChnAttr == NULL)
         return K3_VI_ERR_INVALID_PARAM;
     g_stK3ViCtx.astChnCtx[ViDev][ViChn].stChnAttr = *pstChnAttr;
@@ -105,16 +98,14 @@ S32 K3_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
-{
+S32 K3_VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) {
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || ViChn < 0 || ViChn >= K3_VI_MAX_CHN_NUM || pstChnAttr == NULL)
         return K3_VI_ERR_INVALID_PARAM;
     *pstChnAttr = g_stK3ViCtx.astChnCtx[ViDev][ViChn].stChnAttr;
     return K3_VI_SUCCESS;
 }
 
-S32 K3_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
-{
+S32 K3_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
     S32 s32Ret;
     ViChnAttrS stChnAttr;
     BOOL bCreated;
@@ -131,25 +122,25 @@ S32 K3_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
 
     /* Preserve attr / created state, but reset V4L2 / dma-buf state */
     stChnAttr = pChn->stChnAttr;
-    bCreated  = pChn->bCreated;
+    bCreated = pChn->bCreated;
 
     /* Preserve dma-buf fds (set by al_vi_set_external_buf_pool already) */
     S32 as32DmaBufFd[K3_VI_MAX_BUF_CNT];
     U32 au32PlaneSize[K3_VI_MAX_BUF_CNT][VIDEO_MAX_PLANES];
     U32 u32SavedBufCnt = pChn->u32BufCnt;
-    memcpy(as32DmaBufFd,  pChn->as32DmaBufFd,  sizeof(as32DmaBufFd));
+    memcpy(as32DmaBufFd, pChn->as32DmaBufFd, sizeof(as32DmaBufFd));
     memcpy(au32PlaneSize, pChn->au32PlaneSize, sizeof(au32PlaneSize));
 
     memset(pChn, 0, sizeof(*pChn));
-    pChn->s32Fd     = -1;
-    pChn->ViDev     = ViDev;
-    pChn->ViChn     = ViChn;
+    pChn->s32Fd = -1;
+    pChn->ViDev = ViDev;
+    pChn->ViChn = ViChn;
     pChn->stChnAttr = stChnAttr;
-    pChn->bCreated  = bCreated;
+    pChn->bCreated = bCreated;
 
     /* Restore dma-buf info that MPI populated via set_external_buf_pool */
     pChn->u32BufCnt = u32SavedBufCnt;
-    memcpy(pChn->as32DmaBufFd,  as32DmaBufFd,  sizeof(pChn->as32DmaBufFd));
+    memcpy(pChn->as32DmaBufFd, as32DmaBufFd, sizeof(pChn->as32DmaBufFd));
     memcpy(pChn->au32PlaneSize, au32PlaneSize, sizeof(pChn->au32PlaneSize));
     /* Default unset slots back to -1 */
     for (i = (S32)u32SavedBufCnt; i < K3_VI_MAX_BUF_CNT; i++) {
@@ -178,8 +169,7 @@ fail:
     return s32Ret;
 }
 
-S32 K3_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn)
-{
+S32 K3_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn) {
     K3_VI_CHN_CTX_S *pChn;
 
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || ViChn < 0 || ViChn >= K3_VI_MAX_CHN_NUM)
@@ -192,7 +182,7 @@ S32 K3_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn)
     (void)K3_V4L2_Close(ViDev, ViChn, pChn);
 
     /* Clear runtime V4L2 state but keep stChnAttr / bCreated for re-enable */
-    pChn->bEnabled   = MPP_FALSE;
+    pChn->bEnabled = MPP_FALSE;
     pChn->bStreaming = MPP_FALSE;
     pChn->u32PlaneCnt = 0;
     /* Note: as32DmaBufFd / au32PlaneSize / u32BufCnt are owned by MPI;
@@ -207,56 +197,46 @@ S32 K3_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn)
  * platform-neutral ViAlOps interface into K3 V4L2 calls.
  *============================================================================*/
 
-static S32 k3_vi_init(VOID)
-{
+static S32 k3_vi_init(VOID) {
     return K3_VI_Init();
 }
 
-static S32 k3_vi_deinit(VOID)
-{
+static S32 k3_vi_deinit(VOID) {
     return K3_VI_DeInit();
 }
 
-static S32 k3_vi_set_dev_attr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
-{
+static S32 k3_vi_set_dev_attr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) {
     return K3_VI_SetDevAttr(ViDev, pstDevAttr);
 }
 
-static S32 k3_vi_get_dev_attr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
-{
+static S32 k3_vi_get_dev_attr(VI_DEV ViDev, ViDevAttrS *pstDevAttr) {
     return K3_VI_GetDevAttr(ViDev, pstDevAttr);
 }
 
-static S32 k3_vi_enable_dev(VI_DEV ViDev)
-{
+static S32 k3_vi_enable_dev(VI_DEV ViDev) {
     return K3_VI_EnableDev(ViDev);
 }
 
-static S32 k3_vi_disable_dev(VI_DEV ViDev)
-{
+static S32 k3_vi_disable_dev(VI_DEV ViDev) {
     return K3_VI_DisableDev(ViDev);
 }
 
-static S32 k3_vi_set_chn_attr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
-{
+static S32 k3_vi_set_chn_attr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
     return K3_VI_SetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
-static S32 k3_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
-{
+static S32 k3_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) {
     return K3_VI_GetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
-static S32 k3_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl)
-{
+static S32 k3_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
     (void)ViDev;
     (void)ViChn;
     (void)pstFrameRateCtrl;
     return K3_VI_SUCCESS;
 }
 
-static S32 k3_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl)
-{
+static S32 k3_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) {
     (void)ViDev;
     (void)ViChn;
     if (pstFrameRateCtrl != NULL) {
@@ -266,18 +246,15 @@ static S32 k3_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS 
     return K3_VI_SUCCESS;
 }
 
-static S32 k3_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn)
-{
+static S32 k3_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn) {
     return K3_VI_EnableChn(ViDev, ViChn);
 }
 
-static S32 k3_vi_disable_chn(VI_DEV ViDev, VI_CHN ViChn)
-{
+static S32 k3_vi_disable_chn(VI_DEV ViDev, VI_CHN ViChn) {
     return K3_VI_DisableChn(ViDev, ViChn);
 }
 
-static S32 k3_vi_dequeue_done_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec)
-{
+static S32 k3_vi_dequeue_done_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec) {
     K3_VI_CHN_CTX_S *pChn;
 
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || ViChn < 0 || ViChn >= K3_VI_MAX_CHN_NUM)
@@ -292,8 +269,7 @@ static S32 k3_vi_dequeue_done_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index,
     return K3_V4L2_DQBuf_Wait(ViDev, ViChn, pChn, s32MilliSec, pu32Index);
 }
 
-static S32 k3_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
-{
+static S32 k3_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index) {
     K3_VI_CHN_CTX_S *pChn;
 
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || ViChn < 0 || ViChn >= K3_VI_MAX_CHN_NUM)
@@ -306,16 +282,14 @@ static S32 k3_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
     return K3_V4L2_QBuf_DmaBuf(ViDev, ViChn, pChn, u32Index);
 }
 
-static S32 k3_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
+static S32 k3_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     (void)ViDev;
     (void)ViChn;
     (void)pstSinkNode;
     return K3_VI_SUCCESS;
 }
 
-static S32 k3_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
+static S32 k3_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     (void)ViDev;
     (void)ViChn;
     (void)pstSinkNode;
@@ -327,10 +301,9 @@ static S32 k3_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pst
  * MPI fills stVFrame.u32Fd[0] with the dma-buf fd for the buffer,
  * and stVFrame.u32PlaneSize[p] with each plane's size.
  */
-static S32 k3_vi_set_external_buf_pool(VI_DEV ViDev, VI_CHN ViChn,
-    UL ulPoolId, U32 u32BufCnt, const UL *paulBufferId,
-    const VideoFrameInfo *pastFrameInfo)
-{
+static S32 k3_vi_set_external_buf_pool(
+    VI_DEV ViDev, VI_CHN ViChn, UL ulPoolId, U32 u32BufCnt, const UL *paulBufferId, const VideoFrameInfo *pastFrameInfo
+) {
     K3_VI_CHN_CTX_S *pChn;
     U32 i, p;
 
@@ -352,16 +325,19 @@ static S32 k3_vi_set_external_buf_pool(VI_DEV ViDev, VI_CHN ViChn,
     (void)ulPoolId;
     (void)paulBufferId;
 
-    info("k3_vi_set_external_buf_pool: dev=%d chn=%d bufCnt=%u fd[0]=%d\n",
-         ViDev, ViChn, u32BufCnt, pChn->as32DmaBufFd[0]);
+    info(
+        "k3_vi_set_external_buf_pool: dev=%d chn=%d bufCnt=%u fd[0]=%d\n",
+        ViDev,
+        ViChn,
+        u32BufCnt,
+        pChn->as32DmaBufFd[0]);
     return K3_VI_SUCCESS;
 }
 
 /* K3-only extension: query DQBUF runtime metadata for a slot. */
-static S32 k3_vi_query_dqbuf_meta(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId,
-                                  U64 *pu64PtsUs, U32 *pu32Sequence,
-                                  U32 *pau32BytesUsed)
-{
+static S32 k3_vi_query_dqbuf_meta(
+    VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, U64 *pu64PtsUs, U32 *pu32Sequence, U32 *pau32BytesUsed
+) {
     K3_VI_CHN_CTX_S *pChn;
 
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || ViChn < 0 || ViChn >= K3_VI_MAX_CHN_NUM)
@@ -388,9 +364,7 @@ static S32 k3_vi_query_dqbuf_meta(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId,
  * K3 V4L2 captures don't expose ISP statistics, so we zero the struct and
  * return success.  DQBUF metadata is available via query_dqbuf_meta instead.
  */
-static S32 k3_vi_query_frame_meta(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId,
-                                  ViFrameMetaInfo *pstFrameInfo)
-{
+static S32 k3_vi_query_frame_meta(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, ViFrameMetaInfo *pstFrameInfo) {
     (void)ViDev;
     (void)ViChn;
 
@@ -408,38 +382,37 @@ static S32 k3_vi_query_frame_meta(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId,
 
 static const ViAlOps k3_vi_ops = {
     /* Required */
-    .init                  = k3_vi_init,
-    .deinit                = k3_vi_deinit,
-    .set_dev_attr          = k3_vi_set_dev_attr,
-    .get_dev_attr          = k3_vi_get_dev_attr,
-    .enable_dev            = k3_vi_enable_dev,
-    .disable_dev           = k3_vi_disable_dev,
-    .set_chn_attr          = k3_vi_set_chn_attr,
-    .get_chn_attr          = k3_vi_get_chn_attr,
-    .set_chn_framerate     = k3_vi_set_chn_framerate,
-    .get_chn_framerate     = k3_vi_get_chn_framerate,
-    .enable_chn            = k3_vi_enable_chn,
-    .disable_chn           = k3_vi_disable_chn,
-    .dequeue_done_buffer   = k3_vi_dequeue_done_buffer,
-    .queue_buffer          = k3_vi_queue_buffer,
-    .attach_bind_sink      = k3_vi_attach_bind_sink,
-    .detach_bind_sink      = k3_vi_detach_bind_sink,
+    .init = k3_vi_init,
+    .deinit = k3_vi_deinit,
+    .set_dev_attr = k3_vi_set_dev_attr,
+    .get_dev_attr = k3_vi_get_dev_attr,
+    .enable_dev = k3_vi_enable_dev,
+    .disable_dev = k3_vi_disable_dev,
+    .set_chn_attr = k3_vi_set_chn_attr,
+    .get_chn_attr = k3_vi_get_chn_attr,
+    .set_chn_framerate = k3_vi_set_chn_framerate,
+    .get_chn_framerate = k3_vi_get_chn_framerate,
+    .enable_chn = k3_vi_enable_chn,
+    .disable_chn = k3_vi_disable_chn,
+    .dequeue_done_buffer = k3_vi_dequeue_done_buffer,
+    .queue_buffer = k3_vi_queue_buffer,
+    .attach_bind_sink = k3_vi_attach_bind_sink,
+    .detach_bind_sink = k3_vi_detach_bind_sink,
     .set_external_buf_pool = k3_vi_set_external_buf_pool,
 
     /* Optional: rawdump / offline — K3 does not support these */
-    .trigger_raw_dump      = NULL,
-    .get_raw_dump_frame    = NULL,
+    .trigger_raw_dump = NULL,
+    .get_raw_dump_frame = NULL,
     .release_raw_dump_frame = NULL,
-    .get_rawdump_attr      = NULL,
-    .set_rawdump_buf       = NULL,
+    .get_rawdump_attr = NULL,
+    .set_rawdump_buf = NULL,
     .offline_set_input_addr = NULL,
 
     /* Optional: K3-specific extensions */
-    .query_dqbuf_meta      = k3_vi_query_dqbuf_meta,
-    .query_frame_meta      = k3_vi_query_frame_meta,
+    .query_dqbuf_meta = k3_vi_query_dqbuf_meta,
+    .query_frame_meta = k3_vi_query_frame_meta,
 };
 
-const ViAlOps *al_vi_get_ops(void)
-{
+const ViAlOps *al_vi_get_ops(void) {
     return &k3_vi_ops;
 }
