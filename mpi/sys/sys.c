@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <inttypes.h>
 
 #include "sys/sys_api.h"
 #include "sys/mpp_shm.h"
@@ -40,17 +41,13 @@ extern "C" {
 
 /* ======================== Log Macros ======================== */
 
-#define SYS_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[SYS][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SYS_LOG_WARN(fmt, ...) \
-    fprintf(stderr, "[SYS][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SYS_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[SYS][INFO] " fmt "\n", ##__VA_ARGS__)
+#define SYS_LOG_ERR(fmt, ...) fprintf(stderr, "[SYS][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define SYS_LOG_WARN(fmt, ...) fprintf(stderr, "[SYS][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define SYS_LOG_INFO(fmt, ...) fprintf(stdout, "[SYS][INFO] " fmt "\n", ##__VA_ARGS__)
 
 /* ======================== Robust mutex helper ======================== */
 
-static inline int sys_mutex_lock(pthread_mutex_t *mtx)
-{
+static inline int sys_mutex_lock(pthread_mutex_t *mtx) {
     int r = pthread_mutex_lock(mtx);
     if (r == EOWNERDEAD) {
         pthread_mutex_consistent(mtx);
@@ -61,8 +58,7 @@ static inline int sys_mutex_lock(pthread_mutex_t *mtx)
 
 /* ======================== PTS Helper ======================== */
 
-static U64 sys_get_mono_ns(void)
-{
+static U64 sys_get_mono_ns(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (U64)ts.tv_sec * 1000000000ULL + (U64)ts.tv_nsec;
@@ -70,28 +66,21 @@ static U64 sys_get_mono_ns(void)
 
 /* ======================== Bind Helpers ======================== */
 
-static BOOL sys_node_equal(const MppNode *a, const MppNode *b)
-{
-    return (a->eModId == b->eModId &&
-            a->s32DevId == b->s32DevId &&
-            a->s32ChnId == b->s32ChnId);
+static BOOL sys_node_equal(const MppNode *a, const MppNode *b) {
+    return (a->eModId == b->eModId && a->s32DevId == b->s32DevId && a->s32ChnId == b->s32ChnId);
 }
 
-static S32 sys_find_bind_idx(MppSharedMem *shm, const MppNode *src, const MppNode *sink)
-{
+static S32 sys_find_bind_idx(MppSharedMem *shm, const MppNode *src, const MppNode *sink) {
     for (U32 i = 0; i < MPP_MAX_BIND; i++) {
         SysBindEntry *e = &shm->binds[i];
-        if (e->state == SYS_BIND_ACTIVE &&
-            sys_node_equal(&e->src, src) &&
-            sys_node_equal(&e->sink, sink)) {
+        if (e->state == SYS_BIND_ACTIVE && sys_node_equal(&e->src, src) && sys_node_equal(&e->sink, sink)) {
             return (S32)i;
         }
     }
     return -1;
 }
 
-static S32 sys_find_sink_bind_idx(MppSharedMem *shm, const MppNode *sink)
-{
+static S32 sys_find_sink_bind_idx(MppSharedMem *shm, const MppNode *sink) {
     for (U32 i = 0; i < MPP_MAX_BIND; i++) {
         SysBindEntry *e = &shm->binds[i];
         if (e->state == SYS_BIND_ACTIVE && sys_node_equal(&e->sink, sink)) {
@@ -101,8 +90,7 @@ static S32 sys_find_sink_bind_idx(MppSharedMem *shm, const MppNode *sink)
     return -1;
 }
 
-static VOID sys_reset_stream_queue(MppStreamQueue *q)
-{
+static VOID sys_reset_stream_queue(MppStreamQueue *q) {
     if (!q) {
         return;
     }
@@ -126,8 +114,7 @@ static VOID sys_reset_stream_queue(MppStreamQueue *q)
 
 /* ======================== Map Helpers ======================== */
 
-static SysMapRecord *sys_alloc_map_record(MppSharedMem *shm)
-{
+static SysMapRecord *sys_alloc_map_record(MppSharedMem *shm) {
     for (U32 i = 0; i < MPP_MAX_MAP; i++) {
         if (!shm->maps[i].used)
             return &shm->maps[i];
@@ -135,8 +122,7 @@ static SysMapRecord *sys_alloc_map_record(MppSharedMem *shm)
     return NULL;
 }
 
-static SysMapRecord *sys_find_map_by_vir(MppSharedMem *shm, void *vir_addr)
-{
+static SysMapRecord *sys_find_map_by_vir(MppSharedMem *shm, void *vir_addr) {
     for (U32 i = 0; i < MPP_MAX_MAP; i++) {
         if (shm->maps[i].used && shm->maps[i].vir_addr == vir_addr)
             return &shm->maps[i];
@@ -146,10 +132,9 @@ static SysMapRecord *sys_find_map_by_vir(MppSharedMem *shm, void *vir_addr)
 
 /* ======================== SYS API Implementation ======================== */
 
-static int g_sys_init_ref = 0;  /* per-process init refcount */
+static int g_sys_init_ref = 0; /* per-process init refcount */
 
-S32 SYS_Init(VOID)
-{
+S32 SYS_Init(VOID) {
     S32 ret;
 
     /* Per-process refcount: if already inited locally, just bump */
@@ -184,7 +169,7 @@ S32 SYS_Init(VOID)
     }
 
     /* First init — set up PTS baseline */
-    shm->base_pts_us  = 0;
+    shm->base_pts_us = 0;
     shm->base_mono_ns = sys_get_mono_ns();
     shm->bind_cnt = 0;
     memset(shm->binds, 0, sizeof(shm->binds));
@@ -205,8 +190,7 @@ S32 SYS_Init(VOID)
     return SYS_ERR_OK;
 }
 
-S32 SYS_Exit(VOID)
-{
+S32 SYS_Exit(VOID) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!shm || !shm->sys_inited || g_sys_init_ref <= 0) {
@@ -223,9 +207,14 @@ S32 SYS_Exit(VOID)
     pthread_rwlock_wrlock(&shm->bind_lock);
     for (U32 i = 0; i < MPP_MAX_BIND; i++) {
         if (shm->binds[i].state == SYS_BIND_ACTIVE) {
-            SYS_LOG_WARN("bind [mod%d dev%d chn%d]->[mod%d dev%d chn%d] still active at exit",
-                         shm->binds[i].src.eModId, shm->binds[i].src.s32DevId, shm->binds[i].src.s32ChnId,
-                         shm->binds[i].sink.eModId, shm->binds[i].sink.s32DevId, shm->binds[i].sink.s32ChnId);
+            SYS_LOG_WARN(
+                "bind [mod%d dev%d chn%d]->[mod%d dev%d chn%d] still active at exit",
+                shm->binds[i].src.eModId,
+                shm->binds[i].src.s32DevId,
+                shm->binds[i].src.s32ChnId,
+                shm->binds[i].sink.eModId,
+                shm->binds[i].sink.s32DevId,
+                shm->binds[i].sink.s32ChnId);
             shm->binds[i].state = SYS_BIND_FREE;
         }
     }
@@ -237,8 +226,12 @@ S32 SYS_Exit(VOID)
     for (U32 i = 0; i < MPP_MAX_MAP; i++) {
         SysMapRecord *r = &shm->maps[i];
         if (r->used && r->owner_pid == getpid()) {
-            SYS_LOG_WARN("leaked map: type=%d phy=0x%llx vir=%p size=%u",
-                         r->type, (unsigned long long)r->phy_addr, r->vir_addr, r->size);
+            SYS_LOG_WARN(
+                "leaked map: type=%d phy=0x%" PRIx64 " vir=%p size=%u",
+                r->type,
+                (uint64_t)r->phy_addr,
+                r->vir_addr,
+                r->size);
             if (r->dma_fd >= 0) {
                 dma_free_buf(r->dma_fd, r->vir_addr, r->size);
             }
@@ -258,8 +251,7 @@ S32 SYS_Exit(VOID)
 
 /* ======================== Bind / UnBind ======================== */
 
-S32 SYS_Bind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
-{
+S32 SYS_Bind(const MppNode *pstSrcNode, const MppNode *pstSinkNode) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pstSrcNode || !pstSinkNode) {
@@ -270,10 +262,9 @@ S32 SYS_Bind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
         SYS_LOG_ERR("SYS not initialized");
         return SYS_ERR_NOT_INIT;
     }
-    if (pstSrcNode->eModId <= 0 || pstSrcNode->eModId >= MPP_ID_MAX ||
-        pstSinkNode->eModId <= 0 || pstSinkNode->eModId >= MPP_ID_MAX) {
-        SYS_LOG_ERR("invalid module id: src=%d sink=%d",
-                     pstSrcNode->eModId, pstSinkNode->eModId);
+    if (pstSrcNode->eModId <= 0 || pstSrcNode->eModId >= MPP_ID_MAX || pstSinkNode->eModId <= 0 ||
+        pstSinkNode->eModId >= MPP_ID_MAX) {
+        SYS_LOG_ERR("invalid module id: src=%d sink=%d", pstSrcNode->eModId, pstSinkNode->eModId);
         return SYS_ERR_INVAL;
     }
 
@@ -303,8 +294,8 @@ S32 SYS_Bind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
     }
 
     slot->state = SYS_BIND_ACTIVE;
-    slot->src   = *pstSrcNode;
-    slot->sink  = *pstSinkNode;
+    slot->src = *pstSrcNode;
+    slot->sink = *pstSinkNode;
     shm->bind_cnt++;
 
     /* reset associated channel queue */
@@ -319,15 +310,19 @@ S32 SYS_Bind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
 
     pthread_rwlock_unlock(&shm->bind_lock);
 
-    SYS_LOG_INFO("SYS_Bind: [mod%d dev%d chn%d]->[mod%d dev%d chn%d] slot=%u",
-                 pstSrcNode->eModId, pstSrcNode->s32DevId, pstSrcNode->s32ChnId,
-                 pstSinkNode->eModId, pstSinkNode->s32DevId, pstSinkNode->s32ChnId,
-                 slot_idx);
+    SYS_LOG_INFO(
+        "SYS_Bind: [mod%d dev%d chn%d]->[mod%d dev%d chn%d] slot=%u",
+        pstSrcNode->eModId,
+        pstSrcNode->s32DevId,
+        pstSrcNode->s32ChnId,
+        pstSinkNode->eModId,
+        pstSinkNode->s32DevId,
+        pstSinkNode->s32ChnId,
+        slot_idx);
     return SYS_ERR_OK;
 }
 
-S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
-{
+S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pstSrcNode || !pstSinkNode) {
@@ -353,16 +348,20 @@ S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode)
 
     pthread_rwlock_unlock(&shm->bind_lock);
 
-    SYS_LOG_INFO("SYS_UnBind: [mod%d dev%d chn%d]->[mod%d dev%d chn%d]",
-                 pstSrcNode->eModId, pstSrcNode->s32DevId, pstSrcNode->s32ChnId,
-                 pstSinkNode->eModId, pstSinkNode->s32DevId, pstSinkNode->s32ChnId);
+    SYS_LOG_INFO(
+        "SYS_UnBind: [mod%d dev%d chn%d]->[mod%d dev%d chn%d]",
+        pstSrcNode->eModId,
+        pstSrcNode->s32DevId,
+        pstSrcNode->s32ChnId,
+        pstSinkNode->eModId,
+        pstSinkNode->s32DevId,
+        pstSinkNode->s32ChnId);
     return SYS_ERR_OK;
 }
 
 /* ======================== PTS ======================== */
 
-S32 SYS_GetCurPTS(U64 *pu64CurPTS)
-{
+S32 SYS_GetCurPTS(U64 *pu64CurPTS) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pu64CurPTS) {
@@ -383,8 +382,7 @@ S32 SYS_GetCurPTS(U64 *pu64CurPTS)
     return SYS_ERR_OK;
 }
 
-S32 SYS_InitPTSBase(U64 u64PTSBase)
-{
+S32 SYS_InitPTSBase(U64 u64PTSBase) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!shm || !shm->sys_inited) {
@@ -393,16 +391,15 @@ S32 SYS_InitPTSBase(U64 u64PTSBase)
     }
 
     sys_mutex_lock(&shm->pts_lock);
-    shm->base_pts_us  = u64PTSBase;
+    shm->base_pts_us = u64PTSBase;
     shm->base_mono_ns = sys_get_mono_ns();
     pthread_mutex_unlock(&shm->pts_lock);
 
-    SYS_LOG_INFO("SYS_InitPTSBase: base=%llu us", (unsigned long long)u64PTSBase);
+    SYS_LOG_INFO("SYS_InitPTSBase: base=%" PRIu64 " us", (uint64_t)u64PTSBase);
     return SYS_ERR_OK;
 }
 
-S32 SYS_SyncPTS(U64 u64PTSBase)
-{
+S32 SYS_SyncPTS(U64 u64PTSBase) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!shm || !shm->sys_inited) {
@@ -411,53 +408,59 @@ S32 SYS_SyncPTS(U64 u64PTSBase)
     }
 
     sys_mutex_lock(&shm->pts_lock);
-    shm->base_pts_us  = u64PTSBase;
+    shm->base_pts_us = u64PTSBase;
     shm->base_mono_ns = sys_get_mono_ns();
     pthread_mutex_unlock(&shm->pts_lock);
 
-    SYS_LOG_INFO("SYS_SyncPTS: synced to %llu us", (unsigned long long)u64PTSBase);
+    SYS_LOG_INFO("SYS_SyncPTS: synced to %" PRIu64 " us", (uint64_t)u64PTSBase);
     return SYS_ERR_OK;
 }
 
 /* ======================== Mmap ======================== */
 
-S32 SYS_Mmap(U64 u64PhyAddr, U32 u32Size)
-{
+S32 SYS_Mmap(U64 u64PhyAddr, U32 u32Size) {
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
-    if (u32Size == 0) return SYS_ERR_INVAL;
+    if (!shm || !shm->sys_inited)
+        return SYS_ERR_NOT_INIT;
+    if (u32Size == 0)
+        return SYS_ERR_INVAL;
 
-    SYS_LOG_WARN("SYS_Mmap: phy=0x%llx size=%u (stub — use DMA heap via MmzAlloc)",
-                 (unsigned long long)u64PhyAddr, u32Size);
+    SYS_LOG_WARN(
+        "SYS_Mmap: phy=0x%" PRIx64 " size=%u (stub — use DMA heap via MmzAlloc)",
+        (uint64_t)u64PhyAddr, u32Size);
     return SYS_ERR_OK;
 }
 
-S32 SYS_MmapCache(U64 u64PhyAddr, U32 u32Size)
-{
+S32 SYS_MmapCache(U64 u64PhyAddr, U32 u32Size) {
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
-    if (u32Size == 0) return SYS_ERR_INVAL;
+    if (!shm || !shm->sys_inited)
+        return SYS_ERR_NOT_INIT;
+    if (u32Size == 0)
+        return SYS_ERR_INVAL;
 
-    SYS_LOG_WARN("SYS_MmapCache: phy=0x%llx size=%u (stub — use DMA heap via MmzAlloc)",
-                 (unsigned long long)u64PhyAddr, u32Size);
+    SYS_LOG_WARN(
+        "SYS_MmapCache: phy=0x%" PRIx64 " size=%u (stub — use DMA heap via MmzAlloc)",
+        (uint64_t)u64PhyAddr, u32Size);
     return SYS_ERR_OK;
 }
 
-S32 SYS_Munmap(VOID *pVirAddr, U32 u32Size)
-{
-    if (!pVirAddr) return SYS_ERR_INVAL;
+S32 SYS_Munmap(VOID *pVirAddr, U32 u32Size) {
+    if (!pVirAddr)
+        return SYS_ERR_INVAL;
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
+    if (!shm || !shm->sys_inited)
+        return SYS_ERR_NOT_INIT;
 
     SYS_LOG_WARN("SYS_Munmap: vir=%p size=%u (stub)", pVirAddr, u32Size);
     return SYS_ERR_OK;
 }
 
-S32 SYS_MflushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size)
-{
-    if (!pVirAddr) return SYS_ERR_INVAL;
+S32 SYS_MflushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size) {
+    if (!pVirAddr)
+        return SYS_ERR_INVAL;
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm || !shm->sys_inited) return SYS_ERR_NOT_INIT;
+    if (!shm || !shm->sys_inited)
+        return SYS_ERR_NOT_INIT;
 
     (void)u64PhyAddr;
     (void)u32Size;
@@ -466,9 +469,7 @@ S32 SYS_MflushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size)
 
 /* ======================== MMZ Alloc (DMA Heap) ======================== */
 
-S32 SYS_MmzAlloc(U64 *pu64PhyAddr, VOID **ppVirAddr,
-                  const CHAR *sMb, const CHAR *sZone, U32 u32Len)
-{
+S32 SYS_MmzAlloc(U64 *pu64PhyAddr, VOID **ppVirAddr, const CHAR *sMb, const CHAR *sZone, U32 u32Len) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pu64PhyAddr || !ppVirAddr || u32Len == 0) {
@@ -498,27 +499,30 @@ S32 SYS_MmzAlloc(U64 *pu64PhyAddr, VOID **ppVirAddr,
         dma_free_buf(fd, vir, u32Len);
         return SYS_ERR_FULL;
     }
-    rec->used      = MPP_TRUE;
-    rec->type      = SYS_MAP_MMZ;
-    rec->phy_addr  = phy;
-    rec->vir_addr  = vir;
-    rec->size      = u32Len;
-    rec->dma_fd    = fd;
+    rec->used = MPP_TRUE;
+    rec->type = SYS_MAP_MMZ;
+    rec->phy_addr = phy;
+    rec->vir_addr = vir;
+    rec->size = u32Len;
+    rec->dma_fd = fd;
     rec->owner_pid = getpid();
     pthread_mutex_unlock(&shm->map_lock);
 
     *pu64PhyAddr = phy;
-    *ppVirAddr   = vir;
+    *ppVirAddr = vir;
 
-    SYS_LOG_INFO("SYS_MmzAlloc: mb=%s zone=%s len=%u phy=0x%llx vir=%p fd=%d",
-                 sMb ? sMb : "(null)", sZone ? sZone : "(default)",
-                 u32Len, (unsigned long long)phy, vir, fd);
+    SYS_LOG_INFO(
+        "SYS_MmzAlloc: mb=%s zone=%s len=%u phy=0%" PRIx64 " vir=%p fd=%d",
+        sMb ? sMb : "(null)",
+        sZone ? sZone : "(default)",
+        u32Len,
+        (uint64_t)phy,
+        vir,
+        fd);
     return SYS_ERR_OK;
 }
 
-S32 SYS_MmzAlloc_Cached(U64 *pu64PhyAddr, VOID **ppVirAddr,
-                         const CHAR *sMb, const CHAR *sZone, U32 u32Len)
-{
+S32 SYS_MmzAlloc_Cached(U64 *pu64PhyAddr, VOID **ppVirAddr, const CHAR *sMb, const CHAR *sZone, U32 u32Len) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pu64PhyAddr || !ppVirAddr || u32Len == 0) {
@@ -548,26 +552,30 @@ S32 SYS_MmzAlloc_Cached(U64 *pu64PhyAddr, VOID **ppVirAddr,
         dma_free_buf(fd, vir, u32Len);
         return SYS_ERR_FULL;
     }
-    rec->used      = MPP_TRUE;
-    rec->type      = SYS_MAP_MMZ_CACHED;
-    rec->phy_addr  = phy;
-    rec->vir_addr  = vir;
-    rec->size      = u32Len;
-    rec->dma_fd    = fd;
+    rec->used = MPP_TRUE;
+    rec->type = SYS_MAP_MMZ_CACHED;
+    rec->phy_addr = phy;
+    rec->vir_addr = vir;
+    rec->size = u32Len;
+    rec->dma_fd = fd;
     rec->owner_pid = getpid();
     pthread_mutex_unlock(&shm->map_lock);
 
     *pu64PhyAddr = phy;
-    *ppVirAddr   = vir;
+    *ppVirAddr = vir;
 
-    SYS_LOG_INFO("SYS_MmzAlloc_Cached: mb=%s zone=%s len=%u phy=0x%llx vir=%p fd=%d",
-                 sMb ? sMb : "(null)", sZone ? sZone : "(default)",
-                 u32Len, (unsigned long long)phy, vir, fd);
+    SYS_LOG_INFO(
+        "SYS_MmzAlloc_Cached: mb=%s zone=%s len=%u phy=0%" PRIx64 " vir=%p fd=%d",
+        sMb ? sMb : "(null)",
+        sZone ? sZone : "(default)",
+        u32Len,
+        (uint64_t)phy,
+        vir,
+        fd);
     return SYS_ERR_OK;
 }
 
-S32 SYS_MmzFlushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size)
-{
+S32 SYS_MmzFlushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pVirAddr) {
@@ -602,8 +610,7 @@ S32 SYS_MmzFlushCache(U64 u64PhyAddr, VOID *pVirAddr, U32 u32Size)
     return SYS_ERR_OK;
 }
 
-S32 SYS_MmzFree(U64 u64PhyAddr, VOID *pVirAddr)
-{
+S32 SYS_MmzFree(U64 u64PhyAddr, VOID *pVirAddr) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pVirAddr) {
@@ -631,16 +638,13 @@ S32 SYS_MmzFree(U64 u64PhyAddr, VOID *pVirAddr)
 
     dma_free_buf(fd, vir, size);
 
-    SYS_LOG_INFO("SYS_MmzFree: phy=0x%llx vir=%p fd=%d",
-                 (unsigned long long)u64PhyAddr, pVirAddr, fd);
+    SYS_LOG_INFO("SYS_MmzFree: phy=0x%" PRIx64 " vir=%p fd=%d", (uint64_t)u64PhyAddr, pVirAddr, fd);
     return SYS_ERR_OK;
 }
 
 /* ======================== SendFrame / RecvFrame ======================== */
 
-static S32 sys_build_frame_info_from_buffer(const MppNode *pstSrc, UL ulBuff,
-                                            VideoFrameInfo *pstFrameInfo)
-{
+static S32 sys_build_frame_info_from_buffer(const MppNode *pstSrc, UL ulBuff, VideoFrameInfo *pstFrameInfo) {
     U64 u64CurPts = 0;
     S32 s32Ret = 0;
 
@@ -669,8 +673,7 @@ static S32 sys_build_frame_info_from_buffer(const MppNode *pstSrc, UL ulBuff,
     return SYS_ERR_OK;
 }
 
-S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff)
-{
+S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff) {
     MppSharedMem *shm = mpp_shm_get();
     VideoFrameInfo stFrameInfo;
     S32 s32FrameRet;
@@ -714,7 +717,7 @@ S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff)
             SYS_LOG_WARN("SendFrame: queue[%u] full, dropping frame", i);
             pthread_mutex_unlock(&q->lock);
             extern S32 VB_RefSub(UL ulBufHandle);
-            VB_RefSub(ulBuff);  /* undo the ref we just added */
+            VB_RefSub(ulBuff); /* undo the ref we just added */
             continue;
         }
 
@@ -737,8 +740,7 @@ S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff)
     return SYS_ERR_OK;
 }
 
-S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs)
-{
+S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs) {
     MppSharedMem *shm = mpp_shm_get();
     VideoFrameInfo stFrameInfo;
 
@@ -770,7 +772,7 @@ S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs)
     if (q->count == 0 && u32TimeoutMs > 0) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_sec  += u32TimeoutMs / 1000;
+        ts.tv_sec += u32TimeoutMs / 1000;
         ts.tv_nsec += (u32TimeoutMs % 1000) * 1000000L;
         if (ts.tv_nsec >= 1000000000L) {
             ts.tv_sec++;
@@ -779,7 +781,8 @@ S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs)
 
         while (q->count == 0) {
             int r = pthread_cond_timedwait(&q->not_empty, &q->lock, &ts);
-            if (r == ETIMEDOUT) break;
+            if (r == ETIMEDOUT)
+                break;
             if (r == EOWNERDEAD) {
                 pthread_mutex_consistent(&q->lock);
                 break;
@@ -807,8 +810,7 @@ S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs)
     return SYS_ERR_OK;
 }
 
-S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream)
-{
+S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
     MppSharedMem *shm = mpp_shm_get();
     BOOL found = MPP_FALSE;
 
@@ -866,13 +868,13 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream)
         /* Store metadata in shared queue entry */
         entry = &q->entries[q->tail];
         memset(entry, 0, sizeof(*entry));
-        entry->used      = MPP_TRUE;
-        entry->info       = *pstStream;
-        entry->info.pu8Addr = NULL;  /* no direct pointer in shm */
-        entry->dma_fd     = dma_fd;
-        entry->dma_phy    = dma_phy;
-        entry->dma_size   = pstStream->u32Size;
-        entry->owner_pid  = getpid();
+        entry->used = MPP_TRUE;
+        entry->info = *pstStream;
+        entry->info.pu8Addr = NULL; /* no direct pointer in shm */
+        entry->dma_fd = dma_fd;
+        entry->dma_phy = dma_phy;
+        entry->dma_size = pstStream->u32Size;
+        entry->owner_pid = getpid();
 
         q->tail = (q->tail + 1) % MPP_STREAM_CHAN_DEPTH;
         q->count++;
@@ -884,8 +886,7 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream)
     return found ? SYS_ERR_OK : SYS_ERR_NOT_FOUND;
 }
 
-S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32TimeoutMs)
-{
+S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
     MppSharedMem *shm = mpp_shm_get();
     S32 bind_idx;
     MppStreamQueue *q;
@@ -947,8 +948,7 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
     }
 
     /* Map the DMA buffer into this process to read the payload */
-    dma_vir = mmap(NULL, entry->dma_size, PROT_READ, MAP_SHARED,
-                   entry->dma_fd, 0);
+    dma_vir = mmap(NULL, entry->dma_size, PROT_READ, MAP_SHARED, entry->dma_fd, 0);
     if (dma_vir == MAP_FAILED) {
         SYS_LOG_ERR("mmap DMA fd=%d failed: %s", entry->dma_fd, strerror(errno));
         pthread_mutex_unlock(&q->lock);
@@ -981,8 +981,7 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
 
 /* ======================== Debug Dump ======================== */
 
-VOID SYS_DumpStatus(VOID)
-{
+VOID SYS_DumpStatus(VOID) {
     MppSharedMem *shm = mpp_shm_get();
     U64 cur_pts = 0;
 
@@ -1001,17 +1000,23 @@ VOID SYS_DumpStatus(VOID)
     }
 
     SYS_GetCurPTS(&cur_pts);
-    printf("  PTS base  : %llu us\n", (unsigned long long)shm->base_pts_us);
-    printf("  PTS cur   : %llu us\n", (unsigned long long)cur_pts);
+    printf("  PTS base  : %" PRIu64 " us\n", (uint64_t)shm->base_pts_us);
+    printf("  PTS cur   : %" PRIu64 " us\n", (uint64_t)cur_pts);
 
     printf("  Binds (%u):\n", shm->bind_cnt);
     pthread_rwlock_rdlock(&shm->bind_lock);
     for (U32 i = 0; i < MPP_MAX_BIND; i++) {
         SysBindEntry *e = &shm->binds[i];
         if (e->state == SYS_BIND_ACTIVE) {
-            printf("    [%u] mod%d.dev%d.chn%d -> mod%d.dev%d.chn%d\n",
-                   i, e->src.eModId, e->src.s32DevId, e->src.s32ChnId,
-                   e->sink.eModId, e->sink.s32DevId, e->sink.s32ChnId);
+            printf(
+                "    [%u] mod%d.dev%d.chn%d -> mod%d.dev%d.chn%d\n",
+                i,
+                e->src.eModId,
+                e->src.s32DevId,
+                e->src.s32ChnId,
+                e->sink.eModId,
+                e->sink.s32DevId,
+                e->sink.s32ChnId);
         }
     }
     pthread_rwlock_unlock(&shm->bind_lock);
@@ -1019,14 +1024,20 @@ VOID SYS_DumpStatus(VOID)
     printf("  Map records:\n");
     sys_mutex_lock(&shm->map_lock);
     {
-        static const char *type_str[] = { "MMAP", "MMAP_CACHE", "MMZ", "MMZ_CACHED" };
+        static const char *type_str[] = {"MMAP", "MMAP_CACHE", "MMZ", "MMZ_CACHED"};
         U32 cnt = 0;
         for (U32 i = 0; i < MPP_MAX_MAP; i++) {
             SysMapRecord *r = &shm->maps[i];
             if (r->used) {
-                printf("    [%u] %s phy=0x%llx vir=%p size=%u fd=%d pid=%d\n",
-                       i, type_str[r->type], (unsigned long long)r->phy_addr,
-                       r->vir_addr, r->size, r->dma_fd, r->owner_pid);
+                printf(
+                    "    [%u] %s phy=0x%" PRIx64 " vir=%p size=%u fd=%d pid=%d\n",
+                    i,
+                    type_str[r->type],
+                    (uint64_t)r->phy_addr,
+                    r->vir_addr,
+                    r->size,
+                    r->dma_fd,
+                    r->owner_pid);
                 cnt++;
             }
         }

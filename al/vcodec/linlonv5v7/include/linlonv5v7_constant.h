@@ -10,8 +10,8 @@
  * @Description:
  */
 
-#ifndef _LINLONV5V7_CONSTANT_H_
-#define _LINLONV5V7_CONSTANT_H_
+#ifndef LINLONV5V7_CONSTANT_H
+#define LINLONV5V7_CONSTANT_H
 
 #define MAX_BUF_NUM (32)
 #define MAX_INPUT_BUF_NUM (32)
@@ -30,4 +30,4 @@
 
 #define LINLON_FILE_NAME_LEN (512)
 
-#endif /*_LINLONV5V7_CONSTANT_H_*/
+#endif /*LINLONV5V7_CONSTANT_H*/

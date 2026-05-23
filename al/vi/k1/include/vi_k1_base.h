@@ -11,10 +11,10 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __AL_VI_K1_BASE_H__
-#define __AL_VI_K1_BASE_H__
+#ifndef VI_K1_BASE_H
+#define VI_K1_BASE_H
 
 #include "vi_k1_defs.h"
 #include "vi_k1_ctx.h"
 
-#endif /* __AL_VI_K1_BASE_H__ */
+#endif /* VI_K1_BASE_H */

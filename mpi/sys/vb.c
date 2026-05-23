@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
+#include <inttypes.h>
 
 #include "sys/vb_api.h"
 #include "sys/mpp_shm.h"
@@ -36,26 +37,25 @@ extern "C" {
 
 /* ======================== Error Codes ======================== */
 
-#define VB_ERR_OK           0
-#define VB_ERR_INVAL       (-2)
-#define VB_ERR_NOMEM       (-3)
-#define VB_ERR_NOT_INIT    (-4)
-#define VB_ERR_BUSY        (-5)
-#define VB_ERR_NOT_FOUND   (-6)
-#define VB_ERR_TIMEOUT     (-7)
-#define VB_ERR_STATE       (-8)
+#define VB_ERR_OK 0
+#define VB_ERR_INVAL (-2)
+#define VB_ERR_NOMEM (-3)
+#define VB_ERR_NOT_INIT (-4)
+#define VB_ERR_BUSY (-5)
+#define VB_ERR_NOT_FOUND (-6)
+#define VB_ERR_TIMEOUT (-7)
+#define VB_ERR_STATE (-8)
 #define VB_ERR_DOUBLE_INIT (-9)
 
 /* ======================== Constants ======================== */
 
-#define VB_INVALID_HANDLE   ((UL)0)
-#define VB_FREE_LIST_END    ((U32)0xFFFFFFFF)
+#define VB_INVALID_HANDLE ((UL)0)
+#define VB_FREE_LIST_END ((U32)0xFFFFFFFF)
 
 /* Handle encoding: [31:16] = pool_id (1-based), [15:0] = blk_idx (0-based) */
-#define VB_HANDLE_ENCODE(pool_id, blk_idx) \
-    (((UL)(pool_id) << 16) | ((UL)(blk_idx) & 0xFFFF))
-#define VB_HANDLE_TO_POOL(h)  ((U32)((h) >> 16))
-#define VB_HANDLE_TO_BLK(h)   ((U32)((h) & 0xFFFF))
+#define VB_HANDLE_ENCODE(pool_id, blk_idx) (((UL)(pool_id) << 16) | ((UL)(blk_idx) & 0xFFFF))
+#define VB_HANDLE_TO_POOL(h) ((U32)((h) >> 16))
+#define VB_HANDLE_TO_BLK(h) ((U32)((h) & 0xFFFF))
 
 #ifndef PAGE_SIZE
 #define PAGE_SIZE (4096)
@@ -63,19 +63,16 @@ extern "C" {
 
 /* ======================== Log Macros ======================== */
 
-#define VB_LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[VB][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define VB_LOG_WARN(fmt, ...) \
-    fprintf(stderr, "[VB][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define VB_LOG_INFO(fmt, ...) \
-    fprintf(stdout, "[VB][INFO] " fmt "\n", ##__VA_ARGS__)
+#define VB_LOG_ERR(fmt, ...) fprintf(stderr, "[VB][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define VB_LOG_WARN(fmt, ...) fprintf(stderr, "[VB][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+#define VB_LOG_INFO(fmt, ...) fprintf(stdout, "[VB][INFO] " fmt "\n", ##__VA_ARGS__)
 
 typedef struct _VideoFrameFmt {
-    MppPixelFormat    ePixelFormat;
-    CHAR             *cName;
-    U8                u8DataPlanes;
-    U8                u8WidthDepth[FRAME_MAX_PLANE];
-    U8                u8HeightDepth[FRAME_MAX_PLANE];
+    MppPixelFormat ePixelFormat;
+    CHAR *cName;
+    U8 u8DataPlanes;
+    U8 u8WidthDepth[FRAME_MAX_PLANE];
+    U8 u8HeightDepth[FRAME_MAX_PLANE];
 } VideoFrameFmt;
 
 /* ======================== Process-Local Mapping ======================== */
@@ -85,14 +82,14 @@ typedef struct _VideoFrameFmt {
  * Other processes obtain them via pidfd_getfd().
  */
 
-#define VB_LOCAL_MAP_MAX  4096
+#define VB_LOCAL_MAP_MAX 4096
 
 typedef struct _VbLocalEntry {
-    UL       handle;        /* VB handle (0 = unused) */
-    int      local_fd;      /* dma-buf fd in this process */
-    void    *local_vir;     /* mmap'd virtual address in this process */
-    U32      size;          /* mapped size (page-aligned) */
-    BOOL     is_owner;      /* did this process allocate it? */
+    UL handle;       /* VB handle (0 = unused) */
+    int local_fd;    /* dma-buf fd in this process */
+    void *local_vir; /* mmap'd virtual address in this process */
+    U32 size;        /* mapped size (page-aligned) */
+    BOOL is_owner;   /* did this process allocate it? */
 } VbLocalEntry;
 
 static VbLocalEntry g_local_map[VB_LOCAL_MAP_MAX];
@@ -100,261 +97,260 @@ static pthread_mutex_t g_local_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static VideoFrameFmt g_stVideoFrameFmt[] = {
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_YV12,
-        .cName          = "YV12",
-        .u8DataPlanes   = 3,
-        .u8WidthDepth   = { 8, 4, 4 },
-        .u8HeightDepth  = { 8, 4, 4 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_YV12,
+        .cName = "YV12",
+        .u8DataPlanes = 3,
+        .u8WidthDepth = {8, 4, 4},
+        .u8HeightDepth = {8, 4, 4},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_I420,
-        .cName          = "I420",
-        .u8DataPlanes   = 3,
-        .u8WidthDepth   = { 8, 4, 4 },
-        .u8HeightDepth  = { 8, 4, 4 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_I420,
+        .cName = "I420",
+        .u8DataPlanes = 3,
+        .u8WidthDepth = {8, 4, 4},
+        .u8HeightDepth = {8, 4, 4},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_NV21,
-        .cName          = "NV21",
-        .u8DataPlanes   = 2,
-        .u8WidthDepth   = { 8, 8 },
-        .u8HeightDepth  = { 8, 4 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_NV21,
+        .cName = "NV21",
+        .u8DataPlanes = 2,
+        .u8WidthDepth = {8, 8},
+        .u8HeightDepth = {8, 4},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_NV12,
-        .cName          = "NV12",
-        .u8DataPlanes   = 2,
-        .u8WidthDepth   = { 8, 8 },
-        .u8HeightDepth  = { 8, 4 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_NV12,
+        .cName = "NV12",
+        .u8DataPlanes = 2,
+        .u8WidthDepth = {8, 8},
+        .u8HeightDepth = {8, 4},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_YUV422P,
-        .cName          = "YUV422P",
-        .u8DataPlanes   = 3,
-        .u8WidthDepth   = { 8, 4, 4 },
-        .u8HeightDepth  = { 8, 8, 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_YUV422P,
+        .cName = "YUV422P",
+        .u8DataPlanes = 3,
+        .u8WidthDepth = {8, 4, 4},
+        .u8HeightDepth = {8, 8, 8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_NV61,
-        .cName          = "NV61",
-        .u8DataPlanes   = 2,
-        .u8WidthDepth   = { 8, 8 },
-        .u8HeightDepth  = { 8, 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_NV61,
+        .cName = "NV61",
+        .u8DataPlanes = 2,
+        .u8WidthDepth = {8, 8},
+        .u8HeightDepth = {8, 8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_YUV444P,
-        .cName          = "YUV444P",
-        .u8DataPlanes   = 3,
-        .u8WidthDepth   = { 8, 8, 8 },
-        .u8HeightDepth  = { 8, 8, 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_YUV444P,
+        .cName = "YUV444P",
+        .u8DataPlanes = 3,
+        .u8WidthDepth = {8, 8, 8},
+        .u8HeightDepth = {8, 8, 8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_YUV444SP,
-        .cName          = "YUV444SP",
-        .u8DataPlanes   = 2,
-        .u8WidthDepth   = { 8, 16 },
-        .u8HeightDepth  = { 8, 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_YUV444SP,
+        .cName = "YUV444SP",
+        .u8DataPlanes = 2,
+        .u8WidthDepth = {8, 16},
+        .u8HeightDepth = {8, 8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_YUYV,
-        .cName          = "YUYV",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_YUYV,
+        .cName = "YUYV",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_YVYU,
-        .cName          = "YVYU",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_YVYU,
+        .cName = "YVYU",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGBA,
-        .cName          = "RGBA",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 32 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGBA,
+        .cName = "RGBA",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {32},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_ARGB,
-        .cName          = "ARGB",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 32 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_ARGB,
+        .cName = "ARGB",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {32},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_ABGR,
-        .cName          = "ABGR",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 32 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_ABGR,
+        .cName = "ABGR",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {32},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_BGRA,
-        .cName          = "BGRA",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 32 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_BGRA,
+        .cName = "BGRA",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {32},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGBA_5551,
-        .cName          = "BGRA_5551",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGBA_5551,
+        .cName = "BGRA_5551",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_ARGB_1555,
-        .cName          = "ARGB_1555",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_ARGB_1555,
+        .cName = "ARGB_1555",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_ABGR_1555,
-        .cName          = "ABGR_1555",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_ABGR_1555,
+        .cName = "ABGR_1555",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_BGRA_5551,
-        .cName          = "BGRA_5551",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_BGRA_5551,
+        .cName = "BGRA_5551",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGBA_4444,
-        .cName          = "RGBA_4444",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGBA_4444,
+        .cName = "RGBA_4444",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_ARGB_4444,
-        .cName          = "ARGB_4444",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_ARGB_4444,
+        .cName = "ARGB_4444",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_ABGR_4444,
-        .cName          = "ABGR_4444",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_ABGR_4444,
+        .cName = "ABGR_4444",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_BGRA_4444,
-        .cName          = "BGRA_4444",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_BGRA_4444,
+        .cName = "BGRA_4444",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_888,
-        .cName          = "RGB_888",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 24 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_888,
+        .cName = "RGB_888",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {24},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_BGR_888,
-        .cName          = "BGR_888",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 24 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_BGR_888,
+        .cName = "BGR_888",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {24},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_565,
-        .cName          = "RGB_565",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_565,
+        .cName = "RGB_565",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_BGR_565,
-        .cName          = "BGR_565",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_BGR_565,
+        .cName = "BGR_565",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_555,
-        .cName          = "RGB_555",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_555,
+        .cName = "RGB_555",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_BGR_555,
-        .cName          = "BGR_555",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_BGR_555,
+        .cName = "BGR_555",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_444,
-        .cName          = "RGB_444",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 12 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_444,
+        .cName = "RGB_444",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {12},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_BGR_444,
-        .cName          = "BGR_444",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 12 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_BGR_444,
+        .cName = "BGR_444",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {12},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_BAYER_8BITS,
-        .cName          = "RAW8",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 8 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_BAYER_8BITS,
+        .cName = "RAW8",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {8},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_BAYER_10BITS,
-        .cName          = "RAW10",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_BAYER_10BITS,
+        .cName = "RAW10",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_BAYER_12BITS,
-        .cName          = "RAW12",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_BAYER_12BITS,
+        .cName = "RAW12",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_BAYER_14BITS,
-        .cName          = "RAW14",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_BAYER_14BITS,
+        .cName = "RAW14",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_BAYER_16BITS,
-        .cName          = "RAW16",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 16 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_BAYER_16BITS,
+        .cName = "RAW16",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
     },
     {
-        .ePixelFormat   = MPP_PIXEL_FORMAT_RGB_BAYER_20BITS,
-        .cName          = "RAW20",
-        .u8DataPlanes   = 1,
-        .u8WidthDepth   = { 32 },
-        .u8HeightDepth  = { 8 },
+        .ePixelFormat = MPP_PIXEL_FORMAT_RGB_BAYER_20BITS,
+        .cName = "RAW20",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {32},
+        .u8HeightDepth = {8},
     },
 };
 
-static VbLocalEntry *vb_local_find(UL handle)
-{
+static VbLocalEntry *vb_local_find(UL handle) {
     for (U32 i = 0; i < VB_LOCAL_MAP_MAX; i++) {
         if (g_local_map[i].handle == handle)
             return &g_local_map[i];
@@ -362,8 +358,7 @@ static VbLocalEntry *vb_local_find(UL handle)
     return NULL;
 }
 
-static VbLocalEntry *vb_local_alloc(void)
-{
+static VbLocalEntry *vb_local_alloc(void) {
     for (U32 i = 0; i < VB_LOCAL_MAP_MAX; i++) {
         if (g_local_map[i].handle == 0)
             return &g_local_map[i];
@@ -371,9 +366,9 @@ static VbLocalEntry *vb_local_alloc(void)
     return NULL;
 }
 
-static void vb_local_free_entry(VbLocalEntry *ent)
-{
-    if (!ent) return;
+static void vb_local_free_entry(VbLocalEntry *ent) {
+    if (!ent)
+        return;
     if (ent->local_vir) {
         U32 alloc_size = (ent->size + 4095) & ~4095u;
         munmap(ent->local_vir, alloc_size);
@@ -384,13 +379,11 @@ static void vb_local_free_entry(VbLocalEntry *ent)
 }
 
 /* pidfd_open / pidfd_getfd wrappers */
-static int vb_pidfd_open(pid_t pid)
-{
+static int vb_pidfd_open(pid_t pid) {
     return (int)syscall(SYS_pidfd_open, pid, 0);
 }
 
-static int vb_pidfd_getfd(int pidfd, int target_fd)
-{
+static int vb_pidfd_getfd(int pidfd, int target_fd) {
     return (int)syscall(SYS_pidfd_getfd, pidfd, target_fd, 0);
 }
 
@@ -399,8 +392,7 @@ static int vb_pidfd_getfd(int pidfd, int target_fd)
  * If this process is the owner, the entry already exists.
  * Otherwise, use pidfd_getfd to get the dma-buf fd from the owner.
  */
-static S32 vb_ensure_local_mapping(VbBlockShm *blk, VbLocalEntry **out)
-{
+static S32 vb_ensure_local_mapping(VbBlockShm *blk, VbLocalEntry **out) {
     pthread_mutex_lock(&g_local_lock);
 
     VbLocalEntry *ent = vb_local_find(blk->handle);
@@ -436,30 +428,27 @@ static S32 vb_ensure_local_mapping(VbBlockShm *blk, VbLocalEntry **out)
         local_fd = vb_pidfd_getfd(pidfd, blk->owner_fd);
         close(pidfd);
         if (local_fd < 0) {
-            VB_LOG_ERR("pidfd_getfd(pid=%d, fd=%d): %s",
-                       blk->owner_pid, blk->owner_fd, strerror(errno));
+            VB_LOG_ERR("pidfd_getfd(pid=%d, fd=%d): %s", blk->owner_pid, blk->owner_fd, strerror(errno));
             pthread_mutex_unlock(&g_local_lock);
             return VB_ERR_NOT_FOUND;
         }
     }
 
     /* mmap the dma-buf fd */
-    local_vir = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
-                     MAP_SHARED, local_fd, 0);
+    local_vir = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE, MAP_SHARED, local_fd, 0);
     if (local_vir == MAP_FAILED) {
-        VB_LOG_ERR("mmap dma-buf fd=%d size=%u: %s",
-                   local_fd, alloc_size, strerror(errno));
+        VB_LOG_ERR("mmap dma-buf fd=%d size=%u: %s", local_fd, alloc_size, strerror(errno));
         if (blk->owner_pid != my_pid)
             close(local_fd);
         pthread_mutex_unlock(&g_local_lock);
         return VB_ERR_NOMEM;
     }
 
-    ent->handle    = blk->handle;
-    ent->local_fd  = local_fd;
+    ent->handle = blk->handle;
+    ent->local_fd = local_fd;
     ent->local_vir = local_vir;
-    ent->size      = blk->size;
-    ent->is_owner  = (blk->owner_pid == my_pid);
+    ent->size = blk->size;
+    ent->is_owner = (blk->owner_pid == my_pid);
 
     *out = ent;
     pthread_mutex_unlock(&g_local_lock);
@@ -468,8 +457,7 @@ static S32 vb_ensure_local_mapping(VbBlockShm *blk, VbLocalEntry **out)
 
 /* ======================== Robust Mutex Helper ======================== */
 
-static int vb_mutex_lock(pthread_mutex_t *mtx)
-{
+static int vb_mutex_lock(pthread_mutex_t *mtx) {
     int r = pthread_mutex_lock(mtx);
     if (r == EOWNERDEAD) {
         pthread_mutex_consistent(mtx);
@@ -480,35 +468,38 @@ static int vb_mutex_lock(pthread_mutex_t *mtx)
 
 /* ======================== Internal Helpers ======================== */
 
-static VbPoolShm *vb_get_pool(U32 pool_id)
-{
+static VbPoolShm *vb_get_pool(U32 pool_id) {
     MppSharedMem *shm = mpp_shm_get();
-    if (!shm) return NULL;
-    if (pool_id == 0 || pool_id > MPP_MAX_POOL) return NULL;
+    if (!shm)
+        return NULL;
+    if (pool_id == 0 || pool_id > MPP_MAX_POOL)
+        return NULL;
     VbPoolShm *pool = &shm->pools[pool_id - 1];
-    if (pool->state == VB_POOL_FREE) return NULL;
+    if (pool->state == VB_POOL_FREE)
+        return NULL;
     return pool;
 }
 
-static VbBlockShm *vb_get_block(UL handle, VbPoolShm **out_pool)
-{
+static VbBlockShm *vb_get_block(UL handle, VbPoolShm **out_pool) {
     U32 pool_id = VB_HANDLE_TO_POOL(handle);
     U32 blk_idx = VB_HANDLE_TO_BLK(handle);
 
     VbPoolShm *pool = vb_get_pool(pool_id);
-    if (!pool) return NULL;
-    if (blk_idx >= pool->blk_cnt) return NULL;
+    if (!pool)
+        return NULL;
+    if (blk_idx >= pool->blk_cnt)
+        return NULL;
 
-    if (out_pool) *out_pool = pool;
+    if (out_pool)
+        *out_pool = pool;
     return &pool->blocks[blk_idx];
 }
 
 /* Return block to free-list; caller must hold pool->lock */
-static void vb_return_block(VbPoolShm *pool, VbBlockShm *blk)
-{
-    blk->state     = VB_BLK_FREE;
-    blk->pts       = 0;
-    blk->exported  = 0;
+static void vb_return_block(VbPoolShm *pool, VbBlockShm *blk) {
+    blk->state = VB_BLK_FREE;
+    blk->pts = 0;
+    blk->exported = 0;
     blk->next_free = pool->free_head;
     pool->free_head = blk->blk_idx;
     pool->free_cnt++;
@@ -517,10 +508,9 @@ static void vb_return_block(VbPoolShm *pool, VbBlockShm *blk)
 }
 
 /* Allocate DMA buffers for all blocks in a pool */
-static S32 vb_pool_alloc_blocks(VbPoolShm *pool)
-{
+static S32 vb_pool_alloc_blocks(VbPoolShm *pool) {
     U32 buf_size = pool->cfg.u32BufSize;
-    U32 buf_cnt  = pool->cfg.u32BufCnt;
+    U32 buf_cnt = pool->cfg.u32BufCnt;
     pid_t my_pid = getpid();
 
     for (U32 i = 0; i < buf_cnt; i++) {
@@ -536,51 +526,53 @@ static S32 vb_pool_alloc_blocks(VbPoolShm *pool)
                 VbBlockShm *prev = &pool->blocks[j];
                 pthread_mutex_lock(&g_local_lock);
                 VbLocalEntry *ent = vb_local_find(prev->handle);
-                if (ent) vb_local_free_entry(ent);
+                if (ent)
+                    vb_local_free_entry(ent);
                 pthread_mutex_unlock(&g_local_lock);
                 prev->state = VB_BLK_FREE;
             }
             return VB_ERR_NOMEM;
         }
 
-        blk->handle    = VB_HANDLE_ENCODE(pool->id, i);
-        blk->pool_id   = pool->id;
-        blk->blk_idx   = i;
+        blk->handle = VB_HANDLE_ENCODE(pool->id, i);
+        blk->pool_id = pool->id;
+        blk->blk_idx = i;
         atomic_init(&blk->ref_cnt, 0);
-        blk->state     = VB_BLK_FREE;
-        blk->phy_addr  = phy;
-        blk->size      = buf_size;
-        blk->pts       = 0;
-        blk->exported  = 0;
+        blk->state = VB_BLK_FREE;
+        blk->phy_addr = phy;
+        blk->size = buf_size;
+        blk->pts = 0;
+        blk->exported = 0;
+        blk->frame_info_set = 0;
+        memset(&blk->frame_info, 0, sizeof(blk->frame_info));
         blk->owner_pid = my_pid;
-        blk->owner_fd  = fd;
+        blk->owner_fd = fd;
         blk->next_free = (i + 1 < buf_cnt) ? (i + 1) : VB_FREE_LIST_END;
 
         /* register in local map */
         pthread_mutex_lock(&g_local_lock);
         VbLocalEntry *ent = vb_local_alloc();
         if (ent) {
-            ent->handle    = blk->handle;
-            ent->local_fd  = fd;
+            ent->handle = blk->handle;
+            ent->local_fd = fd;
             ent->local_vir = vir;
-            ent->size      = buf_size;
-            ent->is_owner  = MPP_TRUE;
+            ent->size = buf_size;
+            ent->is_owner = MPP_TRUE;
         }
         pthread_mutex_unlock(&g_local_lock);
     }
 
     pool->free_head = 0;
-    pool->free_cnt  = buf_cnt;
-    pool->used_cnt  = 0;
-    pool->min_free  = buf_cnt;
-    pool->blk_cnt   = buf_cnt;
+    pool->free_cnt = buf_cnt;
+    pool->used_cnt = 0;
+    pool->min_free = buf_cnt;
+    pool->blk_cnt = buf_cnt;
 
     return VB_ERR_OK;
 }
 
 /* Free all DMA buffers owned by this process in a pool */
-static void vb_pool_free_blocks(VbPoolShm *pool)
-{
+static void vb_pool_free_blocks(VbPoolShm *pool) {
     pid_t my_pid = getpid();
 
     for (U32 i = 0; i < pool->blk_cnt; i++) {
@@ -605,12 +597,13 @@ static void vb_pool_free_blocks(VbPoolShm *pool)
 
         blk->state = VB_BLK_FREE;
         blk->owner_pid = 0;
-        blk->owner_fd  = -1;
+        blk->owner_fd = -1;
+        blk->frame_info_set = 0;
+        memset(&blk->frame_info, 0, sizeof(blk->frame_info));
     }
 }
 
-VideoFrameFmt *vb_get_pic_fmt(MppPixelFormat ePixelFormat)
-{
+VideoFrameFmt *vb_get_pic_fmt(MppPixelFormat ePixelFormat) {
     VideoFrameFmt *pstVideoFmt = NULL;
     U32 i;
 
@@ -629,8 +622,7 @@ VideoFrameFmt *vb_get_pic_fmt(MppPixelFormat ePixelFormat)
 /* Per-process VB init refcount — mirrors SYS_Init pattern */
 static int g_vb_init_ref = 0;
 
-S32 VB_Init(VOID)
-{
+S32 VB_Init(VOID) {
     MppSharedMem *shm = mpp_shm_get();
     if (!shm) {
         VB_LOG_ERR("shared memory not initialized, call SYS_Init first");
@@ -667,8 +659,7 @@ S32 VB_Init(VOID)
     return VB_ERR_OK;
 }
 
-S32 VB_Exit(VOID)
-{
+S32 VB_Exit(VOID) {
     MppSharedMem *shm = mpp_shm_get();
     if (!shm || !shm->vb_inited || g_vb_init_ref <= 0) {
         VB_LOG_ERR("VB not initialized");
@@ -698,8 +689,7 @@ S32 VB_Exit(VOID)
     return VB_ERR_OK;
 }
 
-UL VB_CreatePool(VbPoolCfg *pstVbPoolCfg)
-{
+UL VB_CreatePool(VbPoolCfg *pstVbPoolCfg) {
     MppSharedMem *shm = mpp_shm_get();
 
     if (!pstVbPoolCfg) {
@@ -711,13 +701,11 @@ UL VB_CreatePool(VbPoolCfg *pstVbPoolCfg)
         return VB_INVALID_HANDLE;
     }
     if (pstVbPoolCfg->u32BufSize == 0 || pstVbPoolCfg->u32BufCnt == 0) {
-        VB_LOG_ERR("invalid config: size=%u cnt=%u",
-                   pstVbPoolCfg->u32BufSize, pstVbPoolCfg->u32BufCnt);
+        VB_LOG_ERR("invalid config: size=%u cnt=%u", pstVbPoolCfg->u32BufSize, pstVbPoolCfg->u32BufCnt);
         return VB_INVALID_HANDLE;
     }
     if (pstVbPoolCfg->u32BufCnt > MPP_MAX_BLK) {
-        VB_LOG_ERR("buf_cnt %u exceeds max %u",
-                   pstVbPoolCfg->u32BufCnt, MPP_MAX_BLK);
+        VB_LOG_ERR("buf_cnt %u exceeds max %u", pstVbPoolCfg->u32BufCnt, MPP_MAX_BLK);
         return VB_INVALID_HANDLE;
     }
 
@@ -739,7 +727,7 @@ UL VB_CreatePool(VbPoolCfg *pstVbPoolCfg)
     }
 
     /* pool->lock and pool->cond already initialized in mpp_shm_init */
-    pool->id  = slot + 1;  /* 1-based */
+    pool->id = slot + 1; /* 1-based */
     pool->cfg = *pstVbPoolCfg;
     pool->frame_info_set = 0;
     memset(&pool->frame_info, 0, sizeof(pool->frame_info));
@@ -755,14 +743,16 @@ UL VB_CreatePool(VbPoolCfg *pstVbPoolCfg)
 
     pthread_rwlock_unlock(&shm->vb_lock);
 
-    VB_LOG_INFO("VB_CreatePool: id=%u blk_size=%u blk_cnt=%u phy[0]=0x%llx",
-                pool->id, pool->cfg.u32BufSize, pool->cfg.u32BufCnt,
-                (unsigned long long)pool->blocks[0].phy_addr);
+    VB_LOG_INFO(
+        "VB_CreatePool: id=%u blk_size=%u blk_cnt=%u phy[0]=0x%" PRIx64,
+        pool->id,
+        pool->cfg.u32BufSize,
+        pool->cfg.u32BufCnt,
+        (uint64_t)pool->blocks[0].phy_addr);
     return (UL)pool->id;
 }
 
-S32 VB_DestroyPool(UL ulPool)
-{
+S32 VB_DestroyPool(UL ulPool) {
     MppSharedMem *shm = mpp_shm_get();
     U32 pool_id = (U32)ulPool;
 
@@ -793,8 +783,7 @@ S32 VB_DestroyPool(UL ulPool)
     for (U32 i = 0; i < pool->blk_cnt; i++) {
         int rc = atomic_load(&pool->blocks[i].ref_cnt);
         if (rc > 0) {
-            VB_LOG_ERR("pool %u blk %u ref_cnt=%d, cannot destroy",
-                       pool_id, i, rc);
+            VB_LOG_ERR("pool %u blk %u ref_cnt=%d, cannot destroy", pool_id, i, rc);
             pthread_mutex_unlock(&pool->lock);
             pthread_rwlock_unlock(&shm->vb_lock);
             return VB_ERR_BUSY;
@@ -817,8 +806,7 @@ S32 VB_DestroyPool(UL ulPool)
     return VB_ERR_OK;
 }
 
-UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs)
-{
+UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs) {
     MppSharedMem *shm = mpp_shm_get();
     U32 pool_id = (U32)ulPool;
 
@@ -853,28 +841,26 @@ UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs)
         }
 
         if (u32TimeoutMs == (U32)-1) {
-            while (pool->free_head == VB_FREE_LIST_END &&
-                   pool->state == VB_POOL_ACTIVE) {
+            while (pool->free_head == VB_FREE_LIST_END && pool->state == VB_POOL_ACTIVE) {
                 pthread_cond_wait(&pool->cond, &pool->lock);
             }
         } else {
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
-            ts.tv_sec  += u32TimeoutMs / 1000;
+            ts.tv_sec += u32TimeoutMs / 1000;
             ts.tv_nsec += (u32TimeoutMs % 1000) * 1000000L;
             if (ts.tv_nsec >= 1000000000L) {
-                ts.tv_sec  += 1;
+                ts.tv_sec += 1;
                 ts.tv_nsec -= 1000000000L;
             }
-            while (pool->free_head == VB_FREE_LIST_END &&
-                   pool->state == VB_POOL_ACTIVE) {
+            while (pool->free_head == VB_FREE_LIST_END && pool->state == VB_POOL_ACTIVE) {
                 int rc = pthread_cond_timedwait(&pool->cond, &pool->lock, &ts);
-                if (rc == ETIMEDOUT) break;
+                if (rc == ETIMEDOUT)
+                    break;
             }
         }
 
-        if (pool->free_head == VB_FREE_LIST_END ||
-            pool->state != VB_POOL_ACTIVE) {
+        if (pool->free_head == VB_FREE_LIST_END || pool->state != VB_POOL_ACTIVE) {
             pthread_mutex_unlock(&pool->lock);
             return VB_INVALID_HANDLE;
         }
@@ -884,7 +870,7 @@ UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs)
     U32 idx = pool->free_head;
     VbBlockShm *blk = &pool->blocks[idx];
     pool->free_head = blk->next_free;
-    blk->next_free  = VB_FREE_LIST_END;
+    blk->next_free = VB_FREE_LIST_END;
 
     blk->state = VB_BLK_USED;
     atomic_store(&blk->ref_cnt, 1);
@@ -904,13 +890,14 @@ UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs)
     return blk->handle;
 }
 
-S32 VB_ReleaseBuffer(UL ulBuff)
-{
+S32 VB_ReleaseBuffer(UL ulBuff) {
     MppSharedMem *shm = mpp_shm_get();
     VbPoolShm *pool = NULL;
 
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -950,12 +937,13 @@ S32 VB_ReleaseBuffer(UL ulBuff)
     return VB_ERR_OK;
 }
 
-S32 VB_RefAdd(UL ulBuff)
-{
+S32 VB_RefAdd(UL ulBuff) {
     MppSharedMem *shm = mpp_shm_get();
 
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -978,16 +966,16 @@ S32 VB_RefAdd(UL ulBuff)
     return VB_ERR_OK;
 }
 
-S32 VB_RefSub(UL ulBuff)
-{
+S32 VB_RefSub(UL ulBuff) {
     return VB_ReleaseBuffer(ulBuff);
 }
 
-S32 VB_SetBufferPTS(UL ulBuff, U64 u64PTS)
-{
+S32 VB_SetBufferPTS(UL ulBuff, U64 u64PTS) {
     MppSharedMem *shm = mpp_shm_get();
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -1002,13 +990,14 @@ S32 VB_SetBufferPTS(UL ulBuff, U64 u64PTS)
     return VB_ERR_OK;
 }
 
-S32 VB_UpdateBufferFrameInfo(UL ulBuff, const VideoFrameInfo *pstFrameInfo)
-{
+S32 VB_UpdateBufferFrameInfo(UL ulBuff, const VideoFrameInfo *pstFrameInfo) {
     MppSharedMem *shm = mpp_shm_get();
     VbPoolShm *pool = NULL;
 
-    if (ulBuff == VB_INVALID_HANDLE || !pstFrameInfo) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE || !pstFrameInfo)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, &pool);
@@ -1029,11 +1018,12 @@ S32 VB_UpdateBufferFrameInfo(UL ulBuff, const VideoFrameInfo *pstFrameInfo)
     return VB_ERR_OK;
 }
 
-S32 VB_SetFrameInfo(UL ulPool, VideoFrameInfo *pstFrameInfo)
-{
+S32 VB_SetFrameInfo(UL ulPool, VideoFrameInfo *pstFrameInfo) {
     MppSharedMem *shm = mpp_shm_get();
-    if (!pstFrameInfo) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!pstFrameInfo)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbPoolShm *pool = vb_get_pool((U32)ulPool);
@@ -1051,8 +1041,7 @@ S32 VB_SetFrameInfo(UL ulPool, VideoFrameInfo *pstFrameInfo)
     return VB_ERR_OK;
 }
 
-S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
-{
+S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo) {
     MppSharedMem *shm = mpp_shm_get();
     VbPoolShm *pool = NULL;
     VbBlockShm *blk = NULL;
@@ -1061,8 +1050,10 @@ S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
     U32 u32Offset = 0;
     U32 i = 0;
 
-    if (!pstFrameInfo) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!pstFrameInfo)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     blk = vb_get_block(ulBuff, &pool);
@@ -1081,7 +1072,7 @@ S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
     } else {
         memset(pstFrameInfo, 0, sizeof(VideoFrameInfo));
     }
-    pstFrameInfo->ulPoolId   = (UL)pool->id;
+    pstFrameInfo->ulPoolId = (UL)pool->id;
     pstFrameInfo->ulBufferId = blk->handle;
     if (pstFrameInfo->u32Idx == 0)
         pstFrameInfo->u32Idx = blk->blk_idx;
@@ -1129,12 +1120,13 @@ S32 VB_GetFrameInfo(UL ulBuff, VideoFrameInfo *pstFrameInfo)
  * Token = handle (globally unique in shared memory).
  */
 
-S32 VB_Export(UL ulBuff, U64 *pu64Token)
-{
+S32 VB_Export(UL ulBuff, U64 *pu64Token) {
     MppSharedMem *shm = mpp_shm_get();
 
-    if (ulBuff == VB_INVALID_HANDLE || !pu64Token) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE || !pu64Token)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -1159,19 +1151,20 @@ S32 VB_Export(UL ulBuff, U64 *pu64Token)
 
     pthread_rwlock_unlock(&shm->vb_lock);
 
-    VB_LOG_INFO("VB_Export: handle=0x%lx token=0x%llx",
-                ulBuff, (unsigned long long)*pu64Token);
+    VB_LOG_INFO("VB_Export: handle=0x%" PRIx64 " token=0x%" PRIx64, (uint64_t)ulBuff, (uint64_t)*pu64Token);
     return VB_ERR_OK;
 }
 
-S32 VB_Import(U64 u64Token, UL *pulBuff)
-{
+S32 VB_Import(U64 u64Token, UL *pulBuff) {
     MppSharedMem *shm = mpp_shm_get();
     UL handle = (UL)u64Token;
 
-    if (!pulBuff) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
-    if (handle == VB_INVALID_HANDLE) return VB_ERR_INVAL;
+    if (!pulBuff)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
+    if (handle == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -1195,17 +1188,17 @@ S32 VB_Import(U64 u64Token, UL *pulBuff)
     VbLocalEntry *ent = NULL;
     vb_ensure_local_mapping(blk, &ent);
 
-    VB_LOG_INFO("VB_Import: token=0x%llx handle=0x%lx",
-                (unsigned long long)u64Token, handle);
+    VB_LOG_INFO("VB_Import: token=0x%" PRIx64 " handle=0x%" PRIx64, (uint64_t)u64Token, (uint64_t)handle);
     return VB_ERR_OK;
 }
 
-S32 VB_Unexport(UL ulBuff)
-{
+S32 VB_Unexport(UL ulBuff) {
     MppSharedMem *shm = mpp_shm_get();
 
-    if (ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (ulBuff == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
 
@@ -1228,11 +1221,12 @@ S32 VB_Unexport(UL ulBuff)
 
 /* ======================== Query Helpers ======================== */
 
-S32 VB_GetPhyAddr(UL ulBuff, U64 *pu64PhyAddr)
-{
+S32 VB_GetPhyAddr(UL ulBuff, U64 *pu64PhyAddr) {
     MppSharedMem *shm = mpp_shm_get();
-    if (!pu64PhyAddr || ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!pu64PhyAddr || ulBuff == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -1245,11 +1239,12 @@ S32 VB_GetPhyAddr(UL ulBuff, U64 *pu64PhyAddr)
     return VB_ERR_OK;
 }
 
-S32 VB_GetVirAddr(UL ulBuff, void **ppVirAddr)
-{
+S32 VB_GetVirAddr(UL ulBuff, void **ppVirAddr) {
     MppSharedMem *shm = mpp_shm_get();
-    if (!ppVirAddr || ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!ppVirAddr || ulBuff == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -1261,16 +1256,18 @@ S32 VB_GetVirAddr(UL ulBuff, void **ppVirAddr)
 
     VbLocalEntry *ent = NULL;
     S32 ret = vb_ensure_local_mapping(blk, &ent);
-    if (ret != 0) return ret;
+    if (ret != 0)
+        return ret;
     *ppVirAddr = ent->local_vir;
     return VB_ERR_OK;
 }
 
-S32 VB_GetDmaBufFd(UL ulBuff, S32 *ps32Fd)
-{
+S32 VB_GetDmaBufFd(UL ulBuff, S32 *ps32Fd) {
     MppSharedMem *shm = mpp_shm_get();
-    if (!ps32Fd || ulBuff == VB_INVALID_HANDLE) return VB_ERR_INVAL;
-    if (!shm || !shm->vb_inited) return VB_ERR_NOT_INIT;
+    if (!ps32Fd || ulBuff == VB_INVALID_HANDLE)
+        return VB_ERR_INVAL;
+    if (!shm || !shm->vb_inited)
+        return VB_ERR_NOT_INIT;
 
     pthread_rwlock_rdlock(&shm->vb_lock);
     VbBlockShm *blk = vb_get_block(ulBuff, NULL);
@@ -1282,19 +1279,20 @@ S32 VB_GetDmaBufFd(UL ulBuff, S32 *ps32Fd)
 
     VbLocalEntry *ent = NULL;
     S32 ret = vb_ensure_local_mapping(blk, &ent);
-    if (ret != 0) return ret;
+    if (ret != 0)
+        return ret;
     *ps32Fd = ent->local_fd;
     return VB_ERR_OK;
 }
 
-S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo)
-{
+S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo) {
     VideoFrameFmt *pstVideoFmt = NULL;
     VideoFrame *pstVFrame = NULL;
     CommonFrameInfo *pstCommFrameInfo = NULL;
     U32 i = 0, u32TotalSize = 0;
 
-    if (!pstFrameInfo) return VB_ERR_INVAL;
+    if (!pstFrameInfo)
+        return VB_ERR_INVAL;
 
     pstCommFrameInfo = &pstFrameInfo->stCommFrameInfo;
 
@@ -1304,8 +1302,7 @@ S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo)
         return VB_ERR_INVAL;
     }
     if (0 == pstCommFrameInfo->u32Width || 0 == pstCommFrameInfo->u32Height) {
-        VB_LOG_ERR("error picture size w:%d h:%d!\n",
-            pstCommFrameInfo->u32Width, pstCommFrameInfo->u32Height);
+        VB_LOG_ERR("error picture size w:%d h:%d!\n", pstCommFrameInfo->u32Width, pstCommFrameInfo->u32Height);
         return VB_ERR_INVAL;
     }
     if (pstCommFrameInfo->u32Align == 0) {
@@ -1315,11 +1312,9 @@ S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo)
     pstVFrame = &pstFrameInfo->stVFrame;
     for (i = 0; i < pstVideoFmt->u8DataPlanes; ++i) {
         pstVFrame->u32PlaneStride[i] =
-                ALIGNUP((pstCommFrameInfo->u32Width * pstVideoFmt->u8WidthDepth[i] + 7) >> 3,
-                    pstCommFrameInfo->u32Align);
+            ALIGNUP((pstCommFrameInfo->u32Width * pstVideoFmt->u8WidthDepth[i] + 7) >> 3, pstCommFrameInfo->u32Align);
         pstVFrame->u32PlaneSizeValid[i] = pstVFrame->u32PlaneStride[i] *
-                ALIGNUP(pstCommFrameInfo->u32Height, pstCommFrameInfo->u32Align) *
-                pstVideoFmt->u8HeightDepth[i] / 8;
+            ALIGNUP(pstCommFrameInfo->u32Height, pstCommFrameInfo->u32Align) * pstVideoFmt->u8HeightDepth[i] / 8;
         pstVFrame->u32PlaneSize[i] = ALIGNUP(pstVFrame->u32PlaneSizeValid[i], PAGE_SIZE);
         u32TotalSize += pstVFrame->u32PlaneSize[i];
     }
@@ -1332,11 +1327,10 @@ S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo)
 
 /* ======================== Debug Dump ======================== */
 
-VOID VB_DumpPools(VOID)
-{
+VOID VB_DumpPools(VOID) {
     MppSharedMem *shm = mpp_shm_get();
-    static const char *pool_state_str[] = { "FREE", "ACTIVE", "DESTROYING" };
-    static const char *blk_state_str[]  = { "FREE", "USED" };
+    static const char *pool_state_str[] = {"FREE", "ACTIVE", "DESTROYING"};
+    static const char *blk_state_str[] = {"FREE", "USED"};
 
     printf("\n========== VB Pool Dump ==========\n");
 
@@ -1355,26 +1349,27 @@ VOID VB_DumpPools(VOID)
         if (pool->state == VB_POOL_FREE)
             continue;
 
-        printf("\n  Pool[%u]  id=%u  state=%s\n", i, pool->id,
-               pool_state_str[pool->state]);
-        printf("    buf_size=%u  buf_cnt=%u  mod=%d\n",
-               pool->cfg.u32BufSize, pool->cfg.u32BufCnt,
-               pool->cfg.eModId);
-        printf("    free=%u  used=%u  min_free=%u\n",
-               pool->free_cnt, pool->used_cnt, pool->min_free);
+        printf("\n  Pool[%u]  id=%u  state=%s\n", i, pool->id, pool_state_str[pool->state]);
+        printf("    buf_size=%u  buf_cnt=%u  mod=%d\n", pool->cfg.u32BufSize, pool->cfg.u32BufCnt, pool->cfg.eModId);
+        printf("    free=%u  used=%u  min_free=%u\n", pool->free_cnt, pool->used_cnt, pool->min_free);
 
         printf("    Blocks:\n");
-        printf("      %5s %10s %5s %5s %4s %18s %8s %6s\n",
-               "idx", "handle", "state", "ref", "exp", "phy_addr", "pid", "fd");
+        printf(
+            "      %5s %10s %5s %5s %4s %18s %8s %6s\n",
+            "idx", "handle", "state", "ref", "exp", "phy_addr", "pid", "fd");
         for (U32 j = 0; j < pool->blk_cnt; j++) {
             VbBlockShm *blk = &pool->blocks[j];
             int rc = atomic_load(&blk->ref_cnt);
-            printf("      %5u 0x%08lx %5s %5d %4u 0x%016llx %8d %6d\n",
-                   blk->blk_idx, blk->handle,
-                   blk_state_str[blk->state], rc,
-                   blk->exported,
-                   (unsigned long long)blk->phy_addr,
-                   blk->owner_pid, blk->owner_fd);
+            printf(
+                "      %5u 0x%08" PRIx64 " %5s %5d %4u 0x%016" PRIx64 " %8d %6d\n",
+                blk->blk_idx,
+                (uint64_t)blk->handle,
+                blk_state_str[blk->state],
+                rc,
+                blk->exported,
+                (uint64_t)blk->phy_addr,
+                blk->owner_pid,
+                blk->owner_fd);
         }
     }
 

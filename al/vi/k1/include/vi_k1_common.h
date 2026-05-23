@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __AL_VI_K1_COMMON_H__
-#define __AL_VI_K1_COMMON_H__
+#ifndef VI_K1_COMMON_H
+#define VI_K1_COMMON_H
 
 #include "vi_k1_ctx.h"
 
@@ -37,4 +37,4 @@ S32 K1_VI_ToAsrCcicDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr, K1_ASR_CC
 S32 K1_VI_ToAsrCcicChnAttr(const ViChnAttrS *pstChnAttr, K1_ASR_CCIC_CHN_ATTR_S *pstCcicChnAttr);
 S32 K1_VI_GetCcicChnId(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32CcicChn);
 
-#endif /* __AL_VI_K1_COMMON_H__ */
+#endif /* VI_K1_COMMON_H */

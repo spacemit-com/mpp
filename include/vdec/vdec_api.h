@@ -13,8 +13,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __VDEC_API_H__
-#define __VDEC_API_H__
+#ifndef VDEC_API_H
+#define VDEC_API_H
 
 #include "sys/type.h"
 #include "sys/sys_type.h"
@@ -136,4 +136,4 @@ S32 VDEC_Reset(S32 s32ChnId);
 #endif
 #endif /* __cplusplus */
 
-#endif /*__VDEC_API_H__ */
+#endif /*VDEC_API_H */

@@ -25,36 +25,40 @@
 #include "vb_api.h"
 #include "vi_api.h"
 
-#define ISP_CAM_DEFAULT_DEV          0
-#define ISP_CAM_DEFAULT_CHN          0
-#define ISP_CAM_SENSOR_WIDTH         3864
-#define ISP_CAM_SENSOR_HEIGHT        2192
-#define ISP_CAM_DEFAULT_WIDTH        1920
-#define ISP_CAM_DEFAULT_HEIGHT       1080
-#define ISP_CAM_DEFAULT_MIPI_LANES   4
-#define ISP_CAM_DEFAULT_MBPS         800
-#define ISP_CAM_DEFAULT_TIMEOUT_MS   1000
-#define ISP_CAM_DEFAULT_FRAME_COUNT  30
-#define ISP_CAM_MAX_PLANES           3
+#define ISP_CAM_DEFAULT_DEV 0
+#define ISP_CAM_DEFAULT_CHN 0
+#define ISP_CAM_SENSOR_WIDTH 3864
+#define ISP_CAM_SENSOR_HEIGHT 2192
+#define ISP_CAM_DEFAULT_WIDTH 1920
+#define ISP_CAM_DEFAULT_HEIGHT 1080
+#define ISP_CAM_DEFAULT_MIPI_LANES 4
+#define ISP_CAM_DEFAULT_MBPS 800
+#define ISP_CAM_DEFAULT_TIMEOUT_MS 1000
+#define ISP_CAM_DEFAULT_FRAME_COUNT 30
+#define ISP_CAM_MAX_PLANES 3
 
 #define ISP_CAM_LOGE(fmt, ...) printf("[isp-cam][ERR] " fmt, ##__VA_ARGS__)
 #define ISP_CAM_LOGI(fmt, ...) printf("[isp-cam][INFO] " fmt, ##__VA_ARGS__)
-#define ISP_CAM_LOGD(fmt, ...) do { if (g_isp_cam_verbose) printf("[isp-cam][DBG] " fmt, ##__VA_ARGS__); } while (0)
+#define ISP_CAM_LOGD(fmt, ...)                            \
+    do {                                                  \
+        if (g_isp_cam_verbose)                            \
+            printf("[isp-cam][DBG] " fmt, ##__VA_ARGS__); \
+    } while (0)
 
 static int g_isp_cam_verbose = 0;
 
 typedef struct _IspCamConfig {
-    VI_DEV         viDev;
-    VI_CHN         viChn;
-    U32            sensorWidth;
-    U32            sensorHeight;
-    U32            outputWidth;
-    U32            outputHeight;
-    U32            mipiLaneNum;
-    U32            mbps;
+    VI_DEV viDev;
+    VI_CHN viChn;
+    U32 sensorWidth;
+    U32 sensorHeight;
+    U32 outputWidth;
+    U32 outputHeight;
+    U32 mipiLaneNum;
+    U32 mbps;
     MppPixelFormat pixelFormat;
-    S32            timeoutMs;
-    BOOL           enableMeta;
+    S32 timeoutMs;
+    BOOL enableMeta;
 } IspCamConfig;
 
 typedef struct _IspCamHandle {
@@ -72,32 +76,30 @@ typedef struct _IspCamFrame {
     BOOL hasMeta;
 } IspCamFrame;
 
-static const char *isp_cam_pixel_format_name(MppPixelFormat pixelFormat)
-{
+static const char *isp_cam_pixel_format_name(MppPixelFormat pixelFormat) {
     switch (pixelFormat) {
-    case MPP_PIXEL_FORMAT_NV12:
-        return "NV12";
-    case MPP_PIXEL_FORMAT_NV21:
-        return "NV21";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
-        return "BAYER8";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
-        return "BAYER10";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
-        return "BAYER12";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
-        return "BAYER14";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_16BITS:
-        return "BAYER16";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_20BITS:
-        return "BAYER20";
-    default:
-        return "UNKNOWN";
+        case MPP_PIXEL_FORMAT_NV12:
+            return "NV12";
+        case MPP_PIXEL_FORMAT_NV21:
+            return "NV21";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
+            return "BAYER8";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
+            return "BAYER10";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
+            return "BAYER12";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
+            return "BAYER14";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_16BITS:
+            return "BAYER16";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_20BITS:
+            return "BAYER20";
+        default:
+            return "UNKNOWN";
     }
 }
 
-static void isp_cam_default_config(IspCamConfig *cfg)
-{
+static void isp_cam_default_config(IspCamConfig *cfg) {
     if (cfg == NULL) {
         return;
     }
@@ -116,28 +118,27 @@ static void isp_cam_default_config(IspCamConfig *cfg)
     cfg->enableMeta = MPP_TRUE;
 }
 
-static void isp_cam_dump_config(const IspCamConfig *cfg)
-{
+static void isp_cam_dump_config(const IspCamConfig *cfg) {
     if (cfg == NULL) {
         return;
     }
 
-    ISP_CAM_LOGI("config: dev=%d chn=%d sensor=%ux%u output=%ux%u lanes=%u mbps=%u fmt=%s timeout=%dms meta=%s\n",
-                 cfg->viDev,
-                 cfg->viChn,
-                 cfg->sensorWidth,
-                 cfg->sensorHeight,
-                 cfg->outputWidth,
-                 cfg->outputHeight,
-                 cfg->mipiLaneNum,
-                 cfg->mbps,
-                 isp_cam_pixel_format_name(cfg->pixelFormat),
-                 cfg->timeoutMs,
-                 cfg->enableMeta ? "on" : "off");
+    ISP_CAM_LOGI(
+        "config: dev=%d chn=%d sensor=%ux%u output=%ux%u lanes=%u mbps=%u fmt=%s timeout=%dms meta=%s\n",
+        cfg->viDev,
+        cfg->viChn,
+        cfg->sensorWidth,
+        cfg->sensorHeight,
+        cfg->outputWidth,
+        cfg->outputHeight,
+        cfg->mipiLaneNum,
+        cfg->mbps,
+        isp_cam_pixel_format_name(cfg->pixelFormat),
+        cfg->timeoutMs,
+        cfg->enableMeta ? "on" : "off");
 }
 
-static S32 isp_cam_open(IspCamHandle *cam, const IspCamConfig *cfg)
-{
+static S32 isp_cam_open(IspCamHandle *cam, const IspCamConfig *cfg) {
     S32 ret;
     ViDevAttrS devAttr;
     ViChnAttrS chnAttr;
@@ -218,8 +219,7 @@ fail:
     return ret;
 }
 
-static S32 isp_cam_start(IspCamHandle *cam)
-{
+static S32 isp_cam_start(IspCamHandle *cam) {
     S32 ret;
 
     if (cam == NULL || !cam->viInited) {
@@ -246,8 +246,7 @@ static S32 isp_cam_start(IspCamHandle *cam)
     return 0;
 }
 
-static S32 isp_cam_get_frame(IspCamHandle *cam, IspCamFrame *outFrame, S32 timeoutMs)
-{
+static S32 isp_cam_get_frame(IspCamHandle *cam, IspCamFrame *outFrame, S32 timeoutMs) {
     S32 ret;
     // U32 frameId;
 
@@ -262,9 +261,9 @@ static S32 isp_cam_get_frame(IspCamHandle *cam, IspCamFrame *outFrame, S32 timeo
     }
 
     // frameId = outFrame->frame.u32Idx;
-	
+
     // if (cam->cfg.enableMeta == MPP_TRUE) {
-		
+
     //     ret = VI_QueryFrameMeta(cam->cfg.viDev, cam->cfg.viChn, frameId, &outFrame->meta);
     //     if (ret == 0) {
     //         outFrame->hasMeta = MPP_TRUE;
@@ -276,8 +275,7 @@ static S32 isp_cam_get_frame(IspCamHandle *cam, IspCamFrame *outFrame, S32 timeo
     return 0;
 }
 
-static S32 isp_cam_release_frame(IspCamHandle *cam, const IspCamFrame *frame)
-{
+static S32 isp_cam_release_frame(IspCamHandle *cam, const IspCamFrame *frame) {
     if (cam == NULL || frame == NULL || !cam->chnEnabled) {
         return -1;
     }
@@ -285,8 +283,7 @@ static S32 isp_cam_release_frame(IspCamHandle *cam, const IspCamFrame *frame)
     return VI_ReleaseChnFrame(cam->cfg.viDev, cam->cfg.viChn, &frame->frame);
 }
 
-static void isp_cam_stop(IspCamHandle *cam)
-{
+static void isp_cam_stop(IspCamHandle *cam) {
     if (cam == NULL) {
         return;
     }
@@ -302,8 +299,7 @@ static void isp_cam_stop(IspCamHandle *cam)
     ISP_CAM_LOGI("camera stopped\n");
 }
 
-static void isp_cam_close(IspCamHandle *cam)
-{
+static void isp_cam_close(IspCamHandle *cam) {
     if (cam == NULL) {
         return;
     }
@@ -324,8 +320,7 @@ static void isp_cam_close(IspCamHandle *cam)
     }
 }
 
-static void isp_cam_dump_frame(const IspCamFrame *frame)
-{
+static void isp_cam_dump_frame(const IspCamFrame *frame) {
     const VideoFrameInfo *vf;
     const CommonFrameInfo *common;
 
@@ -335,35 +330,37 @@ static void isp_cam_dump_frame(const IspCamFrame *frame)
 
     vf = &frame->frame;
     common = &vf->stViFrameInfo.stCommFrameInfo;
-    ISP_CAM_LOGI("frame idx=%u pts=%" PRIu64 " size=%ux%u fmt=%s total=%u planes=%u fd0=%u vir0=%p valid0=%u\n",
-                 vf->u32Idx,
-                 (uint64_t)vf->stVFrame.u64PTS,
-                 common->u32Width,
-                 common->u32Height,
-                 isp_cam_pixel_format_name(common->ePixelFormat),
-                 vf->stVFrame.u32TotalSize,
-                 vf->stVFrame.u32PlaneNum,
-                 (unsigned int)vf->stVFrame.u32Fd[0],
-                 (void *)(uintptr_t)vf->stVFrame.ulPlaneVirAddr[0],
-                 vf->stVFrame.u32PlaneSizeValid[0]);
+    ISP_CAM_LOGI(
+        "frame idx=%u pts=%" PRIu64 " size=%ux%u fmt=%s total=%u planes=%u fd0=%u vir0=%p valid0=%u\n",
+        vf->u32Idx,
+        (uint64_t)vf->stVFrame.u64PTS,
+        common->u32Width,
+        common->u32Height,
+        isp_cam_pixel_format_name(common->ePixelFormat),
+        vf->stVFrame.u32TotalSize,
+        vf->stVFrame.u32PlaneNum,
+        (unsigned int)vf->stVFrame.u32Fd[0],
+        (void *)(uintptr_t)vf->stVFrame.ulPlaneVirAddr[0],
+        vf->stVFrame.u32PlaneSizeValid[0]);
 
     if (frame->hasMeta == MPP_TRUE) {
-        ISP_CAM_LOGI("meta frameId=%u expLine[0]=%u again[0]=%u dgain[0]=%u ispDgain[0]=%u ctemp=%u rgain=%u bgain=%u aeStable=%u awbStable=%u\n",
-                     frame->meta.u32FrameId,
-                     frame->meta.u32ExpLine[0],
-                     frame->meta.u32Again[0],
-                     frame->meta.u32Dgain[0],
-                     frame->meta.u32IspDgain[0],
-                     frame->meta.u32ColorTemp,
-                     frame->meta.u32RGain,
-                     frame->meta.u32BGain,
-                     frame->meta.u8AeStable,
-                     frame->meta.u8AwbStable);
+        ISP_CAM_LOGI(
+            "meta frameId=%u expLine[0]=%u again[0]=%u dgain[0]=%u ispDgain[0]=%u ctemp=%u rgain=%u bgain=%u "
+            "aeStable=%u awbStable=%u\n",
+            frame->meta.u32FrameId,
+            frame->meta.u32ExpLine[0],
+            frame->meta.u32Again[0],
+            frame->meta.u32Dgain[0],
+            frame->meta.u32IspDgain[0],
+            frame->meta.u32ColorTemp,
+            frame->meta.u32RGain,
+            frame->meta.u32BGain,
+            frame->meta.u8AeStable,
+            frame->meta.u8AwbStable);
     }
 }
 
-static S32 isp_cam_save_frame(const char *path, const IspCamFrame *frame)
-{
+static S32 isp_cam_save_frame(const char *path, const IspCamFrame *frame) {
     FILE *fp;
     U32 plane;
 
@@ -396,8 +393,7 @@ static S32 isp_cam_save_frame(const char *path, const IspCamFrame *frame)
     return 0;
 }
 
-static void isp_cam_print_usage(const char *prog)
-{
+static void isp_cam_print_usage(const char *prog) {
     printf("Usage: %s [frame_count] [output_width] [output_height] [options]\n", prog);
     printf("\n");
     printf("Options:\n");
@@ -417,8 +413,7 @@ static void isp_cam_print_usage(const char *prog)
     printf("  %s 300 1280 720 --sensor 3864x2192 --lanes 4 --mbps 800\n", prog);
 }
 
-static int isp_cam_parse_size(const char *str, U32 *width, U32 *height)
-{
+static int isp_cam_parse_size(const char *str, U32 *width, U32 *height) {
     unsigned int w;
     unsigned int h;
 
@@ -438,8 +433,7 @@ static int isp_cam_parse_size(const char *str, U32 *width, U32 *height)
     return 0;
 }
 
-static int isp_cam_parse_args(int argc, char **argv, IspCamConfig *cfg, U32 *frameCount, const char **savePath)
-{
+static int isp_cam_parse_args(int argc, char **argv, IspCamConfig *cfg, U32 *frameCount, const char **savePath) {
     int i;
 
     if (cfg == NULL || frameCount == NULL || savePath == NULL) {
@@ -496,8 +490,7 @@ static int isp_cam_parse_args(int argc, char **argv, IspCamConfig *cfg, U32 *fra
     return 0;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     IspCamConfig cfg;
     IspCamHandle cam;
     IspCamFrame frame;

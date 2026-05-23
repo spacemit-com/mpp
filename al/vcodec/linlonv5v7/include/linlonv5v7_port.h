@@ -10,8 +10,8 @@
  * @Description:
  */
 
-#ifndef _LINLONV5V7_PORT_H_
-#define _LINLONV5V7_PORT_H_
+#ifndef LINLONV5V7_PORT_H
+#define LINLONV5V7_PORT_H
 
 #include <errno.h>
 #include <linux/videodev2.h>
@@ -58,16 +58,16 @@
  * MVE_BUFFER_BITSTREAM_FLAG_EOS
  */
 enum NaluFormat {
-  NALU_FORMAT_START_CODES,
-  NALU_FORMAT_ONE_NALU_PER_BUFFER,
-  NALU_FORMAT_ONE_BYTE_LENGTH_FIELD,
-  NALU_FORMAT_TWO_BYTE_LENGTH_FIELD,
-  NALU_FORMAT_FOUR_BYTE_LENGTH_FIELD
+    NALU_FORMAT_START_CODES,
+    NALU_FORMAT_ONE_NALU_PER_BUFFER,
+    NALU_FORMAT_ONE_BYTE_LENGTH_FIELD,
+    NALU_FORMAT_TWO_BYTE_LENGTH_FIELD,
+    NALU_FORMAT_FOUR_BYTE_LENGTH_FIELD
 };
 
 typedef enum _DIRECTION {
-  INPUT = 0,
-  OUTPUT = 1,
+    INPUT = 0,
+    OUTPUT = 1,
 } DIRECTION;
 
 typedef struct _Port Port;
@@ -76,8 +76,14 @@ typedef struct _Port Port;
  * @description: create a port for decode or encode
  * @return {*}: context of port
  */
-Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc, S32 align,
-                 U32 memtype, U32 buffer_num, MppFrameBufferType buffer_type);
+Port *createPort(
+    S32 fd,
+    enum v4l2_buf_type type,
+    U32 format_fourcc,
+    S32 align,
+    U32 memtype,
+    U32 buffer_num,
+    MppFrameBufferType buffer_type);
 
 /**
  * @description: destory the port after using
@@ -148,8 +154,7 @@ void setFormat(Port *port, struct v4l2_format format);
  * @param {BOOL} interlaced: whether interlaced
  * @return {*}
  */
-void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format,
-                     BOOL interlaced);
+void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format, BOOL interlaced);
 
 /**
  * @description: use for debug
@@ -304,4 +309,4 @@ MppFrameBufferType getPortBufferType(Port *port);
 
 void notifySourceChange(Port *port);
 
-#endif /*_LINLONV5V7_PORT_H_*/
+#endif /*LINLONV5V7_PORT_H*/

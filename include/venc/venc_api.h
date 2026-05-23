@@ -12,8 +12,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __VENC_API_H__
-#define __VENC_API_H__
+#ifndef VENC_API_H
+#define VENC_API_H
 
 #include "sys/type.h"
 #include "sys/sys_type.h"
@@ -142,4 +142,4 @@ S32 VENC_SetParam(S32 s32ChnId, MppVencCmd cmd, void *pPara);
 #endif
 #endif /* __cplusplus */
 
-#endif /*__VENC_API_H__ */
+#endif /*VENC_API_H */

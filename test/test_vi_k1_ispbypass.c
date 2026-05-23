@@ -9,108 +9,105 @@
 #include "sys_api.h"
 #include "vb_api.h"
 
-#define CCIC_DEMO_DEV                 0
-#define CCIC_DEMO_PHY_CHN             0
-#define CCIC_DEMO_DEFAULT_WIDTH       3864
-#define CCIC_DEMO_DEFAULT_HEIGHT      2192
-#define CCIC_DEMO_DEFAULT_MIPI_LANES  4
-#define CCIC_DEMO_DEFAULT_MBPS        800
-#define CCIC_DEMO_DEFAULT_TIMEOUT_MS  1000
-#define CCIC_DEMO_DEFAULT_FRAME_CNT   30
-#define CCIC_DEMO_DEFAULT_PIXEL_FMT   MPP_PIXEL_FORMAT_RGB_BAYER_10BITS
+#define CCIC_DEMO_DEV 0
+#define CCIC_DEMO_PHY_CHN 0
+#define CCIC_DEMO_DEFAULT_WIDTH 3864
+#define CCIC_DEMO_DEFAULT_HEIGHT 2192
+#define CCIC_DEMO_DEFAULT_MIPI_LANES 4
+#define CCIC_DEMO_DEFAULT_MBPS 800
+#define CCIC_DEMO_DEFAULT_TIMEOUT_MS 1000
+#define CCIC_DEMO_DEFAULT_FRAME_CNT 30
+#define CCIC_DEMO_DEFAULT_PIXEL_FMT MPP_PIXEL_FORMAT_RGB_BAYER_10BITS
 
 #ifndef FRAME_MAX_PLANE
 #define FRAME_MAX_PLANE 3
 #endif
 
 typedef struct _CCIC_DEMO_CONFIG_S {
-    VI_DEV         ViDev;
-    VI_CHN         ViChn;
-    U32            u32Width;
-    U32            u32Height;
-    U32            u32MipiLaneNum;
-    U32            u32Mbps;
-    U32            u32FrameCount;
-    S32            s32TimeoutMs;
+    VI_DEV ViDev;
+    VI_CHN ViChn;
+    U32 u32Width;
+    U32 u32Height;
+    U32 u32MipiLaneNum;
+    U32 u32Mbps;
+    U32 u32FrameCount;
+    S32 s32TimeoutMs;
     MppPixelFormat ePixelFormat;
-    const char    *pszDumpPath;
-    BOOL           bDumpLastFrame;
-    ViDevAttrS     stDevAttr;
-    ViChnAttrS     stChnAttr;
+    const char *pszDumpPath;
+    BOOL bDumpLastFrame;
+    ViDevAttrS stDevAttr;
+    ViChnAttrS stChnAttr;
 } CCIC_DEMO_CONFIG_S;
 
-static void ccic_demo_usage(const char *prog)
-{
+static void ccic_demo_usage(const char *prog) {
     printf("Usage: %s [frame_count] [width] [height] [bitdepth] [dump_file]\n", prog);
     printf("Example: %s 30 3864 2192 10 ccic_last_frame.raw\n", prog);
     printf("bitdepth supports: 8 / 10 / 12 / 14 / 16 / 20\n");
 }
 
-static MppPixelFormat ccic_demo_bitdepth_to_pixel_format(U32 u32BitDepth)
-{
+static MppPixelFormat ccic_demo_bitdepth_to_pixel_format(U32 u32BitDepth) {
     switch (u32BitDepth) {
-    case 8:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_8BITS;
-    case 10:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_10BITS;
-    case 12:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_12BITS;
-    case 14:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_14BITS;
-    case 16:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_16BITS;
-    case 20:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_20BITS;
-    default:
-        return MPP_PIXEL_FORMAT_MAX;
+        case 8:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_8BITS;
+        case 10:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_10BITS;
+        case 12:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_12BITS;
+        case 14:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_14BITS;
+        case 16:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_16BITS;
+        case 20:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_20BITS;
+        default:
+            return MPP_PIXEL_FORMAT_MAX;
     }
 }
 
-static const char *ccic_demo_pixel_format_name(MppPixelFormat ePixelFormat)
-{
+static const char *ccic_demo_pixel_format_name(MppPixelFormat ePixelFormat) {
     switch (ePixelFormat) {
-    case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
-        return "bayer8";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
-        return "bayer10";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
-        return "bayer12";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
-        return "bayer14";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_16BITS:
-        return "bayer16";
-    case MPP_PIXEL_FORMAT_RGB_BAYER_20BITS:
-        return "bayer20";
-    default:
-        return "unknown";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
+            return "bayer8";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
+            return "bayer10";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
+            return "bayer12";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
+            return "bayer14";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_16BITS:
+            return "bayer16";
+        case MPP_PIXEL_FORMAT_RGB_BAYER_20BITS:
+            return "bayer20";
+        default:
+            return "unknown";
     }
 }
 
-static void ccic_demo_dump_frame_info(const VideoFrameInfo *pstFrame)
-{
+static void ccic_demo_dump_frame_info(const VideoFrameInfo *pstFrame) {
     const CommonFrameInfo *pstComm = NULL;
 
     if (pstFrame == NULL)
         return;
 
     pstComm = &pstFrame->stViFrameInfo.stCommFrameInfo;
-    printf("[ccic-demo] idx=%u pool=%lu buf=%lu pts=%llu size=%ux%u fmt=%d total=%u planes=%u fd0=%lu vir0=%p valid0=%u\n",
-           pstFrame->u32Idx,
-           pstFrame->ulPoolId,
-           pstFrame->ulBufferId,
-           (unsigned long long)pstFrame->stVFrame.u64PTS,
-           pstComm->u32Width,
-           pstComm->u32Height,
-           pstComm->ePixelFormat,
-           pstFrame->stVFrame.u32TotalSize,
-           pstFrame->stVFrame.u32PlaneNum,
-           pstFrame->stVFrame.u32Fd[0],
-           (void *)(uintptr_t)pstFrame->stVFrame.ulPlaneVirAddr[0],
-           pstFrame->stVFrame.u32PlaneSizeValid[0]);
+    printf(
+        "[ccic-demo] idx=%u pool=%lu buf=%lu pts=%" PRIu64
+        " size=%ux%u fmt=%d total=%u planes=%u fd0=%lu vir0=%p valid0=%u\n",
+        pstFrame->u32Idx,
+        pstFrame->ulPoolId,
+        pstFrame->ulBufferId,
+        (uint64_t)pstFrame->stVFrame.u64PTS,
+        pstComm->u32Width,
+        pstComm->u32Height,
+        pstComm->ePixelFormat,
+        pstFrame->stVFrame.u32TotalSize,
+        pstFrame->stVFrame.u32PlaneNum,
+        pstFrame->stVFrame.u32Fd[0],
+        (void *)(uintptr_t)pstFrame->stVFrame.ulPlaneVirAddr[0],
+        pstFrame->stVFrame.u32PlaneSizeValid[0]);
 }
 
-static S32 ccic_demo_save_frame(const char *pszPath, const VideoFrameInfo *pstFrame)
-{
+static S32 ccic_demo_save_frame(const char *pszPath, const VideoFrameInfo *pstFrame) {
     FILE *fp = NULL;
     U32 u32Plane = 0;
 
@@ -142,8 +139,7 @@ static S32 ccic_demo_save_frame(const char *pszPath, const VideoFrameInfo *pstFr
     return 0;
 }
 
-static void ccic_demo_fill_default_config(CCIC_DEMO_CONFIG_S *pstCfg)
-{
+static void ccic_demo_fill_default_config(CCIC_DEMO_CONFIG_S *pstCfg) {
     if (pstCfg == NULL)
         return;
 
@@ -173,8 +169,7 @@ static void ccic_demo_fill_default_config(CCIC_DEMO_CONFIG_S *pstCfg)
     pstCfg->stChnAttr.u32Height = pstCfg->u32Height;
 }
 
-static S32 ccic_demo_parse_args(int argc, char *argv[], CCIC_DEMO_CONFIG_S *pstCfg)
-{
+static S32 ccic_demo_parse_args(int argc, char *argv[], CCIC_DEMO_CONFIG_S *pstCfg) {
     U32 u32BitDepth = 10;
     MppPixelFormat ePixelFormat;
 
@@ -211,8 +206,7 @@ static S32 ccic_demo_parse_args(int argc, char *argv[], CCIC_DEMO_CONFIG_S *pstC
     return 0;
 }
 
-static S32 ccic_demo_start_vi(const CCIC_DEMO_CONFIG_S *pstCfg)
-{
+static S32 ccic_demo_start_vi(const CCIC_DEMO_CONFIG_S *pstCfg) {
     S32 s32Ret = 0;
 
     s32Ret = SYS_Init();
@@ -273,20 +267,20 @@ static S32 ccic_demo_start_vi(const CCIC_DEMO_CONFIG_S *pstCfg)
         return s32Ret;
     }
 
-    printf("[ccic-demo] start ok: dev=%d chn=%d mode=%d size=%ux%u fmt=%s frames=%u timeout=%dms\n",
-           pstCfg->ViDev,
-           pstCfg->ViChn,
-           pstCfg->stDevAttr.eWorkMode,
-           pstCfg->u32Width,
-           pstCfg->u32Height,
-           ccic_demo_pixel_format_name(pstCfg->ePixelFormat),
-           pstCfg->u32FrameCount,
-           pstCfg->s32TimeoutMs);
+    printf(
+        "[ccic-demo] start ok: dev=%d chn=%d mode=%d size=%ux%u fmt=%s frames=%u timeout=%dms\n",
+        pstCfg->ViDev,
+        pstCfg->ViChn,
+        pstCfg->stDevAttr.eWorkMode,
+        pstCfg->u32Width,
+        pstCfg->u32Height,
+        ccic_demo_pixel_format_name(pstCfg->ePixelFormat),
+        pstCfg->u32FrameCount,
+        pstCfg->s32TimeoutMs);
     return 0;
 }
 
-static void ccic_demo_stop_vi(const CCIC_DEMO_CONFIG_S *pstCfg)
-{
+static void ccic_demo_stop_vi(const CCIC_DEMO_CONFIG_S *pstCfg) {
     if (pstCfg == NULL)
         return;
 
@@ -297,8 +291,7 @@ static void ccic_demo_stop_vi(const CCIC_DEMO_CONFIG_S *pstCfg)
     (void)SYS_Exit();
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     CCIC_DEMO_CONFIG_S stCfg;
     VideoFrameInfo stFrame;
     U32 u32FrameIdx = 0;

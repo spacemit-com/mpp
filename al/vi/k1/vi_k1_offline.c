@@ -33,24 +33,23 @@
 #define K1_VI_RAW12_DUMP_SIZE(w, h) (((w) / 10 + ((w) % 10 ? 1 : 0)) * 16 * (h))
 
 typedef struct _K1_VI_OFFLINE_CFG_S {
-    BOOL                    bConfigured;
-    BOOL                    bStarted;
-    VI_DEV                  ViDev;
-    VI_CHN                  ViChn;
-    U8                     *pu8RawVirAddr;
-    U32                     u32RawSize;
-    ISP_PUB_ATTR_S          stPubAttr;
-    ISP_OFFLINE_ATTR_S      stOfflineAttr;
-    UL                      ulVbPool;
-    UL                      ulBufferId;
-    VideoFrameInfo          stInputFrame;
-    IMAGE_BUFFER_S          stInputImageBuffer;
+    BOOL bConfigured;
+    BOOL bStarted;
+    VI_DEV ViDev;
+    VI_CHN ViChn;
+    U8 *pu8RawVirAddr;
+    U32 u32RawSize;
+    ISP_PUB_ATTR_S stPubAttr;
+    ISP_OFFLINE_ATTR_S stOfflineAttr;
+    UL ulVbPool;
+    UL ulBufferId;
+    VideoFrameInfo stInputFrame;
+    IMAGE_BUFFER_S stInputImageBuffer;
 } K1_VI_OFFLINE_CFG_S;
 
 static K1_VI_OFFLINE_CFG_S g_astK1ViOfflineCfg[K1_VI_OFFLINE_MAX_DEV_NUM] = {0};
 
-static S32 K1_VI_GetOfflineRawReadChn(VI_DEV ViDev, U32 *pu32RawReadChn)
-{
+static S32 K1_VI_GetOfflineRawReadChn(VI_DEV ViDev, U32 *pu32RawReadChn) {
     if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || pu32RawReadChn == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -58,8 +57,7 @@ static S32 K1_VI_GetOfflineRawReadChn(VI_DEV ViDev, U32 *pu32RawReadChn)
     return K1_VI_SUCCESS;
 }
 
-static S32 K1_VI_PrepareOfflineBayerRead(K1_VI_CHN_CTX_S *pstChnCtx)
-{
+static S32 K1_VI_PrepareOfflineBayerRead(K1_VI_CHN_CTX_S *pstChnCtx) {
     VI_BAYER_READ_ATTR_S stBayerReadAttr;
     S32 s32Ret;
 
@@ -81,61 +79,55 @@ static S32 K1_VI_PrepareOfflineBayerRead(K1_VI_CHN_CTX_S *pstChnCtx)
     return K1_VI_SUCCESS;
 }
 
-static VOID K1_VI_CleanupOfflineBayerRead(VI_DEV ViDev)
-{
+static VOID K1_VI_CleanupOfflineBayerRead(VI_DEV ViDev) {
     if (K1_VI_IsValidDev(ViDev) != MPP_TRUE)
         return;
 
     (void)ASR_VI_DisableBayerRead((U32)ViDev);
 }
 
-static K1_VI_OFFLINE_CFG_S *K1_VI_GetOfflineCfg(VI_DEV ViDev)
-{
+static K1_VI_OFFLINE_CFG_S *K1_VI_GetOfflineCfg(VI_DEV ViDev) {
     if (K1_VI_IsValidDev(ViDev) != MPP_TRUE)
         return NULL;
 
     return &g_astK1ViOfflineCfg[ViDev];
 }
 
-const VOID *K1_VI_OfflineGetCfg(VI_DEV ViDev)
-{
+const VOID *K1_VI_OfflineGetCfg(VI_DEV ViDev) {
     return (const VOID *)K1_VI_GetOfflineCfg(ViDev);
 }
 
-static MppPixelFormat K1_VI_OfflineRawTypeToPixelFormat(CAM_SENSOR_RAWTYPE_E enRawType)
-{
+static MppPixelFormat K1_VI_OfflineRawTypeToPixelFormat(CAM_SENSOR_RAWTYPE_E enRawType) {
     switch (enRawType) {
-    case CAM_SENSOR_RAWTYPE_RAW8:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_8BITS;
-    case CAM_SENSOR_RAWTYPE_RAW10:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_10BITS;
-    case CAM_SENSOR_RAWTYPE_RAW12:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_12BITS;
-    case CAM_SENSOR_RAWTYPE_RAW14:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_14BITS;
-    default:
-        return MPP_PIXEL_FORMAT_MAX;
+        case CAM_SENSOR_RAWTYPE_RAW8:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_8BITS;
+        case CAM_SENSOR_RAWTYPE_RAW10:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_10BITS;
+        case CAM_SENSOR_RAWTYPE_RAW12:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_12BITS;
+        case CAM_SENSOR_RAWTYPE_RAW14:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_14BITS;
+        default:
+            return MPP_PIXEL_FORMAT_MAX;
     }
 }
 
-static PIXEL_FORMAT_E K1_VI_OfflinePixelFormatToAsr(MppPixelFormat ePixelFormat)
-{
+static PIXEL_FORMAT_E K1_VI_OfflinePixelFormatToAsr(MppPixelFormat ePixelFormat) {
     switch (ePixelFormat) {
-    case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
-        return PIXEL_FORMAT_RAW_8BPP;
-    case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
-        return PIXEL_FORMAT_RAW_10BPP;
-    case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
-        return PIXEL_FORMAT_RAW_12BPP;
-    case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
-        return PIXEL_FORMAT_RAW_14BPP;
-    default:
-        return PIXEL_FORMAT_MAX;
+        case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
+            return PIXEL_FORMAT_RAW_8BPP;
+        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
+            return PIXEL_FORMAT_RAW_10BPP;
+        case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
+            return PIXEL_FORMAT_RAW_12BPP;
+        case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
+            return PIXEL_FORMAT_RAW_14BPP;
+        default:
+            return PIXEL_FORMAT_MAX;
     }
 }
 
-static VOID K1_VI_DestroyOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg)
-{
+static VOID K1_VI_DestroyOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg) {
     if (pstOfflineCfg == NULL)
         return;
 
@@ -145,8 +137,7 @@ static VOID K1_VI_DestroyOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg)
     memset(&pstOfflineCfg->stInputImageBuffer, 0, sizeof(pstOfflineCfg->stInputImageBuffer));
 }
 
-VOID K1_VI_ResetOfflineCfg(VI_DEV ViDev)
-{
+VOID K1_VI_ResetOfflineCfg(VI_DEV ViDev) {
     K1_VI_OFFLINE_CFG_S *pstOfflineCfg = NULL;
 
     pstOfflineCfg = K1_VI_GetOfflineCfg(ViDev);
@@ -165,19 +156,18 @@ VOID K1_VI_ResetOfflineCfg(VI_DEV ViDev)
     memset(pstOfflineCfg, 0, sizeof(*pstOfflineCfg));
 }
 
-static S32 K1_VI_FillOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg)
-{
+static S32 K1_VI_FillOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg) {
     VOID *pVirAddr = NULL;
 
     if (pstOfflineCfg == NULL)
         return K1_VI_ERR_INVALID_PARAM;
-    if (pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0] == 0)
-    {
-        error("%s: offline input vir addr is null, bufId=%lu pool=%lu total=%u\n",
-              __func__,
-              pstOfflineCfg->ulBufferId,
-              pstOfflineCfg->ulVbPool,
-              pstOfflineCfg->u32RawSize);
+    if (pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0] == 0) {
+        error(
+            "%s: offline input vir addr is null, bufId=%lu pool=%lu total=%u\n",
+            __func__,
+            pstOfflineCfg->ulBufferId,
+            pstOfflineCfg->ulVbPool,
+            pstOfflineCfg->u32RawSize);
         return K1_VI_ERR_INVALID_PARAM;
     }
 
@@ -190,9 +180,7 @@ static S32 K1_VI_FillOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg)
     return K1_VI_SUCCESS;
 }
 
-static S32 K1_VI_ToOfflineInputImageBuffer(const K1_VI_OFFLINE_CFG_S *pstOfflineCfg,
-                                           IMAGE_BUFFER_S *pstImageBuffer)
-{
+static S32 K1_VI_ToOfflineInputImageBuffer(const K1_VI_OFFLINE_CFG_S *pstOfflineCfg, IMAGE_BUFFER_S *pstImageBuffer) {
     if (pstOfflineCfg == NULL || pstImageBuffer == NULL)
         return K1_VI_ERR_INVALID_PARAM;
     if (pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0] == 0)
@@ -203,9 +191,7 @@ static S32 K1_VI_ToOfflineInputImageBuffer(const K1_VI_OFFLINE_CFG_S *pstOffline
     return K1_VI_SUCCESS;
 }
 
-static S32 K1_VI_FillDefaultOfflinePubAttr(const K1_VI_DEV_CTX_S *pstDevCtx,
-                                           ISP_PUB_ATTR_S *pstPubAttr)
-{
+static S32 K1_VI_FillDefaultOfflinePubAttr(const K1_VI_DEV_CTX_S *pstDevCtx, ISP_PUB_ATTR_S *pstPubAttr) {
     CAM_SENSOR_RAWTYPE_E enRawType;
     S32 s32Ret;
 
@@ -220,20 +206,20 @@ static S32 K1_VI_FillDefaultOfflinePubAttr(const K1_VI_DEV_CTX_S *pstDevCtx,
     pstPubAttr->enBayerFmt = ISP_BAYER_PATTERN_BGGR;
 
     switch (pstDevCtx->eOfflineRawType != VI_RAW_TYPE_UNKNOWN ? pstDevCtx->eOfflineRawType : VI_RAW_TYPE_12BIT) {
-    case VI_RAW_TYPE_8BIT:
-        enRawType = CAM_SENSOR_RAWTYPE_RAW8;
-        break;
-    case VI_RAW_TYPE_10BIT:
-        enRawType = CAM_SENSOR_RAWTYPE_RAW10;
-        break;
-    case VI_RAW_TYPE_12BIT:
-        enRawType = CAM_SENSOR_RAWTYPE_RAW12;
-        break;
-    case VI_RAW_TYPE_14BIT:
-        enRawType = CAM_SENSOR_RAWTYPE_RAW14;
-        break;
-    default:
-        return K1_VI_ERR_NOT_SUPPORT;
+        case VI_RAW_TYPE_8BIT:
+            enRawType = CAM_SENSOR_RAWTYPE_RAW8;
+            break;
+        case VI_RAW_TYPE_10BIT:
+            enRawType = CAM_SENSOR_RAWTYPE_RAW10;
+            break;
+        case VI_RAW_TYPE_12BIT:
+            enRawType = CAM_SENSOR_RAWTYPE_RAW12;
+            break;
+        case VI_RAW_TYPE_14BIT:
+            enRawType = CAM_SENSOR_RAWTYPE_RAW14;
+            break;
+        default:
+            return K1_VI_ERR_NOT_SUPPORT;
     }
 
     pstPubAttr->enRawType = enRawType;
@@ -241,8 +227,7 @@ static S32 K1_VI_FillDefaultOfflinePubAttr(const K1_VI_DEV_CTX_S *pstDevCtx,
     return s32Ret;
 }
 
-static S32 K1_VI_FillDefaultOfflineAttr(ISP_OFFLINE_ATTR_S *pstOfflineAttr)
-{
+static S32 K1_VI_FillDefaultOfflineAttr(ISP_OFFLINE_ATTR_S *pstOfflineAttr) {
     if (pstOfflineAttr == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -250,15 +235,16 @@ static S32 K1_VI_FillDefaultOfflineAttr(ISP_OFFLINE_ATTR_S *pstOfflineAttr)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev,
-                              VI_CHN ViChn,
-                              UL ulPoolId,
-                              UL ulBufferId,
-                              const VideoFrameInfo *pstFrameInfo,
-                              const IMAGE_BUFFER_S *pstImageBuffer,
-                              const U8 *pu8RawVirAddr,
-                              U32 u32RawSize)
-{
+S32 K1_VI_OfflineSetInputAddr(
+    VI_DEV ViDev,
+    VI_CHN ViChn,
+    UL ulPoolId,
+    UL ulBufferId,
+    const VideoFrameInfo *pstFrameInfo,
+    const IMAGE_BUFFER_S *pstImageBuffer,
+    const U8 *pu8RawVirAddr,
+    U32 u32RawSize
+) {
     K1_VI_OFFLINE_CFG_S *pstOfflineCfg = NULL;
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
@@ -310,8 +296,7 @@ S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev,
 
     s32Ret = K1_VI_InitOfflineIsp(pstChnCtx);
     if (s32Ret != K1_VI_SUCCESS) {
-        error("%s: K1_VI_InitOfflineIsp failed, dev=%d chn=%d ret=%d\n",
-               __func__, ViDev, pstOfflineCfg->ViChn, s32Ret);
+        error("%s: K1_VI_InitOfflineIsp failed, dev=%d chn=%d ret=%d\n", __func__, ViDev, pstOfflineCfg->ViChn, s32Ret);
         return s32Ret;
     }
     bOfflineIspInited = MPP_TRUE;
@@ -323,22 +308,23 @@ S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev,
 
     s32Ret = K1_VI_StartOfflineIsp(pstChnCtx);
     if (s32Ret != K1_VI_SUCCESS) {
-        error("%s: K1_VI_StartOfflineIsp failed, dev=%d chn=%d ret=%d\n",
-               __func__, ViDev, pstOfflineCfg->ViChn, s32Ret);
+        error(
+            "%s: K1_VI_StartOfflineIsp failed, dev=%d chn=%d ret=%d\n", __func__, ViDev, pstOfflineCfg->ViChn, s32Ret);
         goto fail;
     }
     bOfflineIspStarted = MPP_TRUE;
 
     s32Ret = K1_VI_FillOfflineInputBuffer(pstOfflineCfg);
     if (s32Ret != K1_VI_SUCCESS) {
-        error("%s: K1_VI_FillOfflineInputBuffer failed, dev=%d chn=%d bufId=%lu vir0=0x%llx fd0=%lu ret=%d\n",
-               __func__,
-               ViDev,
-               ViChn,
-               pstOfflineCfg->ulBufferId,
-               (unsigned long long)pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0],
-               pstOfflineCfg->stInputFrame.stVFrame.u32Fd[0],
-               s32Ret);
+        error(
+            "%s: K1_VI_FillOfflineInputBuffer failed, dev=%d chn=%d bufId=%lu vir0=0x%llx fd0=%lu ret=%d\n",
+            __func__,
+            ViDev,
+            ViChn,
+            pstOfflineCfg->ulBufferId,
+            (uint64_t)pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0],
+            pstOfflineCfg->stInputFrame.stVFrame.u32Fd[0],
+            s32Ret);
         goto fail;
     }
 
@@ -356,8 +342,13 @@ S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev,
 
     s32Ret = ASR_VI_ChnQueueBuffer(u32RawReadChn, &stInputImageBuffer);
     if (s32Ret != SUCCESS) {
-        error("%s: ASR_VI_ChnQueueBuffer(raw-read) failed, dev=%d chn=%d rawReadChn=%u ret=%d\n",
-               __func__, ViDev, pstOfflineCfg->ViChn, u32RawReadChn, s32Ret);
+        error(
+            "%s: ASR_VI_ChnQueueBuffer(raw-read) failed, dev=%d chn=%d rawReadChn=%u ret=%d\n",
+            __func__,
+            ViDev,
+            pstOfflineCfg->ViChn,
+            u32RawReadChn,
+            s32Ret);
         goto fail;
     }
 
@@ -365,8 +356,8 @@ S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev,
     return K1_VI_SUCCESS;
 
 fail:
-    if (bBayerReadPrepared == MPP_TRUE || bOfflineIspStarted == MPP_TRUE ||
-        bOfflineIspInited == MPP_TRUE || pstOfflineCfg->ulVbPool != 0 || pstOfflineCfg->ulBufferId != 0)
+    if (bBayerReadPrepared == MPP_TRUE || bOfflineIspStarted == MPP_TRUE || bOfflineIspInited == MPP_TRUE ||
+        pstOfflineCfg->ulVbPool != 0 || pstOfflineCfg->ulBufferId != 0)
         K1_VI_ResetOfflineCfg(ViDev);
 
 fail_reset:

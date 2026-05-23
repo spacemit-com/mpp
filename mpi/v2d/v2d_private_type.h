@@ -3,8 +3,8 @@
  * Copyright (C) 2026 Spacemit Co., Ltd.
  */
 
-#ifndef MPP_V2D_PRIVATE_TYPE_H
-#define MPP_V2D_PRIVATE_TYPE_H
+#ifndef V2D_PRIVATE_TYPE_H
+#define V2D_PRIVATE_TYPE_H
 
 #include "v2d_type.h"
 

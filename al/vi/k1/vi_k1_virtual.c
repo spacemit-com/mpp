@@ -13,27 +13,26 @@
 
 extern S32 K1_VI_HandleNormalCallback(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode);
 
-static V2DRotateAngle K1_VI_GetV2dRotateMode(const ViChnAttrS *pstChnAttr)
-{
+static V2DRotateAngle K1_VI_GetV2dRotateMode(const ViChnAttrS *pstChnAttr) {
     if (pstChnAttr == NULL)
         return V2D_ROT_0;
 
     switch (pstChnAttr->eRotateMode) {
-    case VI_ROT_0:
-        return V2D_ROT_0;
-    case VI_ROT_90:
-        return V2D_ROT_90;
-    case VI_ROT_180:
-        return V2D_ROT_180;
-    case VI_ROT_270:
-        return V2D_ROT_270;
-    case VI_ROT_MIRROR:
-        return V2D_ROT_MIRROR;
-    case VI_ROT_FLIP:
-        return V2D_ROT_FLIP;
-    case VI_ROT_BUTT:
-    default:
-        break;
+        case VI_ROT_0:
+            return V2D_ROT_0;
+        case VI_ROT_90:
+            return V2D_ROT_90;
+        case VI_ROT_180:
+            return V2D_ROT_180;
+        case VI_ROT_270:
+            return V2D_ROT_270;
+        case VI_ROT_MIRROR:
+            return V2D_ROT_MIRROR;
+        case VI_ROT_FLIP:
+            return V2D_ROT_FLIP;
+        case VI_ROT_BUTT:
+        default:
+            break;
     }
 
     if (pstChnAttr->bMirror == MPP_TRUE && pstChnAttr->bFlip == MPP_TRUE)
@@ -46,8 +45,7 @@ static V2DRotateAngle K1_VI_GetV2dRotateMode(const ViChnAttrS *pstChnAttr)
     return V2D_ROT_0;
 }
 
-static S32 K1_VI_OutputVirtualFrame(K1_VI_CHN_CTX_S *pstVirtChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
-{
+static S32 K1_VI_OutputVirtualFrame(K1_VI_CHN_CTX_S *pstVirtChnCtx, K1_VI_BUF_NODE_S *pstBufNode) {
     if (pstVirtChnCtx == NULL || pstBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -64,8 +62,7 @@ static S32 K1_VI_OutputVirtualFrame(K1_VI_CHN_CTX_S *pstVirtChnCtx, K1_VI_BUF_NO
     return K1_VI_HandleNormalCallback(pstVirtChnCtx, pstBufNode);
 }
 
-VOID K1_VI_CopyFrameMeta(VideoFrameInfo *pstDstFrame, const VideoFrameInfo *pstSrcFrame)
-{
+VOID K1_VI_CopyFrameMeta(VideoFrameInfo *pstDstFrame, const VideoFrameInfo *pstSrcFrame) {
     VideoFrame stDstVFrame;
     UL ulPoolId = 0;
     UL ulBufferId = 0;
@@ -98,10 +95,9 @@ VOID K1_VI_CopyFrameMeta(VideoFrameInfo *pstDstFrame, const VideoFrameInfo *pstS
     pstDstFrame->stViFrameInfo.stCommFrameInfo.ePixelFormat = ePixelFormat;
 }
 
-static VOID K1_VI_GetSrcCropRect(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                                 const K1_VI_CHN_CTX_S *pstDstChnCtx,
-                                 V2DArea *pstSrcRect)
-{
+static VOID K1_VI_GetSrcCropRect(
+    const K1_VI_CHN_CTX_S *pstSrcChnCtx, const K1_VI_CHN_CTX_S *pstDstChnCtx, V2DArea *pstSrcRect
+) {
     if (pstSrcRect == NULL || pstSrcChnCtx == NULL || pstDstChnCtx == NULL)
         return;
 
@@ -118,11 +114,12 @@ static VOID K1_VI_GetSrcCropRect(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
     }
 }
 
-S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                          const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                          K1_VI_CHN_CTX_S *pstDstChnCtx,
-                          VideoFrameInfo *pstDstFrame)
-{
+S32 K1_VI_V2dProcessFrame(
+    const K1_VI_CHN_CTX_S *pstSrcChnCtx,
+    const VI_IMAGE_BUFFER_S *pstSrcBuffer,
+    K1_VI_CHN_CTX_S *pstDstChnCtx,
+    VideoFrameInfo *pstDstFrame
+) {
     const IMAGE_BUFFER_S *pstSrcImageBuffer = NULL;
     K1_VI_BUF_NODE_S *pstSrcBufNode = NULL;
     V2DArea stSrcRect;
@@ -146,7 +143,6 @@ S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
     if (pstSrcBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
-
     K1_VI_GetSrcCropRect(pstSrcChnCtx, pstDstChnCtx, &stSrcRect);
 
     stDstRect.u16X = 0;
@@ -156,38 +152,34 @@ S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
 
     enRotate = K1_VI_GetV2dRotateMode(&pstDstChnCtx->stAttr);
 
-
     s32Ret = V2D_BeginJob(&hHandle);
     if (s32Ret != K1_VI_SUCCESS)
         return s32Ret;
 
     if (enRotate == V2D_ROT_0) {
-        s32Ret = V2D_AddBitblitTask(hHandle,
-                                    &pstSrcBufNode->stFrameInfo,
-                                    &stSrcRect,
-                                    pstDstFrame,
-                                    &stDstRect,
-                                    V2D_CSC_MODE_BUTT);
+        s32Ret = V2D_AddBitblitTask(
+            hHandle, &pstSrcBufNode->stFrameInfo, &stSrcRect, pstDstFrame, &stDstRect, V2D_CSC_MODE_BUTT);
     } else {
         memset(&stBlendConf, 0, sizeof(stBlendConf));
         stBlendConf.stBlendLayer[0].stBlendArea = stDstRect;
 
-        s32Ret = V2D_AddBlendTask(hHandle,
-                                  &pstSrcBufNode->stFrameInfo,
-                                  &stSrcRect,
-                                  NULL,
-                                  NULL,
-                                  NULL,
-                                  NULL,
-                                  pstDstFrame,
-                                  &stDstRect,
-                                  &stBlendConf,
-                                  enRotate,
-                                  enRotate,
-                                  V2D_CSC_MODE_BUTT,
-                                  V2D_CSC_MODE_BUTT,
-                                  NULL,
-                                  V2D_NO_DITHER);
+        s32Ret = V2D_AddBlendTask(
+            hHandle,
+            &pstSrcBufNode->stFrameInfo,
+            &stSrcRect,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            pstDstFrame,
+            &stDstRect,
+            &stBlendConf,
+            enRotate,
+            enRotate,
+            V2D_CSC_MODE_BUTT,
+            V2D_CSC_MODE_BUTT,
+            NULL,
+            V2D_NO_DITHER);
     }
     if (s32Ret != K1_VI_SUCCESS) {
         return s32Ret;
@@ -204,11 +196,12 @@ S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_ProcessOneVirtualChn(K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                               const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                               const VideoFrameInfo *pstSrcFrame,
-                               K1_VI_CHN_CTX_S *pstVirtChnCtx)
-{
+S32 K1_VI_ProcessOneVirtualChn(
+    K1_VI_CHN_CTX_S *pstSrcChnCtx,
+    const VI_IMAGE_BUFFER_S *pstSrcBuffer,
+    const VideoFrameInfo *pstSrcFrame,
+    K1_VI_CHN_CTX_S *pstVirtChnCtx
+) {
     K1_VI_BUF_NODE_S *pstBufNode = NULL;
     S32 s32Ret = 0;
 
@@ -239,10 +232,9 @@ S32 K1_VI_ProcessOneVirtualChn(K1_VI_CHN_CTX_S *pstSrcChnCtx,
     return K1_VI_OutputVirtualFrame(pstVirtChnCtx, pstBufNode);
 }
 
-VOID K1_VI_DispatchVirtualFrames(K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                                 const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                                 const VideoFrameInfo *pstSrcFrame)
-{
+VOID K1_VI_DispatchVirtualFrames(
+    K1_VI_CHN_CTX_S *pstSrcChnCtx, const VI_IMAGE_BUFFER_S *pstSrcBuffer, const VideoFrameInfo *pstSrcFrame
+) {
     VI_CHN ViChn;
     if (pstSrcChnCtx == NULL || pstSrcBuffer == NULL || pstSrcFrame == NULL)
         return;
@@ -263,8 +255,7 @@ VOID K1_VI_DispatchVirtualFrames(K1_VI_CHN_CTX_S *pstSrcChnCtx,
     }
 }
 
-S32 K1_VI_StartVirtualChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
-{
+S32 K1_VI_StartVirtualChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx) {
     if (pstChnCtx == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 

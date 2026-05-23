@@ -12,8 +12,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __DMA_ALLOC_H__
-#define __DMA_ALLOC_H__
+#ifndef DMA_ALLOC_H
+#define DMA_ALLOC_H
 
 #include "type.h"
 
@@ -22,11 +22,11 @@ extern "C" {
 #endif
 
 /* Sync direction flags (matches DMA_BUF_SYNC_* in linux/dma-buf.h) */
-#define DMA_SYNC_READ   (1 << 0)
-#define DMA_SYNC_WRITE  (2 << 0)
-#define DMA_SYNC_RW     (DMA_SYNC_READ | DMA_SYNC_WRITE)
-#define DMA_SYNC_START  (0 << 2)
-#define DMA_SYNC_END    (1 << 2)
+#define DMA_SYNC_READ (1 << 0)
+#define DMA_SYNC_WRITE (2 << 0)
+#define DMA_SYNC_RW (DMA_SYNC_READ | DMA_SYNC_WRITE)
+#define DMA_SYNC_START (0 << 2)
+#define DMA_SYNC_END (1 << 2)
 
 /**
  * @brief Open the DMA heap device. Call once at startup.
@@ -77,4 +77,4 @@ S32 dma_get_phy(void *vir, U64 *p_phy);
 }
 #endif
 
-#endif /* __DMA_ALLOC_H__ */
+#endif /* DMA_ALLOC_H */

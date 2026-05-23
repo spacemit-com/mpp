@@ -9,9 +9,9 @@ set(VENC_SRCS
 
 add_library(mpp_venc STATIC ${VENC_SRCS})
 
-target_include_directories(mpp_venc
-    PUBLIC
-        ${MPP_INCLUDE_DIRS}
+target_include_directories(mpp_venc BEFORE PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${MPP_INCLUDE_DIRS}
 )
 
 target_link_libraries(mpp_venc PUBLIC mpp_sys mpp_al_module)

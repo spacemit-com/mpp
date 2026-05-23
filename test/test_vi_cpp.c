@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -10,45 +9,44 @@
 #include "cpp_api.h"
 #include "sys_api.h"
 
-#define DEMO_VI_DEV       0
-#define DEMO_VI_CHN       0
-#define DEMO_CPP_GRP      0
-#define DEMO_FRAME_COUNT  30
-#define DEMO_TIMEOUT_MS   1000
+#define DEMO_VI_DEV 0
+#define DEMO_VI_CHN 0
+#define DEMO_CPP_GRP 0
+#define DEMO_FRAME_COUNT 30
+#define DEMO_TIMEOUT_MS 1000
 #define DEMO_MAX_INFLIGHT 4
 #define DEMO_SAVE_LAST_FRAME 1
 
 typedef struct _CPP_DEMO_CONFIG_S {
-    VI_DEV         ViDev;
-    VI_CHN         ViChn;
-    CPP_GRP        CppGrp;
-    U32            u32FrameCount;
-    S32            s32TimeoutMs;
-    U32            u32Width;
-    U32            u32Height;
+    VI_DEV ViDev;
+    VI_CHN ViChn;
+    CPP_GRP CppGrp;
+    U32 u32FrameCount;
+    S32 s32TimeoutMs;
+    U32 u32Width;
+    U32 u32Height;
     MppPixelFormat ePixelFormat;
-    CHAR           szDumpPath[256];
-    ViDevAttrS     stViDevAttr;
-    ViChnAttrS     stViChnAttr;
-    CppGrpAttrS    stCppGrpAttr;
-    CppChnAttrS    stCppChnAttr;
-    BOOL           bEnableCppFrameRateCtrl;
+    CHAR szDumpPath[256];
+    ViDevAttrS stViDevAttr;
+    ViChnAttrS stViChnAttr;
+    CppGrpAttrS stCppGrpAttr;
+    CppChnAttrS stCppChnAttr;
+    BOOL bEnableCppFrameRateCtrl;
     CppFrameRateCtrlS stCppFrameRateCtrl;
 } CPP_DEMO_CONFIG_S;
 
 typedef struct _CPP_DEMO_RUN_CTX_S {
     CPP_DEMO_CONFIG_S stCfg;
-    U32               u32DoneCount;
-    U32               u32ErrCount;
-    BOOL              bSavedLastCppFrame;
-    CHAR              szLastCppFramePath[320];
-    double            dPipelineFps;
+    U32 u32DoneCount;
+    U32 u32ErrCount;
+    BOOL bSavedLastCppFrame;
+    CHAR szLastCppFramePath[320];
+    double dPipelineFps;
 } CPP_DEMO_RUN_CTX_S;
 
 static CPP_DEMO_RUN_CTX_S g_stCppDemoCtx;
 
-static S32 DemoSaveFrameToYuvFile(const VideoFrameInfo *pstFrame, const CHAR *pszFilePath)
-{
+static S32 DemoSaveFrameToYuvFile(const VideoFrameInfo *pstFrame, const CHAR *pszFilePath) {
     FILE *fp;
     size_t uWriteSize;
     U32 uExpectedSize;
@@ -81,10 +79,11 @@ static S32 DemoSaveFrameToYuvFile(const VideoFrameInfo *pstFrame, const CHAR *ps
     uWriteSize = fwrite((const void *)pstFrame->stVFrame.ulPlaneVirAddr[0], 1, uPlane0Size, fp);
     if (uWriteSize != uPlane0Size) {
         fclose(fp);
-        printf("DemoSaveFrameToYuvFile: fwrite Y short, expect=%u actual=%u path=%s\n",
-               uPlane0Size,
-               (U32)uWriteSize,
-               pszFilePath);
+        printf(
+            "DemoSaveFrameToYuvFile: fwrite Y short, expect=%u actual=%u path=%s\n",
+            uPlane0Size,
+            (U32)uWriteSize,
+            pszFilePath);
         return -1;
     }
 
@@ -92,10 +91,11 @@ static S32 DemoSaveFrameToYuvFile(const VideoFrameInfo *pstFrame, const CHAR *ps
         uWriteSize = fwrite((const void *)pstFrame->stVFrame.ulPlaneVirAddr[1], 1, uPlane1Size, fp);
         if (uWriteSize != uPlane1Size) {
             fclose(fp);
-            printf("DemoSaveFrameToYuvFile: fwrite UV short, expect=%u actual=%u path=%s\n",
-                   uPlane1Size,
-                   (U32)uWriteSize,
-                   pszFilePath);
+            printf(
+                "DemoSaveFrameToYuvFile: fwrite UV short, expect=%u actual=%u path=%s\n",
+                uPlane1Size,
+                (U32)uWriteSize,
+                pszFilePath);
             return -1;
         }
     }
@@ -105,8 +105,7 @@ static S32 DemoSaveFrameToYuvFile(const VideoFrameInfo *pstFrame, const CHAR *ps
     return 0;
 }
 
-static double DemoTimeDiffMs(const struct timeval *pstStart, const struct timeval *pstEnd)
-{
+static double DemoTimeDiffMs(const struct timeval *pstStart, const struct timeval *pstEnd) {
     double dMs = 0.0;
 
     if ((pstStart == NULL) || (pstEnd == NULL))
@@ -117,8 +116,7 @@ static double DemoTimeDiffMs(const struct timeval *pstStart, const struct timeva
     return dMs;
 }
 
-static double DemoCalcFps(U32 u32FrameCount, const struct timeval *pstStart, const struct timeval *pstEnd)
-{
+static double DemoCalcFps(U32 u32FrameCount, const struct timeval *pstStart, const struct timeval *pstEnd) {
     double dElapsedMs = DemoTimeDiffMs(pstStart, pstEnd);
 
     if ((u32FrameCount == 0U) || (dElapsedMs <= 0.0))
@@ -127,49 +125,48 @@ static double DemoCalcFps(U32 u32FrameCount, const struct timeval *pstStart, con
     return ((double)u32FrameCount * 1000.0) / dElapsedMs;
 }
 
-static VOID DemoPrintFrameBrief(const CHAR *pszTag, const VideoFrameInfo *pstFrame)
-{
+static VOID DemoPrintFrameBrief(const CHAR *pszTag, const VideoFrameInfo *pstFrame) {
     if ((pszTag == NULL) || (pstFrame == NULL))
         return;
 
-    printf("[%s] idx=%u pool=%lu buf=%lu size=%ux%u fmt=%d planes=%u pts=%llu fd0=%lu vir0=%p\n",
-           pszTag,
-           pstFrame->u32Idx,
-           pstFrame->ulPoolId,
-           pstFrame->ulBufferId,
-           pstFrame->stCommFrameInfo.u32Width,
-           pstFrame->stCommFrameInfo.u32Height,
-           pstFrame->stCommFrameInfo.ePixelFormat,
-           pstFrame->stVFrame.u32PlaneNum,
-           (unsigned long long)pstFrame->stVFrame.u64PTS,
-           pstFrame->stVFrame.u32Fd[0],
-           (void *)pstFrame->stVFrame.ulPlaneVirAddr[0]);
+    printf(
+        "[%s] idx=%u pool=%lu buf=%lu size=%ux%u fmt=%d planes=%u pts=%llu fd0=%lu vir0=%p\n",
+        pszTag,
+        pstFrame->u32Idx,
+        pstFrame->ulPoolId,
+        pstFrame->ulBufferId,
+        pstFrame->stCommFrameInfo.u32Width,
+        pstFrame->stCommFrameInfo.u32Height,
+        pstFrame->stCommFrameInfo.ePixelFormat,
+        pstFrame->stVFrame.u32PlaneNum,
+        (uint64_t)pstFrame->stVFrame.u64PTS,
+        pstFrame->stVFrame.u32Fd[0],
+        (void *)pstFrame->stVFrame.ulPlaneVirAddr[0]);
 }
 
-static VOID DemoPrintFrameMetaBrief(const CHAR *pszTag, const ViFrameMetaInfo *pstMeta)
-{
+static VOID DemoPrintFrameMetaBrief(const CHAR *pszTag, const ViFrameMetaInfo *pstMeta) {
     if ((pszTag == NULL) || (pstMeta == NULL))
         return;
 
-    printf("[%s] frameId=%u aeStable=%u awbStable=%u ct=%u expTime=[%u,%u,%u] again=[%u,%u,%u] dgain=[%u,%u,%u]\n",
-           pszTag,
-           pstMeta->u32FrameId,
-           pstMeta->u8AeStable,
-           pstMeta->u8AwbStable,
-           pstMeta->u32ColorTemp,
-           pstMeta->u32ExpTime[0],
-           pstMeta->u32ExpTime[1],
-           pstMeta->u32ExpTime[2],
-           pstMeta->u32Again[0],
-           pstMeta->u32Again[1],
-           pstMeta->u32Again[2],
-           pstMeta->u32Dgain[0],
-           pstMeta->u32Dgain[1],
-           pstMeta->u32Dgain[2]);
+    printf(
+        "[%s] frameId=%u aeStable=%u awbStable=%u ct=%u expTime=[%u,%u,%u] again=[%u,%u,%u] dgain=[%u,%u,%u]\n",
+        pszTag,
+        pstMeta->u32FrameId,
+        pstMeta->u8AeStable,
+        pstMeta->u8AwbStable,
+        pstMeta->u32ColorTemp,
+        pstMeta->u32ExpTime[0],
+        pstMeta->u32ExpTime[1],
+        pstMeta->u32ExpTime[2],
+        pstMeta->u32Again[0],
+        pstMeta->u32Again[1],
+        pstMeta->u32Again[2],
+        pstMeta->u32Dgain[0],
+        pstMeta->u32Dgain[1],
+        pstMeta->u32Dgain[2]);
 }
 
-static S32 DemoInitConfig(CPP_DEMO_CONFIG_S *pstCfg)
-{
+static S32 DemoInitConfig(CPP_DEMO_CONFIG_S *pstCfg) {
     if (pstCfg == NULL)
         return -1;
 
@@ -211,8 +208,7 @@ static S32 DemoInitConfig(CPP_DEMO_CONFIG_S *pstCfg)
     return 0;
 }
 
-static S32 DemoSetupVi(const CPP_DEMO_CONFIG_S *pstCfg)
-{
+static S32 DemoSetupVi(const CPP_DEMO_CONFIG_S *pstCfg) {
     S32 s32Ret;
 
     s32Ret = VI_Init();
@@ -248,15 +244,13 @@ static S32 DemoSetupVi(const CPP_DEMO_CONFIG_S *pstCfg)
     return 0;
 }
 
-static VOID DemoTeardownVi(const CPP_DEMO_CONFIG_S *pstCfg)
-{
+static VOID DemoTeardownVi(const CPP_DEMO_CONFIG_S *pstCfg) {
     (void)VI_DisableChn(pstCfg->ViDev, pstCfg->ViChn);
     (void)VI_DisableDev(pstCfg->ViDev);
     (void)VI_DeInit();
 }
 
-static S32 DemoSetupCpp(const CPP_DEMO_CONFIG_S *pstCfg)
-{
+static S32 DemoSetupCpp(const CPP_DEMO_CONFIG_S *pstCfg) {
     S32 s32Ret;
 
     s32Ret = CPP_Init();
@@ -290,9 +284,10 @@ static S32 DemoSetupCpp(const CPP_DEMO_CONFIG_S *pstCfg)
             return s32Ret;
         }
 
-        printf("[demo] CPP frame rate ctrl enabled: input_step=%u output_step=%u\n",
-               pstCfg->stCppFrameRateCtrl.u32InputFrameStep,
-               pstCfg->stCppFrameRateCtrl.u32OutputFrameStep);
+        printf(
+            "[demo] CPP frame rate ctrl enabled: input_step=%u output_step=%u\n",
+            pstCfg->stCppFrameRateCtrl.u32InputFrameStep,
+            pstCfg->stCppFrameRateCtrl.u32OutputFrameStep);
     }
 
     s32Ret = CPP_Enable(pstCfg->CppGrp);
@@ -310,16 +305,14 @@ static S32 DemoSetupCpp(const CPP_DEMO_CONFIG_S *pstCfg)
     return 0;
 }
 
-static VOID DemoTeardownCpp(const CPP_DEMO_CONFIG_S *pstCfg)
-{
+static VOID DemoTeardownCpp(const CPP_DEMO_CONFIG_S *pstCfg) {
     (void)CPP_StopGrp(pstCfg->CppGrp);
     (void)CPP_Disable(pstCfg->CppGrp);
     (void)CPP_DestroyGrp(pstCfg->CppGrp);
     (void)CPP_DeInit();
 }
 
-static S32 DemoRunViToCpp(CPP_DEMO_RUN_CTX_S *pstCtx)
-{
+static S32 DemoRunViToCpp(CPP_DEMO_RUN_CTX_S *pstCtx) {
     U32 u32FrameIdx = 0;
     U32 u32FrameId;
     S32 s32Ret;
@@ -337,8 +330,11 @@ static S32 DemoRunViToCpp(CPP_DEMO_RUN_CTX_S *pstCtx)
     pstCtx->u32ErrCount = 0;
     pstCtx->bSavedLastCppFrame = MPP_FALSE;
     pstCtx->dPipelineFps = 0.0;
-    snprintf(pstCtx->szLastCppFramePath, sizeof(pstCtx->szLastCppFramePath),
-             "%s_last_cpp_frame.yuv", pstCtx->stCfg.szDumpPath);
+    snprintf(
+        pstCtx->szLastCppFramePath,
+        sizeof(pstCtx->szLastCppFramePath),
+        "%s_last_cpp_frame.yuv",
+        pstCtx->stCfg.szDumpPath);
 
     (void)gettimeofday(&stStartTv, NULL);
     stLastStatTv = stStartTv;
@@ -347,10 +343,7 @@ static S32 DemoRunViToCpp(CPP_DEMO_RUN_CTX_S *pstCtx)
         memset(&stOutFrame, 0, sizeof(stOutFrame));
         pstFrameMeta = NULL;
 
-        s32Ret = VI_GetChnFrame(pstCtx->stCfg.ViDev,
-                                pstCtx->stCfg.ViChn,
-                                &stInFrame,
-                                pstCtx->stCfg.s32TimeoutMs);
+        s32Ret = VI_GetChnFrame(pstCtx->stCfg.ViDev, pstCtx->stCfg.ViChn, &stInFrame, pstCtx->stCfg.s32TimeoutMs);
         if (s32Ret != 0) {
             if (s32Ret == -4)
                 printf("[vi_cpp_demo] no frame yet\n");
@@ -368,19 +361,16 @@ static S32 DemoRunViToCpp(CPP_DEMO_RUN_CTX_S *pstCtx)
         s32Ret = CPP_SendFrame(pstCtx->stCfg.CppGrp, &stInFrame, u32FrameId, (VOID *)pstFrameMeta);
 
         if (s32Ret != 0) {
-            printf("CPP_SendFrame failed at frame %u, frameId=%u, ret=%d\n",
-                   u32FrameIdx,
-                   u32FrameId,
-                   s32Ret);
+            printf("CPP_SendFrame failed at frame %u, frameId=%u, ret=%d\n", u32FrameIdx, u32FrameId, s32Ret);
             return s32Ret;
         }
 
         if ((pstCtx->stCfg.bEnableCppFrameRateCtrl == MPP_TRUE) &&
-            (pstCtx->stCfg.stCppFrameRateCtrl.u32OutputFrameStep < pstCtx->stCfg.stCppFrameRateCtrl.u32InputFrameStep) &&
-            ((u32FrameIdx % pstCtx->stCfg.stCppFrameRateCtrl.u32InputFrameStep) >= pstCtx->stCfg.stCppFrameRateCtrl.u32OutputFrameStep)) {
-            printf("[demo] cpp drop by frame-rate ctrl: submit_idx=%u frameId=%u\n",
-                   u32FrameIdx,
-                   u32FrameId);
+            (pstCtx->stCfg.stCppFrameRateCtrl.u32OutputFrameStep <
+                pstCtx->stCfg.stCppFrameRateCtrl.u32InputFrameStep) &&
+            ((u32FrameIdx % pstCtx->stCfg.stCppFrameRateCtrl.u32InputFrameStep) >=
+                pstCtx->stCfg.stCppFrameRateCtrl.u32OutputFrameStep)) {
+            printf("[demo] cpp drop by frame-rate ctrl: submit_idx=%u frameId=%u\n", u32FrameIdx, u32FrameId);
             (void)VI_ReleaseChnFrame(pstCtx->stCfg.ViDev, pstCtx->stCfg.ViChn, &stInFrame);
             usleep(25000);
             continue;
@@ -388,69 +378,65 @@ static S32 DemoRunViToCpp(CPP_DEMO_RUN_CTX_S *pstCtx)
 
         s32Ret = CPP_GetFrame(pstCtx->stCfg.CppGrp, &stOutFrame, pstCtx->stCfg.s32TimeoutMs);
         if (s32Ret != 0) {
-            printf("CPP_GetFrame failed at frame %u, frameId=%u ret=%d\n",
-                   u32FrameIdx,
-                   u32FrameId,
-                   s32Ret);
+            printf("CPP_GetFrame failed at frame %u, frameId=%u ret=%d\n", u32FrameIdx, u32FrameId, s32Ret);
             pstCtx->u32ErrCount++;
             return s32Ret;
         }
 
-		(void)VI_ReleaseChnFrame(pstCtx->stCfg.ViDev, pstCtx->stCfg.ViChn, &stInFrame);
+        (void)VI_ReleaseChnFrame(pstCtx->stCfg.ViDev, pstCtx->stCfg.ViChn, &stInFrame);
 
         pstCtx->u32DoneCount++;
         DemoPrintFrameBrief("cpp_out", &stOutFrame);
 
         (void)gettimeofday(&stNowTv, NULL);
-        if ((pstCtx->u32DoneCount == 1U) ||
-            ((pstCtx->u32DoneCount % 30U) == 0U) ||
+        if ((pstCtx->u32DoneCount == 1U) || ((pstCtx->u32DoneCount % 30U) == 0U) ||
             (DemoTimeDiffMs(&stLastStatTv, &stNowTv) >= 1000.0)) {
             double dCurFps = DemoCalcFps(pstCtx->u32DoneCount, &stStartTv, &stNowTv);
-            printf("[fps] pipeline done=%u elapsed=%.2f ms fps=%.2f\n",
-                   pstCtx->u32DoneCount,
-                   DemoTimeDiffMs(&stStartTv, &stNowTv),
-                   dCurFps);
+            printf(
+                "[fps] pipeline done=%u elapsed=%.2f ms fps=%.2f\n",
+                pstCtx->u32DoneCount,
+                DemoTimeDiffMs(&stStartTv, &stNowTv),
+                dCurFps);
             stLastStatTv = stNowTv;
         }
 
-    #if DEMO_SAVE_LAST_FRAME
+#if DEMO_SAVE_LAST_FRAME
         if (u32FrameIdx + 1U == pstCtx->stCfg.u32FrameCount) {
             if (DemoSaveFrameToYuvFile(&stOutFrame, pstCtx->szLastCppFramePath) == 0) {
                 pstCtx->bSavedLastCppFrame = MPP_TRUE;
             }
         }
-    #endif
+#endif
 
         s32Ret = CPP_ReleaseFrame(pstCtx->stCfg.CppGrp, &stOutFrame);
         if (s32Ret != 0) {
             printf("CPP_ReleaseFrame failed at frame %u, ret=%d\n", u32FrameIdx, s32Ret);
             return s32Ret;
         }
-		usleep(25000);//延时因为camera 出帧是30fps
-
+        usleep(25000);  // 延时因为camera 出帧是30fps
     }
 
     (void)gettimeofday(&stEndTv, NULL);
     pstCtx->dPipelineFps = DemoCalcFps(pstCtx->u32DoneCount, &stStartTv, &stEndTv);
-    printf("[summary] submit=%u done=%u err=%u elapsed=%.2f ms\n",
-           pstCtx->stCfg.u32FrameCount,
-           pstCtx->u32DoneCount,
-           pstCtx->u32ErrCount,
-           DemoTimeDiffMs(&stStartTv, &stEndTv));
+    printf(
+        "[summary] submit=%u done=%u err=%u elapsed=%.2f ms\n",
+        pstCtx->stCfg.u32FrameCount,
+        pstCtx->u32DoneCount,
+        pstCtx->u32ErrCount,
+        DemoTimeDiffMs(&stStartTv, &stEndTv));
     printf("[summary] pipeline_fps=%.2f\n", pstCtx->dPipelineFps);
-        printf("[summary] last_cpp_frame=%s\n",
-            pstCtx->bSavedLastCppFrame == MPP_TRUE ? pstCtx->szLastCppFramePath : "not_saved");
+    printf(
+        "[summary] last_cpp_frame=%s\n",
+        pstCtx->bSavedLastCppFrame == MPP_TRUE ? pstCtx->szLastCppFramePath : "not_saved");
     return 0;
 }
 
-static VOID DemoPrintUsage(const char *prog)
-{
+static VOID DemoPrintUsage(const char *prog) {
     printf("Usage: %s [frame_count] [width] [height] [dump_path] [cpp_input_step] [cpp_output_step]\n", prog);
     printf("Example: %s 30 1920 1080 /tmp/mpp_cpp_dump 2 1\n", prog);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 s32Ret;
 
     (void)SYS_Init();
@@ -487,24 +473,25 @@ int main(int argc, char *argv[])
     g_stCppDemoCtx.stCfg.stCppChnAttr.u32Height = g_stCppDemoCtx.stCfg.u32Height;
 
     printf("==== VI -> CPP demo start ====\n");
-        printf("frame_count=%u width=%u height=%u dump_path=%s cpp_frc=%u/%u\n",
-           g_stCppDemoCtx.stCfg.u32FrameCount,
-           g_stCppDemoCtx.stCfg.u32Width,
-           g_stCppDemoCtx.stCfg.u32Height,
-            g_stCppDemoCtx.stCfg.szDumpPath,
-            g_stCppDemoCtx.stCfg.stCppFrameRateCtrl.u32InputFrameStep,
-            g_stCppDemoCtx.stCfg.stCppFrameRateCtrl.u32OutputFrameStep);
+    printf(
+        "frame_count=%u width=%u height=%u dump_path=%s cpp_frc=%u/%u\n",
+        g_stCppDemoCtx.stCfg.u32FrameCount,
+        g_stCppDemoCtx.stCfg.u32Width,
+        g_stCppDemoCtx.stCfg.u32Height,
+        g_stCppDemoCtx.stCfg.szDumpPath,
+        g_stCppDemoCtx.stCfg.stCppFrameRateCtrl.u32InputFrameStep,
+        g_stCppDemoCtx.stCfg.stCppFrameRateCtrl.u32OutputFrameStep);
 
     s32Ret = DemoSetupVi(&g_stCppDemoCtx.stCfg);
     if (s32Ret != 0)
         goto exit1;
 
     s32Ret = DemoSetupCpp(&g_stCppDemoCtx.stCfg);
-    if (s32Ret != 0){
+    if (s32Ret != 0) {
         goto exit2;
-	}
+    }
 
-	sleep(1);
+    sleep(1);
     s32Ret = DemoRunViToCpp(&g_stCppDemoCtx);
 
     DemoTeardownCpp(&g_stCppDemoCtx.stCfg);

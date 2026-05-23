@@ -6,8 +6,8 @@
  * @Description: MppPacket - carrier for stream data (before decode / after encode)
  */
 
-#ifndef _MPP_PACKET_H_
-#define _MPP_PACKET_H_
+#ifndef PACKET_H
+#define PACKET_H
 
 #include "data.h"
 #include "type.h"
@@ -53,4 +53,4 @@ void PACKET_Destory(MppPacket *packet);
 };
 #endif
 
-#endif /*_MPP_PACKET_H_*/
+#endif /*PACKET_H*/

@@ -4,15 +4,18 @@
  *
  * @File      :    v2d_vb_demo.c
  * @Brief     :    Example: allocate source and destination buffers from VB,
- *                 then run a V2D scale or format-convert job selected by CLI.
+ *                 then run a V2D resize or format-convert job selected by CLI.
  *
  * Notes:
  *   1. This is a demo executable, not a CTest case, because it depends on
  *      `/dev/v2d_dev` and real V2D hardware.
  *   2. Source buffer uses NV12 (`./vi_phy0_first_frame.yuv`) and destination
  *      buffer also uses NV12.
- *   3. The example intentionally uses VB_SetFrameInfo + VB_GetFrameInfo so the
- *      V2D helper can obtain fd/stride/size metadata from VB.
+ *   3. The example follows the UVC-style flow: VB_CreatePool + VB_GetBuffer +
+ *      VB_GetDmaBufFd + VB_GetVirAddr right after pool creation, and fills
+ *      VideoFrameInfo inline. It deliberately avoids VB_SetFrameInfo /
+ *      VB_GetFrameInfo, since the V2D driver only needs fd/stride/size and the
+ *      width/height/format kept in stCommFrameInfo.
  *------------------------------------------------------------------------------
  */
 
@@ -28,19 +31,19 @@
 #include "vb_api.h"
 #include "v2d_api.h"
 
-#define DEMO_INPUT_FILE          "./vi_phy0_first_frame.yuv"
-#define DEMO_INPUT_FILE_OVERLAY  "./v2d_overlay.bgra"
-#define DEMO_OUTPUT_FILE_SCALE   "./v2d_case1_scale_out.yuv"
+#define DEMO_INPUT_FILE "./vi_phy0_first_frame.yuv"
+#define DEMO_INPUT_FILE_OVERLAY "./v2d_overlay.bgra"
+#define DEMO_OUTPUT_FILE_RESIZE "./v2d_case1_resize_out.yuv"
 #define DEMO_OUTPUT_FILE_CONVERT "./v2d_case1_convert_out.bgra"
-#define DEMO_OUTPUT_FILE_ROTATE  "./v2d_case1_rotate_out.yuv"
-#define DEMO_OUTPUT_FILE_BLEND   "./v2d_case1_adv2layers_out.yuv"
-#define DEFAULT_SRC_WIDTH   1920U
-#define DEFAULT_SRC_HEIGHT  1080U
-#define DEFAULT_DST_WIDTH   640U
-#define DEFAULT_DST_HEIGHT  480U
+#define DEMO_OUTPUT_FILE_ROTATE "./v2d_case1_rotate_out.yuv"
+#define DEMO_OUTPUT_FILE_BLEND "./v2d_case1_adv2layers_out.yuv"
+#define DEFAULT_SRC_WIDTH 1920U
+#define DEFAULT_SRC_HEIGHT 1080U
+#define DEFAULT_DST_WIDTH 640U
+#define DEFAULT_DST_HEIGHT 480U
 
 typedef enum DEMO_MODE_E {
-    DEMO_MODE_SCALE = 0,
+    DEMO_MODE_RESIZE = 0,
     DEMO_MODE_CONVERT,
     DEMO_MODE_ROTATE,
     DEMO_MODE_ADV2LAYERS,
@@ -55,63 +58,167 @@ typedef struct DEMO_CONFIG_S {
     U32 src_height;
     U32 dst_width;
     U32 dst_height;
-    V2DArea foreground_area;
+    MppPixelFormat src_format;
     MppPixelFormat dst_format;
+    MppPixelFormat overlay_format;
 } DEMO_CONFIG_S;
 
-#define DEMO_LOG(fmt, ...)  printf("[v2d_vb_demo] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[v2d_vb_demo][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...) printf("[v2d_vb_demo] " fmt "\n", ##__VA_ARGS__)
+#define DEMO_FAIL(fmt, ...)                                     \
+    do {                                                        \
+        printf("[v2d_vb_demo][FAIL] " fmt "\n", ##__VA_ARGS__); \
+        return -1;                                              \
+    } while (0)
 
-static void demo_print_usage(const char *prog)
-{
+static const char *demo_pixel_format_name(MppPixelFormat pixel_format) {
+    switch (pixel_format) {
+        case MPP_PIXEL_FORMAT_NV12:
+            return "nv12";
+        case MPP_PIXEL_FORMAT_NV21:
+            return "nv21";
+        case MPP_PIXEL_FORMAT_BGRA:
+            return "bgra";
+        case MPP_PIXEL_FORMAT_RGBA:
+            return "rgba";
+        case MPP_PIXEL_FORMAT_ARGB:
+            return "argb";
+        case MPP_PIXEL_FORMAT_ABGR:
+            return "abgr";
+        case MPP_PIXEL_FORMAT_RGB_888:
+            return "rgb888";
+        case MPP_PIXEL_FORMAT_BGR_888:
+            return "bgr888";
+        case MPP_PIXEL_FORMAT_RGB_565:
+            return "rgb565";
+        case MPP_PIXEL_FORMAT_BGR_565:
+            return "bgr565";
+        case MPP_PIXEL_FORMAT_A8:
+            return "a8";
+        default:
+            return "unknown";
+    }
+}
+
+static int demo_parse_pixel_format(const char *text, MppPixelFormat *pixel_format) {
+    if ((text == NULL) || (pixel_format == NULL)) {
+        return -1;
+    }
+
+    if ((strcmp(text, "nv12") == 0) || (strcmp(text, "NV12") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_NV12;
+        return 0;
+    }
+
+    if ((strcmp(text, "nv21") == 0) || (strcmp(text, "NV21") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_NV21;
+        return 0;
+    }
+
+    if ((strcmp(text, "bgra") == 0) || (strcmp(text, "BGRA") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_BGRA;
+        return 0;
+    }
+
+    if ((strcmp(text, "rgba") == 0) || (strcmp(text, "RGBA") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_RGBA;
+        return 0;
+    }
+
+    if ((strcmp(text, "argb") == 0) || (strcmp(text, "ARGB") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_ARGB;
+        return 0;
+    }
+
+    if ((strcmp(text, "abgr") == 0) || (strcmp(text, "ABGR") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_ABGR;
+        return 0;
+    }
+
+    if ((strcmp(text, "rgb888") == 0) || (strcmp(text, "RGB888") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_RGB_888;
+        return 0;
+    }
+
+    if ((strcmp(text, "bgr888") == 0) || (strcmp(text, "BGR888") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_BGR_888;
+        return 0;
+    }
+
+    if ((strcmp(text, "rgb565") == 0) || (strcmp(text, "RGB565") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_RGB_565;
+        return 0;
+    }
+
+    if ((strcmp(text, "bgr565") == 0) || (strcmp(text, "BGR565") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_BGR_565;
+        return 0;
+    }
+
+    if ((strcmp(text, "a8") == 0) || (strcmp(text, "A8") == 0)) {
+        *pixel_format = MPP_PIXEL_FORMAT_A8;
+        return 0;
+    }
+
+    return -1;
+}
+
+static void demo_print_usage(const char *prog) {
     printf("Usage:\n");
-    printf("  %s scale [input_file src_width src_height output_file dst_width dst_height]\n", prog);
-    printf("  %s convert [input_file src_width src_height output_file]\n", prog);
-    printf("  %s rotate [input_file src_width src_height output_file]\n", prog);
-        printf("  %s adv2layers [background_nv12 foreground_bgra width height output_file [fg_x fg_y fg_w fg_h]]\n", prog);
-    printf("\nscale defaults:\n");
+    printf(
+        "  %s resize [input_file src_width src_height src_format output_file dst_width dst_height dst_format]\n", prog);
+    printf("  %s convert [input_file src_width src_height src_format output_file dst_format]\n", prog);
+    printf("  %s rotate [input_file src_width src_height src_format output_file dst_format]\n", prog);
+    printf(
+        "  %s adv2layers [background_file foreground_file width height background_format foreground_format output_file "
+        "dst_format]\n",
+        prog);
+    printf("\nSupported formats: nv12 nv21 bgra rgba argb abgr rgb888 bgr888 rgb565 bgr565 a8\n");
+    printf("\nresize defaults:\n");
     printf("  input_file  : %s\n", DEMO_INPUT_FILE);
     printf("  src_width   : %u\n", DEFAULT_SRC_WIDTH);
     printf("  src_height  : %u\n", DEFAULT_SRC_HEIGHT);
-    printf("  output_file : %s\n", DEMO_OUTPUT_FILE_SCALE);
+    printf("  src_format  : nv12\n");
+    printf("  output_file : %s\n", DEMO_OUTPUT_FILE_RESIZE);
     printf("  dst_width   : %u\n", DEFAULT_DST_WIDTH);
     printf("  dst_height  : %u\n", DEFAULT_DST_HEIGHT);
+    printf("  dst_format  : nv12\n");
     printf("\nconvert defaults:\n");
     printf("  input_file  : %s\n", DEMO_INPUT_FILE);
     printf("  src_width   : %u\n", DEFAULT_SRC_WIDTH);
     printf("  src_height  : %u\n", DEFAULT_SRC_HEIGHT);
+    printf("  src_format  : nv12\n");
     printf("  output_file : %s\n", DEMO_OUTPUT_FILE_CONVERT);
+    printf("  dst_format  : bgra\n");
     printf("\nrotate defaults:\n");
     printf("  input_file  : %s\n", DEMO_INPUT_FILE);
     printf("  src_width   : %u\n", DEFAULT_SRC_WIDTH);
     printf("  src_height  : %u\n", DEFAULT_SRC_HEIGHT);
+    printf("  src_format  : nv12\n");
     printf("  output_file : %s\n", DEMO_OUTPUT_FILE_ROTATE);
+    printf("  dst_format  : nv12\n");
     printf("\nadv2layers defaults:\n");
     printf("  background  : %s\n", DEMO_INPUT_FILE);
     printf("  foreground  : %s\n", DEMO_INPUT_FILE_OVERLAY);
     printf("  width       : %u\n", DEFAULT_SRC_WIDTH);
     printf("  height      : %u\n", DEFAULT_SRC_HEIGHT);
+    printf("  bg_format   : nv12\n");
+    printf("  fg_format   : bgra\n");
     printf("  output_file : %s\n", DEMO_OUTPUT_FILE_BLEND);
-	printf("  fg_x        : %d\n", (int)(DEFAULT_SRC_WIDTH / 4U));
-	printf("  fg_y        : %d\n", (int)(DEFAULT_SRC_HEIGHT / 4U));
-	printf("  fg_w        : %u\n", DEFAULT_SRC_WIDTH / 2U);
-	printf("  fg_h        : %u\n", DEFAULT_SRC_HEIGHT / 2U);
+    printf("  dst_format  : nv12\n");
     printf("\nExample:\n");
-    printf("  %s scale input.yuv 1920 1080 output.yuv 640 480\n", prog);
-    printf("  %s convert input.yuv 1920 1080 output.bgra\n", prog);
-    printf("  %s rotate input.yuv 1920 1080 output.yuv\n", prog);
-    printf("  %s adv2layers bg.yuv fg.bgra 1920 1080 output.yuv\n", prog);
-        printf("  %s adv2layers bg.yuv fg.bgra 1920 1080 output.yuv 100 200 320 180\n", prog);
+    printf("  %s resize input.yuv 1920 1080 nv12 output.yuv 640 480 nv12\n", prog);
+    printf("  %s convert input.yuv 1920 1080 nv12 output.bgra bgra\n", prog);
+    printf("  %s rotate input.yuv 1920 1080 nv12 output.rgba rgba\n", prog);
+    printf("  %s adv2layers bg.yuv fg.bgra 1920 1080 nv12 bgra output.yuv nv12\n", prog);
 }
 
-static int demo_parse_mode(const char *mode_str, DEMO_MODE_E *mode)
-{
+static int demo_parse_mode(const char *mode_str, DEMO_MODE_E *mode) {
     if (mode_str == NULL || mode == NULL) {
         return -1;
     }
 
-    if (strcmp(mode_str, "scale") == 0) {
-        *mode = DEMO_MODE_SCALE;
+    if (strcmp(mode_str, "resize") == 0) {
+        *mode = DEMO_MODE_RESIZE;
         return 0;
     }
 
@@ -133,10 +240,9 @@ static int demo_parse_mode(const char *mode_str, DEMO_MODE_E *mode)
     return -1;
 }
 
-static int demo_parse_u32(const char *text, U32 *value)
-{
+static int demo_parse_u32(const char *text, U32 *value) {
     char *end_ptr = NULL;
-    unsigned long parsed;
+    uint64_t parsed;
 
     if (text == NULL || value == NULL || text[0] == '\0') {
         return -1;
@@ -151,30 +257,26 @@ static int demo_parse_u32(const char *text, U32 *value)
     return 0;
 }
 
-static void demo_set_default_config(DEMO_CONFIG_S *config)
-{
+static void demo_set_default_config(DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return;
     }
 
     memset(config, 0, sizeof(*config));
-    config->enMode = DEMO_MODE_SCALE;
+    config->enMode = DEMO_MODE_RESIZE;
     config->input_file = DEMO_INPUT_FILE;
     config->overlay_file = DEMO_INPUT_FILE_OVERLAY;
-    config->output_file = DEMO_OUTPUT_FILE_SCALE;
+    config->output_file = DEMO_OUTPUT_FILE_RESIZE;
     config->src_width = DEFAULT_SRC_WIDTH;
     config->src_height = DEFAULT_SRC_HEIGHT;
     config->dst_width = DEFAULT_DST_WIDTH;
     config->dst_height = DEFAULT_DST_HEIGHT;
-    config->foreground_area.u16X = (U16)(DEFAULT_SRC_WIDTH / 4U);
-    config->foreground_area.u16Y = (U16)(DEFAULT_SRC_HEIGHT / 4U);
-    config->foreground_area.u16W = DEFAULT_SRC_WIDTH / 2U;
-    config->foreground_area.u16H = DEFAULT_SRC_HEIGHT / 2U;
+    config->src_format = MPP_PIXEL_FORMAT_NV12;
     config->dst_format = MPP_PIXEL_FORMAT_NV12;
+    config->overlay_format = MPP_PIXEL_FORMAT_BGRA;
 }
 
-static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
-{
+static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return -1;
     }
@@ -189,24 +291,24 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         return -1;
     }
 
-    if (config->enMode == DEMO_MODE_SCALE) {
-        config->output_file = DEMO_OUTPUT_FILE_SCALE;
+    if (config->enMode == DEMO_MODE_RESIZE) {
+        config->output_file = DEMO_OUTPUT_FILE_RESIZE;
         config->dst_format = MPP_PIXEL_FORMAT_NV12;
 
         if (argc == 2) {
             return 0;
         }
 
-        if (argc != 8) {
+        if (argc != 10) {
             return -1;
         }
 
         config->input_file = argv[2];
-        config->output_file = argv[5];
-        if (demo_parse_u32(argv[3], &config->src_width) != 0 ||
-            demo_parse_u32(argv[4], &config->src_height) != 0 ||
-            demo_parse_u32(argv[6], &config->dst_width) != 0 ||
-            demo_parse_u32(argv[7], &config->dst_height) != 0) {
+        config->output_file = argv[6];
+        if (demo_parse_u32(argv[3], &config->src_width) != 0 || demo_parse_u32(argv[4], &config->src_height) != 0 ||
+            demo_parse_pixel_format(argv[5], &config->src_format) != 0 ||
+            demo_parse_u32(argv[7], &config->dst_width) != 0 || demo_parse_u32(argv[8], &config->dst_height) != 0 ||
+            demo_parse_pixel_format(argv[9], &config->dst_format) != 0) {
             return -1;
         }
 
@@ -214,13 +316,10 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     }
 
     if (config->enMode == DEMO_MODE_ADV2LAYERS) {
-        U32 fg_x;
-        U32 fg_y;
-        U32 fg_w;
-        U32 fg_h;
-
         config->overlay_file = DEMO_INPUT_FILE_OVERLAY;
         config->output_file = DEMO_OUTPUT_FILE_BLEND;
+        config->src_format = MPP_PIXEL_FORMAT_NV12;
+        config->overlay_format = MPP_PIXEL_FORMAT_BGRA;
         config->dst_format = MPP_PIXEL_FORMAT_NV12;
         config->dst_width = config->src_width;
         config->dst_height = config->src_height;
@@ -229,39 +328,22 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
             return 0;
         }
 
-        if ((argc != 7) && (argc != 11)) {
+        if (argc != 10) {
             return -1;
         }
 
         config->input_file = argv[2];
         config->overlay_file = argv[3];
-        config->output_file = argv[6];
-        if (demo_parse_u32(argv[4], &config->src_width) != 0 ||
-            demo_parse_u32(argv[5], &config->src_height) != 0) {
+        config->output_file = argv[8];
+        if (demo_parse_u32(argv[4], &config->src_width) != 0 || demo_parse_u32(argv[5], &config->src_height) != 0 ||
+            demo_parse_pixel_format(argv[6], &config->src_format) != 0 ||
+            demo_parse_pixel_format(argv[7], &config->overlay_format) != 0 ||
+            demo_parse_pixel_format(argv[9], &config->dst_format) != 0) {
             return -1;
         }
 
         config->dst_width = config->src_width;
         config->dst_height = config->src_height;
-        config->foreground_area.u16X = (U16)(config->src_width / 4U);
-        config->foreground_area.u16Y = (U16)(config->src_height / 4U);
-        config->foreground_area.u16W = (U16)(config->src_width / 2U);
-        config->foreground_area.u16H = (U16)(config->src_height / 2U);
-
-        if (argc == 11) {
-            if (demo_parse_u32(argv[7], &fg_x) != 0 ||
-                demo_parse_u32(argv[8], &fg_y) != 0 ||
-                demo_parse_u32(argv[9], &fg_w) != 0 ||
-                demo_parse_u32(argv[10], &fg_h) != 0) {
-                return -1;
-            }
-
-            config->foreground_area.u16X = (U16)fg_x;
-            config->foreground_area.u16Y = (U16)fg_y;
-            config->foreground_area.u16W = (U16)fg_w;
-            config->foreground_area.u16H = (U16)fg_h;
-        }
-
         return 0;
     }
 
@@ -275,14 +357,15 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
             return 0;
         }
 
-        if (argc != 6) {
+        if (argc != 8) {
             return -1;
         }
 
         config->input_file = argv[2];
-        config->output_file = argv[5];
-        if (demo_parse_u32(argv[3], &config->src_width) != 0 ||
-            demo_parse_u32(argv[4], &config->src_height) != 0) {
+        config->output_file = argv[6];
+        if (demo_parse_u32(argv[3], &config->src_width) != 0 || demo_parse_u32(argv[4], &config->src_height) != 0 ||
+            demo_parse_pixel_format(argv[5], &config->src_format) != 0 ||
+            demo_parse_pixel_format(argv[7], &config->dst_format) != 0) {
             return -1;
         }
 
@@ -292,6 +375,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     }
 
     config->output_file = DEMO_OUTPUT_FILE_CONVERT;
+    config->src_format = MPP_PIXEL_FORMAT_NV12;
     config->dst_format = MPP_PIXEL_FORMAT_BGRA;
 
     if (argc == 2) {
@@ -300,14 +384,15 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         return 0;
     }
 
-    if (argc != 6) {
+    if (argc != 8) {
         return -1;
     }
 
     config->input_file = argv[2];
-    config->output_file = argv[5];
-    if (demo_parse_u32(argv[3], &config->src_width) != 0 ||
-        demo_parse_u32(argv[4], &config->src_height) != 0) {
+    config->output_file = argv[6];
+    if (demo_parse_u32(argv[3], &config->src_width) != 0 || demo_parse_u32(argv[4], &config->src_height) != 0 ||
+        demo_parse_pixel_format(argv[5], &config->src_format) != 0 ||
+        demo_parse_pixel_format(argv[7], &config->dst_format) != 0) {
         return -1;
     }
 
@@ -316,8 +401,7 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
     return 0;
 }
 
-static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_yuv420sp_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -336,8 +420,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     }
 
     base = plane0;
-    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] +
-                    (size_t)frame->stVFrame.u32PlaneSize[1];
+    expected_size = (size_t)frame->stVFrame.u32PlaneSize[0] + (size_t)frame->stVFrame.u32PlaneSize[1];
 
     fp = fopen(input_file, "rb");
     if (fp == NULL) {
@@ -356,16 +439,13 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     }
 
     if (plane1 != (plane0 + frame->stVFrame.u32PlaneSize[0])) {
-        memcpy(plane1,
-               base + frame->stVFrame.u32PlaneSize[0],
-               frame->stVFrame.u32PlaneSize[1]);
+        memcpy(plane1, base + frame->stVFrame.u32PlaneSize[0], frame->stVFrame.u32PlaneSize[1]);
     }
 
     return 0;
 }
 
-static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size = 0;
@@ -403,8 +483,7 @@ static int demo_load_packed_file(VideoFrameInfo *frame, const char *input_file)
     return 0;
 }
 
-static int demo_dump_nv12_file_as(const VideoFrameInfo *frame, const char *file_name)
-{
+static int demo_dump_nv12_file_as(const VideoFrameInfo *frame, const char *file_name) {
     FILE *fp;
     size_t write_size;
     const void *plane0;
@@ -424,24 +503,21 @@ static int demo_dump_nv12_file_as(const VideoFrameInfo *frame, const char *file_
         return -1;
     }
 
-    write_size = fwrite(plane0,
-                        1,
-                        frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1],
-                        fp);
+    write_size = fwrite(plane0, 1, frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1], fp);
     fclose(fp);
 
     if (write_size != frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]) {
-        DEMO_LOG("write output file size mismatch, got=%zu expect=%u",
-                 write_size,
-                 frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]);
+        DEMO_LOG(
+            "write output file size mismatch, got=%zu expect=%u",
+            write_size,
+            frame->stVFrame.u32PlaneSize[0] + frame->stVFrame.u32PlaneSize[1]);
         return -1;
     }
 
     return 0;
 }
 
-static int demo_dump_frame_file_as(const VideoFrameInfo *frame, const char *file_name)
-{
+static int demo_dump_frame_file_as(const VideoFrameInfo *frame, const char *file_name) {
     FILE *fp;
     size_t write_size;
     size_t expected_size = 0;
@@ -478,8 +554,31 @@ static int demo_dump_frame_file_as(const VideoFrameInfo *frame, const char *file
     return 0;
 }
 
-static void demo_reset_nv12_frame(VideoFrameInfo *frame)
-{
+static int demo_is_yuv420sp_format(MppPixelFormat pixel_format) {
+    return ((pixel_format == MPP_PIXEL_FORMAT_NV12) || (pixel_format == MPP_PIXEL_FORMAT_NV21)) ? 1 : 0;
+}
+
+static U32 demo_get_packed_bpp(MppPixelFormat pixel_format) {
+    switch (pixel_format) {
+        case MPP_PIXEL_FORMAT_BGRA:
+        case MPP_PIXEL_FORMAT_RGBA:
+        case MPP_PIXEL_FORMAT_ARGB:
+        case MPP_PIXEL_FORMAT_ABGR:
+            return 4U;
+        case MPP_PIXEL_FORMAT_RGB_888:
+        case MPP_PIXEL_FORMAT_BGR_888:
+            return 3U;
+        case MPP_PIXEL_FORMAT_RGB_565:
+        case MPP_PIXEL_FORMAT_BGR_565:
+            return 2U;
+        case MPP_PIXEL_FORMAT_A8:
+            return 1U;
+        default:
+            return 0U;
+    }
+}
+
+static void demo_reset_frame(VideoFrameInfo *frame) {
     void *plane0;
     void *plane1;
 
@@ -489,38 +588,68 @@ static void demo_reset_nv12_frame(VideoFrameInfo *frame)
     plane0 = (void *)frame->stVFrame.ulPlaneVirAddr[0];
     plane1 = (void *)frame->stVFrame.ulPlaneVirAddr[1];
 
-    if (plane0 != NULL)
+    if (plane0 != NULL) {
         memset(plane0, 0, frame->stVFrame.u32PlaneSize[0]);
-    if (plane1 != NULL)
+    }
+    if (plane1 != NULL) {
         memset(plane1, 0x80, frame->stVFrame.u32PlaneSize[1]);
+    }
 }
 
-static int demo_prepare_pool(UL *pool_id, ModId mod_id, MppPixelFormat pixel_format,
-                             U32 width, U32 height)
-{
+/*
+ * Allocate a VB pool, grab one buffer from it, and fill out the
+ * VideoFrameInfo so V2D can consume it directly.
+ *
+ * Mirrors the UVC-style flow (VB_GetBuffer + VB_GetDmaBufFd + VB_GetVirAddr
+ * right after VB_CreatePool). V2D internally only needs:
+ *   - stVFrame.u32Fd[0]            (DMA-BUF fd, the hardware handle)
+ *   - stVFrame.u32PlaneStride[0]   (row stride)
+ *   - stVFrame.u32PlaneSize[0]     (UV plane offset for NV12/NV21)
+ *   - stVFrame.u32PlaneNum         (only checked != 0)
+ *   - stCommFrameInfo.{u32Width,u32Height,ePixelFormat}
+ * Everything else (Align/CompressMode/ColorSpace/PlaneSizeValid/TotalSize/...)
+ * is filled for completeness and CPU-side load/dump helpers, but is not read
+ * by the V2D driver itself.
+ */
+static int demo_prepare_pool(
+    UL *pool_id, VideoFrameInfo *frame, ModId mod_id, MppPixelFormat pixel_format, U32 width, U32 height
+) {
     VbPoolCfg cfg;
-    VideoFrameInfo frame_info;
+    UL buffer = 0UL;
     S32 ret;
     U32 stride;
     U32 y_size;
     U32 total_size;
+    U32 plane_num;
+    void *vir_addr = NULL;
+    S32 dma_buf_fd = -1;
 
-    if (pixel_format == MPP_PIXEL_FORMAT_NV12) {
+    if ((pool_id == NULL) || (frame == NULL)) {
+        return -1;
+    }
+
+    if (demo_is_yuv420sp_format(pixel_format)) {
         stride = width;
         y_size = stride * height;
         total_size = y_size + (y_size / 2U);
-    } else if (pixel_format == MPP_PIXEL_FORMAT_BGRA) {
-        stride = width * 4U;
+        plane_num = 2U;
+    } else {
+        U32 bpp = demo_get_packed_bpp(pixel_format);
+
+        if (bpp == 0U) {
+            DEMO_LOG("unsupported format in demo, format=%d", pixel_format);
+            return -1;
+        }
+
+        stride = width * bpp;
         y_size = stride * height;
         total_size = y_size;
-    } else {
-        DEMO_LOG("unsupported format in demo, format=%d", pixel_format);
-        return -1;
+        plane_num = 1U;
     }
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.u32BufSize = total_size;
-    cfg.u32BufCnt = 2;
+    cfg.u32BufCnt = 1; /* single-shot demo: one buffer per pool, bound to `frame` */
     cfg.eModId = mod_id;
     cfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
 
@@ -530,72 +659,63 @@ static int demo_prepare_pool(UL *pool_id, ModId mod_id, MppPixelFormat pixel_for
         return -1;
     }
 
-    memset(&frame_info, 0, sizeof(frame_info));
-    frame_info.eFrameType = FRAME_TYPE_COMMON;
-    frame_info.eModId = mod_id;
-    frame_info.stCommFrameInfo.u32Width = width;
-    frame_info.stCommFrameInfo.u32Height = height;
-    frame_info.stCommFrameInfo.u32Align = 1U;
-    frame_info.stCommFrameInfo.ePixelFormat = pixel_format;
-    frame_info.stCommFrameInfo.eCompressMode = COMPRESS_MODE_NONE;
-    frame_info.stCommFrameInfo.eColorSpace = COLOR_SPACE_BT601;
+    /* Acquire one buffer from the pool and resolve its fd / virtual address. */
+    buffer = VB_GetBuffer(*pool_id, 0);
+    if (buffer == 0UL) {
+        DEMO_LOG("VB_GetBuffer failed, mod=%d", mod_id);
+        goto err_destroy_pool;
+    }
 
-    frame_info.stVFrame.u32PlaneNum = (pixel_format == MPP_PIXEL_FORMAT_NV12) ? 2U : 1U;
-    frame_info.stVFrame.u32PlaneStride[0] = stride;
-    frame_info.stVFrame.u32PlaneStride[1] = (pixel_format == MPP_PIXEL_FORMAT_NV12) ? stride : 0U;
-    frame_info.stVFrame.u32PlaneSize[0] = y_size;
-    frame_info.stVFrame.u32PlaneSize[1] = (pixel_format == MPP_PIXEL_FORMAT_NV12) ? (y_size / 2U) : 0U;
-    frame_info.stVFrame.u32PlaneSizeValid[0] = y_size;
-    frame_info.stVFrame.u32PlaneSizeValid[1] = (pixel_format == MPP_PIXEL_FORMAT_NV12) ? (y_size / 2U) : 0U;
-    frame_info.stVFrame.u32TotalSize = total_size;
+    ret = VB_GetDmaBufFd(buffer, &dma_buf_fd);
+    if ((ret != 0) || (dma_buf_fd < 0)) {
+        DEMO_LOG("VB_GetDmaBufFd failed, ret=%d fd=%d", ret, dma_buf_fd);
+        goto err_release_buf;
+    }
 
-    ret = VB_SetFrameInfo(*pool_id, &frame_info);
-    if (ret != 0) {
-        DEMO_LOG("VB_SetFrameInfo failed, ret=%d", ret);
-        VB_DestroyPool(*pool_id);
-        *pool_id = 0UL;
-        return -1;
+    ret = VB_GetVirAddr(buffer, &vir_addr);
+    if ((ret != 0) || (vir_addr == NULL)) {
+        DEMO_LOG("VB_GetVirAddr failed, ret=%d", ret);
+        goto err_release_buf;
+    }
+
+    /* Fill VideoFrameInfo in one shot (UVC-style). */
+    memset(frame, 0, sizeof(*frame));
+    frame->eFrameType = FRAME_TYPE_COMMON;
+    frame->eModId = mod_id;
+    frame->ulPoolId = *pool_id;
+    frame->ulBufferId = buffer;
+
+    frame->stCommFrameInfo.u32Width = width;
+    frame->stCommFrameInfo.u32Height = height;
+    frame->stCommFrameInfo.ePixelFormat = pixel_format;
+
+    frame->stVFrame.u32PlaneNum = plane_num;
+    frame->stVFrame.u32PlaneStride[0] = stride;
+    frame->stVFrame.u32PlaneSize[0] = y_size;
+    frame->stVFrame.u32PlaneSizeValid[0] = y_size;
+    frame->stVFrame.u32TotalSize = total_size;
+    frame->stVFrame.u32Fd[0] = (UL)dma_buf_fd;
+    frame->stVFrame.ulPlaneVirAddr[0] = (UL)vir_addr;
+
+    if (plane_num > 1U) {
+        frame->stVFrame.u32PlaneStride[1] = stride;
+        frame->stVFrame.u32PlaneSize[1] = y_size / 2U;
+        frame->stVFrame.u32PlaneSizeValid[1] = y_size / 2U;
+        frame->stVFrame.u32Fd[1] = (UL)dma_buf_fd;
+        frame->stVFrame.ulPlaneVirAddr[1] = (UL)vir_addr + y_size;
     }
 
     return 0;
+
+err_release_buf:
+    VB_ReleaseBuffer(buffer);
+err_destroy_pool:
+    VB_DestroyPool(*pool_id);
+    *pool_id = 0UL;
+    return -1;
 }
 
-static int demo_prepare_frame_from_buffer(UL buffer, VideoFrameInfo *frame)
-{
-    S32 ret;
-
-    if (buffer == 0UL || frame == NULL) {
-        return -1;
-    }
-
-    ret = VB_GetFrameInfo(buffer, frame);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetDmaBufFd(buffer, (S32 *)&frame->stVFrame.u32Fd[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetVirAddr(buffer, (void **)&frame->stVFrame.ulPlaneVirAddr[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    if (frame->stVFrame.u32PlaneNum > 1U) {
-        frame->stVFrame.u32Fd[1] = frame->stVFrame.u32Fd[0];
-        frame->stVFrame.ulPlaneVirAddr[1] =
-            frame->stVFrame.ulPlaneVirAddr[0] + frame->stVFrame.u32PlaneSize[0];
-    }
-
-    return 0;
-}
-
-static int demo_run_scale(const DEMO_CONFIG_S *config,
-                          const VideoFrameInfo *src_frame,
-                          VideoFrameInfo *dst_frame)
-{
+static int demo_run_resize(const DEMO_CONFIG_S *config, const VideoFrameInfo *src_frame, VideoFrameInfo *dst_frame) {
     V2DHandle handle = 0;
     S32 ret;
 
@@ -603,14 +723,14 @@ static int demo_run_scale(const DEMO_CONFIG_S *config,
         return -1;
     }
 
-    demo_reset_nv12_frame(dst_frame);
+    demo_reset_frame(dst_frame);
 
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return ret;
     }
 
-    ret = V2D_ScaleFrame(handle, src_frame, dst_frame, V2D_CSC_MODE_BUTT);
+    ret = V2D_ResizeFrame(handle, src_frame, dst_frame);
     if (ret != 0) {
         V2D_CancelJob(handle);
         return ret;
@@ -621,23 +741,13 @@ static int demo_run_scale(const DEMO_CONFIG_S *config,
         return ret;
     }
 
-    dst_frame->stVFrame.u32PlaneSizeValid[0] = dst_frame->stVFrame.u32PlaneSize[0];
-    if (dst_frame->stVFrame.u32PlaneNum > 1U) {
-        dst_frame->stVFrame.u32PlaneSizeValid[1] = dst_frame->stVFrame.u32PlaneSize[1];
-    }
-
     return 0;
 }
 
-static int demo_run_convert(const DEMO_CONFIG_S *config,
-                            const VideoFrameInfo *src_frame,
-                            VideoFrameInfo *dst_frame)
-{
+static int demo_run_convert(const DEMO_CONFIG_S *config, const VideoFrameInfo *src_frame, VideoFrameInfo *dst_frame) {
     void *plane0;
     V2DHandle handle = 0;
     S32 ret;
-    V2DCscMode csc_mode;
-
     if (src_frame == NULL || dst_frame == NULL) {
         return -1;
     }
@@ -648,10 +758,8 @@ static int demo_run_convert(const DEMO_CONFIG_S *config,
     }
 
     memset(plane0, 0, dst_frame->stVFrame.u32PlaneSize[0]);
-
-    csc_mode = V2D_CSC_MODE_BT601WIDE_2_RGB;
-    if ((config != NULL) && (src_frame->stCommFrameInfo.eColorSpace == COLOR_SPACE_BT601_LIMIT)) {
-        csc_mode = V2D_CSC_MODE_BT601NARROW_2_RGB;
+    if (dst_frame->stVFrame.u32PlaneNum > 1U) {
+        memset((void *)dst_frame->stVFrame.ulPlaneVirAddr[1], 0x80, dst_frame->stVFrame.u32PlaneSize[1]);
     }
 
     ret = V2D_BeginJob(&handle);
@@ -659,7 +767,7 @@ static int demo_run_convert(const DEMO_CONFIG_S *config,
         return ret;
     }
 
-    ret = V2D_ConvertFrame(handle, src_frame, dst_frame, csc_mode);
+    ret = V2D_ConvertFrame(handle, src_frame, dst_frame);
     if (ret != 0) {
         V2D_CancelJob(handle);
         return ret;
@@ -670,19 +778,15 @@ static int demo_run_convert(const DEMO_CONFIG_S *config,
         return ret;
     }
 
-    dst_frame->stVFrame.u32PlaneSizeValid[0] = dst_frame->stVFrame.u32PlaneSize[0];
-    if (dst_frame->stVFrame.u32PlaneNum > 1U) {
-        dst_frame->stVFrame.u32PlaneSizeValid[1] = dst_frame->stVFrame.u32PlaneSize[1];
-    }
-
     return 0;
 }
 
-static int demo_run_adv2layers(const DEMO_CONFIG_S *config,
-                               const VideoFrameInfo *background_frame,
-                               const VideoFrameInfo *foreground_frame,
-                               VideoFrameInfo *dst_frame)
-{
+static int demo_run_adv2layers(
+    const DEMO_CONFIG_S *config,
+    const VideoFrameInfo *background_frame,
+    const VideoFrameInfo *foreground_frame,
+    VideoFrameInfo *dst_frame
+) {
     V2DHandle handle = 0;
     S32 ret;
 
@@ -690,14 +794,14 @@ static int demo_run_adv2layers(const DEMO_CONFIG_S *config,
         return -1;
     }
 
-    demo_reset_nv12_frame(dst_frame);
+    demo_reset_frame(dst_frame);
 
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return ret;
     }
 
-    ret = V2D_Adv2Layers(handle, background_frame, foreground_frame, &config->foreground_area, dst_frame);
+    ret = V2D_Adv2Layers(handle, background_frame, foreground_frame, dst_frame);
     if (ret != 0) {
         V2D_CancelJob(handle);
         return ret;
@@ -708,18 +812,10 @@ static int demo_run_adv2layers(const DEMO_CONFIG_S *config,
         return ret;
     }
 
-    dst_frame->stVFrame.u32PlaneSizeValid[0] = dst_frame->stVFrame.u32PlaneSize[0];
-    if (dst_frame->stVFrame.u32PlaneNum > 1U) {
-        dst_frame->stVFrame.u32PlaneSizeValid[1] = dst_frame->stVFrame.u32PlaneSize[1];
-    }
-
     return 0;
 }
 
-static int demo_run_rotate(const DEMO_CONFIG_S *config,
-                          const VideoFrameInfo *src_frame,
-                          VideoFrameInfo *dst_frame)
-{
+static int demo_run_rotate(const DEMO_CONFIG_S *config, const VideoFrameInfo *src_frame, VideoFrameInfo *dst_frame) {
     V2DHandle handle = 0;
     S32 ret;
 
@@ -727,7 +823,7 @@ static int demo_run_rotate(const DEMO_CONFIG_S *config,
         return -1;
     }
 
-    demo_reset_nv12_frame(dst_frame);
+    demo_reset_frame(dst_frame);
 
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
@@ -745,24 +841,15 @@ static int demo_run_rotate(const DEMO_CONFIG_S *config,
         return ret;
     }
 
-    dst_frame->stVFrame.u32PlaneSizeValid[0] = dst_frame->stVFrame.u32PlaneSize[0];
-    if (dst_frame->stVFrame.u32PlaneNum > 1U) {
-        dst_frame->stVFrame.u32PlaneSizeValid[1] = dst_frame->stVFrame.u32PlaneSize[1];
-    }
-
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     S32 ret;
     DEMO_CONFIG_S config;
     UL src_pool = 0UL;
     UL overlay_pool = 0UL;
     UL dst_pool = 0UL;
-    UL src_buf = 0UL;
-    UL overlay_buf = 0UL;
-    UL dst_buf = 0UL;
     VideoFrameInfo src_frame;
     VideoFrameInfo overlay_frame;
     VideoFrameInfo dst_frame;
@@ -775,19 +862,23 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    DEMO_LOG("Mode: %s",
-             (config.enMode == DEMO_MODE_SCALE) ? "scale" :
-             (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
-             (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
-    DEMO_LOG("Configuration: src=%ux%u dst=%ux%u", config.src_width, config.src_height, config.dst_width, config.dst_height);
+    DEMO_LOG(
+        "Mode: %s",
+        (config.enMode == DEMO_MODE_RESIZE)        ? "resize"
+            : (config.enMode == DEMO_MODE_CONVERT) ? "convert"
+            : (config.enMode == DEMO_MODE_ROTATE)  ? "rotate"
+                                                    : "adv2layers");
+    DEMO_LOG(
+        "Configuration: src=%ux%u(%s) dst=%ux%u(%s)",
+        config.src_width,
+        config.src_height,
+        demo_pixel_format_name(config.src_format),
+        config.dst_width,
+        config.dst_height,
+        demo_pixel_format_name(config.dst_format));
     DEMO_LOG("Input: %s", config.input_file);
     if (config.enMode == DEMO_MODE_ADV2LAYERS) {
         DEMO_LOG("Overlay: %s", config.overlay_file);
-            DEMO_LOG("Foreground area: x=%d y=%d w=%u h=%u",
-                     config.foreground_area.u16X,
-                     config.foreground_area.u16Y,
-                     config.foreground_area.u16W,
-                     config.foreground_area.u16H);
     }
     DEMO_LOG("Output: %s", config.output_file);
 
@@ -802,56 +893,34 @@ int main(int argc, char *argv[])
         DEMO_FAIL("VB_Init failed, ret=%d", ret);
     }
 
-    if (demo_prepare_pool(&src_pool, MPP_ID_SYS, MPP_PIXEL_FORMAT_NV12,
-                          config.src_width, config.src_height) != 0) {
+    if (demo_prepare_pool(&src_pool, &src_frame, MPP_ID_V2D, config.src_format, config.src_width, config.src_height) !=
+        0) {
         goto EXIT;
     }
     if (config.enMode == DEMO_MODE_ADV2LAYERS) {
-        if (demo_prepare_pool(&overlay_pool, MPP_ID_SYS, MPP_PIXEL_FORMAT_BGRA,
-                              config.src_width, config.src_height) != 0) {
+        if (demo_prepare_pool(
+                &overlay_pool, &overlay_frame, MPP_ID_V2D,
+                config.overlay_format, config.src_width, config.src_height) != 0) {
             goto EXIT;
         }
     }
-    if (demo_prepare_pool(&dst_pool, MPP_ID_SYS, config.dst_format,
-                          config.dst_width, config.dst_height) != 0) {
+    if (demo_prepare_pool(&dst_pool, &dst_frame, MPP_ID_V2D, config.dst_format, config.dst_width, config.dst_height) !=
+        0) {
         goto EXIT;
     }
 
-    src_buf = VB_GetBuffer(src_pool, 0);
-    if (config.enMode == DEMO_MODE_ADV2LAYERS) {
-        overlay_buf = VB_GetBuffer(overlay_pool, 0);
-    }
-    dst_buf = VB_GetBuffer(dst_pool, 0);
-    if ((src_buf == 0UL) || (dst_buf == 0UL) ||
-        ((config.enMode == DEMO_MODE_ADV2LAYERS) && (overlay_buf == 0UL))) {
-        DEMO_LOG("VB_GetBuffer failed, src=0x%lx overlay=0x%lx dst=0x%lx", src_buf, overlay_buf, dst_buf);
-        goto EXIT;
-    }
-
-    ret = demo_prepare_frame_from_buffer(src_buf, &src_frame);
-    if (ret != 0) {
-        DEMO_LOG("prepare src frame failed");
-        goto EXIT;
-    }
-
-    ret = demo_prepare_frame_from_buffer(dst_buf, &dst_frame);
-    if (ret != 0) {
-        DEMO_LOG("prepare dst frame failed");
-        goto EXIT;
-    }
-
-    if (config.enMode == DEMO_MODE_ADV2LAYERS) {
-        ret = demo_prepare_frame_from_buffer(overlay_buf, &overlay_frame);
+    if (demo_is_yuv420sp_format(config.src_format)) {
+        ret = demo_load_yuv420sp_file(&src_frame, config.input_file);
         if (ret != 0) {
-            DEMO_LOG("prepare overlay frame failed");
+            DEMO_LOG("load yuv file failed: %s", config.input_file);
             goto EXIT;
         }
-    }
-
-    ret = demo_load_nv12_file(&src_frame, config.input_file);
-    if (ret != 0) {
-        DEMO_LOG("load NV12 file failed: %s", config.input_file);
-        goto EXIT;
+    } else {
+        ret = demo_load_packed_file(&src_frame, config.input_file);
+        if (ret != 0) {
+            DEMO_LOG("load packed file failed: %s", config.input_file);
+            goto EXIT;
+        }
     }
 
     if (config.enMode == DEMO_MODE_ADV2LAYERS) {
@@ -862,10 +931,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (config.enMode == DEMO_MODE_SCALE) {
-        ret = demo_run_scale(&config, &src_frame, &dst_frame);
+    if (config.enMode == DEMO_MODE_RESIZE) {
+        ret = demo_run_resize(&config, &src_frame, &dst_frame);
         if (ret != 0) {
-            DEMO_LOG("demo_run_scale failed, ret=%d", ret);
+            DEMO_LOG("demo_run_resize failed, ret=%d", ret);
             goto EXIT;
         }
     } else if (config.enMode == DEMO_MODE_CONVERT) {
@@ -894,24 +963,33 @@ int main(int argc, char *argv[])
         goto EXIT;
     }
 
-    DEMO_LOG("V2D %s experiment finished",
-             (config.enMode == DEMO_MODE_SCALE) ? "scale" :
-             (config.enMode == DEMO_MODE_CONVERT) ? "convert" :
-             (config.enMode == DEMO_MODE_ROTATE) ? "rotate" : "adv2layers");
+    DEMO_LOG(
+        "V2D %s experiment finished",
+        (config.enMode == DEMO_MODE_RESIZE)        ? "resize"
+            : (config.enMode == DEMO_MODE_CONVERT) ? "convert"
+            : (config.enMode == DEMO_MODE_ROTATE)  ? "rotate"
+                                                    : "adv2layers");
     DEMO_LOG("input file: %s", config.input_file);
     DEMO_LOG("output file: %s", config.output_file);
-    DEMO_LOG("src=%ux%u dst=%ux%u", config.src_width, config.src_height, config.dst_width, config.dst_height);
+    DEMO_LOG(
+        "src=%ux%u(%s) dst=%ux%u(%s)",
+        config.src_width,
+        config.src_height,
+        demo_pixel_format_name(config.src_format),
+        config.dst_width,
+        config.dst_height,
+        demo_pixel_format_name(config.dst_format));
     DEMO_LOG("src fd=%d dst fd=%d", (int)src_frame.stVFrame.u32Fd[0], (int)dst_frame.stVFrame.u32Fd[0]);
 
 EXIT:
-    if (src_buf != 0UL) {
-        VB_ReleaseBuffer(src_buf);
+    if (src_frame.ulBufferId != 0UL) {
+        VB_ReleaseBuffer(src_frame.ulBufferId);
     }
-    if (dst_buf != 0UL) {
-        VB_ReleaseBuffer(dst_buf);
+    if (dst_frame.ulBufferId != 0UL) {
+        VB_ReleaseBuffer(dst_frame.ulBufferId);
     }
-    if (overlay_buf != 0UL) {
-        VB_ReleaseBuffer(overlay_buf);
+    if (overlay_frame.ulBufferId != 0UL) {
+        VB_ReleaseBuffer(overlay_frame.ulBufferId);
     }
     if (src_pool != 0UL) {
         VB_DestroyPool(src_pool);

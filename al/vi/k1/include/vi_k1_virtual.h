@@ -11,23 +11,24 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __AL_VI_K1_VIRTUAL_H__
-#define __AL_VI_K1_VIRTUAL_H__
+#ifndef VI_K1_VIRTUAL_H
+#define VI_K1_VIRTUAL_H
 
 #include "vi_k1_ctx.h"
 
 VOID K1_VI_CopyFrameMeta(VideoFrameInfo *pstDstFrame, const VideoFrameInfo *pstSrcFrame);
-S32 K1_VI_V2dProcessFrame(const K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                     const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                          K1_VI_CHN_CTX_S *pstDstChnCtx,
-                          VideoFrameInfo *pstDstFrame);
-S32 K1_VI_ProcessOneVirtualChn(K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                         const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                         const VideoFrameInfo *pstSrcFrame,
-                               K1_VI_CHN_CTX_S *pstVirtChnCtx);
-VOID K1_VI_DispatchVirtualFrames(K1_VI_CHN_CTX_S *pstSrcChnCtx,
-                           const VI_IMAGE_BUFFER_S *pstSrcBuffer,
-                           const VideoFrameInfo *pstSrcFrame);
+S32 K1_VI_V2dProcessFrame(
+    const K1_VI_CHN_CTX_S *pstSrcChnCtx,
+    const VI_IMAGE_BUFFER_S *pstSrcBuffer,
+    K1_VI_CHN_CTX_S *pstDstChnCtx,
+    VideoFrameInfo *pstDstFrame);
+S32 K1_VI_ProcessOneVirtualChn(
+    K1_VI_CHN_CTX_S *pstSrcChnCtx,
+    const VI_IMAGE_BUFFER_S *pstSrcBuffer,
+    const VideoFrameInfo *pstSrcFrame,
+    K1_VI_CHN_CTX_S *pstVirtChnCtx);
+VOID K1_VI_DispatchVirtualFrames(
+    K1_VI_CHN_CTX_S *pstSrcChnCtx, const VI_IMAGE_BUFFER_S *pstSrcBuffer, const VideoFrameInfo *pstSrcFrame);
 S32 K1_VI_StartVirtualChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx);
 
-#endif /* __AL_VI_K1_VIRTUAL_H__ */
+#endif /* VI_K1_VIRTUAL_H */

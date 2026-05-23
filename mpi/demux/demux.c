@@ -36,68 +36,65 @@ extern "C" {
 #define DEMUX_LOGE(fmt, ...) fprintf(stderr, "[DEMUX][ERR] " fmt "\n", ##__VA_ARGS__)
 #define DEMUX_LOGI(fmt, ...) fprintf(stdout, "[DEMUX][INF] " fmt "\n", ##__VA_ARGS__)
 
-#define DEMUX_STATE_IDLE      0
-#define DEMUX_STATE_CREATED   1
-#define DEMUX_STATE_RUNNING   2
-#define DEMUX_STATE_STOPPING  3
+#define DEMUX_STATE_IDLE 0
+#define DEMUX_STATE_CREATED 1
+#define DEMUX_STATE_RUNNING 2
+#define DEMUX_STATE_STOPPING 3
 
-#define DEMUX_TIME_BASE_US    1000000ULL
+#define DEMUX_TIME_BASE_US 1000000ULL
 
 typedef struct _DemuxPsCache {
-    U8  *pu8Vps;
-    U32  u32VpsLen;
-    U8  *pu8Sps;
-    U32  u32SpsLen;
-    U8  *pu8Pps;
-    U32  u32PpsLen;
+    U8 *pu8Vps;
+    U32 u32VpsLen;
+    U8 *pu8Sps;
+    U32 u32SpsLen;
+    U8 *pu8Pps;
+    U32 u32PpsLen;
 } DemuxPsCache;
 
 typedef struct _DemuxChannel {
-    S32                  s32Created;
-    S32                  s32State;
-    S32                  s32Stop;
-    S32                  s32ThreadAlive;
-    S32                  s32ChnId;
-    pthread_t            thread;
-    pthread_mutex_t      lock;
-    DemuxChnAttr         stAttr;
-    DemuxStreamInfo      stStreamInfo;
-    DemuxPacketCallback  pfnCb;
-    VOID                *pCbPriv;
-    MppNode              stSrcNode;
-    AVFormatContext     *pstFmt;
-    AVBSFContext        *pstBsf;
-    S32                  s32VideoIndex;
-    S64                  s64IoDeadlineMs;
-    DemuxPsCache         stPs;
+    S32 s32Created;
+    S32 s32State;
+    S32 s32Stop;
+    S32 s32ThreadAlive;
+    S32 s32ChnId;
+    pthread_t thread;
+    pthread_mutex_t lock;
+    DemuxChnAttr stAttr;
+    DemuxStreamInfo stStreamInfo;
+    DemuxPacketCallback pfnCb;
+    VOID *pCbPriv;
+    MppNode stSrcNode;
+    AVFormatContext *pstFmt;
+    AVBSFContext *pstBsf;
+    S32 s32VideoIndex;
+    S64 s64IoDeadlineMs;
+    DemuxPsCache stPs;
 } DemuxChannel;
 
 typedef struct _DemuxContext {
-    S32             s32Init;
+    S32 s32Init;
     pthread_mutex_t lock;
-    DemuxChannel    astChn[DEMUX_MAX_CHN];
+    DemuxChannel astChn[DEMUX_MAX_CHN];
 } DemuxContext;
 
 static DemuxContext g_stDemuxCtx = {0};
 
-static long long demux_now_ms(VOID)
-{
+static int64_t demux_now_ms(VOID) {
     struct timespec ts;
 
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (long long)ts.tv_sec * 1000LL + (long long)ts.tv_nsec / 1000000LL;
+    return (int64_t)ts.tv_sec * 1000LL + (int64_t)ts.tv_nsec / 1000000LL;
 }
 
-static S32 demux_check_chn(S32 s32ChnId)
-{
+static S32 demux_check_chn(S32 s32ChnId) {
     if (s32ChnId < 0 || s32ChnId >= DEMUX_MAX_CHN) {
         return ERR_DEMUX_INVALID_CHN;
     }
     return ERR_DEMUX_OK;
 }
 
-static VOID demux_free_ps_cache(DemuxPsCache *pstPs)
-{
+static VOID demux_free_ps_cache(DemuxPsCache *pstPs) {
     if (!pstPs) {
         return;
     }
@@ -108,8 +105,7 @@ static VOID demux_free_ps_cache(DemuxPsCache *pstPs)
     memset(pstPs, 0, sizeof(*pstPs));
 }
 
-static VOID demux_close_bsf(DemuxChannel *pstChn)
-{
+static VOID demux_close_bsf(DemuxChannel *pstChn) {
     if (!pstChn) {
         return;
     }
@@ -120,8 +116,7 @@ static VOID demux_close_bsf(DemuxChannel *pstChn)
     }
 }
 
-static VOID demux_close_input(DemuxChannel *pstChn)
-{
+static VOID demux_close_input(DemuxChannel *pstChn) {
     if (!pstChn) {
         return;
     }
@@ -134,8 +129,7 @@ static VOID demux_close_input(DemuxChannel *pstChn)
     pstChn->s32VideoIndex = -1;
 }
 
-static int demux_interrupt_cb(VOID *opaque)
-{
+static int demux_interrupt_cb(VOID *opaque) {
     DemuxChannel *pstChn = (DemuxChannel *)opaque;
 
     if (!pstChn) {
@@ -150,22 +144,20 @@ static int demux_interrupt_cb(VOID *opaque)
     return 0;
 }
 
-static VOID demux_set_opt_us(AVDictionary **ppDict, const CHAR *pszKey, U32 u32Ms)
-{
+static VOID demux_set_opt_us(AVDictionary **ppDict, const CHAR *pszKey, U32 u32Ms) {
     char szVal[32];
-    long long us;
+    int64_t us;
 
     if (!ppDict || !pszKey || u32Ms == 0) {
         return;
     }
 
-    us = (long long)u32Ms * 1000LL;
-    snprintf(szVal, sizeof(szVal), "%lld", us);
+    us = (int64_t)u32Ms * 1000LL;
+    snprintf(szVal, sizeof(szVal), "%" PRId64, us);
     av_dict_set(ppDict, pszKey, szVal, 0);
 }
 
-static S32 demux_codec_from_ffmpeg(enum AVCodecID eCodecId)
-{
+static S32 demux_codec_from_ffmpeg(enum AVCodecID eCodecId) {
     switch (eCodecId) {
         case AV_CODEC_ID_H264:
             return DEMUX_CODEC_H264;
@@ -178,8 +170,7 @@ static S32 demux_codec_from_ffmpeg(enum AVCodecID eCodecId)
     }
 }
 
-static S32 demux_annexb_has_complete_ps(const U8 *pu8Data, S32 s32Size, S32 s32CodecType)
-{
+static S32 demux_annexb_has_complete_ps(const U8 *pu8Data, S32 s32Size, S32 s32CodecType) {
     S32 i;
     S32 bHasVps = 0;
     S32 bHasSps = 0;
@@ -196,7 +187,9 @@ static S32 demux_annexb_has_complete_ps(const U8 *pu8Data, S32 s32Size, S32 s32C
 
         if (i + 3 < s32Size && pu8Data[i] == 0 && pu8Data[i + 1] == 0 && pu8Data[i + 2] == 1) {
             prefix = 3;
-        } else if (i + 4 < s32Size && pu8Data[i] == 0 && pu8Data[i + 1] == 0 && pu8Data[i + 2] == 0 && pu8Data[i + 3] == 1) {
+        } else if (
+            i + 4 < s32Size && pu8Data[i] == 0 && pu8Data[i + 1] == 0 && pu8Data[i + 2] == 0 && pu8Data[i + 3] == 1
+        ) {
             prefix = 4;
         }
 
@@ -237,8 +230,7 @@ static S32 demux_annexb_has_complete_ps(const U8 *pu8Data, S32 s32Size, S32 s32C
     return 0;
 }
 
-static VOID demux_copy_nalu_with_sc(U8 **ppu8Dst, U32 *pu32DstLen, const U8 *pu8Src, U32 u32Len)
-{
+static VOID demux_copy_nalu_with_sc(U8 **ppu8Dst, U32 *pu32DstLen, const U8 *pu8Src, U32 u32Len) {
     static const U8 au8Sc[4] = {0, 0, 0, 1};
     U8 *pu8Buf;
 
@@ -259,8 +251,7 @@ static VOID demux_copy_nalu_with_sc(U8 **ppu8Dst, U32 *pu32DstLen, const U8 *pu8
     *pu32DstLen = u32Len + 4;
 }
 
-static VOID demux_cache_h264_extradata(const AVCodecParameters *pstPar, DemuxPsCache *pstPs)
-{
+static VOID demux_cache_h264_extradata(const AVCodecParameters *pstPar, DemuxPsCache *pstPs) {
     const U8 *pu8Data;
     S32 s32Size;
     S32 off;
@@ -311,9 +302,9 @@ static VOID demux_cache_h264_extradata(const AVCodecParameters *pstPar, DemuxPsC
     }
 }
 
-static VOID demux_make_packet_with_ps(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32Size,
-                                      DemuxPacket *pstPkt, U8 **ppu8Out, U32 *pu32OutLen)
-{
+static VOID demux_make_packet_with_ps(
+    DemuxChannel *pstChn, const U8 *pu8Data, U32 u32Size, DemuxPacket *pstPkt, U8 **ppu8Out, U32 *pu32OutLen
+) {
     U32 total = 0;
     U8 *pu8Buf;
     U8 *p;
@@ -368,8 +359,7 @@ static VOID demux_make_packet_with_ps(DemuxChannel *pstChn, const U8 *pu8Data, U
     *pu32OutLen = total;
 }
 
-static S32 demux_open_bsf(DemuxChannel *pstChn)
-{
+static S32 demux_open_bsf(DemuxChannel *pstChn) {
     const AVBitStreamFilter *pstFilter;
     const AVCodecParameters *pstPar;
     const CHAR *pszBsfName = NULL;
@@ -418,8 +408,7 @@ static S32 demux_open_bsf(DemuxChannel *pstChn)
     return ERR_DEMUX_OK;
 }
 
-static S32 demux_deliver_packet(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32Size, S64 s64Pts)
-{
+static S32 demux_deliver_packet(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32Size, S64 s64Pts) {
     DemuxPacket stPkt;
     U8 *pu8Tmp = NULL;
     U32 u32TmpLen = 0;
@@ -435,9 +424,11 @@ static S32 demux_deliver_packet(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32
     stPkt.eCodecType = pstChn->stStreamInfo.eCodecType;
     stPkt.u32Width = pstChn->stStreamInfo.u32Width;
     stPkt.u32Height = pstChn->stStreamInfo.u32Height;
-    stPkt.u64PTS = (s64Pts == AV_NOPTS_VALUE) ? 0 : (U64)av_rescale_q(s64Pts,
-                    pstChn->pstFmt->streams[pstChn->s32VideoIndex]->time_base,
-                    (AVRational){1, (int)DEMUX_TIME_BASE_US});
+    stPkt.u64PTS = (s64Pts == AV_NOPTS_VALUE) ? 0
+                                                : (U64)av_rescale_q(
+                                                    s64Pts,
+                                                    pstChn->pstFmt->streams[pstChn->s32VideoIndex]->time_base,
+                                                    (AVRational){1, (int)DEMUX_TIME_BASE_US});
 
     if (stPkt.eCodecType == DEMUX_CODEC_H264 && u32Size > 4) {
         U8 type = pu8Data[4] & 0x1f;
@@ -481,15 +472,14 @@ static S32 demux_deliver_packet(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32
             stStream.eCodecType = MPP_STREAM_CODEC_MJPEG;
         }
 
-        (VOID)SYS_SendStream(&pstChn->stSrcNode, &stStream);
+        (VOID) SYS_SendStream(&pstChn->stSrcNode, &stStream);
     }
 
     free(pu8Tmp);
     return ret;
 }
 
-static VOID *demux_thread_proc(VOID *arg)
-{
+static VOID *demux_thread_proc(VOID *arg) {
     DemuxChannel *pstChn = (DemuxChannel *)arg;
     AVPacket *pstPkt = NULL;
     AVPacket *pstOut = NULL;
@@ -547,17 +537,18 @@ static VOID *demux_thread_proc(VOID *arg)
             av_dict_set(&pstOpts, "probesize", szVal, 0);
         }
 
-        pstChn->s64IoDeadlineMs = demux_now_ms() + (long long)pstChn->stAttr.u32OpenTimeoutMs + 500LL;
+        pstChn->s64IoDeadlineMs = demux_now_ms() + (int64_t)pstChn->stAttr.u32OpenTimeoutMs + 500LL;
         ret = avformat_open_input(&pstChn->pstFmt, pstChn->stAttr.szUrl, NULL, &pstOpts);
         av_dict_free(&pstOpts);
         if (ret < 0) {
-            DEMUX_LOGE("avformat_open_input failed, chn=%d, ret=%d, url=%s", pstChn->s32ChnId, ret, pstChn->stAttr.szUrl);
+            DEMUX_LOGE(
+                "avformat_open_input failed, chn=%d, ret=%d, url=%s", pstChn->s32ChnId, ret, pstChn->stAttr.szUrl);
             demux_close_input(pstChn);
             usleep((useconds_t)pstChn->stAttr.u32ReconnectMs * 1000);
             continue;
         }
 
-        pstChn->s64IoDeadlineMs = demux_now_ms() + (long long)pstChn->stAttr.u32OpenTimeoutMs + 500LL;
+        pstChn->s64IoDeadlineMs = demux_now_ms() + (int64_t)pstChn->stAttr.u32OpenTimeoutMs + 500LL;
         ret = avformat_find_stream_info(pstChn->pstFmt, NULL);
         if (ret < 0) {
             DEMUX_LOGE("avformat_find_stream_info failed, chn=%d, ret=%d", pstChn->s32ChnId, ret);
@@ -595,12 +586,16 @@ static VOID *demux_thread_proc(VOID *arg)
         }
 
         demux_open_bsf(pstChn);
-        DEMUX_LOGI("channel %d connected: %ux%u fps=%u codec=%d", pstChn->s32ChnId,
-                   pstChn->stStreamInfo.u32Width, pstChn->stStreamInfo.u32Height,
-                   pstChn->stStreamInfo.u32Fps, pstChn->stStreamInfo.eCodecType);
+        DEMUX_LOGI(
+            "channel %d connected: %ux%u fps=%u codec=%d",
+            pstChn->s32ChnId,
+            pstChn->stStreamInfo.u32Width,
+            pstChn->stStreamInfo.u32Height,
+            pstChn->stStreamInfo.u32Fps,
+            pstChn->stStreamInfo.eCodecType);
 
         while (!pstChn->s32Stop) {
-            pstChn->s64IoDeadlineMs = demux_now_ms() + (long long)pstChn->stAttr.u32RwTimeoutMs + 500LL;
+            pstChn->s64IoDeadlineMs = demux_now_ms() + (int64_t)pstChn->stAttr.u32RwTimeoutMs + 500LL;
             ret = av_read_frame(pstChn->pstFmt, pstPkt);
             if (ret < 0) {
                 break;
@@ -642,8 +637,7 @@ exit:
     return NULL;
 }
 
-S32 DEMUX_Init(VOID)
-{
+S32 DEMUX_Init(VOID) {
     S32 i;
 
     if (g_stDemuxCtx.s32Init) {
@@ -671,8 +665,7 @@ S32 DEMUX_Init(VOID)
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_Exit(VOID)
-{
+S32 DEMUX_Exit(VOID) {
     S32 i;
 
     if (!g_stDemuxCtx.s32Init) {
@@ -692,8 +685,7 @@ S32 DEMUX_Exit(VOID)
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_CreateChn(S32 s32ChnId, const DemuxChnAttr *pstAttr)
-{
+S32 DEMUX_CreateChn(S32 s32ChnId, const DemuxChnAttr *pstAttr) {
     DemuxChannel *pstChn;
     S32 ret;
 
@@ -732,8 +724,7 @@ S32 DEMUX_CreateChn(S32 s32ChnId, const DemuxChnAttr *pstAttr)
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_DestroyChn(S32 s32ChnId)
-{
+S32 DEMUX_DestroyChn(S32 s32ChnId) {
     DemuxChannel *pstChn;
     S32 ret;
 
@@ -761,8 +752,7 @@ S32 DEMUX_DestroyChn(S32 s32ChnId)
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_StartChn(S32 s32ChnId)
-{
+S32 DEMUX_StartChn(S32 s32ChnId) {
     DemuxChannel *pstChn;
     S32 ret;
 
@@ -798,8 +788,7 @@ S32 DEMUX_StartChn(S32 s32ChnId)
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_StopChn(S32 s32ChnId)
-{
+S32 DEMUX_StopChn(S32 s32ChnId) {
     DemuxChannel *pstChn;
     S32 ret;
 
@@ -835,8 +824,7 @@ S32 DEMUX_StopChn(S32 s32ChnId)
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_GetStreamInfo(S32 s32ChnId, DemuxStreamInfo *pstInfo)
-{
+S32 DEMUX_GetStreamInfo(S32 s32ChnId, DemuxStreamInfo *pstInfo) {
     DemuxChannel *pstChn;
     S32 ret;
 
@@ -863,8 +851,7 @@ S32 DEMUX_GetStreamInfo(S32 s32ChnId, DemuxStreamInfo *pstInfo)
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_SetPacketCallback(S32 s32ChnId, DemuxPacketCallback pfnCb, VOID *pPriv)
-{
+S32 DEMUX_SetPacketCallback(S32 s32ChnId, DemuxPacketCallback pfnCb, VOID *pPriv) {
     DemuxChannel *pstChn;
     S32 ret;
 
@@ -889,8 +876,7 @@ S32 DEMUX_SetPacketCallback(S32 s32ChnId, DemuxPacketCallback pfnCb, VOID *pPriv
     return ERR_DEMUX_OK;
 }
 
-S32 DEMUX_GetSrcNode(S32 s32ChnId, MppNode *pstNode)
-{
+S32 DEMUX_GetSrcNode(S32 s32ChnId, MppNode *pstNode) {
     DemuxChannel *pstChn;
     S32 ret;
 

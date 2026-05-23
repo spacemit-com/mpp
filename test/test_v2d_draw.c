@@ -27,15 +27,23 @@
 #include "vb_api.h"
 #include "v2d_api.h"
 
-#define DEMO_INPUT_FILE   "./input_nv12.yuv"
-#define DEMO_OUTPUT_FILE  "./v2d_draw_out.yuv"
-#define DEMO_WIDTH        1920U
-#define DEMO_HEIGHT       1080U
+#define DEMO_INPUT_FILE "./input_nv12.yuv"
+#define DEMO_OUTPUT_FILE "./v2d_draw_out.yuv"
+#define DEMO_WIDTH 1920U
+#define DEMO_HEIGHT 1080U
+#define DEMO_MODE_RECT "rect"
+#define DEMO_MODE_KEYPOINT "keypoint"
+#define DEMO_KEYPOINT_NUM 5U
 
-#define DEMO_LOG(fmt, ...)  printf("[v2d_draw_demo] " fmt "\n", ##__VA_ARGS__)
-#define DEMO_FAIL(fmt, ...) do { printf("[v2d_draw_demo][FAIL] " fmt "\n", ##__VA_ARGS__); return -1; } while (0)
+#define DEMO_LOG(fmt, ...) printf("[v2d_draw_demo] " fmt "\n", ##__VA_ARGS__)
+#define DEMO_FAIL(fmt, ...)                                       \
+    do {                                                          \
+        printf("[v2d_draw_demo][FAIL] " fmt "\n", ##__VA_ARGS__); \
+        return -1;                                                \
+    } while (0)
 
 typedef struct DEMO_CONFIG_S {
+    const char *mode;
     const char *input_file;
     const char *output_file;
     U32 width;
@@ -47,11 +55,12 @@ typedef struct DEMO_CONFIG_S {
     U32 yuv_color;
 } DEMO_CONFIG_S;
 
-static void demo_print_usage(const char *prog)
-{
+static void demo_print_usage(const char *prog) {
     printf("Usage:\n");
-    printf("  %s [input_file width height output_file rect_x rect_y rect_w rect_h [yuv_hex]]\n", prog);
+    printf("  %s [mode [input_file width height output_file rect_x rect_y rect_w rect_h [yuv_hex]]]\n", prog);
+    printf("  %s %s [input_file [output_file]]\n", prog, DEMO_MODE_KEYPOINT);
     printf("\nDefaults:\n");
+    printf("  mode       : %s | %s\n", DEMO_MODE_RECT, DEMO_MODE_KEYPOINT);
     printf("  input_file : %s\n", DEMO_INPUT_FILE);
     printf("  width      : %u\n", DEMO_WIDTH);
     printf("  height     : %u\n", DEMO_HEIGHT);
@@ -62,13 +71,14 @@ static void demo_print_usage(const char *prog)
     printf("  rect_h     : %u\n", DEMO_HEIGHT / 2U);
     printf("  yuv_hex    : 0x00VVUUYY, e.g. 0x00FF4C52\n");
     printf("\nExample:\n");
-    printf("  %s in.yuv 1920 1080 out.yuv 100 100 400 300 0x00FF4C52\n", prog);
+    printf("  %s %s in.yuv 1920 1080 out.yuv 100 100 400 300 0x00FF4C52\n", prog, DEMO_MODE_RECT);
+    printf("  %s %s\n", prog, DEMO_MODE_KEYPOINT);
+    printf("  %s %s in.yuv out.yuv\n", prog, DEMO_MODE_KEYPOINT);
 }
 
-static int demo_parse_u32(const char *text, U32 *value)
-{
+static int demo_parse_u32(const char *text, U32 *value) {
     char *end_ptr = NULL;
-    unsigned long parsed;
+    uint64_t parsed;
 
     if ((text == NULL) || (value == NULL) || (text[0] == '\0')) {
         return -1;
@@ -83,13 +93,13 @@ static int demo_parse_u32(const char *text, U32 *value)
     return 0;
 }
 
-static void demo_set_default_config(DEMO_CONFIG_S *config)
-{
+static void demo_set_default_config(DEMO_CONFIG_S *config) {
     if (config == NULL) {
         return;
     }
 
     memset(config, 0, sizeof(*config));
+    config->mode = DEMO_MODE_RECT;
     config->input_file = DEMO_INPUT_FILE;
     config->output_file = DEMO_OUTPUT_FILE;
     config->width = DEMO_WIDTH;
@@ -101,8 +111,17 @@ static void demo_set_default_config(DEMO_CONFIG_S *config)
     config->yuv_color = 0x00FF4C52U;
 }
 
-static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
-{
+static int demo_is_mode(const char *mode, const char *expected) {
+    if ((mode == NULL) || (expected == NULL)) {
+        return 0;
+    }
+
+    return strcmp(mode, expected) == 0;
+}
+
+static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config) {
+    int arg_offset;
+
     if (config == NULL) {
         return -1;
     }
@@ -113,30 +132,55 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         return 0;
     }
 
-    if ((argc != 9) && (argc != 10)) {
+    arg_offset = 1;
+    if (demo_is_mode(argv[1], DEMO_MODE_RECT) || demo_is_mode(argv[1], DEMO_MODE_KEYPOINT)) {
+        config->mode = argv[1];
+        arg_offset = 2;
+    }
+
+    if (demo_is_mode(config->mode, DEMO_MODE_KEYPOINT)) {
+        if ((argc != arg_offset) && (argc != (arg_offset + 1)) && (argc != (arg_offset + 2))) {
+            return -1;
+        }
+
+        if (argc >= (arg_offset + 1)) {
+            config->input_file = argv[arg_offset];
+        }
+
+        if (argc >= (arg_offset + 2)) {
+            config->output_file = argv[arg_offset + 1];
+        }
+
+        return 0;
+    }
+
+    if (!demo_is_mode(config->mode, DEMO_MODE_RECT)) {
         return -1;
     }
 
-    config->input_file = argv[1];
-    config->output_file = argv[4];
-
-    if ((demo_parse_u32(argv[2], &config->width) != 0) ||
-        (demo_parse_u32(argv[3], &config->height) != 0) ||
-        (demo_parse_u32(argv[5], &config->rect_x) != 0) ||
-        (demo_parse_u32(argv[6], &config->rect_y) != 0) ||
-        (demo_parse_u32(argv[7], &config->rect_w) != 0) ||
-        (demo_parse_u32(argv[8], &config->rect_h) != 0)) {
+    if ((argc != (arg_offset + 8)) && (argc != (arg_offset + 9))) {
         return -1;
     }
 
-    if (argc == 10) {
-        if (demo_parse_u32(argv[9], &config->yuv_color) != 0) {
+    config->input_file = argv[arg_offset];
+    config->output_file = argv[arg_offset + 3];
+
+    if ((demo_parse_u32(argv[arg_offset + 1], &config->width) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 2], &config->height) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 4], &config->rect_x) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 5], &config->rect_y) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 6], &config->rect_w) != 0) ||
+        (demo_parse_u32(argv[arg_offset + 7], &config->rect_h) != 0)) {
+        return -1;
+    }
+
+    if (argc == (arg_offset + 9)) {
+        if (demo_parse_u32(argv[arg_offset + 8], &config->yuv_color) != 0) {
             return -1;
         }
     }
 
-    if ((config->width == 0U) || (config->height == 0U) ||
-        (config->rect_w == 0U) || (config->rect_h == 0U)) {
+    if ((config->width == 0U) || (config->height == 0U) || (config->rect_w == 0U) || (config->rect_h == 0U)) {
         return -1;
     }
 
@@ -144,33 +188,39 @@ static int demo_parse_args(int argc, char *argv[], DEMO_CONFIG_S *config)
         return -1;
     }
 
-    if ((config->rect_x + config->rect_w) > config->width ||
-        (config->rect_y + config->rect_h) > config->height) {
+    if ((config->rect_x + config->rect_w) > config->width || (config->rect_y + config->rect_h) > config->height) {
         return -1;
     }
 
     return 0;
 }
 
-static int demo_prepare_nv12_pool(UL *pool_id, U32 width, U32 height)
-{
+/*
+ * Allocate an NV12 VB pool, grab one buffer from it, and fill out the
+ * VideoFrameInfo so V2D can consume it directly (UVC-style flow).
+ */
+static int demo_prepare_nv12_pool(UL *pool_id, VideoFrameInfo *frame, U32 width, U32 height) {
     VbPoolCfg cfg;
-    VideoFrameInfo frame_info;
+    UL buffer = 0UL;
     U32 stride;
+    U32 y_size;
     U32 total_size;
+    void *vir_addr = NULL;
+    S32 dma_buf_fd = -1;
     S32 ret;
 
-    if (pool_id == NULL) {
+    if ((pool_id == NULL) || (frame == NULL)) {
         return -1;
     }
 
     stride = width;
-    total_size = (stride * height * 3U) / 2U;
+    y_size = stride * height;
+    total_size = y_size + (y_size / 2U);
 
     memset(&cfg, 0, sizeof(cfg));
     cfg.u32BufSize = total_size;
-    cfg.u32BufCnt = 2;
-    cfg.eModId = MPP_ID_SYS;
+    cfg.u32BufCnt = 1U;
+    cfg.eModId = MPP_ID_V2D;
     cfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
 
     *pool_id = VB_CreatePool(&cfg);
@@ -179,63 +229,60 @@ static int demo_prepare_nv12_pool(UL *pool_id, U32 width, U32 height)
         return -1;
     }
 
-    memset(&frame_info, 0, sizeof(frame_info));
-    frame_info.eFrameType = FRAME_TYPE_COMMON;
-    frame_info.eModId = MPP_ID_SYS;
-    frame_info.stCommFrameInfo.u32Width = width;
-    frame_info.stCommFrameInfo.u32Height = height;
-    frame_info.stCommFrameInfo.u32Align = 1U;
-    frame_info.stCommFrameInfo.ePixelFormat = MPP_PIXEL_FORMAT_NV12;
-    frame_info.stCommFrameInfo.eCompressMode = COMPRESS_MODE_NONE;
-    frame_info.stCommFrameInfo.eColorSpace = COLOR_SPACE_BT601;
-    frame_info.stVFrame.u32PlaneNum = 2U;
-    frame_info.stVFrame.u32PlaneStride[0] = stride;
-    frame_info.stVFrame.u32PlaneStride[1] = stride;
-    frame_info.stVFrame.u32PlaneSize[0] = stride * height;
-    frame_info.stVFrame.u32PlaneSize[1] = (stride * height) / 2U;
-    frame_info.stVFrame.u32PlaneSizeValid[0] = frame_info.stVFrame.u32PlaneSize[0];
-    frame_info.stVFrame.u32PlaneSizeValid[1] = frame_info.stVFrame.u32PlaneSize[1];
-    frame_info.stVFrame.u32TotalSize = total_size;
-
-    ret = VB_SetFrameInfo(*pool_id, &frame_info);
-    if (ret != 0) {
-        DEMO_LOG("VB_SetFrameInfo failed, ret=%d", ret);
-        VB_DestroyPool(*pool_id);
-        *pool_id = 0UL;
-        return -1;
+    /* Acquire one buffer from the pool and resolve its fd / virtual address. */
+    buffer = VB_GetBuffer(*pool_id, 0);
+    if (buffer == 0UL) {
+        DEMO_LOG("VB_GetBuffer failed");
+        goto err_destroy_pool;
     }
+
+    ret = VB_GetDmaBufFd(buffer, &dma_buf_fd);
+    if ((ret != 0) || (dma_buf_fd < 0)) {
+        DEMO_LOG("VB_GetDmaBufFd failed, ret=%d fd=%d", ret, dma_buf_fd);
+        goto err_release_buf;
+    }
+
+    ret = VB_GetVirAddr(buffer, &vir_addr);
+    if ((ret != 0) || (vir_addr == NULL)) {
+        DEMO_LOG("VB_GetVirAddr failed, ret=%d", ret);
+        goto err_release_buf;
+    }
+
+    /* Fill VideoFrameInfo in one shot (UVC-style). */
+    memset(frame, 0, sizeof(*frame));
+    frame->eFrameType = FRAME_TYPE_COMMON;
+    frame->eModId = MPP_ID_V2D;
+    frame->ulPoolId = *pool_id;
+    frame->ulBufferId = buffer;
+
+    frame->stCommFrameInfo.u32Width = width;
+    frame->stCommFrameInfo.u32Height = height;
+    frame->stCommFrameInfo.ePixelFormat = MPP_PIXEL_FORMAT_NV12;
+
+    frame->stVFrame.u32PlaneNum = 2U;
+    frame->stVFrame.u32PlaneStride[0] = stride;
+    frame->stVFrame.u32PlaneStride[1] = stride;
+    frame->stVFrame.u32PlaneSize[0] = y_size;
+    frame->stVFrame.u32PlaneSize[1] = y_size / 2U;
+    frame->stVFrame.u32PlaneSizeValid[0] = y_size;
+    frame->stVFrame.u32PlaneSizeValid[1] = y_size / 2U;
+    frame->stVFrame.u32TotalSize = total_size;
+    frame->stVFrame.u32Fd[0] = (UL)dma_buf_fd;
+    frame->stVFrame.u32Fd[1] = (UL)dma_buf_fd;
+    frame->stVFrame.ulPlaneVirAddr[0] = (UL)vir_addr;
+    frame->stVFrame.ulPlaneVirAddr[1] = (UL)vir_addr + y_size;
 
     return 0;
+
+err_release_buf:
+    VB_ReleaseBuffer(buffer);
+err_destroy_pool:
+    VB_DestroyPool(*pool_id);
+    *pool_id = 0UL;
+    return -1;
 }
 
-static int demo_prepare_frame_from_buffer(UL buffer, VideoFrameInfo *frame)
-{
-    S32 ret;
-
-    if ((buffer == 0UL) || (frame == NULL)) {
-        return -1;
-    }
-
-    ret = VB_GetFrameInfo(buffer, frame);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetDmaBufFd(buffer, (S32 *)&frame->stVFrame.u32Fd[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    ret = VB_GetVirAddr(buffer, (void **)&frame->stVFrame.ulPlaneVirAddr[0]);
-    if (ret != 0) {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
-{
+static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file) {
     FILE *fp;
     size_t read_size;
     size_t expected_size;
@@ -263,8 +310,7 @@ static int demo_load_nv12_file(VideoFrameInfo *frame, const char *input_file)
     return 0;
 }
 
-static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file)
-{
+static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_file) {
     FILE *fp;
     size_t write_size;
     size_t expected_size;
@@ -292,8 +338,7 @@ static int demo_dump_nv12_file(const VideoFrameInfo *frame, const char *output_f
     return 0;
 }
 
-static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config)
-{
+static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config) {
     V2DHandle handle = 0;
     V2DArea rect;
     V2DFillColor color;
@@ -332,11 +377,81 @@ static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config)
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+static int demo_draw_keypoint(VideoFrameInfo *frame) {
+    static const struct {
+        S32 x;
+        S32 y;
+    } astPoints[DEMO_KEYPOINT_NUM] = {
+        {720, 320},
+        {840, 280},
+        {980, 360},
+        {930, 500},
+        {780, 460},
+    };
+    V2DHandle handle = 0;
+    V2DFillColor color;
+    U32 u32Index;
+    int ret;
+
+    if (frame == NULL) {
+        return -1;
+    }
+
+    memset(&color, 0, sizeof(color));
+    color.u32ColorValue = 0x004cff52U;
+    color.enFormat = V2D_COLOR_FORMAT_NV12;
+
+    ret = V2D_BeginJob(&handle);
+    if (ret != 0) {
+        return -1;
+    }
+
+    for (u32Index = 0; u32Index < DEMO_KEYPOINT_NUM; ++u32Index) {
+        V2DCircle circle;
+
+        memset(&circle, 0, sizeof(circle));
+        circle.s32CenterX = astPoints[u32Index].x;
+        circle.s32CenterY = astPoints[u32Index].y;
+        circle.u32Radius = 8U;
+        circle.stColor = color;
+        circle.s32Thickness = -1;
+
+        ret = V2D_DrawCircle(handle, frame, &circle);
+        if (ret != 0) {
+            V2D_CancelJob(handle);
+            return -1;
+        }
+    }
+
+    for (u32Index = 0; (u32Index + 1U) < DEMO_KEYPOINT_NUM; ++u32Index) {
+        V2DLine line;
+
+        memset(&line, 0, sizeof(line));
+        line.s32X0 = astPoints[u32Index].x;
+        line.s32Y0 = astPoints[u32Index].y;
+        line.s32X1 = astPoints[u32Index + 1U].x;
+        line.s32Y1 = astPoints[u32Index + 1U].y;
+        line.stColor = color;
+        line.u32LineWidth = 1U;
+
+        ret = V2D_DrawLine(handle, frame, &line);
+        if (ret != 0) {
+            V2D_CancelJob(handle);
+            return -1;
+        }
+    }
+
+    ret = V2D_EndJob(handle);
+    if (ret != 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
     S32 ret;
     UL pool = 0UL;
-    UL buffer = 0UL;
     VideoFrameInfo frame;
     DEMO_CONFIG_S config;
 
@@ -358,58 +473,54 @@ int main(int argc, char *argv[])
         DEMO_FAIL("VB_Init failed, ret=%d", ret);
     }
 
-    if (demo_prepare_nv12_pool(&pool, config.width, config.height) != 0) {
+    if (demo_prepare_nv12_pool(&pool, &frame, config.width, config.height) != 0) {
         goto EXIT;
-    }
-
-    buffer = VB_GetBuffer(pool, 0);
-    if (buffer == 0UL) {
-        DEMO_LOG("VB_GetBuffer failed");
-        goto EXIT;
-    }
-
-    if (demo_prepare_frame_from_buffer(buffer, &frame) != 0) {
-        DEMO_LOG("prepare frame from buffer failed");
-        goto EXIT;
-    }
-
-    if (frame.stVFrame.u32PlaneNum > 1U) {
-        frame.stVFrame.u32Fd[1] = frame.stVFrame.u32Fd[0];
-        frame.stVFrame.ulPlaneVirAddr[1] =
-            frame.stVFrame.ulPlaneVirAddr[0] + frame.stVFrame.u32PlaneSize[0];
     }
 
     if (demo_load_nv12_file(&frame, config.input_file) != 0) {
         goto EXIT;
     }
 
-    if (demo_draw_rect(&frame, &config) != 0) {
-        DEMO_LOG("draw rectangle failed");
-        goto EXIT;
+    if (demo_is_mode(config.mode, DEMO_MODE_KEYPOINT)) {
+        if (demo_draw_keypoint(&frame) != 0) {
+            DEMO_LOG("draw keypoint failed");
+            goto EXIT;
+        }
+    } else {
+        if (demo_draw_rect(&frame, &config) != 0) {
+            DEMO_LOG("draw rectangle failed");
+            goto EXIT;
+        }
     }
 
     if (demo_dump_nv12_file(&frame, config.output_file) != 0) {
         goto EXIT;
     }
 
-    DEMO_LOG("draw done: input=%s output=%s rect=(%u,%u,%u,%u) yuv=0x%08x",
-             config.input_file,
-             config.output_file,
-             config.rect_x,
-             config.rect_y,
-             config.rect_w,
-             config.rect_h,
-             config.yuv_color);
+    if (demo_is_mode(config.mode, DEMO_MODE_KEYPOINT)) {
+        DEMO_LOG("draw done: mode=%s input=%s output=%s", config.mode, config.input_file, config.output_file);
+    } else {
+        DEMO_LOG(
+            "draw done: mode=%s input=%s output=%s rect=(%u,%u,%u,%u) yuv=0x%08x",
+            config.mode,
+            config.input_file,
+            config.output_file,
+            config.rect_x,
+            config.rect_y,
+            config.rect_w,
+            config.rect_h,
+            config.yuv_color);
+    }
 
-    VB_ReleaseBuffer(buffer);
+    VB_ReleaseBuffer(frame.ulBufferId);
     VB_DestroyPool(pool);
     VB_Exit();
     SYS_Exit();
     return 0;
 
 EXIT:
-    if (buffer != 0UL) {
-        VB_ReleaseBuffer(buffer);
+    if (frame.ulBufferId != 0UL) {
+        VB_ReleaseBuffer(frame.ulBufferId);
     }
     if (pool != 0UL) {
         VB_DestroyPool(pool);

@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __SYS_API_H__
-#define __SYS_API_H__
+#ifndef SYS_API_H
+#define SYS_API_H
 
 #include "type.h"
 #include "sys_type.h"
@@ -217,4 +217,4 @@ VOID SYS_DumpStatus(VOID);
 #endif
 #endif /* __cplusplus */
 
-#endif /*__SYS_API_H__ */
+#endif /*SYS_API_H */

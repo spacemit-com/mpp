@@ -7,8 +7,8 @@
  *               venc.c and venc_api.c. External users should use venc_api.h.
  */
 
-#ifndef _MPP_VENC_H_
-#define _MPP_VENC_H_
+#ifndef VENC_H
+#define VENC_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,15 +18,15 @@ extern "C" {
 #include "frame.h"
 #include "module.h"
 #include "packet.h"
-#include "processflow.h"
 #include "type.h"
 #include "venc_type.h"
+#include "al_interface_base.h"
 
 typedef struct _MppVencCtx {
-  MppProcessNode pNode;
-  MppModuleType eCodecType;
-  MppVencPara stVencPara;
-  MppModule *pModule;
+    MppModuleType eCodecType;
+    ALBaseContext *pAlBaseContext;
+    MppVencPara stVencPara;
+    MppModule *pModule;
 } MppVencCtx;
 
 MppVencCtx *venc_ctx_create(void);
@@ -60,8 +60,7 @@ S32 venc_ctx_reset(MppVencCtx *ctx);
 /* For bind system */
 S32 handle_venc_data(ALBaseContext *base_context, MppData *sink_data);
 
-S32 process_venc_data(ALBaseContext *base_context, MppData *sink_data,
-                      MppData *src_data);
+S32 process_venc_data(ALBaseContext *base_context, MppData *sink_data, MppData *src_data);
 
 S32 get_venc_result_sync(ALBaseContext *base_context, MppData *src_data);
 
@@ -73,4 +72,4 @@ S32 return_venc_result(ALBaseContext *base_context, MppData *src_data);
 }
 #endif
 
-#endif /* _MPP_VENC_H_ */
+#endif /* VENC_H */

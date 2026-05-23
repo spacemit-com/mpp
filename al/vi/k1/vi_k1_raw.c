@@ -11,33 +11,29 @@
 #include "include/vi_k1_common.h"
 #include <stdio.h>
 
-MppPixelFormat K1_VI_GetRawDumpPixelFormat(ViRawType eRawType)
-{
+MppPixelFormat K1_VI_GetRawDumpPixelFormat(ViRawType eRawType) {
     switch (eRawType) {
-    case VI_RAW_TYPE_8BIT:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_8BITS;
-    case VI_RAW_TYPE_10BIT:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_10BITS;
-    case VI_RAW_TYPE_12BIT:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_12BITS;
-    case VI_RAW_TYPE_14BIT:
-        return MPP_PIXEL_FORMAT_RGB_BAYER_14BITS;
-    default:
-        return MPP_PIXEL_FORMAT_MAX;
+        case VI_RAW_TYPE_8BIT:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_8BITS;
+        case VI_RAW_TYPE_10BIT:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_10BITS;
+        case VI_RAW_TYPE_12BIT:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_12BITS;
+        case VI_RAW_TYPE_14BIT:
+            return MPP_PIXEL_FORMAT_RGB_BAYER_14BITS;
+        default:
+            return MPP_PIXEL_FORMAT_MAX;
     }
 }
 
-K1_VI_RAW_CTX_S *K1_VI_GetRawCtx(VI_DEV ViDev, VI_CHN ViChn)
-{
+K1_VI_RAW_CTX_S *K1_VI_GetRawCtx(VI_DEV ViDev, VI_CHN ViChn) {
     if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
         return NULL;
 
     return &g_stK1ViCtx.astRawCtx[ViDev][ViChn];
 }
 
-S32 K1_VI_InitRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx,
-                         const K1_VI_CHN_CTX_S *pstPhyChnCtx)
-{
+S32 K1_VI_InitRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx, const K1_VI_CHN_CTX_S *pstPhyChnCtx) {
     ViChnAttrS stRawAttr;
     MppPixelFormat eRawPixelFormat;
     ViRawType eRawType;
@@ -78,8 +74,7 @@ S32 K1_VI_InitRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx,
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_GetRawDumpAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr)
-{
+S32 K1_VI_GetRawDumpAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr) {
     K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
     ViRawType eRawType;
     MppPixelFormat eRawPixelFormat;
@@ -111,10 +106,13 @@ S32 K1_VI_GetRawDumpAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_ImportRawDumpBuffer(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx,
-                              const VideoFrameInfo *pstFrameInfo,
-                              const IMAGE_BUFFER_S *pstImageBuffer)
-{
+S32 K1_VI_ImportRawDumpBuffer(
+    VI_DEV ViDev,
+    VI_CHN ViChn,
+    K1_VI_RAW_CTX_S *pstRawCtx,
+    const VideoFrameInfo *pstFrameInfo,
+    const IMAGE_BUFFER_S *pstImageBuffer
+) {
     if (pstRawCtx == NULL || pstFrameInfo == NULL || pstImageBuffer == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -129,8 +127,7 @@ S32 K1_VI_ImportRawDumpBuffer(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRa
     return K1_VI_SUCCESS;
 }
 
-K1_VI_RAW_CTX_S *K1_VI_GetOrCreateRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn)
-{
+K1_VI_RAW_CTX_S *K1_VI_GetOrCreateRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn) {
     K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
 
@@ -155,8 +152,7 @@ K1_VI_RAW_CTX_S *K1_VI_GetOrCreateRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn)
     return pstRawCtx;
 }
 
-S32 K1_VI_StartRawCtx(K1_VI_RAW_CTX_S *pstRawCtx)
-{
+S32 K1_VI_StartRawCtx(K1_VI_RAW_CTX_S *pstRawCtx) {
     S32 s32Ret = 0;
 
     if (pstRawCtx == NULL)
@@ -178,8 +174,7 @@ S32 K1_VI_StartRawCtx(K1_VI_RAW_CTX_S *pstRawCtx)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_StopRawCtx(K1_VI_RAW_CTX_S *pstRawCtx)
-{
+S32 K1_VI_StopRawCtx(K1_VI_RAW_CTX_S *pstRawCtx) {
     S32 s32Ret = 0;
 
     if (pstRawCtx == NULL)
@@ -193,14 +188,14 @@ S32 K1_VI_StopRawCtx(K1_VI_RAW_CTX_S *pstRawCtx)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx)
-{
+S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx) {
     S32 s32Ret = 0;
 
     if (pstRawCtx == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
-    // info("[rawdump-queue] dev=%d chn=%d asrChn=%u fmt=%d type=%d idx=%d mfd=%d size=%ux%u planes=%d stride0=%u scan0=%u len0=%u pfd0=%d state=%d ext=%d bufId=%lu\n",
+    // info("[rawdump-queue] dev=%d chn=%d asrChn=%u fmt=%d type=%d idx=%d mfd=%d size=%ux%u planes=%d stride0=%u
+    // scan0=%u len0=%u pfd0=%d state=%d ext=%d bufId=%lu\n",
     //        pstRawCtx->ViDev,
     //        pstRawCtx->ViChn,
     //        pstRawCtx->u32AsrChn,
@@ -221,8 +216,7 @@ S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx)
 
     s32Ret = ASR_VI_ChnQueueBuffer(pstRawCtx->u32AsrChn, &pstRawCtx->stImageBuffer);
     if (s32Ret != SUCCESS) {
-        error("[rawdump-queue] ASR_VI_ChnQueueBuffer failed, asrChn=%u ret=%d\n",
-               pstRawCtx->u32AsrChn, s32Ret);
+        error("[rawdump-queue] ASR_VI_ChnQueueBuffer failed, asrChn=%u ret=%d\n", pstRawCtx->u32AsrChn, s32Ret);
         return s32Ret;
     }
 
@@ -230,8 +224,7 @@ S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_HandleRawDumpCallback(K1_VI_RAW_CTX_S *pstRawCtx, const VI_IMAGE_BUFFER_S *vi_buffer)
-{
+S32 K1_VI_HandleRawDumpCallback(K1_VI_RAW_CTX_S *pstRawCtx, const VI_IMAGE_BUFFER_S *vi_buffer) {
     if (pstRawCtx == NULL || vi_buffer == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 

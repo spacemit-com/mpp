@@ -134,7 +134,7 @@ if(MPP_BUILD_ROS2_EXAMPLES)
         COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/test/ros2_mpp_msgs" "${MPP_ROS2_WS_DIR}/src/mpp_msgs"
         COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_CURRENT_SOURCE_DIR}/test/ros2_mpp_isp_camera" "${MPP_ROS2_WS_DIR}/src/mpp_isp_camera_ros2"
         COMMAND /bin/bash -lc "source '${ROS2_SETUP_BASH}' && cd '${MPP_ROS2_WS_DIR}' && '${COLCON_EXECUTABLE}' build --event-handlers console_direct+ --cmake-args -DMPP_ROOT='${CMAKE_CURRENT_SOURCE_DIR}' -DMPP_BUILD_ROOT='${CMAKE_BINARY_DIR}'"
-        DEPENDS mpp_sys mpp_vi mpp_al_module utils
+        DEPENDS mpp_sys mpp_vi mpp_uvc mpp_al_module utils
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "Building ROS2 examples in ${MPP_ROS2_WS_DIR}"
         VERBATIM

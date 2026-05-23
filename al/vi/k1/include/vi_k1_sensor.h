@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __AL_VI_K1_SENSOR_H__
-#define __AL_VI_K1_SENSOR_H__
+#ifndef VI_K1_SENSOR_H
+#define VI_K1_SENSOR_H
 
 #include "vi_k1_ctx.h"
 
@@ -21,4 +21,4 @@ S32 K1_VI_DeInitSensor(VI_DEV ViDev);
 S32 K1_VI_StartSensor(VI_DEV ViDev);
 S32 K1_VI_StopSensor(VI_DEV ViDev);
 
-#endif /* __AL_VI_K1_SENSOR_H__ */
+#endif /* VI_K1_SENSOR_H */

@@ -22,6 +22,12 @@ target_compile_definitions(test_rtsp_pipeline PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_rtsp_pipeline PRIVATE ${MPP_INCLUDE_DIRS})
 target_link_libraries(test_rtsp_pipeline PRIVATE mpp_demux mpp_mux mpp_sys)
 
+# RTSP pull test (demux only, needs ffmpeg/network source)
+add_executable(test_rtsp_pull test_rtsp_pull.c)
+target_compile_definitions(test_rtsp_pull PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_rtsp_pull PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_rtsp_pull PRIVATE mpp_demux mpp_sys)
+
 add_executable(test_uvc test_uvc.c)
 target_compile_definitions(test_uvc PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_uvc PRIVATE mpp_uvc mpp_sys)
@@ -41,10 +47,26 @@ target_compile_definitions(test_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_venc_file PRIVATE mpp_venc mpp_sys)
 target_include_directories(test_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
 
-add_executable(test_vdec_file test_vdec_file.c)
-target_compile_definitions(test_vdec_file PRIVATE ${MPP_TEST_COMMON_DEFS})
-target_link_libraries(test_vdec_file PRIVATE mpp_vdec mpp_sys)
-target_include_directories(test_vdec_file PRIVATE ${MPP_INCLUDE_DIRS})
+add_executable(test_vi_venc_file test_vi_venc_file.c)
+target_compile_definitions(test_vi_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_venc_file PRIVATE mpp_vi mpp_venc mpp_sys)
+target_include_directories(test_vi_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
+
+# VDEC: API / multi-codec / scale regression (select suites via --test)
+# Paths are relative to this directory (test/), not project root.
+set(TEST_VDEC_PARSE_SRCS
+    vdec/parse/parse.c
+    vdec/parse/h264parse.c
+    vdec/parse/h265parse.c
+    vdec/parse/mjpegparse.c
+    vdec/parse/defaultparse.c)
+add_executable(test_vdec vdec/test_vdec.c ${TEST_VDEC_PARSE_SRCS})
+target_compile_definitions(test_vdec PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vdec PRIVATE mpp_vdec mpp_sys)
+target_include_directories(test_vdec PRIVATE ${MPP_INCLUDE_DIRS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/vdec/include")
+add_test(NAME test_vdec COMMAND $<TARGET_FILE:test_vdec> --test api)
+
 # Demo executables
 add_executable(test_v2d test_v2d.c)
 target_compile_definitions(test_v2d PRIVATE ${MPP_TEST_COMMON_DEFS})
@@ -60,6 +82,16 @@ add_executable(test_v2d_blend test_v2d_blend.c)
 target_compile_definitions(test_v2d_blend PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_v2d_blend PRIVATE mpp_v2d mpp_sys)
 target_include_directories(test_v2d_blend PRIVATE ${MPP_INCLUDE_DIRS})
+
+add_executable(test_v2d_mask test_v2d_mask.c)
+target_compile_definitions(test_v2d_mask PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_v2d_mask PRIVATE mpp_v2d mpp_sys)
+target_include_directories(test_v2d_mask PRIVATE ${MPP_INCLUDE_DIRS})
+
+add_executable(test_v2d_boarder_fill test_v2d_boarder_fill.c)
+target_compile_definitions(test_v2d_boarder_fill PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_v2d_boarder_fill PRIVATE mpp_v2d mpp_sys)
+target_include_directories(test_v2d_boarder_fill PRIVATE ${MPP_INCLUDE_DIRS})
 
 if(TARGET mpp_cpp)
     add_executable(test_vi_cpp test_vi_cpp.c)
@@ -79,6 +111,11 @@ add_executable(test_vi_k1_cam test_vi_k1_cam.c)
 target_compile_definitions(test_vi_k1_cam PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_vi_k1_cam PRIVATE mpp_vi mpp_sys)
 target_include_directories(test_vi_k1_cam PRIVATE ${MPP_INCLUDE_DIRS})
+
+add_executable(test_vi_k3_cam test_vi_k3_cam.c)
+target_compile_definitions(test_vi_k3_cam PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_k3_cam PRIVATE mpp_vi mpp_sys)
+target_include_directories(test_vi_k3_cam PRIVATE ${MPP_INCLUDE_DIRS})
 
 add_executable(test_vi_k1_ispbypass test_vi_k1_ispbypass.c)
 target_compile_definitions(test_vi_k1_ispbypass PRIVATE ${MPP_TEST_COMMON_DEFS})

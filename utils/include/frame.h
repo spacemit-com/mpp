@@ -6,8 +6,8 @@
  * @Description: MppFrame - carrier for decoded/pre-encode frame data
  */
 
-#ifndef _MPP_FRAME_H_
-#define _MPP_FRAME_H_
+#ifndef FRAME_H
+#define FRAME_H
 
 #include "data.h"
 #include "dmabufwrapper.h"
@@ -23,8 +23,7 @@ typedef struct _MppFrame MppFrame;
 
 MppFrame *FRAME_Create();
 S32 FRAME_GetStructSize();
-RETURN FRAME_Alloc(MppFrame *frame, MppPixelFormat pixelformat, S32 width,
-                   S32 height);
+RETURN FRAME_Alloc(MppFrame *frame, MppPixelFormat pixelformat, S32 width, S32 height);
 RETURN FRAME_Free(MppFrame *frame);
 RETURN FRAME_SetDataUsedNum(MppFrame *frame, S32 data_used_num);
 S32 FRAME_GetDataUsedNum(MppFrame *frame);
@@ -61,4 +60,4 @@ void FRAME_Destory(MppFrame *frame);
 };
 #endif
 
-#endif /*_MPP_FRAME_H_*/
+#endif /*FRAME_H*/

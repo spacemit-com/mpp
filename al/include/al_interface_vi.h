@@ -9,8 +9,8 @@
  * @Description: abstract layer interface of video input
  */
 
-#ifndef _AL_INTERFACE_VI_H_
-#define _AL_INTERFACE_VI_H_
+#ifndef AL_INTERFACE_VI_H
+#define AL_INTERFACE_VI_H
 
 #include "al_interface_base.h"
 #include "processflow.h"
@@ -178,14 +178,15 @@ S32 al_vi_release_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInf
  * @param {U32} u32RawSize
  * @return {*}: 0 on success, else error code.
  */
-S32 al_vi_offline_set_input_addr(VI_DEV ViDev,
-							 VI_CHN ViChn,
-							 UL ulPoolId,
-							 UL ulBufferId,
-							 const VideoFrameInfo *pstFrameInfo,
-							 const IMAGE_BUFFER_S *pstImageBuffer,
-							 const U8 *pu8RawVirAddr,
-							 U32 u32RawSize);
+S32 al_vi_offline_set_input_addr(
+    VI_DEV ViDev,
+    VI_CHN ViChn,
+    UL ulPoolId,
+    UL ulBufferId,
+    const VideoFrameInfo *pstFrameInfo,
+    const IMAGE_BUFFER_S *pstImageBuffer,
+    const U8 *pu8RawVirAddr,
+    U32 u32RawSize);
 
 /**
  * @description: attach a bind sink for VI output
@@ -209,4 +210,4 @@ S32 al_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNod
 };
 #endif
 
-#endif /*_AL_INTERFACE_VI_H_*/
+#endif /*AL_INTERFACE_VI_H*/

@@ -3,8 +3,8 @@
  * Copyright (C) 2026 Spacemit Co., Ltd.
  */
 
-#ifndef MPP_V2D_TYPE_H
-#define MPP_V2D_TYPE_H
+#ifndef V2D_TYPE_H
+#define V2D_TYPE_H
 
 #include <stdbool.h>
 
@@ -19,6 +19,39 @@ extern "C" {
 #ifndef FAILURE
 #define FAILURE (-1)
 #endif
+
+/*
+ * V2D error codes
+ */
+#define V2D_OK 0
+
+/* -1 ~ -19: handle / generic parameter errors */
+#define V2D_ERR_FAILURE (-1)        /* generic failure, same as legacy FAILURE */
+#define V2D_ERR_NULL_PTR (-2)       /* required pointer argument is NULL */
+#define V2D_ERR_INVALID_HANDLE (-3) /* V2DHandle is zero or otherwise invalid */
+#define V2D_ERR_INVALID_PARAM (-4)  /* numeric parameter is out of range */
+#define V2D_ERR_PARAM_PAIR (-5)     /* only one argument in a required pair is provided */
+
+/* -20 ~ -39: frame / surface / rect validation */
+#define V2D_ERR_INVALID_FRAME (-20)   /* PlaneNum==0, Fd==0, or invalid VB handle */
+#define V2D_ERR_INVALID_FORMAT (-21)  /* unsupported MppPixelFormat or V2DColorFormat */
+#define V2D_ERR_INVALID_STRIDE (-22)  /* PlaneStride does not match width/format */
+#define V2D_ERR_INVALID_RECT (-23)    /* rect width/height is zero or out of bounds */
+#define V2D_ERR_FORMAT_MISMATCH (-24) /* multi-frame format constraint is not satisfied */
+#define V2D_ERR_SIZE_MISMATCH (-25)   /* frame sizes do not match */
+#define V2D_ERR_FBC_UNSUPPORTED (-26) /* current operation does not support FBC surfaces */
+#define V2D_ERR_NO_CSC (-27)          /* no CSC mode can be derived from src/dst formats */
+
+/* -40 ~ -59: resource / state errors */
+#define V2D_ERR_TASK_FULL (-40)  /* task count in one job reached V2D_MAX_TASK_NUM */
+#define V2D_ERR_ALLOC (-41)      /* calloc or malloc failed */
+#define V2D_ERR_VB_VIRADDR (-42) /* VB_GetVirAddr failed */
+
+/* -60 ~ -79: device I/O / fence errors */
+#define V2D_ERR_DEV_OPEN (-60)      /* open(/dev/v2d_dev) failed */
+#define V2D_ERR_DEV_WRITE (-61)     /* task write to driver failed or was short */
+#define V2D_ERR_FENCE_TIMEOUT (-62) /* poll timed out while waiting for fence */
+#define V2D_ERR_FENCE_POLL (-63)    /* poll failed with POLLERR/POLLNVAL or system error */
 
 typedef U64 V2DHandle;
 
@@ -218,6 +251,14 @@ typedef struct V2DLine {
     V2DFillColor stColor;
     U32 u32LineWidth;
 } V2DLine;
+
+typedef struct V2DCircle {
+    S32 s32CenterX;
+    S32 s32CenterY;
+    U32 u32Radius;
+    V2DFillColor stColor;
+    S32 s32Thickness;
+} V2DCircle;
 
 #ifdef __cplusplus
 }

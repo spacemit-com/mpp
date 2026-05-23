@@ -9,5 +9,8 @@ include_directories(include)
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/include/sys)
 
+include_directories(vi/include)
+
 add_subdirectory(vi/k1)
+add_subdirectory(vi/k3)
 add_subdirectory(vcodec)

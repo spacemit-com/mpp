@@ -30,9 +30,7 @@ extern "C" {
 
 class MppFrameConsumerNode final : public rclcpp::Node {
 public:
-    MppFrameConsumerNode()
-        : Node("mpp_frame_consumer_node")
-    {
+    MppFrameConsumerNode() : Node("mpp_frame_consumer_node") {
         topicName_ = declare_parameter<std::string>("topic", "mpp_frame_desc");
 
         if (SYS_Init() != 0) {
@@ -47,21 +45,16 @@ public:
         vbInited_ = true;
 
         sub_ = create_subscription<mpp_msgs::msg::MppVideoFrameDesc>(
-            topicName_,
-            rclcpp::SensorDataQoS(),
+            topicName_, rclcpp::SensorDataQoS(),
             std::bind(&MppFrameConsumerNode::on_frame, this, std::placeholders::_1));
 
         RCLCPP_INFO(get_logger(), "MPP zero-copy consumer started: topic=%s", topicName_.c_str());
     }
 
-    ~MppFrameConsumerNode() override
-    {
-        close_mpp();
-    }
+    ~MppFrameConsumerNode() override { close_mpp(); }
 
 private:
-    void close_mpp()
-    {
+    void close_mpp() {
         if (vbInited_) {
             (void)VB_Exit();
             vbInited_ = false;
@@ -72,8 +65,7 @@ private:
         }
     }
 
-    void on_frame(const mpp_msgs::msg::MppVideoFrameDesc::SharedPtr msg)
-    {
+    void on_frame(const mpp_msgs::msg::MppVideoFrameDesc::SharedPtr msg) {
         UL buffer = 0;
         void *virAddr = nullptr;
         S32 dmaBufFd = -1;
@@ -81,20 +73,23 @@ private:
 
         ret = VB_Import(msg->token, &buffer);
         if (ret != 0 || buffer == 0) {
-            RCLCPP_ERROR(get_logger(), "VB_Import token=0x%llx failed: %d", static_cast<unsigned long long>(msg->token), ret);
+            RCLCPP_ERROR(
+                get_logger(), "VB_Import token=0x%" PRIx64 " failed: %d", static_cast<uint64_t>(msg->token), ret);
             return;
         }
 
         ret = VB_GetVirAddr(buffer, &virAddr);
         if (ret != 0 || virAddr == nullptr) {
-            RCLCPP_ERROR(get_logger(), "VB_GetVirAddr buffer=0x%lx failed: %d", static_cast<unsigned long>(buffer), ret);
+            RCLCPP_ERROR(
+                get_logger(), "VB_GetVirAddr buffer=0x%" PRIx64 " failed: %d", static_cast<uint64_t>(buffer), ret);
             (void)VB_ReleaseBuffer(buffer);
             return;
         }
 
         ret = VB_GetDmaBufFd(buffer, &dmaBufFd);
         if (ret != 0) {
-            RCLCPP_WARN(get_logger(), "VB_GetDmaBufFd buffer=0x%lx failed: %d", static_cast<unsigned long>(buffer), ret);
+            RCLCPP_WARN(
+                get_logger(), "VB_GetDmaBufFd buffer=0x%" PRIx64 " failed: %d", static_cast<uint64_t>(buffer), ret);
         }
 
         /*
@@ -104,16 +99,19 @@ private:
          *   - Use msg->plane_stride / msg->plane_size_valid for plane layout.
          *   - Do not free virAddr directly; release the imported VB reference.
          */
-        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000,
-                             "frame idx=%u %ux%u fmt=%u planes=%u buffer=0x%lx fd=%d vir=%p",
-                             msg->frame_index,
-                             msg->width,
-                             msg->height,
-                             msg->pixel_format,
-                             msg->plane_num,
-                             static_cast<unsigned long>(buffer),
-                             dmaBufFd,
-                             virAddr);
+        RCLCPP_INFO_THROTTLE(
+            get_logger(),
+            *get_clock(),
+            2000,
+            "frame idx=%u %ux%u fmt=%u planes=%u buffer=0x%" PRIx64 " fd=%d vir=%p",
+            msg->frame_index,
+            msg->width,
+            msg->height,
+            msg->pixel_format,
+            msg->plane_num,
+            static_cast<uint64_t>(buffer),
+            dmaBufFd,
+            virAddr);
 
         (void)VB_ReleaseBuffer(buffer);
     }
@@ -125,8 +123,7 @@ private:
     rclcpp::Subscription<mpp_msgs::msg::MppVideoFrameDesc>::SharedPtr sub_;
 };
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<MppFrameConsumerNode>());
     rclcpp::shutdown();

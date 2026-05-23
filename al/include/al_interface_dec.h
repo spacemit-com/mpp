@@ -9,8 +9,8 @@
  * @Description: abstract layer interface of video decode
  */
 
-#ifndef _AL_INTERFACE_DEC_H_
-#define _AL_INTERFACE_DEC_H_
+#ifndef AL_INTERFACE_DEC_H
+#define AL_INTERFACE_DEC_H
 
 #include "al_interface_base.h"
 
@@ -82,8 +82,7 @@ S32 al_dec_request_output_frame(ALBaseContext *ctx, MppData *src_data);
  * @param {U32} u32TimeoutMs: poll timeout in ms (0 = non-blocking, (U32)-1 = infinite)
  * @return {*}: MPP_OK on success, MPP_CODER_NO_DATA / MPP_CODER_EOS / error
  */
-S32 al_dec_request_output_frame_2(ALBaseContext *ctx, MppData **src_data,
-                                  U32 u32TimeoutMs);
+S32 al_dec_request_output_frame_2(ALBaseContext *ctx, MppData **src_data, U32 u32TimeoutMs);
 
 /**
  * @description:
@@ -127,4 +126,4 @@ void al_dec_destory(ALBaseContext *ctx);
 };
 #endif
 
-#endif /*_AL_INTERFACE_DEC_H_*/
+#endif /*AL_INTERFACE_DEC_H*/

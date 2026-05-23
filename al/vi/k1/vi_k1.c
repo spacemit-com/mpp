@@ -11,23 +11,25 @@
  *------------------------------------------------------------------------------
  */
 
-#include "vi_k1_defs.h"
-#include "vi_k1_ctx.h"
-#include "vi_k1_flow.h"
-#include "vi_k1_buffer.h"
-#include "vi_k1_common.h"
-#include "vi_k1_sensor.h"
-#include "vi_k1_isp.h"
-#include "vi_k1_ccic.h"
-#include "vi_k1_virtual.h"
-#include "vi_k1_raw.h"
+#include "vi_k1.h"
 
 #include <stdio.h>
 
+#include "vi_al_ops.h"
+#include "vi_k1_buffer.h"
+#include "vi_k1_ccic.h"
+#include "vi_k1_common.h"
+#include "vi_k1_ctx.h"
+#include "vi_k1_defs.h"
+#include "vi_k1_flow.h"
+#include "vi_k1_isp.h"
+#include "vi_k1_raw.h"
+#include "vi_k1_sensor.h"
+#include "vi_k1_virtual.h"
+
 extern VOID K1_VI_ResetOfflineCfg(VI_DEV ViDev);
 
-static VOID K1_VI_DumpPlaneToFile(const CHAR *pszPath, const IMAGE_BUFFER_PLANE_S *pstPlane)
-{
+static VOID K1_VI_DumpPlaneToFile(const CHAR *pszPath, const IMAGE_BUFFER_PLANE_S *pstPlane) {
     FILE *fp = NULL;
 
     if (pszPath == NULL || pstPlane == NULL || pstPlane->virAddr == NULL || pstPlane->length == 0)
@@ -43,11 +45,9 @@ static VOID K1_VI_DumpPlaneToFile(const CHAR *pszPath, const IMAGE_BUFFER_PLANE_
     (void)fclose(fp);
 }
 
-static VOID K1_VI_DumpPlaneArray(const CHAR *pszPrefix,
-                                 U32 u32Level,
-                                 const IMAGE_BUFFER_PLANE_S *pstPlanes,
-                                 U32 u32PlaneCnt)
-{
+static VOID K1_VI_DumpPlaneArray(
+    const CHAR *pszPrefix, U32 u32Level, const IMAGE_BUFFER_PLANE_S *pstPlanes, U32 u32PlaneCnt
+) {
     CHAR szPath[256] = {0};
     U32 i = 0;
 
@@ -65,25 +65,27 @@ static VOID K1_VI_DumpPlaneArray(const CHAR *pszPrefix,
         else
             (void)snprintf(szPath, sizeof(szPath), "k1_vi_cb_dump_%s%u_p%u.bin", pszPrefix, u32Level, i);
 
-        info("[K1_VI_CB_DUMP] dump %s: vir=%p fd=%d off=%u len=%u stride=%u scanline=%u %ux%u\n",
-               szPath,
-               pstPlane->virAddr,
-               pstPlane->fd,
-               pstPlane->offset,
-               pstPlane->length,
-               pstPlane->stride,
-               pstPlane->scanline,
-               pstPlane->width,
-               pstPlane->height);
+        info(
+            "[K1_VI_CB_DUMP] dump %s: vir=%p fd=%d off=%u len=%u stride=%u scanline=%u %ux%u\n",
+            szPath,
+            pstPlane->virAddr,
+            pstPlane->fd,
+            pstPlane->offset,
+            pstPlane->length,
+            pstPlane->stride,
+            pstPlane->scanline,
+            pstPlane->width,
+            pstPlane->height);
         K1_VI_DumpPlaneToFile(szPath, pstPlane);
     }
 }
 
-static VOID K1_VI_DumpFirstCallbackFrame(U32 u32AsrChn,
-                                         const K1_VI_CHN_CTX_S *pstChnCtx,
-                                         const VI_IMAGE_BUFFER_S *pstViBuffer,
-                                         const K1_VI_BUF_NODE_S *pstBufNode)
-{
+static VOID K1_VI_DumpFirstCallbackFrame(
+    U32 u32AsrChn,
+    const K1_VI_CHN_CTX_S *pstChnCtx,
+    const VI_IMAGE_BUFFER_S *pstViBuffer,
+    const K1_VI_BUF_NODE_S *pstBufNode
+) {
     static BOOL sbDumped = MPP_FALSE;
 
     if (sbDumped == MPP_TRUE)
@@ -93,21 +95,23 @@ static VOID K1_VI_DumpFirstCallbackFrame(U32 u32AsrChn,
 
     sbDumped = MPP_TRUE;
 
-    info("[K1_VI_CB_DUMP] asrChn=%u viDev=%d viChn=%d bufIndex=%u frameId=%d fmt=%d numPlanes=%u timestamp=%llu\n",
-           u32AsrChn,
-           pstChnCtx->ViDev,
-           pstChnCtx->ViChn,
-           pstBufNode->u32Index,
-           pstBufNode->stImageBuffer.frameId,
-           pstBufNode->stImageBuffer.format,
-           pstBufNode->stImageBuffer.numPlanes,
-           (unsigned long long)pstBufNode->stImageBuffer.timeStamp);
-    info("[K1_VI_CB_DUMP] image size=%ux%u m.fd=%d pool=%llu block=%llu\n",
-           pstBufNode->stImageBuffer.size.width,
-           pstBufNode->stImageBuffer.size.height,
-           pstBufNode->stImageBuffer.m.fd,
-           (unsigned long long)pstBufNode->ulPoolId,
-           (unsigned long long)pstBufNode->ulBufferId);
+    info(
+        "[K1_VI_CB_DUMP] asrChn=%u viDev=%d viChn=%d bufIndex=%u frameId=%d fmt=%d numPlanes=%u timestamp=%llu\n",
+        u32AsrChn,
+        pstChnCtx->ViDev,
+        pstChnCtx->ViChn,
+        pstBufNode->u32Index,
+        pstBufNode->stImageBuffer.frameId,
+        pstBufNode->stImageBuffer.format,
+        pstBufNode->stImageBuffer.numPlanes,
+        (uint64_t)pstBufNode->stImageBuffer.timeStamp);
+    info(
+        "[K1_VI_CB_DUMP] image size=%ux%u m.fd=%d pool=%llu block=%llu\n",
+        pstBufNode->stImageBuffer.size.width,
+        pstBufNode->stImageBuffer.size.height,
+        pstBufNode->stImageBuffer.m.fd,
+        (uint64_t)pstBufNode->ulPoolId,
+        (uint64_t)pstBufNode->ulBufferId);
 
     // K1_VI_DumpPlaneArray("main", 0, pstBufNode->stImageBuffer.planes, pstBufNode->stImageBuffer.numPlanes);
     // K1_VI_DumpPlaneArray("dwt", 1, pstBufNode->stImageBuffer.dwt1, DWT_MAX_PLANES);
@@ -116,8 +120,7 @@ static VOID K1_VI_DumpFirstCallbackFrame(U32 u32AsrChn,
     // K1_VI_DumpPlaneArray("dwt", 4, pstBufNode->stImageBuffer.dwt4, DWT_MAX_PLANES);
 }
 
-static BOOL K1_VI_IsBindSupported(const K1_VI_CHN_CTX_S *pstChnCtx)
-{
+static BOOL K1_VI_IsBindSupported(const K1_VI_CHN_CTX_S *pstChnCtx) {
     if (pstChnCtx == NULL)
         return MPP_FALSE;
 
@@ -130,8 +133,7 @@ static BOOL K1_VI_IsBindSupported(const K1_VI_CHN_CTX_S *pstChnCtx)
     return MPP_FALSE;
 }
 
-static VOID K1_VI_InitFrameRateCtrl(K1_VI_CHN_CTX_S *pstChnCtx)
-{
+static VOID K1_VI_InitFrameRateCtrl(K1_VI_CHN_CTX_S *pstChnCtx) {
     if (pstChnCtx == NULL)
         return;
 
@@ -140,8 +142,7 @@ static VOID K1_VI_InitFrameRateCtrl(K1_VI_CHN_CTX_S *pstChnCtx)
     pstChnCtx->u32FrameRateSeq = 0;
 }
 
-static BOOL K1_VI_ShouldKeepFrame(K1_VI_CHN_CTX_S *pstChnCtx)
-{
+static BOOL K1_VI_ShouldKeepFrame(K1_VI_CHN_CTX_S *pstChnCtx) {
     U32 u32InputStep;
     U32 u32OutputStep;
     U32 u32CurIdx;
@@ -164,8 +165,7 @@ static BOOL K1_VI_ShouldKeepFrame(K1_VI_CHN_CTX_S *pstChnCtx)
     return (u32CurIdx < u32OutputStep) ? MPP_TRUE : MPP_FALSE;
 }
 
-static S32 K1_VI_HandleBoundFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
-{
+static S32 K1_VI_HandleBoundFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode) {
     if (pstChnCtx == NULL || pstBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -183,8 +183,7 @@ static S32 K1_VI_HandleBoundFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *
     return K1_VI_QueueBufNode(pstChnCtx, pstBufNode);
 }
 
-static S32 K1_VI_HandleDroppedFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
-{
+static S32 K1_VI_HandleDroppedFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode) {
     if (pstChnCtx == NULL || pstBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
@@ -196,10 +195,9 @@ static S32 K1_VI_HandleDroppedFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S
     return K1_VI_QueueBufNode(pstChnCtx, pstBufNode);
 }
 
-S32 K1_VI_HandleNormalCallback(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
-{
+S32 K1_VI_HandleNormalCallback(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode) {
     if (pstChnCtx == NULL || pstBufNode == NULL)
-        return K1_VI_ERR_INVALID_PARAM; 
+        return K1_VI_ERR_INVALID_PARAM;
 
     if (K1_VI_ShouldKeepFrame(pstChnCtx) != MPP_TRUE) {
         return K1_VI_HandleDroppedFrame(pstChnCtx, pstBufNode);
@@ -209,8 +207,7 @@ S32 K1_VI_HandleNormalCallback(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pst
     return K1_VI_DonePush(pstChnCtx, pstBufNode->u32Index);
 }
 
-S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
-{
+S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx) {
     S32 s32Ret = 0;
     ViWorkMode eWorkMode;
 
@@ -234,12 +231,12 @@ S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
         }
     }
 
-	s32Ret = ASR_VI_SetCallback(pstChnCtx->u32AsrChn, K1_VI_BufferCallback);
+    s32Ret = ASR_VI_SetCallback(pstChnCtx->u32AsrChn, K1_VI_BufferCallback);
     if (s32Ret != SUCCESS) {
         return s32Ret;
     }
 
-	s32Ret = ASR_VI_EnableDev(ViDev);
+    s32Ret = ASR_VI_EnableDev(ViDev);
     if (s32Ret != 0) {
         if (eWorkMode != VI_WORK_MODE_OFFLINE)
             (void)K1_VI_DeInitIsp(pstChnCtx);
@@ -253,7 +250,7 @@ S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
         return s32Ret;
     }
 
-	/* Queue all buffers before starting ISP/sensor so hardware has
+    /* Queue all buffers before starting ISP/sensor so hardware has
      * buffers available from the very first frame. */
     s32Ret = K1_VI_QueueAllBuffers(pstChnCtx);
     if (s32Ret != K1_VI_SUCCESS) {
@@ -274,8 +271,8 @@ S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
     }
 
     if (eWorkMode != VI_WORK_MODE_OFFLINE) {
-	    s32Ret = K1_VI_StartSensor(ViDev);
-	    if (s32Ret != K1_VI_SUCCESS) {
+        s32Ret = K1_VI_StartSensor(ViDev);
+        if (s32Ret != K1_VI_SUCCESS) {
             ASR_VI_DisableChn(pstChnCtx->u32AsrChn);
             ASR_VI_DisableDev((U32)ViDev);
             (void)K1_VI_DeInitIsp(pstChnCtx);
@@ -287,9 +284,7 @@ S32 K1_VI_StartChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx)
     return K1_VI_SUCCESS;
 }
 
-
-S32 K1_VI_StopChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool)
-{
+S32 K1_VI_StopChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool) {
     S32 s32Ret = 0;
     ViWorkMode eWorkMode;
 
@@ -333,9 +328,8 @@ S32 K1_VI_StopChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool
     return K1_VI_SUCCESS;
 }
 
-int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer)
-{
-	//info("Received buffer callback for ASR VI channel %u\n", nChn);
+int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer) {
+    // info("Received buffer callback for ASR VI channel %u\n", nChn);
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     K1_VI_BUF_NODE_S *pstBufNode = NULL;
@@ -345,12 +339,10 @@ int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer)
         return K1_VI_ERR_INVALID_PARAM;
 
     pstRawCtx = K1_VI_FindRawCtxByAsrChn(nChn);
-    if (pstRawCtx != NULL)
-	{
-		error("Handling raw dump callback for ASR VI channel %u\n", nChn);
-		return K1_VI_HandleRawDumpCallback(pstRawCtx, vi_buffer);
-	}
-        
+    if (pstRawCtx != NULL) {
+        error("Handling raw dump callback for ASR VI channel %u\n", nChn);
+        return K1_VI_HandleRawDumpCallback(pstRawCtx, vi_buffer);
+    }
 
     pstImageBuffer = vi_buffer->buffer;
     pstChnCtx = K1_VI_FindChnCtxByAsrChn(nChn);
@@ -362,7 +354,7 @@ int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer)
         return K1_VI_ERR_INVALID_PARAM;
 
     K1_VI_UpdateBufNodeMeta(pstBufNode, vi_buffer);
-    //K1_VI_DumpFirstCallbackFrame(nChn, pstChnCtx, vi_buffer, pstBufNode);
+    // K1_VI_DumpFirstCallbackFrame(nChn, pstChnCtx, vi_buffer, pstBufNode);
 
     K1_VI_DispatchVirtualFrames(pstChnCtx, vi_buffer, &pstBufNode->stFrameInfo);
 
@@ -372,8 +364,7 @@ int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer)
     return K1_VI_HandleNormalCallback(pstChnCtx, pstBufNode);
 }
 
-S32 K1_VI_Init(VOID)
-{
+S32 K1_VI_Init(VOID) {
     S32 s32Ret = 0;
 
     if (g_stK1ViCtx.bInit == MPP_TRUE)
@@ -393,8 +384,7 @@ S32 K1_VI_Init(VOID)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_DeInit(VOID)
-{
+S32 K1_VI_DeInit(VOID) {
     S32 s32Ret = 0;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -406,15 +396,14 @@ S32 K1_VI_DeInit(VOID)
     return s32Ret;
 }
 
-S32 K1_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
-{
+S32 K1_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     K1_ASR_VI_DEV_ATTR_S stAsrDevAttr;
     S32 s32Ret = 0;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
         return K1_VI_ERR_NOT_INIT;
-    if (pstDevAttr == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE)	
+    if (pstDevAttr == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
     if (K1_VI_IsValidSize(pstDevAttr->u32Width, pstDevAttr->u32Height) != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
@@ -447,7 +436,7 @@ S32 K1_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
         return s32Ret;
 
     s32Ret = ASR_VI_SetDevAttr((U32)ViDev, &stAsrDevAttr);
-	// info("%s: ASR_VI_SetDevAttr devId %d, workMode %d, rawType %d, %dx%d, lane_num %d, bindSensorIdx %d, ret = %d\n",
+    // info("%s: ASR_VI_SetDevAttr devId %d, workMode %d, rawType %d, %dx%d, lane_num %d, bindSensorIdx %d, ret = %d\n",
     //        __func__, ViDev, stAsrDevAttr.enWorkMode, stAsrDevAttr.enRawType, stAsrDevAttr.width, stAsrDevAttr.height,
     //        stAsrDevAttr.mipi_lane_num, stAsrDevAttr.bindSensorIdx, s32Ret);
     if (s32Ret != SUCCESS)
@@ -457,8 +446,7 @@ S32 K1_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_GetDevAttr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
-{
+S32 K1_VI_GetDevAttr(VI_DEV ViDev, ViDevAttrS *pstDevAttr) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     K1_ASR_VI_DEV_ATTR_S stAsrDevAttr;
     S32 s32Ret = 0;
@@ -484,8 +472,7 @@ S32 K1_VI_GetDevAttr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_EnableDev(VI_DEV ViDev)
-{
+S32 K1_VI_EnableDev(VI_DEV ViDev) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -501,8 +488,7 @@ S32 K1_VI_EnableDev(VI_DEV ViDev)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_DisableDev(VI_DEV ViDev)
-{
+S32 K1_VI_DisableDev(VI_DEV ViDev) {
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     U32 i = 0;
     S32 s32Ret = 0;
@@ -544,8 +530,7 @@ S32 K1_VI_DisableDev(VI_DEV ViDev)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
-{
+S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
     K1_ASR_VI_CHN_ATTR_S stAsrChnAttr;
@@ -560,10 +545,8 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
         return K1_VI_ERR_INVALID_PARAM;
     if (K1_VI_IsValidSize(pstChnAttr->u32Width, pstChnAttr->u32Height) != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
-    if (pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_DEFAULT &&
-        pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_16 &&
-        pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_32 &&
-        pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_64)
+    if (pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_DEFAULT && pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_16 &&
+        pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_32 && pstChnAttr->eStrideAlign != VI_STRIDE_ALIGN_64)
         return K1_VI_ERR_INVALID_PARAM;
     if (g_stK1ViCtx.astDevCtx[ViDev].bCreated != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
@@ -578,9 +561,15 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
             return K1_VI_ERR_INVALID_PARAM;
         if (pstPhyChnCtx->bCreated != MPP_TRUE || pstPhyChnCtx->stAttr.eChnType != VI_CHN_TYPE_PHYSICAL)
             return K1_VI_ERR_INVALID_PARAM;
-        if (pstChnAttr->u32Width > pstPhyChnCtx->stAttr.u32Width ||
-            pstChnAttr->u32Height > pstPhyChnCtx->stAttr.u32Height)
-            return K1_VI_ERR_INVALID_PARAM;
+        if (pstChnAttr->eRotateMode == VI_ROT_90 || pstChnAttr->eRotateMode == VI_ROT_270) {
+            if (pstChnAttr->u32Width > pstPhyChnCtx->stAttr.u32Height ||
+                pstChnAttr->u32Height > pstPhyChnCtx->stAttr.u32Width)
+                return K1_VI_ERR_INVALID_PARAM;
+        } else {
+            if (pstChnAttr->u32Width > pstPhyChnCtx->stAttr.u32Width ||
+                pstChnAttr->u32Height > pstPhyChnCtx->stAttr.u32Height)
+                return K1_VI_ERR_INVALID_PARAM;
+        }
 
         memset(pstChnCtx, 0, sizeof(*pstChnCtx));
         memcpy(&pstChnCtx->stAttr, pstChnAttr, sizeof(*pstChnAttr));
@@ -624,7 +613,7 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
         return s32Ret;
 
     s32Ret = ASR_VI_SetChnAttr(u32AsrChn, &stAsrChnAttr);
-	// info("%s: ASR_VI_SetChnAttr chnId %d, %dx%d, pixFormat %d, ret = %d\n",
+    // info("%s: ASR_VI_SetChnAttr chnId %d, %dx%d, pixFormat %d, ret = %d\n",
     //        __func__, u32AsrChn, stAsrChnAttr.width, stAsrChnAttr.height, stAsrChnAttr.enPixFormat, s32Ret);
     if (s32Ret != SUCCESS)
         return s32Ret;
@@ -643,8 +632,7 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_SetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl)
-{
+S32 K1_VI_SetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -665,8 +653,7 @@ S32 K1_VI_SetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *ps
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl)
-{
+S32 K1_VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -682,8 +669,7 @@ S32 K1_VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrame
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
-{
+S32 K1_VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     K1_ASR_VI_CHN_ATTR_S stAsrChnAttr;
     S32 s32Ret = 0;
@@ -714,8 +700,7 @@ S32 K1_VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
-{
+S32 K1_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -738,12 +723,15 @@ S32 K1_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn)
     return K1_VI_StartChnCtx(ViDev, ViChn, pstChnCtx);
 }
 
-S32 K1_VI_SetExternalBufPool(VI_DEV ViDev, VI_CHN ViChn,
-                             UL ulPoolId, U32 u32BufCnt,
-                             const UL *paulBufferId,
-                             const VideoFrameInfo *pastFrameInfo,
-                             const IMAGE_BUFFER_S *pastImageBuffer)
-{
+S32 K1_VI_SetExternalBufPool(
+    VI_DEV ViDev,
+    VI_CHN ViChn,
+    UL ulPoolId,
+    U32 u32BufCnt,
+    const UL *paulBufferId,
+    const VideoFrameInfo *pastFrameInfo,
+    const IMAGE_BUFFER_S *pastImageBuffer
+) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -759,18 +747,11 @@ S32 K1_VI_SetExternalBufPool(VI_DEV ViDev, VI_CHN ViChn,
     if (pstChnCtx->ulVbPool != 0)
         return K1_VI_ERR_BUSY;
 
-    return K1_VI_ImportExternalBufPool(ViDev,
-                                       ViChn,
-                                       pstChnCtx,
-                                       ulPoolId,
-                                       u32BufCnt,
-                                       paulBufferId,
-                                       pastFrameInfo,
-                                       pastImageBuffer);
+    return K1_VI_ImportExternalBufPool(
+        ViDev, ViChn, pstChnCtx, ulPoolId, u32BufCnt, paulBufferId, pastFrameInfo, pastImageBuffer);
 }
 
-S32 K1_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn)
-{
+S32 K1_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
 
@@ -797,8 +778,7 @@ S32 K1_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_DequeueDoneBuffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec)
-{
+S32 K1_VI_DequeueDoneBuffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     S32 s32Ret = 0;
     (void)s32MilliSec;
@@ -820,8 +800,7 @@ S32 K1_VI_DequeueDoneBuffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32M
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_QueueBufferByIndex(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
-{
+S32 K1_VI_QueueBufferByIndex(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     K1_VI_BUF_NODE_S *pstBufNode = NULL;
     S32 s32Ret = 0;
@@ -858,93 +837,122 @@ S32 K1_VI_QueueBufferByIndex(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
     return K1_VI_SUCCESS;
 }
 
-S32 al_vi_init(VOID)
-{
+/*============================================================================
+ * ViAlOps implementations
+ *
+ * These static functions form the K1 plugin's vtable entries.  They translate
+ * the platform-neutral ViAlOps interface into K1 ASR-ISP calls.
+ * Conversion of VideoFrameInfo to IMAGE_BUFFER_S happens here, inside the
+ * plugin, not in the MPI layer.
+ *============================================================================*/
+
+static S32 k1_vi_init(VOID) {
     return K1_VI_Init();
 }
 
-S32 al_vi_deinit(VOID)
-{
+static S32 k1_vi_deinit(VOID) {
     return K1_VI_DeInit();
 }
 
-S32 al_vi_set_dev_attr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr)
-{
+static S32 k1_vi_set_dev_attr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) {
     return K1_VI_SetDevAttr(ViDev, pstDevAttr);
 }
 
-S32 al_vi_get_dev_attr(VI_DEV ViDev, ViDevAttrS *pstDevAttr)
-{
+static S32 k1_vi_get_dev_attr(VI_DEV ViDev, ViDevAttrS *pstDevAttr) {
     return K1_VI_GetDevAttr(ViDev, pstDevAttr);
 }
 
-S32 al_vi_enable_dev(VI_DEV ViDev)
-{
+static S32 k1_vi_enable_dev(VI_DEV ViDev) {
     return K1_VI_EnableDev(ViDev);
 }
 
-S32 al_vi_disable_dev(VI_DEV ViDev)
-{
+static S32 k1_vi_disable_dev(VI_DEV ViDev) {
     return K1_VI_DisableDev(ViDev);
 }
 
-S32 al_vi_set_chn_attr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr)
-{
+static S32 k1_vi_set_chn_attr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
     return K1_VI_SetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
-S32 al_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr)
-{
+static S32 k1_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) {
     return K1_VI_GetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
-S32 al_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl)
-{
+static S32 k1_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
     return K1_VI_SetChnFrameRate(ViDev, ViChn, pstFrameRateCtrl);
 }
 
-S32 al_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl)
-{
+static S32 k1_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) {
     return K1_VI_GetChnFrameRate(ViDev, ViChn, pstFrameRateCtrl);
 }
 
-S32 al_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn)
-{
+static S32 k1_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn) {
     return K1_VI_EnableChn(ViDev, ViChn);
 }
 
-S32 al_vi_disable_chn(VI_DEV ViDev, VI_CHN ViChn)
-{
+static S32 k1_vi_disable_chn(VI_DEV ViDev, VI_CHN ViChn) {
     return K1_VI_DisableChn(ViDev, ViChn);
 }
 
-S32 al_vi_set_external_buf_pool(VI_DEV ViDev, VI_CHN ViChn,
-                                UL ulPoolId, U32 u32BufCnt,
-                                const UL *paulBufferId,
-                                const VideoFrameInfo *pastFrameInfo,
-                                const IMAGE_BUFFER_S *pastImageBuffer)
-{
-    return K1_VI_SetExternalBufPool(ViDev,
-                                    ViChn,
-                                    ulPoolId,
-                                    u32BufCnt,
-                                    paulBufferId,
-                                    pastFrameInfo,
-                                    pastImageBuffer);
+static S32 k1_vi_set_external_buf_pool(
+    VI_DEV ViDev, VI_CHN ViChn, UL ulPoolId, U32 u32BufCnt, const UL *paulBufferId, const VideoFrameInfo *pastFrameInfo
+) {
+    IMAGE_BUFFER_S astImageBuffer[K1_VI_MAX_BUF_CNT];
+    U32 i;
+
+    if (u32BufCnt > K1_VI_MAX_BUF_CNT)
+        return K1_VI_ERR_INVALID_PARAM;
+
+    for (i = 0; i < u32BufCnt; i++)
+        K1_VI_FillImageBufferFromVideoFrame(&pastFrameInfo[i], &astImageBuffer[i]);
+
+    return K1_VI_SetExternalBufPool(ViDev, ViChn, ulPoolId, u32BufCnt, paulBufferId, pastFrameInfo, astImageBuffer);
 }
 
-S32 al_vi_set_rawdump_buf(VI_DEV ViDev, VI_CHN ViChn,
-                          const VideoFrameInfo *pstFrameInfo,
-                          const IMAGE_BUFFER_S *pstImageBuffer)
-{
+static S32 k1_vi_dequeue_done_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec) {
+    return K1_VI_DequeueDoneBuffer(ViDev, ViChn, pu32Index, s32MilliSec);
+}
+
+static S32 k1_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index) {
+    return K1_VI_QueueBufferByIndex(ViDev, ViChn, u32Index);
+}
+
+static S32 k1_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
+    return K1_VI_AttachBindSink(ViDev, ViChn, pstSinkNode);
+}
+
+static S32 k1_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
+    return K1_VI_DetachBindSink(ViDev, ViChn, pstSinkNode);
+}
+
+static S32 k1_vi_trigger_raw_dump(VI_DEV ViDev, VI_CHN ViChn) {
+    return K1_VI_TriggerRawDump(ViDev, ViChn);
+}
+
+static S32 k1_vi_get_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec) {
+    return K1_VI_GetRawDumpFrame(ViDev, ViChn, pstVideoFrame, s32MilliSec);
+}
+
+static S32 k1_vi_release_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame) {
+    return K1_VI_ReleaseRawDumpFrame(ViDev, ViChn, pstVideoFrame);
+}
+
+static S32 k1_vi_get_rawdump_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr) {
+    if (g_stK1ViCtx.bInit != MPP_TRUE)
+        return K1_VI_ERR_NOT_INIT;
+
+    return K1_VI_GetRawDumpAttr(ViDev, ViChn, pstRawAttr);
+}
+
+static S32 k1_vi_set_rawdump_buf(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstFrameInfo) {
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
+    IMAGE_BUFFER_S stImageBuffer;
     S32 s32Ret = 0;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
         return K1_VI_ERR_NOT_INIT;
-    if (pstFrameInfo == NULL || pstImageBuffer == NULL ||
-        K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
+    if (pstFrameInfo == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
 
     pstPhyChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
@@ -961,67 +969,27 @@ S32 al_vi_set_rawdump_buf(VI_DEV ViDev, VI_CHN ViChn,
             return s32Ret;
     }
 
-    return K1_VI_ImportRawDumpBuffer(ViDev, ViChn, pstRawCtx, pstFrameInfo, pstImageBuffer);
+    K1_VI_FillImageBufferFromVideoFrame(pstFrameInfo, &stImageBuffer);
+    return K1_VI_ImportRawDumpBuffer(ViDev, ViChn, pstRawCtx, pstFrameInfo, &stImageBuffer);
 }
 
-S32 al_vi_get_rawdump_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr)
-{
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
+static S32 k1_vi_offline_set_input_addr(
+    VI_DEV ViDev,
+    VI_CHN ViChn,
+    UL ulPoolId,
+    UL ulBufferId,
+    const VideoFrameInfo *pstFrameInfo,
+    const U8 *pu8RawVirAddr,
+    U32 u32RawSize
+) {
+    IMAGE_BUFFER_S stImageBuffer;
 
-    return K1_VI_GetRawDumpAttr(ViDev, ViChn, pstRawAttr);
+    K1_VI_FillImageBufferFromVideoFrame(pstFrameInfo, &stImageBuffer);
+    return K1_VI_OfflineSetInputAddr(
+        ViDev, ViChn, ulPoolId, ulBufferId, pstFrameInfo, &stImageBuffer, pu8RawVirAddr, u32RawSize);
 }
 
-S32 al_vi_dequeue_done_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec)
-{
-    return K1_VI_DequeueDoneBuffer(ViDev, ViChn, pu32Index, s32MilliSec);
-}
-
-S32 al_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index)
-{
-    return K1_VI_QueueBufferByIndex(ViDev, ViChn, u32Index);
-}
-
-S32 al_vi_trigger_raw_dump(VI_DEV ViDev, VI_CHN ViChn)
-{
-    return K1_VI_TriggerRawDump(ViDev, ViChn);
-}
-
-S32 al_vi_get_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec)
-{
-    return K1_VI_GetRawDumpFrame(ViDev, ViChn, pstVideoFrame, s32MilliSec);
-}
-
-S32 al_vi_release_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame)
-{
-    return K1_VI_ReleaseRawDumpFrame(ViDev, ViChn, pstVideoFrame);
-}
-
-S32 al_vi_offline_set_input_addr(VI_DEV ViDev,
-                             VI_CHN ViChn,
-                             UL ulPoolId,
-                             UL ulBufferId,
-                             const VideoFrameInfo *pstFrameInfo,
-                             const IMAGE_BUFFER_S *pstImageBuffer,
-                             const U8 *pu8RawVirAddr,
-                             U32 u32RawSize)
-{
-    return K1_VI_OfflineSetInputAddr(ViDev, ViChn, ulPoolId, ulBufferId, pstFrameInfo,
-                                     pstImageBuffer, pu8RawVirAddr, u32RawSize);
-}
-
-S32 al_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
-    return K1_VI_AttachBindSink(ViDev, ViChn, pstSinkNode);
-}
-
-S32 al_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
-    return K1_VI_DetachBindSink(ViDev, ViChn, pstSinkNode);
-}
-
-S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
+S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -1042,8 +1010,7 @@ S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
-{
+S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -1064,8 +1031,7 @@ S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec)
-{
+S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec) {
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     (void)s32MilliSec;
 
@@ -1088,8 +1054,7 @@ S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFr
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn)
-{
+S32 K1_VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn) {
     K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     S32 s32Ret = 0;
@@ -1132,8 +1097,7 @@ S32 K1_VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn)
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame)
-{
+S32 K1_VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame) {
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
 
     if (g_stK1ViCtx.bInit != MPP_TRUE)
@@ -1154,3 +1118,45 @@ S32 K1_VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *
     return K1_VI_SUCCESS;
 }
 
+/*============================================================================
+ * Plugin vtable and entry point
+ *============================================================================*/
+
+static const ViAlOps k1_vi_ops = {
+    /* Required */
+    .init = k1_vi_init,
+    .deinit = k1_vi_deinit,
+    .set_dev_attr = k1_vi_set_dev_attr,
+    .get_dev_attr = k1_vi_get_dev_attr,
+    .enable_dev = k1_vi_enable_dev,
+    .disable_dev = k1_vi_disable_dev,
+    .set_chn_attr = k1_vi_set_chn_attr,
+    .get_chn_attr = k1_vi_get_chn_attr,
+    .set_chn_framerate = k1_vi_set_chn_framerate,
+    .get_chn_framerate = k1_vi_get_chn_framerate,
+    .enable_chn = k1_vi_enable_chn,
+    .disable_chn = k1_vi_disable_chn,
+    .dequeue_done_buffer = k1_vi_dequeue_done_buffer,
+    .queue_buffer = k1_vi_queue_buffer,
+    .attach_bind_sink = k1_vi_attach_bind_sink,
+    .detach_bind_sink = k1_vi_detach_bind_sink,
+    .set_external_buf_pool = k1_vi_set_external_buf_pool,
+
+    /* Optional: rawdump — K1 supports all rawdump ops */
+    .trigger_raw_dump = k1_vi_trigger_raw_dump,
+    .get_raw_dump_frame = k1_vi_get_raw_dump_frame,
+    .release_raw_dump_frame = k1_vi_release_raw_dump_frame,
+    .get_rawdump_attr = k1_vi_get_rawdump_attr,
+    .set_rawdump_buf = k1_vi_set_rawdump_buf,
+
+    /* Optional: offline — K1 supports */
+    .offline_set_input_addr = k1_vi_offline_set_input_addr,
+
+    /* K3/K7 extensions — K1 does not support */
+    .query_dqbuf_meta = NULL,
+    .query_frame_meta = NULL,
+};
+
+const ViAlOps *al_vi_get_ops(void) {
+    return &k1_vi_ops;
+}

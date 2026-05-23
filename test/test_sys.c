@@ -30,11 +30,14 @@
 #include "sys_api.h"
 
 #define TEST_PASS(name) printf("[PASS] %s\n", (name))
-#define TEST_FAIL(name, msg) do { printf("[FAIL] %s: %s\n", (name), (msg)); exit(1); } while(0)
+#define TEST_FAIL(name, msg)                      \
+    do {                                          \
+        printf("[FAIL] %s: %s\n", (name), (msg)); \
+        exit(1);                                  \
+    } while (0)
 
 /* ======================== Test 1: Init / Exit ======================== */
-static void test_init_exit(void)
-{
+static void test_init_exit(void) {
     const char *name = "init_exit";
     S32 ret;
 
@@ -55,8 +58,7 @@ static void test_init_exit(void)
 }
 
 /* ======================== Test 2: PTS Monotonicity ======================== */
-static void test_pts(void)
-{
+static void test_pts(void) {
     const char *name = "pts";
     S32 ret;
     U64 pts1 = 0, pts2 = 0, pts3 = 0;
@@ -69,7 +71,7 @@ static void test_pts(void)
     assert(ret == 0);
 
     /* set base */
-    ret = SYS_InitPTSBase(1000000);  /* 1 second base */
+    ret = SYS_InitPTSBase(1000000); /* 1 second base */
     assert(ret == 0);
 
     ret = SYS_GetCurPTS(&pts2);
@@ -78,7 +80,7 @@ static void test_pts(void)
         TEST_FAIL(name, "PTS should be >= base after InitPTSBase");
 
     /* small sleep to verify monotonicity */
-    usleep(10000);  /* 10ms */
+    usleep(10000); /* 10ms */
 
     ret = SYS_GetCurPTS(&pts3);
     assert(ret == 0);
@@ -112,16 +114,15 @@ static void test_pts(void)
 }
 
 /* ======================== Test 3: Bind / UnBind ======================== */
-static void test_bind(void)
-{
+static void test_bind(void) {
     const char *name = "bind";
     S32 ret;
 
     ret = SYS_Init();
     assert(ret == 0);
 
-    MppNode src  = { .eModId = MPP_ID_VI,   .s32DevId = 0, .s32ChnId = 0 };
-    MppNode sink = { .eModId = MPP_ID_VENC,  .s32DevId = 0, .s32ChnId = 0 };
+    MppNode src = {.eModId = MPP_ID_VI, .s32DevId = 0, .s32ChnId = 0};
+    MppNode sink = {.eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = 0};
 
     /* bind */
     ret = SYS_Bind(&src, &sink);
@@ -133,13 +134,13 @@ static void test_bind(void)
         TEST_FAIL(name, "duplicate bind should fail");
 
     /* bind another pair */
-    MppNode src2  = { .eModId = MPP_ID_VDEC, .s32DevId = 0, .s32ChnId = 0 };
-    MppNode sink2 = { .eModId = MPP_ID_VO,   .s32DevId = 0, .s32ChnId = 0 };
+    MppNode src2 = {.eModId = MPP_ID_VDEC, .s32DevId = 0, .s32ChnId = 0};
+    MppNode sink2 = {.eModId = MPP_ID_VO, .s32DevId = 0, .s32ChnId = 0};
     ret = SYS_Bind(&src2, &sink2);
     assert(ret == 0);
 
     /* one source, multiple sinks */
-    MppNode sink3 = { .eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = 1 };
+    MppNode sink3 = {.eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = 1};
     ret = SYS_Bind(&src, &sink3);
     assert(ret == 0);
 
@@ -173,8 +174,7 @@ static void test_bind(void)
 }
 
 /* ======================== Test 4: MmzAlloc / MmzFree ======================== */
-static void test_mmz(void)
-{
+static void test_mmz(void) {
     const char *name = "mmz";
     S32 ret;
     U64 phy1 = 0, phy2 = 0;
@@ -244,16 +244,15 @@ static void test_mmz(void)
 }
 
 /* ======================== Test 5: Exit with Active Binds ======================== */
-static void test_exit_with_binds(void)
-{
+static void test_exit_with_binds(void) {
     const char *name = "exit_with_binds";
     S32 ret;
 
     ret = SYS_Init();
     assert(ret == 0);
 
-    MppNode src  = { .eModId = MPP_ID_VI,   .s32DevId = 0, .s32ChnId = 0 };
-    MppNode sink = { .eModId = MPP_ID_VENC,  .s32DevId = 0, .s32ChnId = 0 };
+    MppNode src = {.eModId = MPP_ID_VI, .s32DevId = 0, .s32ChnId = 0};
+    MppNode sink = {.eModId = MPP_ID_VENC, .s32DevId = 0, .s32ChnId = 0};
 
     ret = SYS_Bind(&src, &sink);
     assert(ret == 0);
@@ -266,8 +265,7 @@ static void test_exit_with_binds(void)
 }
 
 /* ======================== Main ======================== */
-int main(void)
-{
+int main(void) {
     printf("=== SYS Module Tests ===\n\n");
 
     test_init_exit();

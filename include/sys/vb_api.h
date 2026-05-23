@@ -11,8 +11,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __VB_API_H__
-#define __VB_API_H__
+#ifndef VB_API_H
+#define VB_API_H
 
 #include "type.h"
 #include "vb_type.h"
@@ -205,4 +205,4 @@ S32 VB_GetPicBufferSize(VideoFrameInfo *pstFrameInfo);
 #endif
 #endif /* __cplusplus */
 
-#endif /*__VB_API_H__ */
+#endif /*VB_API_H */

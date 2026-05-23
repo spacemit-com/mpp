@@ -4,8 +4,8 @@
  *------------------------------------------------------------------------------
  */
 
-#ifndef __AL_VI_K1_CCIC_H__
-#define __AL_VI_K1_CCIC_H__
+#ifndef VI_K1_CCIC_H
+#define VI_K1_CCIC_H
 
 #include "vi_k1_ctx.h"
 
@@ -17,4 +17,4 @@ S32 K1_VI_StartCcicChnCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_CHN_CTX_S *pstChnCtx
 S32 K1_VI_StopCcicChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool);
 S32 K1_VI_CcicQueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode);
 
-#endif /* __AL_VI_K1_CCIC_H__ */
+#endif /* VI_K1_CCIC_H */

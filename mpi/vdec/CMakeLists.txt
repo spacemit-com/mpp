@@ -9,9 +9,9 @@ set(VDEC_SRCS
 
 add_library(mpp_vdec STATIC ${VDEC_SRCS})
 
-target_include_directories(mpp_vdec
-    PUBLIC
-        ${MPP_INCLUDE_DIRS}
+target_include_directories(mpp_vdec BEFORE PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${MPP_INCLUDE_DIRS}
 )
 
 target_link_libraries(mpp_vdec PUBLIC mpp_sys mpp_al_module)
