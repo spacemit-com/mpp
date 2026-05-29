@@ -664,7 +664,7 @@ S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
         setPFrames(context, rcVbrParaH264->nGop);
         break;
     case MPP_VENC_CMD_SET_PARAM_HEVC_VBR:
-        MppVencParaHEVCCBR *rcVbrParaHEVC = (MppVencParaHEVCCBR *)para;
+        MppVencParaHEVCVBR *rcVbrParaHEVC = (MppVencParaHEVCVBR *)para;
         setHEVCEncMinQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMinQP);
         setHEVCEncMaxQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMaxQP);
         setPFrames(context, rcVbrParaHEVC->nGop);

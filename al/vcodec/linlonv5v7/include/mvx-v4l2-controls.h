@@ -47,18 +47,13 @@
  * Pixel formats
  ****************************************************************************/
 
-#define V4L2_PIX_FMT_Y0L2 v4l2_fourcc('Y', '0', 'A', '8')
-#define V4L2_PIX_FMT_Y0L2_10 v4l2_fourcc('Y', '0', 'A', 'A')
-#define V4L2_PIX_FMT_Y210_AFBC v4l2_fourcc('Y', '2', 'A', '8')
-#define V4L2_PIX_FMT_Y210_AFBC_10 v4l2_fourcc('Y', '2', 'A', 'A')
-#define V4L2_PIX_FMT_Y210 v4l2_fourcc('Y', '2', '1', '0')
-// #define V4L2_PIX_FMT_P010            v4l2_fourcc('Y', '0', 'P', '1')
-#define V4L2_PIX_FMT_YUV420_AFBC v4l2_fourcc('Y', '0', 'Y', 'L')
-#define V4L2_PIX_FMT_RGB101010 v4l2_fourcc('R', 'V', '0', '0')
 #define V4L2_PIX_FMT_YUV420_AFBC_8 v4l2_fourcc('Y', '0', 'A', '8')
 #define V4L2_PIX_FMT_YUV420_AFBC_10 v4l2_fourcc('Y', '0', 'A', 'A')
 #define V4L2_PIX_FMT_YUV422_AFBC_8 v4l2_fourcc('Y', '2', 'A', '8')
 #define V4L2_PIX_FMT_YUV422_AFBC_10 v4l2_fourcc('Y', '2', 'A', 'A')
+#define V4L2_PIX_FMT_Y210 v4l2_fourcc('Y', '2', '1', '0')
+// #define V4L2_PIX_FMT_P010            v4l2_fourcc('Y', '0', 'P', '1')
+#define V4L2_PIX_FMT_Y0L2 v4l2_fourcc('Y', '0', 'Y', 'L')
 #define V4L2_PIX_FMT_RV v4l2_fourcc('R', 'V', '0', '0')
 
 #ifndef V4L2_PIX_FMT_HEVC
