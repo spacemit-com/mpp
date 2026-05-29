@@ -438,7 +438,23 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     if (ret == 0) {
         context->bPollThreadCreated = MPP_TRUE;
     } else {
+        /*
+         * Without the poll thread the decoder can never dequeue frames, so
+         * initialization has effectively failed. Tear down what we already set
+         * up (stream off, destroy codec, close fd) and report the failure
+         * instead of returning MPP_OK and leaving the caller with a dead
+         * decoder.
+         */
         error("create poll thread failed (%s)", strerror(ret));
+        enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
+        enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
+        mpp_v4l2_stream_off(context->nVideoFd, &input_type);
+        mpp_v4l2_stream_off(context->nVideoFd, &output_type);
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return MPP_INIT_FAILED;
     }
 
     context->pVdecPara->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));

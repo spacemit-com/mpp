@@ -795,23 +795,31 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
             buf = getBuffer(getInputPort(context->stCodec), bufIdx);
         }
 
+        /*
+         * extra_id must carry the input frame ID so that al_enc_return_input_frame()
+         * (which returns getExtraId() of the dequeued buffer) reports the correct
+         * frame back to the caller. bufIdx only selects which Buffer slot to reuse
+         * and must NOT be stored as the frame ID, otherwise the caller sees an
+         * internal buffer index instead of its own frame ID.
+         */
+        S32 frameId = FRAME_GetID(sink_frame);
         if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
             if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
                 setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL, bufIdx);
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL, frameId);
             } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
                 setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), (U8 *)FRAME_GetDataPointer(sink_frame, 2), bufIdx);
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), (U8 *)FRAME_GetDataPointer(sink_frame, 2), frameId);
             } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA ||
                         context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
                         context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA ||
                         context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
                         context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV ||
                         context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
-                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, bufIdx);
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, frameId);
             }
         } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
-            setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0), (U8 *)FRAME_GetDataPointer(sink_frame, 0), bufIdx);
+            setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0), (U8 *)FRAME_GetDataPointer(sink_frame, 0), frameId);
         }
         setTimeStamp(buf, FRAME_GetPts(sink_frame));
         setEndOfStream(buf, context->bInputEos);

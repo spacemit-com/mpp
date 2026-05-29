@@ -421,14 +421,21 @@ void streamoffCodec(Codec *codec) {
 }
 
 S32 handleEvent(Codec *codec) {
+    /* Upper bound on events drained in a single call. The V4L2 event queue is
+     * small, so this is never reached in normal operation; it only prevents an
+     * abnormal, never-ending event stream from blocking the poll thread. */
+#define MAX_DQEVENT_PER_DRAIN 64
     struct v4l2_event event;
     S32 ret;
     S32 eventCount = 0;
 
     /* Drain ALL pending events to prevent event queue overflow.
      * V4L2 event queue has limited capacity; if not drained in time,
-     * subsequent poll() may return POLLERR. */
-    while (1) {
+     * subsequent poll() may return POLLERR.
+     * A hard upper bound guards against an unexpectedly endless stream of
+     * events (e.g. a misbehaving driver or repeated EINTR) so this loop can
+     * never block the poll thread indefinitely. */
+    while (eventCount < MAX_DQEVENT_PER_DRAIN) {
         ret = ioctl(codec->nVideoFd, VIDIOC_DQEVENT, &event);
         if (ret != 0) {
             if (eventCount == 0) {
