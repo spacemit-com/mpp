@@ -425,9 +425,14 @@ S32 handleEvent(Codec *codec) {
      * small, so this is never reached in normal operation; it only prevents an
      * abnormal, never-ending event stream from blocking the poll thread. */
 #define MAX_DQEVENT_PER_DRAIN 64
+    /* Upper bound on consecutive EINTR retries. A signal interrupting the
+     * ioctl is transient and normally clears on the first retry; bounding it
+     * guarantees the loop terminates even under a relentless signal storm. */
+#define MAX_DQEVENT_EINTR_RETRY 16
     struct v4l2_event event;
     S32 ret;
     S32 eventCount = 0;
+    S32 eintrRetry = 0;
 
     /* Drain ALL pending events to prevent event queue overflow.
      * V4L2 event queue has limited capacity; if not drained in time,
@@ -441,17 +446,20 @@ S32 handleEvent(Codec *codec) {
             /*
              * A signal can interrupt the ioctl (EINTR) even though events are
              * still queued; retry in that case instead of mistaking it for an
-             * empty queue. The retry does not consume the eventCount budget so
-             * a storm of signals still cannot make this loop run unbounded.
+             * empty queue. The retry count is bounded separately so a
+             * relentless signal storm can never spin this loop forever.
              */
-            if (errno == EINTR)
+            if (errno == EINTR && eintrRetry < MAX_DQEVENT_EINTR_RETRY) {
+                eintrRetry++;
                 continue;
+            }
             if (eventCount == 0) {
                 error("Failed to dequeue event, please check!");
                 return MPP_IOCTL_FAILED;
             }
             break; /* No more pending events */
         }
+        eintrRetry = 0; /* a successful dequeue resets the retry budget */
         eventCount++;
 
         if (event.type == V4L2_EVENT_MVX_COLOR_DESC) {
