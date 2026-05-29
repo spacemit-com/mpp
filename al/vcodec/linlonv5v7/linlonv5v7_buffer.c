@@ -72,7 +72,13 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format, 
         buffer_tmp->pDmaBufWrapper = createDmaBufWrapper(DMA_HEAP_CMA);
     }
 
-    memoryMap(buffer_tmp, fd);
+    if (memoryMap(buffer_tmp, fd) != MPP_OK) {
+        error("memoryMap failed, destroy buffer");
+        if (buffer_tmp->pDmaBufWrapper)
+            destoryDmaBufWrapper(buffer_tmp->pDmaBufWrapper);
+        free(buffer_tmp);
+        return NULL;
+    }
 
     return buffer_tmp;
 }
@@ -397,7 +403,7 @@ void update(Buffer *buf, struct v4l2_buffer b) {
     }
 }
 
-void memoryMap(Buffer *buf, S32 fd) {
+S32 memoryMap(Buffer *buf, S32 fd) {
     if (V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type)) {
         for (U32 i = 0; i < buf->stBufArr.length; ++i) {
             struct v4l2_plane *p = &(buf->stBufArr.m.planes[i]);
@@ -413,6 +419,7 @@ void memoryMap(Buffer *buf, S32 fd) {
 
                 if (buf->pUserPtr[i] == MAP_FAILED) {
                     error("Failed to mmap multi plane memory (%s)", strerror(errno));
+                    return MPP_MMAP_FAILED;
                 }
 
                 buf->nPlaneLength[i] = p->length;
@@ -428,6 +435,7 @@ void memoryMap(Buffer *buf, S32 fd) {
                 mmap(NULL, buf->nTotalLength, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.planes[0].m.fd, 0);
             if (buf->pUserPtr[0] == MAP_FAILED) {
                 error("Failed to mmap multi plane memory (%s)", strerror(errno));
+                return MPP_MMAP_FAILED;
             }
             buf->nPlaneOffset[0] = 0;
 
@@ -473,9 +481,12 @@ void memoryMap(Buffer *buf, S32 fd) {
 
             if (buf->pUserPtr[0] == MAP_FAILED) {
                 error("Failed to mmap single plane memory (%s)", strerror(errno));
+                return MPP_MMAP_FAILED;
             }
         }
     }
+
+    return MPP_OK;
 }
 
 S32 memoryUnmap(Buffer *buf) {

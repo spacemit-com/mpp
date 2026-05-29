@@ -814,16 +814,15 @@ void al_dec_destory(ALBaseContext *ctx) {
     }
 
     if (context->bPollThreadCreated) {
-        struct timespec deadline;
-
-        pthread_cancel(context->pollthread);
-        clock_gettime(CLOCK_REALTIME, &deadline);
-        deadline.tv_sec += 1;
-        if (pthread_timedjoin_np(context->pollthread, NULL, &deadline) == 0) {
-            debug("pthread join finish");
-        } else {
-            error("poll thread join timed out, continue destroy");
-        }
+        /*
+         * The poll loop checks bIsDestoryed on every iteration (POLL_TIMEOUT is
+         * non-blocking and the loop only sleeps 10ms), so it exits promptly once
+         * bIsDestoryed is set above. We must block here until the thread has
+         * fully exited before destroying the codec/context below, otherwise the
+         * poll thread could touch already-freed resources (use-after-free).
+         */
+        pthread_join(context->pollthread, NULL);
+        debug("pthread join finish");
         context->bPollThreadCreated = MPP_FALSE;
     }
 

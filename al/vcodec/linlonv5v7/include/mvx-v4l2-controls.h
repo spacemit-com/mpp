@@ -61,11 +61,11 @@
 #define V4L2_PIX_FMT_YUV422_AFBC_10 v4l2_fourcc('Y', '2', 'A', 'A')
 #define V4L2_PIX_FMT_RV v4l2_fourcc('R', 'V', '0', '0')
 
-#ifndef MVX_V4L2_CONTROLS_H
+#ifndef V4L2_PIX_FMT_HEVC
 #define V4L2_PIX_FMT_HEVC v4l2_fourcc('H', 'E', 'V', 'C')
 #endif
 
-#ifndef MVX_V4L2_CONTROLS_H
+#ifndef V4L2_PIX_FMT_VP9
 #define V4L2_PIX_FMT_VP9 v4l2_fourcc('V', 'P', '9', '0')
 #endif
 
