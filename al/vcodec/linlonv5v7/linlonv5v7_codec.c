@@ -438,6 +438,14 @@ S32 handleEvent(Codec *codec) {
     while (eventCount < MAX_DQEVENT_PER_DRAIN) {
         ret = ioctl(codec->nVideoFd, VIDIOC_DQEVENT, &event);
         if (ret != 0) {
+            /*
+             * A signal can interrupt the ioctl (EINTR) even though events are
+             * still queued; retry in that case instead of mistaking it for an
+             * empty queue. The retry does not consume the eventCount budget so
+             * a storm of signals still cannot make this loop run unbounded.
+             */
+            if (errno == EINTR)
+                continue;
             if (eventCount == 0) {
                 error("Failed to dequeue event, please check!");
                 return MPP_IOCTL_FAILED;

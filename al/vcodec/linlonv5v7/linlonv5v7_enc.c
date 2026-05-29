@@ -790,9 +790,15 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
             }
             setIsQueued(dqBuf, MPP_FALSE);
 
-            /* Use the dequeued buffer instead */
-            bufIdx = getExtraId(dqBuf);
-            buf = getBuffer(getInputPort(context->stCodec), bufIdx);
+            /*
+             * dequeueBuffer() already returns the exact Buffer slot the driver
+             * handed back (port->stBuf[buf.index]), so reuse it directly. Do
+             * NOT re-locate via getExtraId(): nExtraId stores the input frame
+             * ID (consumed by al_enc_return_input_frame), not a buffer index,
+             * so treating it as an index would index the buffer array with a
+             * frame ID.
+             */
+            buf = dqBuf;
         }
 
         /*
