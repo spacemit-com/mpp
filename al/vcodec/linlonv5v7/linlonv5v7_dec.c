@@ -9,18 +9,20 @@
  * @Description: video decode plugin for V4L2 codec interface
  */
 
+#define _GNU_SOURCE
 #define ENABLE_DEBUG 1
 
 #include <errno.h>
-#include <linux/videodev2.h>
-#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <time.h>
+
+#include <linux/videodev2.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
-#include <unistd.h>
-
 #include "al_interface_dec.h"
 #include "linlonv5v7_codec.h"
 #include "log.h"
@@ -71,8 +73,8 @@ typedef struct _ALLinlonv5v7DecContext ALLinlonv5v7DecContext;
 
 struct _ALLinlonv5v7DecContext {
     ALDecBaseContext stAlDecBaseContext;
-    MppVdecPara *pVdecPara;       // parameters
-    MppCodingType eCodingType;    // input stream format
+    MppVdecPara *pVdecPara;  // parameters
+    MppCodingType eCodingType;  // input stream format
     MppPixelFormat ePixelFormat;  // output frame format
 
     Codec *stCodec;
@@ -138,6 +140,7 @@ struct _ALLinlonv5v7DecContext {
     BOOL bInputEos;
 
     pthread_t pollthread;
+    BOOL bPollThreadCreated;
 
     /***
      * default MPP_FLASE
@@ -145,7 +148,7 @@ struct _ALLinlonv5v7DecContext {
      * when al_dec_destory is called, bIsDestoryed will be set to MPP_TRUE, some
      * threads stop and some resources recycle.
      */
-    BOOL bIsDestoryed;
+    volatile BOOL bIsDestoryed;
 
     /***
      * num of input buffer in driver
@@ -207,9 +210,7 @@ static void tryStopCmd(ALLinlonv5v7DecContext *context, BOOL tryStop) {
     tryDecStopCmd(getInputPort(context->stCodec), tryStop);
 }
 
-static void setNaluFormat(ALLinlonv5v7DecContext *context, S32 nalu) {
-    context->nNaluFmt = nalu;
-}
+static void setNaluFormat(ALLinlonv5v7DecContext *context, S32 nalu) { context->nNaluFmt = nalu; }
 
 static void setDecoderRotation(ALLinlonv5v7DecContext *context, S32 rotation) {
     setPortRotation(getOutputPort(context->stCodec), rotation);
@@ -281,14 +282,19 @@ static S32 checkInputParameters(MppCodingType type, S32 profile, MppPixelFormat 
  */
 void *runpoll(void *private_data) {
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)private_data;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
     while (1) {
         static S32 tmp = 0;
         if (context->bIsDestoryed)
-            pthread_exit(NULL);
+            break;
 
         struct pollfd p = {.fd = context->nVideoFd, .events = POLLPRI};
         S32 ret = poll(&p, 1, POLL_TIMEOUT);
+
+        if (context->bIsDestoryed)
+            break;
 
         if (ret < 0) {
             error("Poll returned error code.");
@@ -303,17 +309,20 @@ void *runpoll(void *private_data) {
             // error("Event poll timed out.");
         }
 
-        if (p.revents & POLLPRI) {
+        if ((p.revents & POLLPRI) && !context->bIsDestoryed) {
             handleEvent(context->stCodec);
         }
 
         usleep(10000);
+        pthread_testcancel();
         tmp++;
         if (200 == tmp) {
             tmp = 0;
             // info("Now k1 hardware decoding ...");
         }
     }
+
+    pthread_exit(NULL);
 }
 
 ALBaseContext *al_dec_create() {
@@ -324,7 +333,6 @@ ALBaseContext *al_dec_create() {
     }
 
     memset(context, 0, sizeof(ALLinlonv5v7DecContext));
-
     debug("init create");
 
     return &(context->stAlDecBaseContext.stAlBaseContext);
@@ -377,6 +385,7 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     context->bIsDestoryed = MPP_FALSE;
     context->nInputQueuedNum = 0;
     context->nEosPts = -1;
+    context->bPollThreadCreated = MPP_FALSE;
 
     // if APP do not set nInputBufferNum and nOutputBufferNum, use default value,
     // and sync MPP this default value to APP.
@@ -385,12 +394,9 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     if (!context->pVdecPara->nOutputBufferNum)
         context->pVdecPara->nOutputBufferNum = DECODER_OUTPUT_BUF_NUM;
 
-    debug(
-        "input para check: foramt:0x%x output format:0x%x input buffer num:%d "
-        "output buffer num:%d",
-        context->nInputFormatFourcc,
-        context->nOutputFormatFourcc,
-        context->pVdecPara->nInputBufferNum,
+    debug("input para check: foramt:0x%x output format:0x%x input buffer num:%d "
+            "output buffer num:%d",
+        context->nInputFormatFourcc, context->nOutputFormatFourcc, context->pVdecPara->nInputBufferNum,
         context->pVdecPara->nOutputBufferNum);
 
     for (S32 i = 0; i < MAX_OUTPUT_BUF_NUM; i++)
@@ -409,22 +415,10 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
     debug("video fd = %d, device path = '%s'", context->nVideoFd, context->sDevicePath);
 
-    context->stCodec = createCodec(
-        context->nVideoFd,
-        context->nWidth,
-        context->nHeight,
-        context->nAlign,
-        context->bIsInterlaced,
-        context->nInputType,
-        context->nOutputType,
-        context->nInputFormatFourcc,
-        context->nOutputFormatFourcc,
-        context->nInputMemType,
-        context->nOutputMemType,
-        context->nInputBufferNum,
-        context->nOutputBufferNum,
-        context->bIsBlockMode,
-        para->eFrameBufferType);
+    context->stCodec = createCodec(context->nVideoFd, context->nWidth, context->nHeight, context->nAlign,
+        context->bIsInterlaced, context->nInputType, context->nOutputType, context->nInputFormatFourcc,
+        context->nOutputFormatFourcc, context->nInputMemType, context->nOutputMemType, context->nInputBufferNum,
+        context->nOutputBufferNum, context->bIsBlockMode, para->eFrameBufferType);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
         return MPP_INIT_FAILED;
@@ -442,6 +436,27 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
     // pthread for handle event or something
     ret = pthread_create(&context->pollthread, NULL, runpoll, (void *)context);
+    if (ret == 0) {
+        context->bPollThreadCreated = MPP_TRUE;
+    } else {
+        /*
+         * Without the poll thread the decoder can never dequeue frames, so
+         * initialization has effectively failed. Tear down what we already set
+         * up (stream off, destroy codec, close fd) and report the failure
+         * instead of returning MPP_OK and leaving the caller with a dead
+         * decoder.
+         */
+        error("create poll thread failed (%s)", strerror(ret));
+        enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
+        enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
+        mpp_v4l2_stream_off(context->nVideoFd, &input_type);
+        mpp_v4l2_stream_off(context->nVideoFd, &output_type);
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return MPP_INIT_FAILED;
+    }
 
     context->pVdecPara->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
 
@@ -630,8 +645,11 @@ RETURN al_dec_request_output_frame_2(ALBaseContext *ctx, MppData **src_data, U32
         return MPP_POLL_FAILED;
     }
     if (p.revents & POLLERR) {
-        error("poll returned error event");
-        return MPP_POLL_FAILED;
+        /* POLLERR from V4L2 typically means no buffers are queued.
+         * This is NOT a fatal error - just means we need to wait for
+         * buffers to be recycled back to the decoder. Return NO_DATA
+         * instead of POLL_FAILED to allow recovery. */
+        return MPP_CODER_NO_DATA;
     }
     if (ret == 0 || !(p.revents & POLLIN)) {
         return MPP_CODER_NO_DATA;
@@ -803,8 +821,6 @@ void al_dec_destory(ALBaseContext *ctx) {
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
     context->bIsDestoryed = MPP_TRUE;
     debug("destory start");
-    pthread_join(context->pollthread, NULL);
-    debug("pthread join finish");
 
     if (context->nVideoFd && context->stCodec) {
         enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
@@ -812,7 +828,22 @@ void al_dec_destory(ALBaseContext *ctx) {
         mpp_v4l2_stream_off(context->nVideoFd, &input_type);
         mpp_v4l2_stream_off(context->nVideoFd, &output_type);
         debug("stream off finish");
+    }
 
+    if (context->bPollThreadCreated) {
+        /*
+         * The poll loop checks bIsDestoryed on every iteration (POLL_TIMEOUT is
+         * non-blocking and the loop only sleeps 10ms), so it exits promptly once
+         * bIsDestoryed is set above. We must block here until the thread has
+         * fully exited before destroying the codec/context below, otherwise the
+         * poll thread could touch already-freed resources (use-after-free).
+         */
+        pthread_join(context->pollthread, NULL);
+        debug("pthread join finish");
+        context->bPollThreadCreated = MPP_FALSE;
+    }
+
+    if (context->nVideoFd && context->stCodec) {
         destoryCodec(context->stCodec);
         debug("destory codec finish");
         close(context->nVideoFd);

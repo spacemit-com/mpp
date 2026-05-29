@@ -76,13 +76,7 @@ typedef struct _Port Port;
  * @description: create a port for decode or encode
  * @return {*}: context of port
  */
-Port *createPort(
-    S32 fd,
-    enum v4l2_buf_type type,
-    U32 format_fourcc,
-    S32 align,
-    U32 memtype,
-    U32 buffer_num,
+Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc, S32 align, U32 memtype, U32 buffer_num,
     MppFrameBufferType buffer_type);
 
 /**
@@ -309,4 +303,4 @@ MppFrameBufferType getPortBufferType(Port *port);
 
 void notifySourceChange(Port *port);
 
-#endif /*LINLONV5V7_PORT_H*/
+#endif /*_LINLONV5V7_PORT_H_*/

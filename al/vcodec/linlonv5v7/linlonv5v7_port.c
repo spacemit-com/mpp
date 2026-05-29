@@ -70,15 +70,8 @@ struct _Port {
     FILE *pOutputFile;
 };
 
-Port *createPort(
-    S32 fd,
-    enum v4l2_buf_type type,
-    U32 format_fourcc,
-    S32 align,
-    U32 memtype,
-    U32 buffer_num,
-    MppFrameBufferType buffer_type
-) {
+Port *createPort(S32 fd, enum v4l2_buf_type type, U32 format_fourcc, S32 align, U32 memtype, U32 buffer_num,
+    MppFrameBufferType buffer_type) {
     Port *port_tmp = (Port *)malloc(sizeof(Port));
     if (!port_tmp) {
         error("can not malloc Port, please check! (%s)", strerror(errno));
@@ -140,17 +133,11 @@ void destoryPort(Port *port) {
     free(port);
 }
 
-Buffer *getBuffer(Port *port, S32 index) {
-    return port->stBuf[index];
-}
+Buffer *getBuffer(Port *port, S32 index) { return port->stBuf[index]; }
 
-enum v4l2_buf_type getV4l2BufType(Port *port) {
-    return port->eBufType;
-}
+enum v4l2_buf_type getV4l2BufType(Port *port) { return port->eBufType; }
 
-U32 getFormatFourcc(Port *port) {
-    return port->nFormatFourcc;
-}
+U32 getFormatFourcc(Port *port) { return port->nFormatFourcc; }
 
 void enumerateFormats(Port *port) {
     struct v4l2_fmtdesc fmtdesc;
@@ -164,13 +151,8 @@ void enumerateFormats(Port *port) {
         if (ret) {
             break;
         }
-        debug(
-            "fmt: index=%d, type=%d, flags=%x, pixelformat=%d, description=%s",
-            fmtdesc.index,
-            fmtdesc.type,
-            fmtdesc.flags,
-            fmtdesc.pixelformat,
-            fmtdesc.description);
+        debug("fmt: index=%d, type=%d, flags=%x, pixelformat=%d, description=%s", fmtdesc.index, fmtdesc.type,
+            fmtdesc.flags, fmtdesc.pixelformat, fmtdesc.description);
 
         fmtdesc.index++;
     }
@@ -217,37 +199,37 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format, BOOL i
         // f->field = interlaced ? V4L2_FIELD_SEQ_TB : V4L2_FIELD_NONE;
 
         switch (pixel_format) {
-            case V4L2_PIX_FMT_NV12:
-            case V4L2_PIX_FMT_NV21:
-            case V4L2_PIX_FMT_NV12M:
-            case V4L2_PIX_FMT_NV21M:
-                f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width, port->nAlign);
-                f->plane_fmt[1].bytesperline = ST_ALIGN_UP(width, port->nAlign);
-                f->plane_fmt[2].bytesperline = 0;
-                f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
-                f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
-                f->plane_fmt[2].sizeimage = 0;
-                f->num_planes = 2;
-                break;
-            case V4L2_PIX_FMT_YUV420:
-            case V4L2_PIX_FMT_YVU420:
-            case V4L2_PIX_FMT_YUV420M:
-            case V4L2_PIX_FMT_YVU420M:
-                f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width, port->nAlign);
-                f->plane_fmt[1].bytesperline = ST_ALIGN_UP((width * 4 + 7) >> 3, port->nAlign);
-                f->plane_fmt[2].bytesperline = ST_ALIGN_UP((width * 4 + 7) >> 3, port->nAlign);
-                f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
-                f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
-                f->plane_fmt[2].sizeimage = f->plane_fmt[2].bytesperline * height / 2;
-                f->num_planes = 3;
-                break;
-            default:
-                for (S32 i = 0; i < 3; ++i) {
-                    f->plane_fmt[i].bytesperline = 0;
-                    f->plane_fmt[i].sizeimage = 0;
-                }
-                f->num_planes = 3;
-                break;
+        case V4L2_PIX_FMT_NV12:
+        case V4L2_PIX_FMT_NV21:
+        case V4L2_PIX_FMT_NV12M:
+        case V4L2_PIX_FMT_NV21M:
+            f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width, port->nAlign);
+            f->plane_fmt[1].bytesperline = ST_ALIGN_UP(width, port->nAlign);
+            f->plane_fmt[2].bytesperline = 0;
+            f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
+            f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
+            f->plane_fmt[2].sizeimage = 0;
+            f->num_planes = 2;
+            break;
+        case V4L2_PIX_FMT_YUV420:
+        case V4L2_PIX_FMT_YVU420:
+        case V4L2_PIX_FMT_YUV420M:
+        case V4L2_PIX_FMT_YVU420M:
+            f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width, port->nAlign);
+            f->plane_fmt[1].bytesperline = ST_ALIGN_UP((width * 4 + 7) >> 3, port->nAlign);
+            f->plane_fmt[2].bytesperline = ST_ALIGN_UP((width * 4 + 7) >> 3, port->nAlign);
+            f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
+            f->plane_fmt[1].sizeimage = f->plane_fmt[1].bytesperline * height / 2;
+            f->plane_fmt[2].sizeimage = f->plane_fmt[2].bytesperline * height / 2;
+            f->num_planes = 3;
+            break;
+        default:
+            for (S32 i = 0; i < 3; ++i) {
+                f->plane_fmt[i].bytesperline = 0;
+                f->plane_fmt[i].sizeimage = 0;
+            }
+            f->num_planes = 3;
+            break;
         }
     } else {
         struct v4l2_pix_format *f = &(fmt.fmt.pix);
@@ -274,11 +256,9 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format, BOOL i
     }
     // for dsl frame case, this is not suitable, remove this.
     if (V4L2_TYPE_IS_OUTPUT(port->eBufType) && (width_tmp != width || height_tmp != height)) {
-        error(
-            "Selected resolution is not supported for this format width:%d, io "
-            "width:%d",
-            width_tmp,
-            width);
+        error("Selected resolution is not supported for this format width:%d, io "
+                "width:%d",
+            width_tmp, width);
     }
 
     setFormat(port, fmt);
@@ -290,34 +270,19 @@ void printFormat(const struct v4l2_format format) {
     if (V4L2_TYPE_IS_MULTIPLANAR(format.type)) {
         const struct v4l2_pix_format_mplane f = format.fmt.pix_mp;
 
-        debug(
-            "PRINTFORMAT ===== type: %u, format: %u, width: %u, height: %u, "
-            "nplanes: %d, "
-            "bytesperline: [%u %u %u], sizeimage: [%u %u %u]",
-            format.type,
-            f.pixelformat,
-            f.width,
-            f.height,
-            f.num_planes,
-            f.plane_fmt[0].bytesperline,
-            f.plane_fmt[1].bytesperline,
-            f.plane_fmt[2].bytesperline,
-            f.plane_fmt[0].sizeimage,
-            f.plane_fmt[1].sizeimage,
-            f.plane_fmt[2].sizeimage);
+        debug("PRINTFORMAT ===== type: %u, format: %u, width: %u, height: %u, "
+                "nplanes: %d, "
+                "bytesperline: [%u %u %u], sizeimage: [%u %u %u]",
+            format.type, f.pixelformat, f.width, f.height, f.num_planes, f.plane_fmt[0].bytesperline,
+            f.plane_fmt[1].bytesperline, f.plane_fmt[2].bytesperline, f.plane_fmt[0].sizeimage,
+            f.plane_fmt[1].sizeimage, f.plane_fmt[2].sizeimage);
     } else {
         const struct v4l2_pix_format f = format.fmt.pix;
 
-        debug(
-            "PRINTFORMAT ===== type: %u, format: %u, width: %u, height: %u, "
-            "bytesperline: %u, "
-            "sizeimage: %u",
-            format.type,
-            f.pixelformat,
-            f.width,
-            f.height,
-            f.bytesperline,
-            f.sizeimage);
+        debug("PRINTFORMAT ===== type: %u, format: %u, width: %u, height: %u, "
+                "bytesperline: %u, "
+                "sizeimage: %u",
+            format.type, f.pixelformat, f.width, f.height, f.bytesperline, f.sizeimage);
     }
 }
 
@@ -343,22 +308,17 @@ void setRoiRegion(Port *port, struct v4l2_mvx_roi_regions *roi) {
 struct v4l2_mvx_roi_regions getRoiRegion(Port *port) {
     if (!port) {
         error("getRoiRegion failed, port is NULL");
-        struct v4l2_mvx_roi_regions empty; memset(&empty, 0, sizeof(empty)); return empty;
+        struct v4l2_mvx_roi_regions empty = {0};
+        return empty;
     }
     return port->stRoi;
 }
 
-void setPortInterlaced(Port *port, BOOL interlaced) {
-    port->bInterlaced = interlaced;
-}
+void setPortInterlaced(Port *port, BOOL interlaced) { port->bInterlaced = interlaced; }
 
-void tryEncStopCmd(Port *port, BOOL tryStop) {
-    port->bTryEncStop = tryStop;
-}
+void tryEncStopCmd(Port *port, BOOL tryStop) { port->bTryEncStop = tryStop; }
 
-void tryDecStopCmd(Port *port, BOOL tryStop) {
-    port->bTryDecStop = tryStop;
-}
+void tryDecStopCmd(Port *port, BOOL tryStop) { port->bTryDecStop = tryStop; }
 
 S32 allocateBuffers(Port *port, S32 count) {
     struct v4l2_requestbuffers reqbuf;
@@ -478,11 +438,11 @@ S32 queueBuffer(Port *port, Buffer *buf) {
     /* Mask buffer offset. */
     if (!V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
         switch (b->memory) {
-            case V4L2_MEMORY_MMAP:
-                b->m.offset &= ~((1 << 12) - 1);
-                break;
-            default:
-                break;
+        case V4L2_MEMORY_MMAP:
+            b->m.offset &= ~((1 << 12) - 1);
+            break;
+        default:
+            break;
         }
     }
     // encoder specfied frames count to be processed
@@ -570,42 +530,23 @@ Buffer *dequeueBuffer(Port *port) {
 
 void printBuffer(Port *port, struct v4l2_buffer buf, const char *prefix) {
     if (port->bEnableBufferPrint) {
-        debug_pre(
-            "%s type:%u, index:%u, sequence:%d, timestamp:[%ld, "
-            "%ld], flags:%x ",
-            prefix,
-            buf.type,
-            buf.index,
-            buf.sequence,
-            buf.timestamp.tv_sec,
-            buf.timestamp.tv_usec,
-            buf.flags);
+        debug_pre("%s type:%u, index:%u, sequence:%d, timestamp:[%ld, "
+                    "%ld], flags:%x ",
+            prefix, buf.type, buf.index, buf.sequence, buf.timestamp.tv_sec, buf.timestamp.tv_usec, buf.flags);
 
         if (V4L2_TYPE_IS_MULTIPLANAR(buf.type)) {
             debug_mid("num_planes:%d ", buf.length);
             if (2 == buf.length) {
-                debug_after(
-                    "bytesused:[%u %u], length:[%u %u], offset:[%u "
-                    "%u]",
-                    buf.m.planes[0].bytesused,
-                    buf.m.planes[1].bytesused,
-                    buf.m.planes[0].length,
-                    buf.m.planes[1].length,
-                    buf.m.planes[0].data_offset,
-                    buf.m.planes[1].data_offset);
+                debug_after("bytesused:[%u %u], length:[%u %u], offset:[%u "
+                            "%u]",
+                    buf.m.planes[0].bytesused, buf.m.planes[1].bytesused, buf.m.planes[0].length,
+                    buf.m.planes[1].length, buf.m.planes[0].data_offset, buf.m.planes[1].data_offset);
             } else if (3 == buf.length) {
-                debug_after(
-                    "bytesused:[%u %u %u], length:[%u %u %u], offset:[%u "
-                    "%u %u]",
-                    buf.m.planes[0].bytesused,
-                    buf.m.planes[1].bytesused,
-                    buf.m.planes[2].bytesused,
-                    buf.m.planes[0].length,
-                    buf.m.planes[1].length,
-                    buf.m.planes[2].length,
-                    buf.m.planes[0].data_offset,
-                    buf.m.planes[1].data_offset,
-                    buf.m.planes[2].data_offset);
+                debug_after("bytesused:[%u %u %u], length:[%u %u %u], offset:[%u "
+                            "%u %u]",
+                    buf.m.planes[0].bytesused, buf.m.planes[1].bytesused, buf.m.planes[2].bytesused,
+                    buf.m.planes[0].length, buf.m.planes[1].length, buf.m.planes[2].length, buf.m.planes[0].data_offset,
+                    buf.m.planes[1].data_offset, buf.m.planes[2].data_offset);
             }
         } else {
             debug_after("bytesused:%u, length:%u", buf.bytesused, buf.length);
@@ -769,12 +710,9 @@ void setEncBitrate(Port *port, U32 bit_rate) {
 }
 
 void setRateControl(Port *port, struct v4l2_rate_control *rc) {
-    debug(
-        "setRateControl(rc->rc_type:%u rc->target_bitrate:%u "
-        "rc->maximum_bitrate:%u)",
-        rc->rc_type,
-        rc->target_bitrate,
-        rc->maximum_bitrate);
+    debug("setRateControl(rc->rc_type:%u rc->target_bitrate:%u "
+            "rc->maximum_bitrate:%u)",
+        rc->rc_type, rc->target_bitrate, rc->maximum_bitrate);
 
     S32 ret = ioctl(port->nVideoFd, VIDIOC_S_MVX_RATE_CONTROL, rc);
     if (ret) {
@@ -1353,17 +1291,11 @@ void setJPEGEncQuality(Port *port, U32 q) {
     }
 }
 
-void setPortRotation(Port *port, S32 rotation) {
-    port->nRotation = rotation;
-}
+void setPortRotation(Port *port, S32 rotation) { port->nRotation = rotation; }
 
-void setPortMirror(Port *port, S32 mirror) {
-    port->nMirror = mirror;
-}
+void setPortMirror(Port *port, S32 mirror) { port->nMirror = mirror; }
 
-void setPortDownScale(Port *port, S32 scale) {
-    port->nScale = scale;
-}
+void setPortDownScale(Port *port, S32 scale) { port->nScale = scale; }
 
 void setDSLFrame(Port *port, S32 width, S32 height) {
     debug("setDSLFrame(%d x %d)", width, height);
@@ -1416,9 +1348,7 @@ void setLongTermRef(Port *port, U32 mode, U32 period) {
     }
 }
 
-void setFrameCount(Port *port, S32 frames) {
-    port->nFramesCount = frames;
-}
+void setFrameCount(Port *port, S32 frames) { port->nFramesCount = frames; }
 
 void setCropLeft(Port *port, S32 left) {
     debug("setCropLeft(%d)", left);
@@ -1508,22 +1438,17 @@ void setHRDBufferSize(Port *port, S32 size) {
     }
 }
 
-S32 getBufWidth(Port *port) {
-    return port->stFormat.fmt.pix_mp.width;
-}
+S32 getBufWidth(Port *port) { return port->stFormat.fmt.pix_mp.width; }
 
-S32 getBufHeight(Port *port) {
-    return port->stFormat.fmt.pix_mp.height;
-}
+S32 getBufHeight(Port *port) { return port->stFormat.fmt.pix_mp.height; }
 
 S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
     S32 index;
     S32 ret;
     Buffer *buffer = dequeueBuffer(port);
     if (!buffer) {
-        error(
-            "dequeueBuffer failed, this dequeueBuffer must successed, because it "
-            "is after Poll, please check!");
+        error("dequeueBuffer failed, this dequeueBuffer must successed, because it "
+                "is after Poll, please check!");
     }
     index = getExtraId(buffer);
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
@@ -1561,9 +1486,8 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
     setEndOfStream(buffer, eof);
     ret = queueBuffer(port, buffer);
     if (ret) {
-        error(
-            "queueBuffer failed, this queueBuffer must successed, because it is "
-            "after Poll and dequeueBuffer, please check!");
+        error("queueBuffer failed, this queueBuffer must successed, because it is "
+                "after Poll and dequeueBuffer, please check!");
     }
 
     if (eof) {
@@ -1579,34 +1503,34 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
  */
 static MppPixelFormat linlon_port_v4l2_to_mpp_pixel(U32 pixfmt) {
     switch (pixfmt) {
-        case V4L2_PIX_FMT_NV12:
-        case V4L2_PIX_FMT_NV12M:
-            return MPP_PIXEL_FORMAT_NV12;
-        case V4L2_PIX_FMT_NV21:
-        case V4L2_PIX_FMT_NV21M:
-            return MPP_PIXEL_FORMAT_NV21;
-        case V4L2_PIX_FMT_YUV420M:
-            return MPP_PIXEL_FORMAT_I420;
-        case V4L2_PIX_FMT_YVU420M:
-            return MPP_PIXEL_FORMAT_YV12;
-        case V4L2_PIX_FMT_YUV420:
-            return MPP_PIXEL_FORMAT_I420;
-        case V4L2_PIX_FMT_YVU420:
-            return MPP_PIXEL_FORMAT_YV12;
-        case V4L2_PIX_FMT_UYVY:
-            return MPP_PIXEL_FORMAT_UYVY;
-        case V4L2_PIX_FMT_YUYV:
-            return MPP_PIXEL_FORMAT_YUYV;
-        case V4L2_PIX_FMT_YUV420_AFBC_8:
-            return MPP_PIXEL_FORMAT_AFBC_YUV420_8;
-        case V4L2_PIX_FMT_YUV420_AFBC_10:
-            return MPP_PIXEL_FORMAT_AFBC_YUV420_10;
-        case V4L2_PIX_FMT_YUV422_AFBC_8:
-            return MPP_PIXEL_FORMAT_AFBC_YUV422_8;
-        case V4L2_PIX_FMT_YUV422_AFBC_10:
-            return MPP_PIXEL_FORMAT_AFBC_YUV422_10;
-        default:
-            return MPP_PIXEL_FORMAT_UNKNOWN;
+    case V4L2_PIX_FMT_NV12:
+    case V4L2_PIX_FMT_NV12M:
+        return MPP_PIXEL_FORMAT_NV12;
+    case V4L2_PIX_FMT_NV21:
+    case V4L2_PIX_FMT_NV21M:
+        return MPP_PIXEL_FORMAT_NV21;
+    case V4L2_PIX_FMT_YUV420M:
+        return MPP_PIXEL_FORMAT_I420;
+    case V4L2_PIX_FMT_YVU420M:
+        return MPP_PIXEL_FORMAT_YV12;
+    case V4L2_PIX_FMT_YUV420:
+        return MPP_PIXEL_FORMAT_I420;
+    case V4L2_PIX_FMT_YVU420:
+        return MPP_PIXEL_FORMAT_YV12;
+    case V4L2_PIX_FMT_UYVY:
+        return MPP_PIXEL_FORMAT_UYVY;
+    case V4L2_PIX_FMT_YUYV:
+        return MPP_PIXEL_FORMAT_YUYV;
+    case V4L2_PIX_FMT_YUV420_AFBC_8:
+        return MPP_PIXEL_FORMAT_AFBC_YUV420_8;
+    case V4L2_PIX_FMT_YUV420_AFBC_10:
+        return MPP_PIXEL_FORMAT_AFBC_YUV420_10;
+    case V4L2_PIX_FMT_YUV422_AFBC_8:
+        return MPP_PIXEL_FORMAT_AFBC_YUV422_8;
+    case V4L2_PIX_FMT_YUV422_AFBC_10:
+        return MPP_PIXEL_FORMAT_AFBC_YUV422_10;
+    default:
+        return MPP_PIXEL_FORMAT_UNKNOWN;
     }
 }
 
@@ -1700,7 +1624,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
         } else {
             struct v4l2_pix_format f = fmt.fmt.pix;
             isResChange = ((f.width != port->stFormat.fmt.pix.width) || (f.height != port->stFormat.fmt.pix.height)) &&
-                (f.width * f.height) < (port->stFormat.fmt.pix.height * port->stFormat.fmt.pix.width);
+                            (f.width * f.height) < (port->stFormat.fmt.pix.height * port->stFormat.fmt.pix.width);
         }
         /*
             if ((b.flags & V4L2_BUF_FLAG_MVX_BUFFER_NEED_REALLOC) ==
@@ -1709,14 +1633,11 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
            port->stFormat.fmt.pix_mp.width, port->stFormat.fmt.pix_mp.height);
               handleResolutionChange(port, eof);
               return MPP_RESOLUTION_CHANGED;
-              // return MPP_FALSE;
+              //return MPP_FALSE;
             }
         */
         if (port->bIsSourceChange) {
-            debug(
-                "Resolution changed:%d new size: %d x %d",
-                isResChange,
-                port->stFormat.fmt.pix_mp.width,
+            debug("Resolution changed:%d new size: %d x %d", isResChange, port->stFormat.fmt.pix_mp.width,
                 port->stFormat.fmt.pix_mp.height);
             handleResolutionChange(port, eof);
             port->bIsSourceChange = MPP_FALSE;
@@ -1802,7 +1723,7 @@ BOOL handleBuffer(Port *port, BOOL eof, MppData *data) {
         } else {
             struct v4l2_pix_format f = fmt.fmt.pix;
             isResChange = ((f.width != port->stFormat.fmt.pix.width) || (f.height != port->stFormat.fmt.pix.height)) &&
-                (f.width * f.height) < (port->stFormat.fmt.pix.height * port->stFormat.fmt.pix.width);
+                            (f.width * f.height) < (port->stFormat.fmt.pix.height * port->stFormat.fmt.pix.width);
         }
         if ((b->flags & V4L2_BUF_FLAG_MVX_BUFFER_NEED_REALLOC) == V4L2_BUF_FLAG_MVX_BUFFER_NEED_REALLOC) {
             debug("Resolution changed:%d", isResChange);
@@ -1840,12 +1761,8 @@ void handleResolutionChange(Port *port, BOOL eof) {
     streamoff(port);
     getPortFormat(port);
     allocateBuffers(port, 0);
-    getTrySetFormat(
-        port,
-        port->stFormat.fmt.pix_mp.width,
-        port->stFormat.fmt.pix_mp.height,
-        port->stFormat.fmt.pix_mp.pixelformat,
-        MPP_FALSE);
+    getTrySetFormat(port, port->stFormat.fmt.pix_mp.width, port->stFormat.fmt.pix_mp.height,
+        port->stFormat.fmt.pix_mp.pixelformat, MPP_FALSE);
     U32 count = getBufferCount(port);
     if (count < port->nNeededBufNum)
         count = port->nNeededBufNum;
@@ -1857,19 +1774,13 @@ void handleResolutionChange(Port *port, BOOL eof) {
     port->nFramesProcessed = 0;
 }
 
-S32 getBufNum(Port *port) {
-    return port->nBufNum;
-}
+S32 getBufNum(Port *port) { return port->nBufNum; }
 
 S32 getBufFd(Port *port, U32 index) {
     struct v4l2_buffer *b = getV4l2Buffer(port->stBuf[index]);
     return b->m.planes[0].m.fd;
 }
 
-MppFrameBufferType getPortBufferType(Port *port) {
-    return port->eBufferType;
-}
+MppFrameBufferType getPortBufferType(Port *port) { return port->eBufferType; }
 
-void notifySourceChange(Port *port) {
-    port->bIsSourceChange = MPP_TRUE;
-}
+void notifySourceChange(Port *port) { port->bIsSourceChange = MPP_TRUE; }

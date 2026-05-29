@@ -11,14 +11,16 @@
 extern "C" {
 #endif
 
+#include "al_interface_base.h"
 #include "data.h"
 #include "frame.h"
 #include "module.h"
 #include "packet.h"
+#include "processflow.h"
 #include "type.h"
-#include "al_interface_base.h"
 
 typedef struct _MppVdecCtx {
+    MppProcessNode pNode;
     MppModuleType eCodecType;
     ALBaseContext *pAlBaseContext;
     MppModule *pModule;

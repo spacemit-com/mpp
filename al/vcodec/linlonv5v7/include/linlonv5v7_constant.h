@@ -30,4 +30,4 @@
 
 #define LINLON_FILE_NAME_LEN (512)
 
-#endif /*LINLONV5V7_CONSTANT_H*/
+#endif /*_LINLONV5V7_CONSTANT_H_*/

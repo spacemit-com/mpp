@@ -65,6 +65,7 @@ set(MPP_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/sys"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/stream"
     "${CMAKE_CURRENT_SOURCE_DIR}/utils/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/al/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/vi"
@@ -75,6 +76,7 @@ set(MPP_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include/mux"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/v2d"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/uvc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mpi/sys"
 )
 
 # ────────────────────────────────────────────────────────────

@@ -36,12 +36,12 @@
  * Includes
  ****************************************************************************/
 
-#include <linux/videodev2.h>
-#include <linux/v4l2-controls.h>
 #include <drm/drm_fourcc.h>
+#include <linux/v4l2-controls.h>
+#include <linux/videodev2.h>
 #include <stdint.h>
 
-#define V4L2_CTRL_CLASS_CODEC 0x00990000 /* Stateful codec controls */
+#define V4L2_CID_USER_MVX_BASE 0x00990000 /* Stateful codec controls */
 
 /****************************************************************************
  * Pixel formats
@@ -76,8 +76,8 @@
  * Extended buffer flags.
  */
 /*
-#define V4L2_BUF_FLAG_MVX_DECODE_ONLY           0x01000000
-#define V4L2_BUF_FLAG_MVX_CODEC_CONFIG          0x02000000
+#define V4L2_BUF_FLAG_MVX_AFBC_TILED_HEADERS    0x01000000
+#define V4L2_BUF_FLAG_MVX_AFBC_TILED_BODY       0x02000000
 #define V4L2_BUF_FLAG_MVX_AFBC_TILED_HEADERS    0x10000000
 #define V4L2_BUF_FLAG_MVX_AFBC_TILED_BODY       0x20000000
 #define V4L2_BUF_FLAG_MVX_AFBC_32X8_SUPERBLOCK  0x40000000
@@ -194,19 +194,19 @@ struct v4l2_mvx_primary {
 
 /**
  * struct v4l2_mvx_color_desc - HDR color description.
- * @flags:            Flags which fields that are valid.
- * @range:            enum v4l2_mvx_range.
- * @primaries:            enum v4l2_mvx_primaries.
- * @transfer:            enum v4l2_mvx_transfer.
- * @matrix:            enum v4l2_mvx_matrix.
- * @display.r:            Red point.
- * @display.g:            Green point.
- * @display.b:            Blue point.
- * @display.w:            White point.
- * @display.luminance_min:    Minimum display luminance.
- * @display.luance_max:    Maximum display luminance.
- * @content.luminance_max:    Maximum content luminance.
- * @content.luminance_average:    Average content luminance.
+ * @flags:			Flags which fields that are valid.
+ * @range:			enum v4l2_mvx_range.
+ * @primaries:			enum v4l2_mvx_primaries.
+ * @transfer:			enum v4l2_mvx_transfer.
+ * @matrix:			enum v4l2_mvx_matrix.
+ * @display.r:			Red point.
+ * @display.g:			Green point.
+ * @display.b:			Blue point.
+ * @display.w:			White point.
+ * @display.luminance_min:	Minimum display luminance.
+ * @display.luance_max:	Maximum display luminance.
+ * @content.luminance_max:	Maximum content luminance.
+ * @content.luminance_average:	Average content luminance.
  *
  * Color- and white point primaries are given in increments of 0.00002
  * and in the range of 0 to 50'000.
@@ -247,8 +247,7 @@ struct v4l2_buffer_param_region {
     uint16_t mbx_right;  /**< X coordinate of the right most macroblock */
     uint16_t mby_top;    /**< Y coordinate of the top most macroblock */
     uint16_t mby_bottom; /**< Y coordinate of the bottom most macroblock */
-    int16_t qp_delta;    // QP delta value. This region will be encoded
-                         // with qp = qp_default + qp_delta.
+    int16_t qp_delta;    /**< QP delta value, encoded with qp = qp_default + qp_delta. */
 };
 
 struct v4l2_mvx_roi_regions {
@@ -445,4 +444,4 @@ struct v4l2_core_buffer_header_general {
     struct v4l2_buffer_general_block_configs config;
 };
 
-#endif /* MVX_V4L2_CONTROLS_H */
+#endif /* _MVX_V4L2_CONTROLS_H_ */

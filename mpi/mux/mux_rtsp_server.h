@@ -4,15 +4,21 @@
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
  *
- * @File      :    mux_rtsp_internal.h
+ * @File      :    mux_rtsp_server.h
  * @Date      :    2026-04-15
  * @Author    :    rmwei(rongmin.wei@spacemit.com)
  * @Brief     :    Internal RTSP server declarations for MUX module.
+ *
+ * Architecture (Shared RTSP Server):
+ *   - Single global server listening on one port
+ *   - Multiple streams registered with different paths (/live/0, /live/1, etc.)
+ *   - Clients connect and request specific path, routed to correct stream
+ *   - Standard MUX_* API unchanged, internal implementation handles sharing
  *------------------------------------------------------------------------------
  */
 
-#ifndef MUX_RTSP_INTERNAL_H
-#define MUX_RTSP_INTERNAL_H
+#ifndef MUX_RTSP_SERVER_H
+#define MUX_RTSP_SERVER_H
 
 #include <netinet/in.h>
 #include <pthread.h>
@@ -26,12 +32,20 @@ extern "C" {
 #endif
 #endif /* __cplusplus */
 
-#define MUX_RTSP_MAX_SESSIONS 8
+#define MUX_RTSP_MAX_CLIENTS 16
+#define MUX_RTSP_SESSION_ID_LEN 32
+#define MUX_RTSP_SDP_MAX_LEN 4096
 #define MUX_RTSP_RECV_BUF_SIZE 4096
 #define MUX_RTSP_SEND_BUF_SIZE 4096
-#define MUX_RTP_MAX_PAYLOAD 1400
-#define MUX_RTSP_SESSION_ID_LEN 32
 #define MUX_SPS_PPS_MAX_SIZE 256
+#define MUX_RTSP_MAX_STREAMS 32
+#define RTP_PACKET_MAX_SIZE 1400
+#define MUX_RTP_MAX_PAYLOAD 1400
+#define RTP_MAX_TRACKS 32
+#define MUX_RTSP_URL_MAX_LEN 256
+
+/* Forward declaration */
+typedef struct _MuxRtspStream MuxRtspStream;
 
 typedef enum _MuxRtspClientState {
     MUX_RTSP_CLIENT_INIT = 0,
@@ -39,6 +53,7 @@ typedef enum _MuxRtspClientState {
     MUX_RTSP_CLIENT_PLAYING,
 } MuxRtspClientState;
 
+/* Client connected to a specific stream */
 typedef struct _MuxRtspClient {
     S32 s32Used;
     S32 s32RtspFd;
@@ -46,6 +61,7 @@ typedef struct _MuxRtspClient {
     socklen_t socklen;
     MuxRtspClientState eState;
     BOOL bInterleaved;
+    BOOL bNeedParamInject; /* Need to inject SPS/PPS before first frame */
     U8 u8RtpChannel;
     U8 u8RtcpChannel;
     U16 u16ClientRtpPort;
@@ -57,35 +73,68 @@ typedef struct _MuxRtspClient {
     CHAR szSessionId[MUX_RTSP_SESSION_ID_LEN];
     CHAR szRecvBuf[MUX_RTSP_RECV_BUF_SIZE];
     U32 u32RecvLen;
+    MuxRtspStream *pStream; /* Stream this client is subscribed to */
 } MuxRtspClient;
 
-typedef struct _MuxRtspServer {
-    S32 s32Running;
-    S32 s32ListenFd;
-    U16 u16ListenPort;
-    CHAR szPath[128];
-    CHAR szHost[64];
-    pthread_t tidAccept;
-    pthread_mutex_t lock;
-    MuxRtspClient astClients[MUX_RTSP_MAX_SESSIONS];
+/* Stream registered with the shared server (one per MuxChannel) */
+struct _MuxRtspStream {
+    S32 s32Used;
+    S32 s32ChnId;
+    CHAR szPath[128]; /* e.g., "/live/0" */
+    MuxCodecType eCodecType;
+    U32 u32Width;
+    U32 u32Height;
     U32 u32Ssrc;
     U16 u16Seq;
-    /* SPS/PPS cache for SDP and keyframe pre-injection */
+    pthread_mutex_t lock; /* Per-stream lock for fine-grained locking */
+    /* SPS/PPS/VPS cache */
     U8 au8Sps[MUX_SPS_PPS_MAX_SIZE];
     U32 u32SpsLen;
     U8 au8Pps[MUX_SPS_PPS_MAX_SIZE];
     U32 u32PpsLen;
     U8 au8Vps[MUX_SPS_PPS_MAX_SIZE];
     U32 u32VpsLen;
-    /* statistics */
+    /* Statistics */
+    U64 u64TotalPkts;
+    U64 u64TotalBytes;
+};
+
+/* Global shared RTSP server (singleton) */
+typedef struct _MuxGlobalRtspServer {
+    S32 s32Inited;
+    S32 s32Running;
+    S32 s32ListenFd;
+    U16 u16Port;
+    pthread_t tidAccept;
+    pthread_mutex_t lock; /* Global lock for streams/clients arrays */
+    MuxRtspStream astStreams[MUX_RTSP_MAX_STREAMS];
+    MuxRtspClient astClients[MUX_RTSP_MAX_CLIENTS];
+    U32 u32StreamCount;
+    U32 u32RefCount; /* Reference count for init/deinit */
+} MuxGlobalRtspServer;
+
+/* Legacy structure for backward compatibility (unused fields) */
+typedef struct _MuxRtspServer {
+    S32 s32Running;  /* Deprecated: use global server */
+    S32 s32ListenFd; /* Deprecated */
+    U16 u16ListenPort;
+    CHAR szPath[128];
+    CHAR szHost[64];
+    pthread_t tidAccept;         /* Deprecated */
+    pthread_mutex_t lock;        /* Deprecated */
+    MuxRtspClient astClients[8]; /* Deprecated */
+    U32 u32Ssrc;
+    U16 u16Seq;
+    U8 au8Sps[MUX_SPS_PPS_MAX_SIZE];
+    U32 u32SpsLen;
+    U8 au8Pps[MUX_SPS_PPS_MAX_SIZE];
+    U32 u32PpsLen;
+    U8 au8Vps[MUX_SPS_PPS_MAX_SIZE];
+    U32 u32VpsLen;
     U64 u64TotalPkts;
     U64 u64TotalBytes;
     U32 u32ActiveClients;
 } MuxRtspServer;
-
-/* forward declare AVFormatContext / AVStream to avoid pulling ffmpeg headers */
-struct AVFormatContext;
-struct AVStream;
 
 typedef struct _MuxChannel {
     S32 s32Created;
@@ -97,9 +146,6 @@ typedef struct _MuxChannel {
     pthread_mutex_t lock;
     MuxChnAttr stAttr;
     MppNode stSinkNode;
-    struct AVFormatContext *pstFmt;
-    struct AVStream *pstStream;
-    S32 s32HeaderWritten;
     MuxRtspServer stRtspServer;
 } MuxChannel;
 
@@ -117,4 +163,4 @@ VOID mux_rtsp_cache_param_sets(MuxRtspServer *pstServer, const MuxPacket *pstPkt
 #endif
 #endif /* __cplusplus */
 
-#endif /* MUX_RTSP_INTERNAL_H */
+#endif /* __MUX_RTSP_SERVER_H__ */

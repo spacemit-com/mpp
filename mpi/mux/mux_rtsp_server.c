@@ -7,11 +7,17 @@
  * @File      :    mux_rtsp_server.c
  * @Date      :    2026-04-15
  * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    Lightweight RTSP server for MUX module.
+ * @Brief     :    Shared RTSP server for MUX module (multi-stream support).
+ *
+ * Architecture:
+ *   - Single global server listening on one port (singleton)
+ *   - Multiple streams registered with different paths (/live/0, /live/1, etc.)
+ *   - Clients connect and request specific path, routed to correct stream
+ *   - Standard MUX_* API unchanged, internal implementation handles sharing
  *------------------------------------------------------------------------------
  */
 
-#include "mux_rtsp_internal.h"
+#include "mux_rtsp_server.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -30,9 +36,51 @@
 #define MUX_RTSP_LOGE(fmt, ...) fprintf(stderr, "[MUX][RTSP][ERR] " fmt "\n", ##__VA_ARGS__)
 #define MUX_RTSP_LOGI(fmt, ...) fprintf(stdout, "[MUX][RTSP][INF] " fmt "\n", ##__VA_ARGS__)
 
+/* ======================== Global Shared Server ======================== */
+
+static MuxGlobalRtspServer g_stGlobalServer = {0};
+
+static MuxRtspStream *mux_rtsp_find_stream_by_path(const CHAR *pszPath) {
+    for (S32 i = 0; i < MUX_RTSP_MAX_STREAMS; i++) {
+        if (g_stGlobalServer.astStreams[i].s32Used && strcmp(g_stGlobalServer.astStreams[i].szPath, pszPath) == 0) {
+            return &g_stGlobalServer.astStreams[i];
+        }
+    }
+    return NULL;
+}
+
+static MuxRtspStream *mux_rtsp_find_stream_by_chn(S32 s32ChnId) {
+    for (S32 i = 0; i < MUX_RTSP_MAX_STREAMS; i++) {
+        if (g_stGlobalServer.astStreams[i].s32Used && g_stGlobalServer.astStreams[i].s32ChnId == s32ChnId) {
+            return &g_stGlobalServer.astStreams[i];
+        }
+    }
+    return NULL;
+}
+
+static CHAR *mux_rtsp_extract_path_from_url(const CHAR *pszUrl) {
+    static CHAR szPath[128];
+    const CHAR *p = strstr(pszUrl, "://");
+    if (p) {
+        p = strchr(p + 3, '/');
+        if (p) {
+            /* Remove trackID suffix if present */
+            const CHAR *track = strstr(p, "/trackID");
+            if (!track)
+                track = strstr(p, "/track");
+            if (track) {
+                snprintf(szPath, sizeof(szPath), "%.*s", (int)(track - p), p);
+            } else {
+                snprintf(szPath, sizeof(szPath), "%s", p);
+            }
+            return szPath;
+        }
+    }
+    return NULL;
+}
+
 static S32 mux_rtsp_parse_url(
-    const CHAR *pszUrl, CHAR *pszHost, U32 u32HostLen, U16 *pu16Port, CHAR *pszPath, U32 u32PathLen
-) {
+    const CHAR *pszUrl, CHAR *pszHost, U32 u32HostLen, U16 *pu16Port, CHAR *pszPath, U32 u32PathLen) {
     const CHAR *p;
     const CHAR *hostStart;
     const CHAR *pathStart;
@@ -110,7 +158,7 @@ static U32 mux_rtsp_get_cseq(const CHAR *pszReq) {
 
 static VOID mux_rtsp_make_session_id(CHAR *pszBuf, U32 u32BufLen) {
     unsigned int r = (unsigned int)rand();
-    snprintf(pszBuf, u32BufLen, "%08x%08" PRIx64, r, (uint64_t)time(NULL));
+    snprintf(pszBuf, u32BufLen, "%08x%08llx", r, (uint64_t)time(NULL));
 }
 
 static S32 mux_rtsp_send_response(MuxRtspClient *pstClient, const CHAR *pszBody, const CHAR *pszFmt, ...) {
@@ -159,49 +207,36 @@ static S32 mux_rtsp_base64_encode(const U8 *pu8Src, U32 u32SrcLen, CHAR *pszDst,
     return (S32)j;
 }
 
-static S32 mux_rtsp_make_sdp(const MuxChannel *pstChn, CHAR *pszSdp, U32 u32SdpLen) {
+/* Generate SDP using stream's cached parameters */
+static S32 mux_rtsp_make_sdp_for_stream(MuxRtspStream *pStream, CHAR *pszSdp, U32 u32SdpLen) {
     const CHAR *pszCodec;
     CHAR szFmtp[2048];
-    const MuxRtspServer *pstServer;
 
-    if (!pstChn || !pszSdp) {
+    if (!pStream || !pszSdp) {
         return ERR_MUX_NULL_PTR;
     }
 
-    pstServer = &pstChn->stRtspServer;
-
-    if (pstChn->stAttr.stStreamAttr.eCodecType == MUX_CODEC_H264) {
+    if (pStream->eCodecType == MUX_CODEC_H264) {
         pszCodec = "H264";
-        if (pstServer->u32SpsLen > 0 && pstServer->u32PpsLen > 0) {
+        if (pStream->u32SpsLen > 0 && pStream->u32PpsLen > 0) {
             CHAR szSpsB64[512], szPpsB64[512];
-            mux_rtsp_base64_encode(pstServer->au8Sps, pstServer->u32SpsLen, szSpsB64, sizeof(szSpsB64));
-            mux_rtsp_base64_encode(pstServer->au8Pps, pstServer->u32PpsLen, szPpsB64, sizeof(szPpsB64));
-            snprintf(
-                szFmtp,
-                sizeof(szFmtp),
+            mux_rtsp_base64_encode(pStream->au8Sps, pStream->u32SpsLen, szSpsB64, sizeof(szSpsB64));
+            mux_rtsp_base64_encode(pStream->au8Pps, pStream->u32PpsLen, szPpsB64, sizeof(szPpsB64));
+            snprintf(szFmtp, sizeof(szFmtp),
                 "a=fmtp:96 packetization-mode=1;profile-level-id=%02X%02X%02X;"
                 "sprop-parameter-sets=%s,%s\r\n",
-                pstServer->au8Sps[1],
-                pstServer->au8Sps[2],
-                pstServer->au8Sps[3],
-                szSpsB64,
-                szPpsB64);
+                pStream->au8Sps[1], pStream->au8Sps[2], pStream->au8Sps[3], szSpsB64, szPpsB64);
         } else {
             snprintf(szFmtp, sizeof(szFmtp), "a=fmtp:96 packetization-mode=1\r\n");
         }
-    } else if (pstChn->stAttr.stStreamAttr.eCodecType == MUX_CODEC_H265) {
+    } else if (pStream->eCodecType == MUX_CODEC_H265) {
         pszCodec = "H265";
-        if (pstServer->u32VpsLen > 0 && pstServer->u32SpsLen > 0 && pstServer->u32PpsLen > 0) {
+        if (pStream->u32VpsLen > 0 && pStream->u32SpsLen > 0 && pStream->u32PpsLen > 0) {
             CHAR szVpsB64[512], szSpsB64[512], szPpsB64[512];
-            mux_rtsp_base64_encode(pstServer->au8Vps, pstServer->u32VpsLen, szVpsB64, sizeof(szVpsB64));
-            mux_rtsp_base64_encode(pstServer->au8Sps, pstServer->u32SpsLen, szSpsB64, sizeof(szSpsB64));
-            mux_rtsp_base64_encode(pstServer->au8Pps, pstServer->u32PpsLen, szPpsB64, sizeof(szPpsB64));
-            snprintf(
-                szFmtp,
-                sizeof(szFmtp),
-                "a=fmtp:96 sprop-vps=%s;sprop-sps=%s;sprop-pps=%s\r\n",
-                szVpsB64,
-                szSpsB64,
+            mux_rtsp_base64_encode(pStream->au8Vps, pStream->u32VpsLen, szVpsB64, sizeof(szVpsB64));
+            mux_rtsp_base64_encode(pStream->au8Sps, pStream->u32SpsLen, szSpsB64, sizeof(szSpsB64));
+            mux_rtsp_base64_encode(pStream->au8Pps, pStream->u32PpsLen, szPpsB64, sizeof(szPpsB64));
+            snprintf(szFmtp, sizeof(szFmtp), "a=fmtp:96 sprop-vps=%s;sprop-sps=%s;sprop-pps=%s\r\n", szVpsB64, szSpsB64,
                 szPpsB64);
         } else {
             snprintf(szFmtp, sizeof(szFmtp), "a=fmtp:96\r\n");
@@ -210,11 +245,9 @@ static S32 mux_rtsp_make_sdp(const MuxChannel *pstChn, CHAR *pszSdp, U32 u32SdpL
         return ERR_MUX_OPEN_FAIL;
     }
 
-    snprintf(
-        pszSdp,
-        u32SdpLen,
+    snprintf(pszSdp, u32SdpLen,
         "v=0\r\n"
-        "o=- 0 0 IN IP4 %s\r\n"
+        "o=- 0 0 IN IP4 0.0.0.0\r\n"
         "s=SPACEMIT MUX RTSP Server\r\n"
         "t=0 0\r\n"
         "a=control:*\r\n"
@@ -223,9 +256,7 @@ static S32 mux_rtsp_make_sdp(const MuxChannel *pstChn, CHAR *pszSdp, U32 u32SdpL
         "a=rtpmap:96 %s/90000\r\n"
         "%s"
         "a=control:trackID=0\r\n",
-        pstServer->szHost[0] ? pstServer->szHost : "0.0.0.0",
-        pszCodec,
-        szFmtp);
+        pszCodec, szFmtp);
     return ERR_MUX_OK;
 }
 
@@ -246,38 +277,57 @@ static VOID mux_rtsp_client_close(MuxRtspClient *pstClient) {
     memset(pstClient, 0, sizeof(*pstClient));
 }
 
-static MuxRtspClient *mux_rtsp_client_alloc(MuxRtspServer *pstServer) {
-    for (S32 i = 0; i < MUX_RTSP_MAX_SESSIONS; ++i) {
-        if (!pstServer->astClients[i].s32Used) {
-            pstServer->astClients[i].s32Used = 1;
-            pstServer->astClients[i].s32RtpSock = -1;
-            pstServer->astClients[i].s32RtcpSock = -1;
-            return &pstServer->astClients[i];
+static MuxRtspClient *mux_rtsp_client_alloc(void) {
+    for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
+        if (!g_stGlobalServer.astClients[i].s32Used) {
+            MuxRtspClient *pClient = &g_stGlobalServer.astClients[i];
+            memset(pClient, 0, sizeof(*pClient));
+            pClient->s32Used = 1;
+            pClient->s32RtspFd = -1;
+            pClient->s32RtpSock = -1;
+            pClient->s32RtcpSock = -1;
+            return pClient;
         }
     }
     return NULL;
 }
 
 static S32 mux_rtsp_handle_options(MuxRtspClient *pstClient, U32 u32CSeq) {
-    return mux_rtsp_send_response(
-        pstClient,
-        NULL,
+    return mux_rtsp_send_response(pstClient, NULL,
         "RTSP/1.0 200 OK\r\n"
         "CSeq: %u\r\n"
         "Public: OPTIONS, DESCRIBE, SETUP, PLAY, TEARDOWN, GET_PARAMETER, SET_PARAMETER\r\n",
         u32CSeq);
 }
 
-static S32 mux_rtsp_handle_describe(MuxChannel *pstChn, MuxRtspClient *pstClient, U32 u32CSeq) {
+static S32 mux_rtsp_handle_describe(MuxRtspClient *pstClient, const CHAR *pszReq, U32 u32CSeq) {
     CHAR szSdp[1024];
+    CHAR szUrl[256] = {0};
+    CHAR *pszPath;
+    MuxRtspStream *pStream;
 
-    if (mux_rtsp_make_sdp(pstChn, szSdp, sizeof(szSdp)) != ERR_MUX_OK) {
+    /* Extract URL from request line */
+    if (sscanf(pszReq, "DESCRIBE %255s", szUrl) != 1) {
+        return mux_rtsp_send_response(pstClient, NULL, "RTSP/1.0 400 Bad Request\r\nCSeq: %u\r\n", u32CSeq);
+    }
+
+    /* Find stream by path */
+    pszPath = mux_rtsp_extract_path_from_url(szUrl);
+    pStream = pszPath ? mux_rtsp_find_stream_by_path(pszPath) : NULL;
+
+    if (!pStream) {
+        MUX_RTSP_LOGE("DESCRIBE: stream not found for path '%s'", pszPath ? pszPath : "(null)");
+        return mux_rtsp_send_response(pstClient, NULL, "RTSP/1.0 404 Not Found\r\nCSeq: %u\r\n", u32CSeq);
+    }
+
+    /* Associate client with stream */
+    pstClient->pStream = pStream;
+
+    if (mux_rtsp_make_sdp_for_stream(pStream, szSdp, sizeof(szSdp)) != ERR_MUX_OK) {
         return mux_rtsp_send_response(pstClient, NULL, "RTSP/1.0 500 Internal Server Error\r\nCSeq: %u\r\n", u32CSeq);
     }
 
-    return mux_rtsp_send_response(
-        pstClient,
-        szSdp,
+    return mux_rtsp_send_response(pstClient, szSdp,
         "RTSP/1.0 200 OK\r\n"
         "CSeq: %u\r\n"
         "Content-Type: application/sdp\r\n",
@@ -353,81 +403,65 @@ static S32 mux_rtsp_handle_setup(MuxRtspClient *pstClient, const CHAR *pszReq, U
     pstClient->eState = MUX_RTSP_CLIENT_READY;
 
     if (pstClient->bInterleaved) {
-        return mux_rtsp_send_response(
-            pstClient,
-            NULL,
+        return mux_rtsp_send_response(pstClient, NULL,
             "RTSP/1.0 200 OK\r\n"
             "CSeq: %u\r\n"
             "Transport: RTP/AVP/TCP;unicast;interleaved=%u-%u\r\n"
             "Session: %s\r\n",
-            u32CSeq,
-            pstClient->u8RtpChannel,
-            pstClient->u8RtcpChannel,
-            pstClient->szSessionId);
+            u32CSeq, pstClient->u8RtpChannel, pstClient->u8RtcpChannel, pstClient->szSessionId);
     }
 
-    return mux_rtsp_send_response(
-        pstClient,
-        NULL,
+    return mux_rtsp_send_response(pstClient, NULL,
         "RTSP/1.0 200 OK\r\n"
         "CSeq: %u\r\n"
         "Transport: RTP/AVP;unicast;client_port=%u-%u;server_port=0-0\r\n"
         "Session: %s\r\n",
-        u32CSeq,
-        pstClient->u16ClientRtpPort,
-        pstClient->u16ClientRtcpPort,
-        pstClient->szSessionId);
+        u32CSeq, pstClient->u16ClientRtpPort, pstClient->u16ClientRtcpPort, pstClient->szSessionId);
 }
 
 static S32 mux_rtsp_handle_play(MuxRtspClient *pstClient, U32 u32CSeq) {
     pstClient->eState = MUX_RTSP_CLIENT_PLAYING;
-    return mux_rtsp_send_response(
-        pstClient,
-        NULL,
+    pstClient->bNeedParamInject = MPP_TRUE; /* Inject SPS/PPS before first frame */
+
+    if (pstClient->pStream) {
+        MUX_RTSP_LOGI("client playing stream '%s' (chn=%d)", pstClient->pStream->szPath, pstClient->pStream->s32ChnId);
+    }
+
+    return mux_rtsp_send_response(pstClient, NULL,
         "RTSP/1.0 200 OK\r\n"
         "CSeq: %u\r\n"
         "Session: %s\r\n"
         "Range: npt=0.000-\r\n",
-        u32CSeq,
-        pstClient->szSessionId);
+        u32CSeq, pstClient->szSessionId);
 }
 
 static S32 mux_rtsp_handle_teardown(MuxRtspClient *pstClient, U32 u32CSeq) {
-    S32 ret = mux_rtsp_send_response(
-        pstClient,
-        NULL,
+    S32 ret = mux_rtsp_send_response(pstClient, NULL,
         "RTSP/1.0 200 OK\r\n"
         "CSeq: %u\r\n"
         "Session: %s\r\n",
-        u32CSeq,
-        pstClient->szSessionId);
+        u32CSeq, pstClient->szSessionId);
     pstClient->eState = MUX_RTSP_CLIENT_INIT;
     return ret;
 }
 
 static S32 mux_rtsp_handle_get_parameter(MuxRtspClient *pstClient, U32 u32CSeq) {
-    return mux_rtsp_send_response(
-        pstClient,
-        NULL,
+    return mux_rtsp_send_response(pstClient, NULL,
         "RTSP/1.0 200 OK\r\n"
         "CSeq: %u\r\n"
         "Session: %s\r\n",
-        u32CSeq,
-        pstClient->szSessionId);
+        u32CSeq, pstClient->szSessionId);
 }
 
 static S32 mux_rtsp_handle_set_parameter(MuxRtspClient *pstClient, U32 u32CSeq) {
-    return mux_rtsp_send_response(
-        pstClient,
-        NULL,
+    return mux_rtsp_send_response(pstClient, NULL,
         "RTSP/1.0 200 OK\r\n"
         "CSeq: %u\r\n"
         "Session: %s\r\n",
-        u32CSeq,
-        pstClient->szSessionId);
+        u32CSeq, pstClient->szSessionId);
 }
 
-static S32 mux_rtsp_process_request(MuxChannel *pstChn, MuxRtspClient *pstClient, const CHAR *pszReq) {
+static S32 mux_rtsp_process_request(MuxRtspClient *pstClient, const CHAR *pszReq) {
     CHAR method[32] = {0};
     U32 cseq;
 
@@ -440,7 +474,7 @@ static S32 mux_rtsp_process_request(MuxChannel *pstChn, MuxRtspClient *pstClient
         return mux_rtsp_handle_options(pstClient, cseq);
     }
     if (strcmp(method, "DESCRIBE") == 0) {
-        return mux_rtsp_handle_describe(pstChn, pstClient, cseq);
+        return mux_rtsp_handle_describe(pstClient, pszReq, cseq);
     }
     if (strcmp(method, "SETUP") == 0) {
         return mux_rtsp_handle_setup(pstClient, pszReq, cseq);
@@ -461,28 +495,29 @@ static S32 mux_rtsp_process_request(MuxChannel *pstChn, MuxRtspClient *pstClient
     return mux_rtsp_send_response(pstClient, NULL, "RTSP/1.0 405 Method Not Allowed\r\nCSeq: %u\r\n", cseq);
 }
 
+/* Accept thread for global shared server */
 static VOID *mux_rtsp_accept_thread(VOID *arg) {
-    MuxChannel *pstChn = (MuxChannel *)arg;
-    MuxRtspServer *pstServer = &pstChn->stRtspServer;
+    MuxGlobalRtspServer *pServer = &g_stGlobalServer;
+    (void)arg;
 
-    while (pstServer->s32Running) {
+    while (pServer->s32Running) {
         fd_set rfds;
-        S32 maxfd = pstServer->s32ListenFd;
+        S32 maxfd = pServer->s32ListenFd;
         struct timeval tv;
 
         FD_ZERO(&rfds);
-        FD_SET(pstServer->s32ListenFd, &rfds);
+        FD_SET(pServer->s32ListenFd, &rfds);
 
-        pthread_mutex_lock(&pstServer->lock);
-        for (S32 i = 0; i < MUX_RTSP_MAX_SESSIONS; ++i) {
-            if (pstServer->astClients[i].s32Used) {
-                FD_SET(pstServer->astClients[i].s32RtspFd, &rfds);
-                if (pstServer->astClients[i].s32RtspFd > maxfd) {
-                    maxfd = pstServer->astClients[i].s32RtspFd;
+        pthread_mutex_lock(&pServer->lock);
+        for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
+            if (pServer->astClients[i].s32Used && pServer->astClients[i].s32RtspFd >= 0) {
+                FD_SET(pServer->astClients[i].s32RtspFd, &rfds);
+                if (pServer->astClients[i].s32RtspFd > maxfd) {
+                    maxfd = pServer->astClients[i].s32RtspFd;
                 }
             }
         }
-        pthread_mutex_unlock(&pstServer->lock);
+        pthread_mutex_unlock(&pServer->lock);
 
         tv.tv_sec = 1;
         tv.tv_usec = 0;
@@ -490,13 +525,14 @@ static VOID *mux_rtsp_accept_thread(VOID *arg) {
             continue;
         }
 
-        if (FD_ISSET(pstServer->s32ListenFd, &rfds)) {
+        /* Accept new connections */
+        if (FD_ISSET(pServer->s32ListenFd, &rfds)) {
             struct sockaddr_in peer;
             socklen_t len = sizeof(peer);
-            S32 fd = accept(pstServer->s32ListenFd, (struct sockaddr *)&peer, &len);
+            S32 fd = accept(pServer->s32ListenFd, (struct sockaddr *)&peer, &len);
             if (fd >= 0) {
-                pthread_mutex_lock(&pstServer->lock);
-                MuxRtspClient *pstClient = mux_rtsp_client_alloc(pstServer);
+                pthread_mutex_lock(&pServer->lock);
+                MuxRtspClient *pstClient = mux_rtsp_client_alloc();
                 if (pstClient) {
                     pstClient->s32RtspFd = fd;
                     pstClient->stPeerAddr = peer;
@@ -505,15 +541,17 @@ static VOID *mux_rtsp_accept_thread(VOID *arg) {
                     MUX_RTSP_LOGI("client connected: %s:%d", inet_ntoa(peer.sin_addr), ntohs(peer.sin_port));
                 } else {
                     close(fd);
+                    MUX_RTSP_LOGE("no free client slots");
                 }
-                pthread_mutex_unlock(&pstServer->lock);
+                pthread_mutex_unlock(&pServer->lock);
             }
         }
 
-        pthread_mutex_lock(&pstServer->lock);
-        for (S32 i = 0; i < MUX_RTSP_MAX_SESSIONS; ++i) {
-            MuxRtspClient *pstClient = &pstServer->astClients[i];
-            if (!pstClient->s32Used) {
+        /* Handle client requests */
+        pthread_mutex_lock(&pServer->lock);
+        for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
+            MuxRtspClient *pstClient = &pServer->astClients[i];
+            if (!pstClient->s32Used || pstClient->s32RtspFd < 0) {
                 continue;
             }
             if (!FD_ISSET(pstClient->s32RtspFd, &rfds)) {
@@ -526,107 +564,245 @@ static VOID *mux_rtsp_accept_thread(VOID *arg) {
                 continue;
             }
             pstClient->szRecvBuf[rd] = '\0';
-            if (mux_rtsp_process_request(pstChn, pstClient, pstClient->szRecvBuf) != 0) {
+            if (mux_rtsp_process_request(pstClient, pstClient->szRecvBuf) != 0) {
                 mux_rtsp_client_close(pstClient);
             }
         }
-        pthread_mutex_unlock(&pstServer->lock);
+        pthread_mutex_unlock(&pServer->lock);
     }
 
     return NULL;
 }
 
-S32 mux_rtsp_server_start(MuxChannel *pstChn) {
-    MuxRtspServer *pstServer;
+/* ======================== Global Server Init/Deinit ======================== */
+
+static S32 mux_rtsp_global_server_init(U16 u16Port) {
+    MuxGlobalRtspServer *pServer = &g_stGlobalServer;
     struct sockaddr_in addr;
     S32 opt = 1;
+
+    if (pServer->s32Inited) {
+        pServer->u32RefCount++;
+        return ERR_MUX_OK; /* Already initialized */
+    }
+
+    memset(pServer, 0, sizeof(*pServer));
+    pthread_mutex_init(&pServer->lock, NULL);
+    pServer->u16Port = u16Port;
+
+    pServer->s32ListenFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (pServer->s32ListenFd < 0) {
+        pthread_mutex_destroy(&pServer->lock);
+        return ERR_MUX_OPEN_FAIL;
+    }
+
+    setsockopt(pServer->s32ListenFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(u16Port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(pServer->s32ListenFd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        MUX_RTSP_LOGE("bind port %u failed: %s", u16Port, strerror(errno));
+        close(pServer->s32ListenFd);
+        pthread_mutex_destroy(&pServer->lock);
+        return ERR_MUX_OPEN_FAIL;
+    }
+
+    if (listen(pServer->s32ListenFd, MUX_RTSP_MAX_CLIENTS) < 0) {
+        close(pServer->s32ListenFd);
+        pthread_mutex_destroy(&pServer->lock);
+        return ERR_MUX_OPEN_FAIL;
+    }
+
+    pServer->s32Running = 1;
+    pServer->s32Inited = 1;
+    pServer->u32RefCount = 1;
+
+    if (pthread_create(&pServer->tidAccept, NULL, mux_rtsp_accept_thread, NULL) != 0) {
+        close(pServer->s32ListenFd);
+        pthread_mutex_destroy(&pServer->lock);
+        pServer->s32Inited = 0;
+        return ERR_MUX_OPEN_FAIL;
+    }
+
+    MUX_RTSP_LOGI("Shared RTSP server started on port %u", u16Port);
+    return ERR_MUX_OK;
+}
+
+static VOID mux_rtsp_global_server_deinit(void) {
+    MuxGlobalRtspServer *pServer = &g_stGlobalServer;
+
+    if (!pServer->s32Inited) {
+        return;
+    }
+
+    pServer->u32RefCount--;
+    if (pServer->u32RefCount > 0) {
+        return; /* Still referenced */
+    }
+
+    pServer->s32Running = 0;
+    shutdown(pServer->s32ListenFd, SHUT_RDWR);
+    close(pServer->s32ListenFd);
+    pthread_join(pServer->tidAccept, NULL);
+
+    pthread_mutex_lock(&pServer->lock);
+    for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
+        mux_rtsp_client_close(&pServer->astClients[i]);
+    }
+    pthread_mutex_unlock(&pServer->lock);
+    pthread_mutex_destroy(&pServer->lock);
+
+    memset(pServer, 0, sizeof(*pServer));
+    MUX_RTSP_LOGI("Shared RTSP server stopped");
+}
+
+/* ======================== Stream Registration ======================== */
+
+S32 mux_rtsp_server_start(MuxChannel *pstChn) {
+    MuxGlobalRtspServer *pServer = &g_stGlobalServer;
+    MuxRtspStream *pStream = NULL;
+    CHAR szHost[64];
+    U16 u16Port;
+    CHAR szPath[128];
     S32 ret;
 
     if (!pstChn) {
         return ERR_MUX_NULL_PTR;
     }
 
-    pstServer = &pstChn->stRtspServer;
-    memset(pstServer, 0, sizeof(*pstServer));
-    pthread_mutex_init(&pstServer->lock, NULL);
-    pstServer->u32Ssrc = (U32)rand();
-    pstServer->u16Seq = 1;
-
-    ret = mux_rtsp_parse_url(
-        pstChn->stAttr.szUrl,
-        pstServer->szHost,
-        sizeof(pstServer->szHost),
-        &pstServer->u16ListenPort,
-        pstServer->szPath,
-        sizeof(pstServer->szPath));
+    /* Parse URL to get port and path */
+    ret = mux_rtsp_parse_url(pstChn->stAttr.szUrl, szHost, sizeof(szHost), &u16Port, szPath, sizeof(szPath));
     if (ret != ERR_MUX_OK) {
-        pthread_mutex_destroy(&pstServer->lock);
         return ret;
     }
 
-    pstServer->s32ListenFd = socket(AF_INET, SOCK_STREAM, 0);
-    if (pstServer->s32ListenFd < 0) {
-        pthread_mutex_destroy(&pstServer->lock);
-        return ERR_MUX_OPEN_FAIL;
+    /* Initialize global server if needed */
+    ret = mux_rtsp_global_server_init(u16Port);
+    if (ret != ERR_MUX_OK) {
+        return ret;
     }
 
-    setsockopt(pstServer->s32ListenFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    /* Register stream with global server */
+    pthread_mutex_lock(&pServer->lock);
 
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(pstServer->u16ListenPort);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(pstServer->s32ListenFd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        close(pstServer->s32ListenFd);
-        pthread_mutex_destroy(&pstServer->lock);
-        return ERR_MUX_OPEN_FAIL;
-    }
-    if (listen(pstServer->s32ListenFd, MUX_RTSP_MAX_SESSIONS) < 0) {
-        close(pstServer->s32ListenFd);
-        pthread_mutex_destroy(&pstServer->lock);
-        return ERR_MUX_OPEN_FAIL;
+    /* Check if already registered */
+    pStream = mux_rtsp_find_stream_by_chn(pstChn->s32ChnId);
+    if (pStream) {
+        pthread_mutex_unlock(&pServer->lock);
+        MUX_RTSP_LOGI("Stream chn=%d already registered at '%s'", pstChn->s32ChnId, pStream->szPath);
+        return ERR_MUX_OK;
     }
 
-    pstServer->s32Running = 1;
-    if (pthread_create(&pstServer->tidAccept, NULL, mux_rtsp_accept_thread, pstChn) != 0) {
-        close(pstServer->s32ListenFd);
-        pthread_mutex_destroy(&pstServer->lock);
-        return ERR_MUX_OPEN_FAIL;
+    /* Find free slot */
+    for (S32 i = 0; i < MUX_RTSP_MAX_STREAMS; i++) {
+        if (!pServer->astStreams[i].s32Used) {
+            pStream = &pServer->astStreams[i];
+            break;
+        }
     }
 
-    MUX_RTSP_LOGI("RTSP server started at rtsp://0.0.0.0:%u%s", pstServer->u16ListenPort, pstServer->szPath);
+    if (!pStream) {
+        pthread_mutex_unlock(&pServer->lock);
+        MUX_RTSP_LOGE("No free stream slots");
+        return ERR_MUX_BUSY;
+    }
+
+    /* Initialize stream */
+    memset(pStream, 0, sizeof(*pStream));
+    pStream->s32Used = 1;
+    pStream->s32ChnId = pstChn->s32ChnId;
+    snprintf(pStream->szPath, sizeof(pStream->szPath), "%s", szPath);
+    pStream->eCodecType = pstChn->stAttr.stStreamAttr.eCodecType;
+    pStream->u32Width = pstChn->stAttr.stStreamAttr.u32Width;
+    pStream->u32Height = pstChn->stAttr.stStreamAttr.u32Height;
+    pStream->u32Ssrc = (U32)rand();
+    pStream->u16Seq = 1;
+    pthread_mutex_init(&pStream->lock, NULL);
+    pServer->u32StreamCount++;
+
+    pthread_mutex_unlock(&pServer->lock);
+
+    MUX_RTSP_LOGI("Stream registered: chn=%d path='%s' codec=%d", pstChn->s32ChnId, szPath, pStream->eCodecType);
     return ERR_MUX_OK;
 }
 
 VOID mux_rtsp_server_stop(MuxChannel *pstChn) {
-    MuxRtspServer *pstServer;
+    MuxGlobalRtspServer *pServer = &g_stGlobalServer;
+    MuxRtspStream *pStream;
 
-    if (!pstChn) {
+    if (!pstChn || !pServer->s32Inited) {
         return;
     }
 
-    pstServer = &pstChn->stRtspServer;
-    if (!pstServer->s32Running) {
-        return;
+    pthread_mutex_lock(&pServer->lock);
+
+    pStream = mux_rtsp_find_stream_by_chn(pstChn->s32ChnId);
+    if (pStream) {
+        /* Disconnect all clients watching this stream */
+        for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; i++) {
+            if (pServer->astClients[i].s32Used && pServer->astClients[i].pStream == pStream) {
+                mux_rtsp_client_close(&pServer->astClients[i]);
+            }
+        }
+
+        MUX_RTSP_LOGI("Stream unregistered: chn=%d path='%s'", pstChn->s32ChnId, pStream->szPath);
+        pthread_mutex_destroy(&pStream->lock);
+        memset(pStream, 0, sizeof(*pStream));
+        pServer->u32StreamCount--;
     }
 
-    pstServer->s32Running = 0;
-    shutdown(pstServer->s32ListenFd, SHUT_RDWR);
-    close(pstServer->s32ListenFd);
-    pthread_join(pstServer->tidAccept, NULL);
+    pthread_mutex_unlock(&pServer->lock);
 
-    pthread_mutex_lock(&pstServer->lock);
-    for (S32 i = 0; i < MUX_RTSP_MAX_SESSIONS; ++i) {
-        mux_rtsp_client_close(&pstServer->astClients[i]);
+    /* Deinit global server if no more streams */
+    mux_rtsp_global_server_deinit();
+}
+
+/* Cache SPS/PPS/VPS to stream's parameter sets */
+static void mux_rtsp_cache_param_sets_to_stream(MuxRtspStream *pStream, const MuxPacket *pstPkt) {
+    /* Reuse existing function signature but with stream */
+    MuxRtspServer tmpServer;
+    memset(&tmpServer, 0, sizeof(tmpServer));
+    mux_rtsp_cache_param_sets(&tmpServer, pstPkt);
+
+    /* Copy to stream */
+    if (tmpServer.u32SpsLen > 0) {
+        memcpy(pStream->au8Sps, tmpServer.au8Sps, tmpServer.u32SpsLen);
+        pStream->u32SpsLen = tmpServer.u32SpsLen;
     }
-    pthread_mutex_unlock(&pstServer->lock);
-    pthread_mutex_destroy(&pstServer->lock);
-    memset(pstServer, 0, sizeof(*pstServer));
+    if (tmpServer.u32PpsLen > 0) {
+        memcpy(pStream->au8Pps, tmpServer.au8Pps, tmpServer.u32PpsLen);
+        pStream->u32PpsLen = tmpServer.u32PpsLen;
+    }
+    if (tmpServer.u32VpsLen > 0) {
+        memcpy(pStream->au8Vps, tmpServer.au8Vps, tmpServer.u32VpsLen);
+        pStream->u32VpsLen = tmpServer.u32VpsLen;
+    }
+}
+
+/* Adapter: send using stream's SSRC/seq instead of server's */
+static S32 mux_rtsp_send_h26x_annexb_stream(MuxRtspStream *pStream, MuxRtspClient *pstClient, const MuxPacket *pstPkt) {
+    MuxRtspServer tmpServer;
+    S32 ret;
+
+    /* Build temp server with stream's SSRC/seq */
+    memset(&tmpServer, 0, sizeof(tmpServer));
+    tmpServer.u32Ssrc = pStream->u32Ssrc;
+    tmpServer.u16Seq = pStream->u16Seq;
+
+    ret = mux_rtsp_send_h26x_annexb(&tmpServer, pstClient, pstPkt);
+
+    /* Update stream's sequence number */
+    pStream->u16Seq = tmpServer.u16Seq;
+
+    return ret;
 }
 
 S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt) {
-    MuxRtspServer *pstServer;
+    MuxGlobalRtspServer *pServer = &g_stGlobalServer;
+    MuxRtspStream *pStream;
     S32 ret = ERR_MUX_OK;
     U32 u32ActiveCnt = 0;
 
@@ -634,30 +810,88 @@ S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt) {
         return ERR_MUX_NULL_PTR;
     }
 
-    pstServer = &pstChn->stRtspServer;
-
-    /* cache SPS/PPS/VPS on every keyframe for SDP and late-joiner injection */
-    if (pstPkt->bKeyFrame) {
-        mux_rtsp_cache_param_sets(pstServer, pstPkt);
+    if (!pServer->s32Inited) {
+        return ERR_MUX_NOT_INIT;
     }
 
-    pthread_mutex_lock(&pstServer->lock);
-    for (S32 i = 0; i < MUX_RTSP_MAX_SESSIONS; ++i) {
-        MuxRtspClient *pstClient = &pstServer->astClients[i];
-        if (!pstClient->s32Used || pstClient->eState != MUX_RTSP_CLIENT_PLAYING) {
+    /* Find stream for this channel */
+    pthread_mutex_lock(&pServer->lock);
+    pStream = mux_rtsp_find_stream_by_chn(pstChn->s32ChnId);
+    if (!pStream) {
+        pthread_mutex_unlock(&pServer->lock);
+        return ERR_MUX_INVALID_CHN;
+    }
+
+    /* Cache SPS/PPS/VPS on keyframe */
+    if (pstPkt->bKeyFrame) {
+        mux_rtsp_cache_param_sets_to_stream(pStream, pstPkt);
+        if (pStream->u32SpsLen > 0 && pStream->u32PpsLen > 0) {
+            /* Per-stream logging (only once per stream) */
+            static U32 s_loggedMask = 0;
+            if (!(s_loggedMask & (1u << pstChn->s32ChnId))) {
+                MUX_RTSP_LOGI("chn=%d SPS/PPS cached: SPS=%u PPS=%u codec=%d", pstChn->s32ChnId, pStream->u32SpsLen,
+                    pStream->u32PpsLen, pstPkt->eCodecType);
+                s_loggedMask |= (1u << pstChn->s32ChnId);
+            }
+        }
+    }
+
+    /* Send to all clients subscribed to this stream */
+    for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
+        MuxRtspClient *pstClient = &pServer->astClients[i];
+        if (!pstClient->s32Used || pstClient->pStream != pStream) {
             continue;
         }
-        if (mux_rtsp_send_h26x_annexb(pstServer, pstClient, pstPkt) != 0) {
-            MUX_RTSP_LOGE("send failed to client %d, closing", i);
+        if (pstClient->eState != MUX_RTSP_CLIENT_PLAYING) {
+            continue;
+        }
+
+        /* Inject cached SPS/PPS for new clients before first frame */
+        if (pstClient->bNeedParamInject && pStream->u32SpsLen > 0 && pStream->u32PpsLen > 0) {
+            MuxPacket paramPkt;
+            U8 paramBuf[MUX_SPS_PPS_MAX_SIZE * 3 + 16];
+            U32 offset = 0;
+
+            /* Build Annex-B format: 00 00 00 01 SPS 00 00 00 01 PPS */
+            paramBuf[offset++] = 0x00;
+            paramBuf[offset++] = 0x00;
+            paramBuf[offset++] = 0x00;
+            paramBuf[offset++] = 0x01;
+            memcpy(paramBuf + offset, pStream->au8Sps, pStream->u32SpsLen);
+            offset += pStream->u32SpsLen;
+
+            paramBuf[offset++] = 0x00;
+            paramBuf[offset++] = 0x00;
+            paramBuf[offset++] = 0x00;
+            paramBuf[offset++] = 0x01;
+            memcpy(paramBuf + offset, pStream->au8Pps, pStream->u32PpsLen);
+            offset += pStream->u32PpsLen;
+
+            memset(&paramPkt, 0, sizeof(paramPkt));
+            paramPkt.pu8Data = paramBuf;
+            paramPkt.u32Size = offset;
+            paramPkt.eCodecType = pstPkt->eCodecType;
+            paramPkt.bKeyFrame = MPP_TRUE;
+            paramPkt.u64PTS = pstPkt->u64PTS;
+
+            mux_rtsp_send_h26x_annexb_stream(pStream, pstClient, &paramPkt);
+            pstClient->bNeedParamInject = MPP_FALSE;
+            MUX_RTSP_LOGI("injected SPS(%u)/PPS(%u) for client on stream '%s'", pStream->u32SpsLen, pStream->u32PpsLen,
+                pStream->szPath);
+        }
+
+        if (mux_rtsp_send_h26x_annexb_stream(pStream, pstClient, pstPkt) != 0) {
+            MUX_RTSP_LOGE("send failed to client on stream '%s', closing", pStream->szPath);
             mux_rtsp_client_close(pstClient);
             ret = ERR_MUX_OPEN_FAIL;
         } else {
             ++u32ActiveCnt;
         }
     }
-    pstServer->u32ActiveClients = u32ActiveCnt;
-    pstServer->u64TotalPkts++;
-    pstServer->u64TotalBytes += pstPkt->u32Size;
-    pthread_mutex_unlock(&pstServer->lock);
+
+    pStream->u64TotalPkts++;
+    pStream->u64TotalBytes += pstPkt->u32Size;
+    pthread_mutex_unlock(&pServer->lock);
+
     return ret;
 }

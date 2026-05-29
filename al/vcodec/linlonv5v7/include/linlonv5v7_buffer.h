@@ -224,4 +224,4 @@ S32 getExtraFd(Buffer *buf);
 BOOL getIsQueued(Buffer *buf);
 S32 setIsQueued(Buffer *buf, BOOL queued);
 
-#endif /*LINLONV5V7_BUFFER_H*/
+#endif /*_LINLONV5V7_BUFFER_H_*/

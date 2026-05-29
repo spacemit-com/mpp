@@ -25,17 +25,24 @@
 #include <string.h>
 #include <time.h>
 
-#include "vdec.h"
 #include "log.h"
-#include "sys/sys_api.h"
 #include "sys/mpp_shm.h"
+#include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "vdec.h"
 
 #define MODULE_TAG "mpp_vdec_api"
 
 #define VDEC_MAX_EXT_BUF 64
-#define VDEC_DEFAULT_BUF_CNT 12                     /* default output buffer count */
-#define VDEC_DEPTH_DEFAULT VDEC_DEFAULT_BUF_CNT / 2 /* depth = half of buf cnt */
+/* TODO: AL layer has a timing bug in resolution change handling:
+ * - AL does streamoff → allocateBuffers → streamon
+ * - MPI then calls vdec_requeue_ext_buffers() to QBUF
+ * - But decoder starts at streamon, before buffers are queued!
+ * - With 32+ buffers, this causes segfault.
+ * - With 20 buffers, it causes "handle not found" but no crash.
+ * Temporary: use 20 until AL layer fix is implemented. */
+#define VDEC_DEFAULT_BUF_CNT 20 /* limited to avoid segfault, see TODO above */
+#define VDEC_DEPTH_DEFAULT 6    /* depth queue size */
 #define VDEC_DEPTH_MAX VDEC_DEPTH_DEFAULT
 
 /* ======================== Internal Channel Context ======================== */
@@ -106,74 +113,72 @@ static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
 /* ======================== Helpers ======================== */
 
-static inline BOOL vdec_chn_valid(S32 s32ChnId) {
-    return (s32ChnId >= 0 && s32ChnId < VDEC_MAX_CHN);
-}
+static inline BOOL vdec_chn_valid(S32 s32ChnId) { return (s32ChnId >= 0 && s32ChnId < VDEC_MAX_CHN); }
 
 static void vdec_attr_to_old_para(const VdecChnAttr *pstAttr, MppVdecCtx *pOldCtx) {
     pOldCtx->eCodecType = CODEC_V4L2_LINLONV5V7;
 
     switch (pstAttr->eCodecType) {
-        case MPP_STREAM_CODEC_H263:
-            pOldCtx->stVdecPara.eCodingType = CODING_H263;
-            break;
-        case MPP_STREAM_CODEC_H264:
-            pOldCtx->stVdecPara.eCodingType = CODING_H264;
-            break;
-        case MPP_STREAM_CODEC_H264_MVC:
-            pOldCtx->stVdecPara.eCodingType = CODING_H264_MVC;
-            break;
-        case MPP_STREAM_CODEC_H264_NO_SC:
-            pOldCtx->stVdecPara.eCodingType = CODING_H264_NO_SC;
-            break;
-        case MPP_STREAM_CODEC_H265:
-            pOldCtx->stVdecPara.eCodingType = CODING_H265;
-            break;
-        case MPP_STREAM_CODEC_MJPEG:
-            pOldCtx->stVdecPara.eCodingType = CODING_MJPEG;
-            break;
-        case MPP_STREAM_CODEC_JPEG:
-            pOldCtx->stVdecPara.eCodingType = CODING_JPEG;
-            break;
-        case MPP_STREAM_CODEC_VP8:
-            pOldCtx->stVdecPara.eCodingType = CODING_VP8;
-            break;
-        case MPP_STREAM_CODEC_VP9:
-            pOldCtx->stVdecPara.eCodingType = CODING_VP9;
-            break;
-        case MPP_STREAM_CODEC_AV1:
-            pOldCtx->stVdecPara.eCodingType = CODING_AV1;
-            break;
-        case MPP_STREAM_CODEC_AVS:
-            pOldCtx->stVdecPara.eCodingType = CODING_AVS;
-            break;
-        case MPP_STREAM_CODEC_AVS2:
-            pOldCtx->stVdecPara.eCodingType = CODING_AVS2;
-            break;
-        case MPP_STREAM_CODEC_MPEG1:
-            pOldCtx->stVdecPara.eCodingType = CODING_MPEG1;
-            break;
-        case MPP_STREAM_CODEC_MPEG2:
-            pOldCtx->stVdecPara.eCodingType = CODING_MPEG2;
-            break;
-        case MPP_STREAM_CODEC_MPEG4:
-            pOldCtx->stVdecPara.eCodingType = CODING_MPEG4;
-            break;
-        case MPP_STREAM_CODEC_RV:
-            pOldCtx->stVdecPara.eCodingType = CODING_RV;
-            break;
-        case MPP_STREAM_CODEC_VC1:
-            pOldCtx->stVdecPara.eCodingType = CODING_VC1;
-            break;
-        case MPP_STREAM_CODEC_VC1_ANNEX_L:
-            pOldCtx->stVdecPara.eCodingType = CODING_VC1_ANNEX_L;
-            break;
-        case MPP_STREAM_CODEC_FWHT:
-            pOldCtx->stVdecPara.eCodingType = CODING_FWHT;
-            break;
-        default:
-            pOldCtx->stVdecPara.eCodingType = CODING_H264;
-            break;
+    case MPP_STREAM_CODEC_H263:
+        pOldCtx->stVdecPara.eCodingType = CODING_H263;
+        break;
+    case MPP_STREAM_CODEC_H264:
+        pOldCtx->stVdecPara.eCodingType = CODING_H264;
+        break;
+    case MPP_STREAM_CODEC_H264_MVC:
+        pOldCtx->stVdecPara.eCodingType = CODING_H264_MVC;
+        break;
+    case MPP_STREAM_CODEC_H264_NO_SC:
+        pOldCtx->stVdecPara.eCodingType = CODING_H264_NO_SC;
+        break;
+    case MPP_STREAM_CODEC_H265:
+        pOldCtx->stVdecPara.eCodingType = CODING_H265;
+        break;
+    case MPP_STREAM_CODEC_MJPEG:
+        pOldCtx->stVdecPara.eCodingType = CODING_MJPEG;
+        break;
+    case MPP_STREAM_CODEC_JPEG:
+        pOldCtx->stVdecPara.eCodingType = CODING_JPEG;
+        break;
+    case MPP_STREAM_CODEC_VP8:
+        pOldCtx->stVdecPara.eCodingType = CODING_VP8;
+        break;
+    case MPP_STREAM_CODEC_VP9:
+        pOldCtx->stVdecPara.eCodingType = CODING_VP9;
+        break;
+    case MPP_STREAM_CODEC_AV1:
+        pOldCtx->stVdecPara.eCodingType = CODING_AV1;
+        break;
+    case MPP_STREAM_CODEC_AVS:
+        pOldCtx->stVdecPara.eCodingType = CODING_AVS;
+        break;
+    case MPP_STREAM_CODEC_AVS2:
+        pOldCtx->stVdecPara.eCodingType = CODING_AVS2;
+        break;
+    case MPP_STREAM_CODEC_MPEG1:
+        pOldCtx->stVdecPara.eCodingType = CODING_MPEG1;
+        break;
+    case MPP_STREAM_CODEC_MPEG2:
+        pOldCtx->stVdecPara.eCodingType = CODING_MPEG2;
+        break;
+    case MPP_STREAM_CODEC_MPEG4:
+        pOldCtx->stVdecPara.eCodingType = CODING_MPEG4;
+        break;
+    case MPP_STREAM_CODEC_RV:
+        pOldCtx->stVdecPara.eCodingType = CODING_RV;
+        break;
+    case MPP_STREAM_CODEC_VC1:
+        pOldCtx->stVdecPara.eCodingType = CODING_VC1;
+        break;
+    case MPP_STREAM_CODEC_VC1_ANNEX_L:
+        pOldCtx->stVdecPara.eCodingType = CODING_VC1_ANNEX_L;
+        break;
+    case MPP_STREAM_CODEC_FWHT:
+        pOldCtx->stVdecPara.eCodingType = CODING_FWHT;
+        break;
+    default:
+        pOldCtx->stVdecPara.eCodingType = CODING_H264;
+        break;
     }
 
     pOldCtx->stVdecPara.nWidth = (S32)pstAttr->u32Width;
@@ -215,33 +220,33 @@ static void vdec_fill_plane_sizes(VideoFrameInfo *pstOut) {
         n = FRAME_MAX_PLANE;
 
     switch (fmt) {
-        case MPP_PIXEL_FORMAT_NV12:
-        case MPP_PIXEL_FORMAT_NV21:
-            if (n >= 2) {
-                pstOut->stVFrame.u32PlaneSize[0] = stride * h;
-                pstOut->stVFrame.u32PlaneSize[1] = stride * h / 2;
-                pstOut->stVFrame.u32PlaneSizeValid[0] = pstOut->stVFrame.u32PlaneSize[0];
-                pstOut->stVFrame.u32PlaneSizeValid[1] = pstOut->stVFrame.u32PlaneSize[1];
-            } else {
-                pstOut->stVFrame.u32PlaneSize[0] = stride * h * 3 / 2;
-                pstOut->stVFrame.u32PlaneSizeValid[0] = pstOut->stVFrame.u32PlaneSize[0];
-            }
-            break;
-        case MPP_PIXEL_FORMAT_I420:
-        case MPP_PIXEL_FORMAT_YV12:
-            if (n >= 3) {
-                U32 chroma_w = (w + 1) / 2;
-                U32 chroma_h = (h + 1) / 2;
-                pstOut->stVFrame.u32PlaneSize[0] = stride * h;
-                pstOut->stVFrame.u32PlaneSize[1] = chroma_w * chroma_h;
-                pstOut->stVFrame.u32PlaneSize[2] = chroma_w * chroma_h;
-                pstOut->stVFrame.u32PlaneSizeValid[0] = pstOut->stVFrame.u32PlaneSize[0];
-                pstOut->stVFrame.u32PlaneSizeValid[1] = pstOut->stVFrame.u32PlaneSize[1];
-                pstOut->stVFrame.u32PlaneSizeValid[2] = pstOut->stVFrame.u32PlaneSize[2];
-            }
-            break;
-        default:
-            break;
+    case MPP_PIXEL_FORMAT_NV12:
+    case MPP_PIXEL_FORMAT_NV21:
+        if (n >= 2) {
+            pstOut->stVFrame.u32PlaneSize[0] = stride * h;
+            pstOut->stVFrame.u32PlaneSize[1] = stride * h / 2;
+            pstOut->stVFrame.u32PlaneSizeValid[0] = pstOut->stVFrame.u32PlaneSize[0];
+            pstOut->stVFrame.u32PlaneSizeValid[1] = pstOut->stVFrame.u32PlaneSize[1];
+        } else {
+            pstOut->stVFrame.u32PlaneSize[0] = stride * h * 3 / 2;
+            pstOut->stVFrame.u32PlaneSizeValid[0] = pstOut->stVFrame.u32PlaneSize[0];
+        }
+        break;
+    case MPP_PIXEL_FORMAT_I420:
+    case MPP_PIXEL_FORMAT_YV12:
+        if (n >= 3) {
+            U32 chroma_w = (w + 1) / 2;
+            U32 chroma_h = (h + 1) / 2;
+            pstOut->stVFrame.u32PlaneSize[0] = stride * h;
+            pstOut->stVFrame.u32PlaneSize[1] = chroma_w * chroma_h;
+            pstOut->stVFrame.u32PlaneSize[2] = chroma_w * chroma_h;
+            pstOut->stVFrame.u32PlaneSizeValid[0] = pstOut->stVFrame.u32PlaneSize[0];
+            pstOut->stVFrame.u32PlaneSizeValid[1] = pstOut->stVFrame.u32PlaneSize[1];
+            pstOut->stVFrame.u32PlaneSizeValid[2] = pstOut->stVFrame.u32PlaneSize[2];
+        }
+        break;
+    default:
+        break;
     }
 }
 
@@ -491,10 +496,20 @@ static S32 vdec_requeue_ext_buffers(VdecChnCtx *pChn) {
  */
 static void *vdec_recycle_task(void *arg) {
     VdecChnCtx *pChn = (VdecChnCtx *)arg;
+    S32 consecutiveErrors = 0;
 
     info("vdec recycle task started: chn %d pool=%lu", pChn->s32ChnId, pChn->ulPoolId);
 
     while (pChn->bRecycleRun) {
+        /* If too many consecutive errors, slow down to avoid CPU spin */
+        if (consecutiveErrors > 10) {
+            usleep(100000); /* 100ms delay */
+            if (consecutiveErrors > 50) {
+                error("recycle: too many errors (%d), pausing 1s", consecutiveErrors);
+                sleep(1);
+            }
+        }
+
         /* Block up to 100ms waiting for a free buffer in the pool. */
         UL ulBuf = VB_GetBuffer(pChn->ulPoolId, 100);
         if (ulBuf == 0)
@@ -519,9 +534,15 @@ static void *vdec_recycle_task(void *arg) {
          * (VIDIOC_QBUF), so the buffer is already back in the decoder
          * after this call.  Mark bInDecoder = TRUE immediately. */
         if (pChn->stExtBuf[idx].pSrcData) {
-            vdec_ctx_return_output_frame(pChn->pOldCtx, pChn->stExtBuf[idx].pSrcData);
+            S32 retVal = vdec_ctx_return_output_frame(pChn->pOldCtx, pChn->stExtBuf[idx].pSrcData);
             pChn->stExtBuf[idx].pSrcData = NULL;
-            pChn->stExtBuf[idx].bInDecoder = MPP_TRUE;
+            if (retVal == MPP_OK) {
+                pChn->stExtBuf[idx].bInDecoder = MPP_TRUE;
+                consecutiveErrors = 0;
+            } else {
+                /* return_output_frame failed, need to manually re-queue */
+                consecutiveErrors++;
+            }
         }
 
         /*
@@ -555,8 +576,12 @@ static void *vdec_recycle_task(void *arg) {
         S32 ret = vdec_ctx_queue_output_buffer(pChn->pOldCtx, queue_data);
         if (ret == MPP_OK) {
             pChn->stExtBuf[idx].bInDecoder = MPP_TRUE;
+            consecutiveErrors = 0; /* Reset on success */
         } else {
-            error("recycle: re-queue buf %d failed, ret=%d", idx, ret);
+            consecutiveErrors++;
+            if (consecutiveErrors <= 3 || consecutiveErrors % 50 == 0) {
+                error("recycle: re-queue buf %d failed, ret=%d (errors=%d)", idx, ret, consecutiveErrors);
+            }
             VB_ReleaseBuffer(ulBuf);
         }
     }
@@ -978,6 +1003,7 @@ S32 VDEC_EnableChn(S32 s32ChnId) {
     }
 
     /* Initialize depth queue */
+    memset(pChn->astDepth, 0, sizeof(pChn->astDepth)); /* Clear all ulBufferId to 0 */
     pChn->u32DepthHead = 0;
     pChn->u32DepthTail = 0;
     pChn->u32DepthCount = 0;
@@ -1181,6 +1207,8 @@ S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs) 
 
     VdecDepthEntry *pEntry = &pChn->astDepth[pChn->u32DepthHead];
     memcpy(pstFrameInfo, &pEntry->stFrameInfo, sizeof(VideoFrameInfo));
+    /* Clear ulBufferId to prevent double release when queue wraps around */
+    pEntry->ulBufferId = 0;
     pChn->u32DepthHead = (pChn->u32DepthHead + 1) % VDEC_DEPTH_MAX;
     pChn->u32DepthCount--;
 
@@ -1253,6 +1281,11 @@ S32 VDEC_Flush(S32 s32ChnId) {
     }
 
     S32 ret = vdec_ctx_flush(pChn->pOldCtx);
+
+    /* For DMABUF_EXTERNAL mode, handleFlush's queueBuffers skips external
+     * buffers. We must re-queue them here to restore decoder operation. */
+    vdec_requeue_ext_buffers(pChn);
+
     pthread_mutex_unlock(&pChn->lock);
     return (ret == MPP_OK) ? ERR_VDEC_OK : ret;
 }

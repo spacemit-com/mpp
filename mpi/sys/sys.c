@@ -813,8 +813,11 @@ S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs) {
 S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
     MppSharedMem *shm = mpp_shm_get();
     BOOL found = MPP_FALSE;
+    BOOL sent = MPP_FALSE;
+    S32 last_err = SYS_ERR_OK;
 
-    if (!pstSrc || !pstStream || !pstStream->pu8Addr || pstStream->u32Size == 0) {
+    if (!pstSrc || !pstStream ||
+        (!pstStream->bEndOfStream && (!pstStream->pu8Addr || pstStream->u32Size == 0))) {
         SYS_LOG_ERR("invalid params");
         return SYS_ERR_INVAL;
     }
@@ -845,25 +848,29 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
         sys_mutex_lock(&q->lock);
         if (q->count >= MPP_STREAM_CHAN_DEPTH) {
             SYS_LOG_WARN("stream queue full, bind=%u", i);
+            last_err = SYS_ERR_FULL;
             pthread_mutex_unlock(&q->lock);
             continue;
         }
 
-        /* Allocate DMA buffer for this stream packet (outside shm) */
-        if (dma_alloc_buf(pstStream->u32Size, &dma_fd, &dma_phy, &dma_vir) != 0) {
-            SYS_LOG_ERR("DMA alloc failed for stream, size=%u", pstStream->u32Size);
-            pthread_mutex_unlock(&q->lock);
-            continue;
+        if (pstStream->u32Size > 0) {
+            /* Allocate DMA buffer for this stream packet (outside shm) */
+            if (dma_alloc_buf(pstStream->u32Size, &dma_fd, &dma_phy, &dma_vir) != 0) {
+                SYS_LOG_ERR("DMA alloc failed for stream, size=%u", pstStream->u32Size);
+                last_err = SYS_ERR_NOMEM;
+                pthread_mutex_unlock(&q->lock);
+                continue;
+            }
+
+            /* Copy payload into DMA buffer */
+            memcpy(dma_vir, pstStream->pu8Addr, pstStream->u32Size);
+
+            /* Sync DMA buffer for consumer to read */
+            dma_sync_buf(dma_fd, DMA_SYNC_WRITE | DMA_SYNC_END);
+
+            /* Unmap producer's virtual mapping — consumer will re-mmap via fd */
+            munmap(dma_vir, pstStream->u32Size);
         }
-
-        /* Copy payload into DMA buffer */
-        memcpy(dma_vir, pstStream->pu8Addr, pstStream->u32Size);
-
-        /* Sync DMA buffer for consumer to read */
-        dma_sync_buf(dma_fd, DMA_SYNC_WRITE | DMA_SYNC_END);
-
-        /* Unmap producer's virtual mapping — consumer will re-mmap via fd */
-        munmap(dma_vir, pstStream->u32Size);
 
         /* Store metadata in shared queue entry */
         entry = &q->entries[q->tail];
@@ -878,12 +885,16 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
 
         q->tail = (q->tail + 1) % MPP_STREAM_CHAN_DEPTH;
         q->count++;
+        sent = MPP_TRUE;
         pthread_cond_signal(&q->not_empty);
         pthread_mutex_unlock(&q->lock);
     }
     pthread_rwlock_unlock(&shm->bind_lock);
 
-    return found ? SYS_ERR_OK : SYS_ERR_NOT_FOUND;
+    if (sent) {
+        return SYS_ERR_OK;
+    }
+    return found ? last_err : SYS_ERR_NOT_FOUND;
 }
 
 S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
@@ -947,23 +958,25 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
         return SYS_ERR_FULL;
     }
 
-    /* Map the DMA buffer into this process to read the payload */
-    dma_vir = mmap(NULL, entry->dma_size, PROT_READ, MAP_SHARED, entry->dma_fd, 0);
-    if (dma_vir == MAP_FAILED) {
-        SYS_LOG_ERR("mmap DMA fd=%d failed: %s", entry->dma_fd, strerror(errno));
-        pthread_mutex_unlock(&q->lock);
-        return SYS_ERR_NOMEM;
+    if (entry->info.u32Size > 0) {
+        /* Map the DMA buffer into this process to read the payload */
+        dma_vir = mmap(NULL, entry->dma_size, PROT_READ, MAP_SHARED, entry->dma_fd, 0);
+        if (dma_vir == MAP_FAILED) {
+            SYS_LOG_ERR("mmap DMA fd=%d failed: %s", entry->dma_fd, strerror(errno));
+            pthread_mutex_unlock(&q->lock);
+            return SYS_ERR_NOMEM;
+        }
+
+        /* Sync for CPU read */
+        dma_sync_buf(entry->dma_fd, DMA_SYNC_READ | DMA_SYNC_START);
+
+        /* Copy payload to caller's buffer */
+        memcpy(dst, dma_vir, entry->info.u32Size);
+
+        /* Unmap and close the DMA buffer — consumer is done */
+        munmap(dma_vir, entry->dma_size);
+        close(entry->dma_fd);
     }
-
-    /* Sync for CPU read */
-    dma_sync_buf(entry->dma_fd, DMA_SYNC_READ | DMA_SYNC_START);
-
-    /* Copy payload to caller's buffer */
-    memcpy(dst, dma_vir, entry->info.u32Size);
-
-    /* Unmap and close the DMA buffer — consumer is done */
-    munmap(dma_vir, entry->dma_size);
-    close(entry->dma_fd);
 
     /* Return metadata to caller */
     *pstStream = entry->info;

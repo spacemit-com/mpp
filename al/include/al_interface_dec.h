@@ -126,4 +126,4 @@ void al_dec_destory(ALBaseContext *ctx);
 };
 #endif
 
-#endif /*AL_INTERFACE_DEC_H*/
+#endif /*_AL_INTERFACE_DEC_H_*/

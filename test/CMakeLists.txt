@@ -28,6 +28,26 @@ target_compile_definitions(test_rtsp_pull PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_rtsp_pull PRIVATE ${MPP_INCLUDE_DIRS})
 target_link_libraries(test_rtsp_pull PRIVATE mpp_demux mpp_sys)
 
+# DEMUX file test (MP4/TS demuxing + bind to VDEC, save NV12 frames)
+add_executable(test_demux_file test_demux_file.c)
+target_compile_definitions(test_demux_file PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_demux_file PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_demux_file PRIVATE mpp_demux mpp_vdec mpp_sys)
+
+# TS demuxer raw dump test - dumps H.264 ES output for offline verification
+add_executable(test_ts_dump test_ts_dump.c)
+target_compile_definitions(test_ts_dump PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_ts_dump PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/mpi/demux/container/ts)
+target_link_libraries(test_ts_dump PRIVATE mpp_demux mpp_sys)
+
+# DEMUX seek regression test (low-level demux API)
+add_executable(test_demux_seek test_demux_seek.c)
+target_compile_definitions(test_demux_seek PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_demux_seek PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/mpi/demux)
+target_link_libraries(test_demux_seek PRIVATE mpp_demux mpp_sys)
+
 add_executable(test_uvc test_uvc.c)
 target_compile_definitions(test_uvc PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_uvc PRIVATE mpp_uvc mpp_sys)
