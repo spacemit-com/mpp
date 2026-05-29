@@ -11,10 +11,11 @@
  *------------------------------------------------------------------------------
  */
 
-#include "mux_rtsp_internal.h"
+#include "mux_rtsp_server.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,12 +27,38 @@
 #define MUX_HEVC_NAL_TYPE_AP 48
 #define MUX_HEVC_NAL_TYPE_FU 49
 
+/**
+ * @brief Send all data with timeout to prevent pipeline blocking.
+ *
+ * If the TCP send buffer is full (network slow), this function will wait
+ * up to MUX_SEND_TIMEOUT_MS before giving up. This prevents the entire
+ * video pipeline from stalling due to network issues.
+ */
+#define MUX_SEND_TIMEOUT_MS 100
+
 static S32 mux_rtsp_send_all(S32 s32Fd, const U8 *pu8Data, U32 u32Len) {
     U32 sent = 0;
+    U32 totalWaitMs = 0;
+
     while (sent < u32Len) {
-        ssize_t ret = send(s32Fd, pu8Data + sent, u32Len - sent, 0);
+        ssize_t ret = send(s32Fd, pu8Data + sent, u32Len - sent, MSG_DONTWAIT);
         if (ret < 0) {
             if (errno == EINTR) {
+                continue;
+            }
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                /* Send buffer full - wait briefly with timeout */
+                struct pollfd pfd = {.fd = s32Fd, .events = POLLOUT};
+                int pollRet = poll(&pfd, 1, 10); /* 10ms poll */
+                if (pollRet <= 0) {
+                    totalWaitMs += 10;
+                    if (totalWaitMs >= MUX_SEND_TIMEOUT_MS) {
+                        /* Timeout: drop this packet to prevent pipeline stall */
+                        return -1;
+                    }
+                    continue;
+                }
+                /* Socket writable now, retry send */
                 continue;
             }
             return -1;
@@ -40,13 +67,13 @@ static S32 mux_rtsp_send_all(S32 s32Fd, const U8 *pu8Data, U32 u32Len) {
             return -1;
         }
         sent += (U32)ret;
+        totalWaitMs = 0; /* Reset timeout on successful send */
     }
     return 0;
 }
 
 static S32 mux_rtsp_send_rtp_raw(
-    MuxRtspClient *pstClient, const U8 *pu8Pkt, U32 u32PktLen, BOOL bInterleaved, U8 u8Channel
-) {
+    MuxRtspClient *pstClient, const U8 *pu8Pkt, U32 u32PktLen, BOOL bInterleaved, U8 u8Channel) {
     if (bInterleaved) {
         U8 hdr[4];
         hdr[0] = '$';
@@ -62,12 +89,7 @@ static S32 mux_rtsp_send_rtp_raw(
         return 0;
     }
 
-    if (sendto(
-            pstClient->s32RtpSock,
-            pu8Pkt,
-            u32PktLen,
-            0,
-            (const struct sockaddr *)&pstClient->stClientRtpAddr,
+    if (sendto(pstClient->s32RtpSock, pu8Pkt, u32PktLen, 0, (const struct sockaddr *)&pstClient->stClientRtpAddr,
             sizeof(pstClient->stClientRtpAddr)) < 0) {
         return -1;
     }
@@ -109,8 +131,7 @@ static const U8 *mux_find_start_code(const U8 *pu8Data, U32 u32Size, U32 *pu32Pr
 }
 
 static S32 mux_rtp_send_h264_nalu(
-    MuxRtspServer *pstServer, MuxRtspClient *pstClient, const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker
-) {
+    MuxRtspServer *pstServer, MuxRtspClient *pstClient, const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker) {
     U8 au8Pkt[1600];
     U32 hdrLen;
 
@@ -142,8 +163,7 @@ static S32 mux_rtp_send_h264_nalu(
             memcpy(au8Pkt + hdrLen + 2, pu8Nalu + offset, chunk);
 
             if (mux_rtsp_send_rtp_raw(
-                    pstClient, au8Pkt, hdrLen + 2 + chunk,
-                    pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
+                    pstClient, au8Pkt, hdrLen + 2 + chunk, pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
                 return -1;
             }
             bStart = MPP_FALSE;
@@ -155,8 +175,7 @@ static S32 mux_rtp_send_h264_nalu(
 }
 
 static S32 mux_rtp_send_h265_nalu(
-    MuxRtspServer *pstServer, MuxRtspClient *pstClient, const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker
-) {
+    MuxRtspServer *pstServer, MuxRtspClient *pstClient, const U8 *pu8Nalu, U32 u32NaluLen, U32 u32Ts, BOOL bMarker) {
     U8 au8Pkt[1600];
     U32 hdrLen;
 
@@ -192,8 +211,7 @@ static S32 mux_rtp_send_h265_nalu(
             memcpy(au8Pkt + hdrLen + 3, pu8Nalu + offset, chunk);
 
             if (mux_rtsp_send_rtp_raw(
-                    pstClient, au8Pkt, hdrLen + 3 + chunk,
-                    pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
+                    pstClient, au8Pkt, hdrLen + 3 + chunk, pstClient->bInterleaved, pstClient->u8RtpChannel) != 0) {
                 return -1;
             }
             bStart = MPP_FALSE;
@@ -213,7 +231,8 @@ S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient
         return -1;
     }
 
-    rtpTs = (U32)((pstPkt->u64PTS * 90ULL) / 1000ULL);
+    /* PTS is in microseconds, convert to 90kHz RTP clock */
+    rtpTs = (U32)((pstPkt->u64PTS * 9ULL) / 100ULL);
 
     while (left > 4) {
         U32 prefix = 0;

@@ -26,12 +26,12 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "venc.h"
-#include "log.h"
 #include "frame.h"
+#include "log.h"
 #include "packet.h"
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "venc.h"
 
 #define MODULE_TAG "mpp_venc_api"
 
@@ -81,9 +81,7 @@ static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
 /* ======================== Helpers ======================== */
 
-static inline BOOL venc_chn_valid(S32 s32ChnId) {
-    return (s32ChnId >= 0 && s32ChnId < VENC_MAX_CHN);
-}
+static inline BOOL venc_chn_valid(S32 s32ChnId) { return (s32ChnId >= 0 && s32ChnId < VENC_MAX_CHN); }
 
 /**
  * @brief Convert public VencChnAttr to old MppVencCtx parameters.
@@ -92,66 +90,66 @@ static void venc_attr_to_old_para(const VencChnAttr *pstAttr, MppVencCtx *pOldCt
     pOldCtx->eCodecType = CODEC_V4L2_LINLONV5V7;
 
     switch (pstAttr->eCodecType) {
-        case MPP_STREAM_CODEC_H263:
-            pOldCtx->stVencPara.eCodingType = CODING_H263;
-            break;
-        case MPP_STREAM_CODEC_H264:
-            pOldCtx->stVencPara.eCodingType = CODING_H264;
-            break;
-        case MPP_STREAM_CODEC_H264_MVC:
-            pOldCtx->stVencPara.eCodingType = CODING_H264_MVC;
-            break;
-        case MPP_STREAM_CODEC_H264_NO_SC:
-            pOldCtx->stVencPara.eCodingType = CODING_H264_NO_SC;
-            break;
-        case MPP_STREAM_CODEC_H265:
-            pOldCtx->stVencPara.eCodingType = CODING_H265;
-            break;
-        case MPP_STREAM_CODEC_MJPEG:
-            pOldCtx->stVencPara.eCodingType = CODING_MJPEG;
-            break;
-        case MPP_STREAM_CODEC_JPEG:
-            pOldCtx->stVencPara.eCodingType = CODING_JPEG;
-            break;
-        case MPP_STREAM_CODEC_VP8:
-            pOldCtx->stVencPara.eCodingType = CODING_VP8;
-            break;
-        case MPP_STREAM_CODEC_VP9:
-            pOldCtx->stVencPara.eCodingType = CODING_VP9;
-            break;
-        case MPP_STREAM_CODEC_AV1:
-            pOldCtx->stVencPara.eCodingType = CODING_AV1;
-            break;
-        case MPP_STREAM_CODEC_AVS:
-            pOldCtx->stVencPara.eCodingType = CODING_AVS;
-            break;
-        case MPP_STREAM_CODEC_AVS2:
-            pOldCtx->stVencPara.eCodingType = CODING_AVS2;
-            break;
-        case MPP_STREAM_CODEC_MPEG1:
-            pOldCtx->stVencPara.eCodingType = CODING_MPEG1;
-            break;
-        case MPP_STREAM_CODEC_MPEG2:
-            pOldCtx->stVencPara.eCodingType = CODING_MPEG2;
-            break;
-        case MPP_STREAM_CODEC_MPEG4:
-            pOldCtx->stVencPara.eCodingType = CODING_MPEG4;
-            break;
-        case MPP_STREAM_CODEC_RV:
-            pOldCtx->stVencPara.eCodingType = CODING_RV;
-            break;
-        case MPP_STREAM_CODEC_VC1:
-            pOldCtx->stVencPara.eCodingType = CODING_VC1;
-            break;
-        case MPP_STREAM_CODEC_VC1_ANNEX_L:
-            pOldCtx->stVencPara.eCodingType = CODING_VC1_ANNEX_L;
-            break;
-        case MPP_STREAM_CODEC_FWHT:
-            pOldCtx->stVencPara.eCodingType = CODING_FWHT;
-            break;
-        default:
-            pOldCtx->stVencPara.eCodingType = CODING_H264;
-            break;
+    case MPP_STREAM_CODEC_H263:
+        pOldCtx->stVencPara.eCodingType = CODING_H263;
+        break;
+    case MPP_STREAM_CODEC_H264:
+        pOldCtx->stVencPara.eCodingType = CODING_H264;
+        break;
+    case MPP_STREAM_CODEC_H264_MVC:
+        pOldCtx->stVencPara.eCodingType = CODING_H264_MVC;
+        break;
+    case MPP_STREAM_CODEC_H264_NO_SC:
+        pOldCtx->stVencPara.eCodingType = CODING_H264_NO_SC;
+        break;
+    case MPP_STREAM_CODEC_H265:
+        pOldCtx->stVencPara.eCodingType = CODING_H265;
+        break;
+    case MPP_STREAM_CODEC_MJPEG:
+        pOldCtx->stVencPara.eCodingType = CODING_MJPEG;
+        break;
+    case MPP_STREAM_CODEC_JPEG:
+        pOldCtx->stVencPara.eCodingType = CODING_JPEG;
+        break;
+    case MPP_STREAM_CODEC_VP8:
+        pOldCtx->stVencPara.eCodingType = CODING_VP8;
+        break;
+    case MPP_STREAM_CODEC_VP9:
+        pOldCtx->stVencPara.eCodingType = CODING_VP9;
+        break;
+    case MPP_STREAM_CODEC_AV1:
+        pOldCtx->stVencPara.eCodingType = CODING_AV1;
+        break;
+    case MPP_STREAM_CODEC_AVS:
+        pOldCtx->stVencPara.eCodingType = CODING_AVS;
+        break;
+    case MPP_STREAM_CODEC_AVS2:
+        pOldCtx->stVencPara.eCodingType = CODING_AVS2;
+        break;
+    case MPP_STREAM_CODEC_MPEG1:
+        pOldCtx->stVencPara.eCodingType = CODING_MPEG1;
+        break;
+    case MPP_STREAM_CODEC_MPEG2:
+        pOldCtx->stVencPara.eCodingType = CODING_MPEG2;
+        break;
+    case MPP_STREAM_CODEC_MPEG4:
+        pOldCtx->stVencPara.eCodingType = CODING_MPEG4;
+        break;
+    case MPP_STREAM_CODEC_RV:
+        pOldCtx->stVencPara.eCodingType = CODING_RV;
+        break;
+    case MPP_STREAM_CODEC_VC1:
+        pOldCtx->stVencPara.eCodingType = CODING_VC1;
+        break;
+    case MPP_STREAM_CODEC_VC1_ANNEX_L:
+        pOldCtx->stVencPara.eCodingType = CODING_VC1_ANNEX_L;
+        break;
+    case MPP_STREAM_CODEC_FWHT:
+        pOldCtx->stVencPara.eCodingType = CODING_FWHT;
+        break;
+    default:
+        pOldCtx->stVencPara.eCodingType = CODING_H264;
+        break;
     }
 
     pOldCtx->stVencPara.nWidth = (S32)pstAttr->u32Width;
@@ -164,19 +162,59 @@ static void venc_attr_to_old_para(const VencChnAttr *pstAttr, MppVencCtx *pOldCt
     pOldCtx->stVencPara.nRotateDegree = (S32)pstAttr->u32RotateDegree;
 
     switch (pstAttr->eFrameBufMode) {
-        case VENC_FRAME_BUF_DMABUF_INTERNAL:
-            pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
-            break;
-        case VENC_FRAME_BUF_NORMAL_INTERNAL:
-            pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL;
-            break;
-        case VENC_FRAME_BUF_DMABUF_EXTERNAL:
-            pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
-            break;
-        default:
-            pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
-            break;
+    case VENC_FRAME_BUF_DMABUF_INTERNAL:
+        pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
+        break;
+    case VENC_FRAME_BUF_NORMAL_INTERNAL:
+        pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL;
+        break;
+    case VENC_FRAME_BUF_DMABUF_EXTERNAL:
+        pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
+        break;
+    default:
+        pOldCtx->stVencPara.eFrameBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
+        break;
     }
+}
+
+/**
+ * @brief Detect keyframe by analyzing H.264/H.265 NAL unit types.
+ */
+static BOOL venc_detect_keyframe(const U8 *pu8Data, U32 u32Size) {
+    if (!pu8Data || u32Size < 5)
+        return MPP_FALSE;
+
+    /* Find first start code and NAL header */
+    for (U32 i = 0; i + 4 < u32Size; i++) {
+        if (pu8Data[i] == 0 && pu8Data[i + 1] == 0) {
+            U32 scLen = 0;
+            if (pu8Data[i + 2] == 1) {
+                scLen = 3;
+            } else if (pu8Data[i + 2] == 0 && i + 5 < u32Size && pu8Data[i + 3] == 1) {
+                scLen = 4;
+            }
+            if (scLen > 0) {
+                U8 nalHeader = pu8Data[i + scLen];
+                /* H.264: NAL type is in bits 0-4 */
+                U8 h264Type = nalHeader & 0x1F;
+                if (h264Type == 5 || h264Type == 7 || h264Type == 8) {
+                    /* IDR slice (5), SPS (7), PPS (8) indicate keyframe */
+                    return MPP_TRUE;
+                }
+                /* H.265: NAL type is in bits 1-6 of first byte */
+                U8 h265Type = (nalHeader >> 1) & 0x3F;
+                if (h265Type >= 16 && h265Type <= 21) {
+                    /* IDR/CRA/BLA NAL types (16-21) */
+                    return MPP_TRUE;
+                }
+                if (h265Type == 32 || h265Type == 33 || h265Type == 34) {
+                    /* VPS (32), SPS (33), PPS (34) */
+                    return MPP_TRUE;
+                }
+            }
+        }
+    }
+    return MPP_FALSE;
 }
 
 /**
@@ -190,6 +228,7 @@ static void venc_fill_stream_info(MppPacket *pPacket, StreamBufferInfo *pstOut) 
     pstOut->bEndOfStream = PACKET_GetEos(pPacket);
     pstOut->u32Width = (U32)PACKET_GetWidth(pPacket);
     pstOut->u32Height = (U32)PACKET_GetHeight(pPacket);
+    pstOut->bKeyFrame = venc_detect_keyframe(pstOut->pu8Addr, pstOut->u32Size);
 }
 
 /* ======================== Task & Recycle Threads ======================== */
@@ -775,7 +814,7 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream, U32 u32TimeoutMs) 
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
             ts.tv_sec += (time_t)(u32TimeoutMs / 1000);
-            ts.tv_nsec += (int32_t)(u32TimeoutMs % 1000) * 1000000L;
+            ts.tv_nsec += (int64_t)(u32TimeoutMs % 1000) * 1000000L;
             if (ts.tv_nsec >= 1000000000L) {
                 ts.tv_sec++;
                 ts.tv_nsec -= 1000000000L;

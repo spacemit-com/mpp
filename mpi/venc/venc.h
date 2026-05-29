@@ -18,11 +18,13 @@ extern "C" {
 #include "frame.h"
 #include "module.h"
 #include "packet.h"
+#include "processflow.h"
 #include "type.h"
 #include "venc_type.h"
 #include "al_interface_base.h"
 
 typedef struct _MppVencCtx {
+    MppProcessNode pNode;
     MppModuleType eCodecType;
     ALBaseContext *pAlBaseContext;
     MppVencPara stVencPara;

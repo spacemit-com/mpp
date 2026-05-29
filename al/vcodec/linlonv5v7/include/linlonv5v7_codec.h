@@ -35,22 +35,9 @@ typedef struct _Codec Codec;
  * @description: create a Codec instance, for decode or encode
  * @return {*}: context of the Codec
  */
-Codec *createCodec(
-    S32 fd,
-    S32 width,
-    S32 height,
-    S32 align,
-    BOOL isInterlaced,
-    enum v4l2_buf_type inputType,
-    enum v4l2_buf_type outputType,
-    U32 input_format_fourcc,
-    U32 output_format_fourcc,
-    U32 input_memtype,
-    U32 output_memtype,
-    U32 input_buffer_num,
-    U32 output_buffer_num,
-    BOOL block,
-    MppFrameBufferType buffer_type);
+Codec *createCodec(S32 fd, S32 width, S32 height, S32 align, BOOL isInterlaced, enum v4l2_buf_type inputType,
+    enum v4l2_buf_type outputType, U32 input_format_fourcc, U32 output_format_fourcc, U32 input_memtype,
+    U32 output_memtype, U32 input_buffer_num, U32 output_buffer_num, BOOL block, MppFrameBufferType buffer_type);
 
 /**
  * @description: destory the Codec, when destory decoder or encoder
@@ -140,4 +127,4 @@ void handleFlush(Codec *codec, BOOL eof);
 
 S32 runPoll(Codec *codec, struct pollfd *p);
 
-#endif /*LINLONV5V7_CODEC_H*/
+#endif /*_LINLONV5V7_CODEC_H_*/

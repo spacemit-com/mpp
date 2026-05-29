@@ -23,66 +23,66 @@
 extern "C" {
 #endif
 
-#define PIXEL_FORMAT_MAPPING_DEFINE(Type, format)  \
-    typedef struct _AL##Type##PixelFormatMapping { \
-        MppPixelFormat eMppPixelFormat;            \
-        format e##Type##PixelFormat;               \
+#define PIXEL_FORMAT_MAPPING_DEFINE(Type, format)                                                                      \
+    typedef struct _AL##Type##PixelFormatMapping {                                                                     \
+        MppPixelFormat eMppPixelFormat;                                                                                \
+        format e##Type##PixelFormat;                                                                                   \
     } AL##Type##PixelFormatMapping;
 
-#define PIXEL_FORMAT_MAPPING_CONVERT(Type, type, format)                                 \
-    static MppPixelFormat get_##type##_mpp_pixel_format(format src_format) {             \
-        S32 i = 0;                                                                       \
-        S32 mapping_length = NUM_OF(stAL##Type##PixelFormatMapping);                     \
-        for (i = 0; i < mapping_length; i++) {                                           \
-            if (src_format == stAL##Type##PixelFormatMapping[i].e##Type##PixelFormat)    \
-                return stAL##Type##PixelFormatMapping[i].eMppPixelFormat;                \
-        }                                                                                \
-                                                                                            \
-        error("Can not find the mapping format, please check it(%d) !", mapping_length); \
-        return MPP_PIXEL_FORMAT_UNKNOWN;                                                 \
-    }                                                                                    \
-                                                                                            \
-    static format get_##type##_codec_pixel_format(MppPixelFormat src_format) {           \
-        S32 i = 0;                                                                       \
-        S32 mapping_length = NUM_OF(stAL##Type##PixelFormatMapping);                     \
-        for (i = 0; i < mapping_length; i++) {                                           \
-            if (src_format == stAL##Type##PixelFormatMapping[i].eMppPixelFormat)         \
-                return stAL##Type##PixelFormatMapping[i].e##Type##PixelFormat;           \
-        }                                                                                \
-                                                                                            \
-        error("Can not find the mapping format, please check it !");                     \
-        return (format)0;                                                                \
+#define PIXEL_FORMAT_MAPPING_CONVERT(Type, type, format)                                                               \
+    static MppPixelFormat get_##type##_mpp_pixel_format(format src_format) {                                           \
+        S32 i = 0;                                                                                                     \
+        S32 mapping_length = NUM_OF(stAL##Type##PixelFormatMapping);                                                   \
+        for (i = 0; i < mapping_length; i++) {                                                                         \
+            if (src_format == stAL##Type##PixelFormatMapping[i].e##Type##PixelFormat)                                  \
+                return stAL##Type##PixelFormatMapping[i].eMppPixelFormat;                                              \
+        }                                                                                                              \
+    \
+        error("Can not find the mapping format, please check it(%d) !", mapping_length);                               \
+        return MPP_PIXEL_FORMAT_UNKNOWN;                                                                               \
+    }                                                                                                                  \
+    \
+    static format get_##type##_codec_pixel_format(MppPixelFormat src_format) {                                         \
+        S32 i = 0;                                                                                                     \
+        S32 mapping_length = NUM_OF(stAL##Type##PixelFormatMapping);                                                   \
+        for (i = 0; i < mapping_length; i++) {                                                                         \
+            if (src_format == stAL##Type##PixelFormatMapping[i].eMppPixelFormat)                                       \
+                return stAL##Type##PixelFormatMapping[i].e##Type##PixelFormat;                                         \
+        }                                                                                                              \
+    \
+        error("Can not find the mapping format, please check it !");                                                   \
+        return (format)0;                                                                                              \
     }
 
-#define CODING_TYPE_MAPPING_DEFINE(Type, format)  \
-    typedef struct _AL##Type##CodingTypeMapping { \
-        MppCodingType eMppCodingType;             \
-        format e##Type##CodingType;               \
+#define CODING_TYPE_MAPPING_DEFINE(Type, format)                                                                       \
+    typedef struct _AL##Type##CodingTypeMapping {                                                                      \
+        MppCodingType eMppCodingType;                                                                                  \
+        format e##Type##CodingType;                                                                                    \
     } AL##Type##CodingTypeMapping;
 
-#define CODING_TYPE_MAPPING_CONVERT(Type, type, format)                           \
-    static MppCodingType get_##type##_mpp_coding_type(format src_type) {          \
-        S32 i = 0;                                                                \
-        S32 mapping_length = NUM_OF(stAL##Type##CodingTypeMapping);               \
-        for (i = 0; i < mapping_length; i++) {                                    \
-            if (src_type == stAL##Type##CodingTypeMapping[i].e##Type##CodingType) \
-                return stAL##Type##CodingTypeMapping[i].eMppCodingType;           \
-        }                                                                         \
-                                                                                    \
-        error("Can not find the mapping format, please check it !");              \
-        return CODING_UNKNOWN;                                                    \
-    }                                                                             \
-                                                                                    \
-    static format get_##type##_codec_coding_type(MppCodingType src_type) {        \
-        S32 i = 0;                                                                \
-        S32 mapping_length = NUM_OF(stAL##Type##CodingTypeMapping);               \
-        for (i = 0; i < mapping_length; i++) {                                    \
-            if (src_type == stAL##Type##CodingTypeMapping[i].eMppCodingType)      \
-                return stAL##Type##CodingTypeMapping[i].e##Type##CodingType;      \
-        }                                                                         \
-                                                                                    \
-        error("Can not find the mapping coding type, please check it !");         \
-        return CODING_UNKNOWN;                                                    \
+#define CODING_TYPE_MAPPING_CONVERT(Type, type, format)                                                                \
+    static MppCodingType get_##type##_mpp_coding_type(format src_type) {                                               \
+        S32 i = 0;                                                                                                     \
+        S32 mapping_length = NUM_OF(stAL##Type##CodingTypeMapping);                                                    \
+        for (i = 0; i < mapping_length; i++) {                                                                         \
+            if (src_type == stAL##Type##CodingTypeMapping[i].e##Type##CodingType)                                      \
+                return stAL##Type##CodingTypeMapping[i].eMppCodingType;                                                \
+        }                                                                                                              \
+    \
+        error("Can not find the mapping format, please check it !");                                                   \
+        return CODING_UNKNOWN;                                                                                         \
+    }                                                                                                                  \
+    \
+    static format get_##type##_codec_coding_type(MppCodingType src_type) {                                             \
+        S32 i = 0;                                                                                                     \
+        S32 mapping_length = NUM_OF(stAL##Type##CodingTypeMapping);                                                    \
+        for (i = 0; i < mapping_length; i++) {                                                                         \
+            if (src_type == stAL##Type##CodingTypeMapping[i].eMppCodingType)                                           \
+                return stAL##Type##CodingTypeMapping[i].e##Type##CodingType;                                           \
+        }                                                                                                              \
+    \
+        error("Can not find the mapping coding type, please check it !");                                              \
+        return CODING_UNKNOWN;                                                                                         \
     }
 
 /*
@@ -136,4 +136,4 @@ struct _ALViBaseContext {
 };
 #endif
 
-#endif /*AL_INTERFACE_BASE_H*/
+#endif /*_AL_INTERFACE_BASE_H_*/

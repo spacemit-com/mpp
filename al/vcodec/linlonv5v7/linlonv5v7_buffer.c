@@ -27,7 +27,7 @@ struct _Buffer {
     struct v4l2_mvx_roi_regions roi_cfg;
     S32 nQp;
     DmaBufWrapper *pDmaBufWrapper;
-    S32 nTotalLength;                    // for V4L2_MEMORY_DMABUF
+    S32 nTotalLength;  // for V4L2_MEMORY_DMABUF
     S32 nPlaneOffset[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
     S32 nPlaneLength[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
 
@@ -72,13 +72,7 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format, 
         buffer_tmp->pDmaBufWrapper = createDmaBufWrapper(DMA_HEAP_CMA);
     }
 
-    if (memoryMap(buffer_tmp, fd) != MPP_OK) {
-        error("memoryMap failed, destroy buffer");
-        if (buffer_tmp->pDmaBufWrapper)
-            destoryDmaBufWrapper(buffer_tmp->pDmaBufWrapper);
-        free(buffer_tmp);
-        return NULL;
-    }
+    memoryMap(buffer_tmp, fd);
 
     return buffer_tmp;
 }
@@ -91,13 +85,9 @@ void destoryBuffer(Buffer *buf) {
     free(buf);
 }
 
-struct v4l2_buffer *getV4l2Buffer(Buffer *buf) {
-    return &(buf->stBufArr);
-}
+struct v4l2_buffer *getV4l2Buffer(Buffer *buf) { return &(buf->stBufArr); }
 
-U8 *getUserPtr(Buffer *buf, S32 index) {
-    return buf->pUserPtr[index];
-}
+U8 *getUserPtr(Buffer *buf, S32 index) { return buf->pUserPtr[index]; }
 
 /*
  * Single planar buffers has no support for offset, but for HEVC and VP9
@@ -177,7 +167,7 @@ S32 setExternalDmaBufSinglePlanar(Buffer *buf, S32 fd, U8 *ptr, S32 length, S32 
 S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2, S32 extra_id) {
     // set info for plane[0]
     buf->nPlaneOffset[0] = 0;
-    buf->stBufArr.m.planes[0].m.userptr = (uintptr_t)ptr0;
+    buf->stBufArr.m.planes[0].m.userptr = (uint64_t)(uintptr_t)ptr0;
     buf->stBufArr.m.planes[0].bytesused = buf->nPlaneLength[0];
 
     // set info for plane[1] and plane[2](YUV420p have plane[2])
@@ -191,9 +181,9 @@ S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2, S32 extra
         buf->nPlaneOffset[j] = offset;
         if (p->length > 0) {
             if (1 == j)
-                buf->stBufArr.m.planes[j].m.userptr = (uintptr_t)(ptr1);
+                buf->stBufArr.m.planes[j].m.userptr = (uint64_t)(uintptr_t)ptr1;
             else if (2 == j)
-                buf->stBufArr.m.planes[j].m.userptr = (uintptr_t)(ptr2);
+                buf->stBufArr.m.planes[j].m.userptr = (uint64_t)(uintptr_t)ptr2;
             buf->stBufArr.m.planes[j].bytesused = buf->nPlaneLength[j];
         }
     }
@@ -211,9 +201,7 @@ struct v4l2_format *getFormat(Buffer *buf) {
     return &(buf->format);
 }
 
-void setCrop(Buffer *buf, struct v4l2_crop crop) {
-    buf->crop = crop;
-}
+void setCrop(Buffer *buf, struct v4l2_crop crop) { buf->crop = crop; }
 
 struct v4l2_crop *getCrop(Buffer *buf) {
     if (!buf) {
@@ -227,11 +215,9 @@ struct v4l2_crop *getCrop(Buffer *buf) {
 void setBytesUsed(Buffer *buf, S32 iov_size, S32 iov[VIDEO_MAX_PLANES]) {
     if (V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type)) {
         if ((U32)iov_size > buf->stBufArr.length) {
-            error(
-                "iovec vector size is larger than V4L2 buffer number of planes. "
-                "size=%u, planes=%u",
-                iov_size,
-                buf->stBufArr.length);
+            error("iovec vector size is larger than V4L2 buffer number of planes. "
+                    "size=%u, planes=%u",
+                iov_size, buf->stBufArr.length);
         }
 
         S32 i;
@@ -279,9 +265,7 @@ void clearBytesUsed(Buffer *buf) {
     }
 }
 
-void resetVendorFlags(Buffer *buf) {
-    buf->stBufArr.flags &= ~V4L2_BUF_FLAG_MVX_MASK;
-}
+void resetVendorFlags(Buffer *buf) { buf->stBufArr.flags &= ~V4L2_BUF_FLAG_MVX_MASK; }
 
 void setCodecConfig(Buffer *buf, BOOL codecConfig) {
     buf->stBufArr.flags &= ~V4L2_BUF_FLAG_MVX_CODEC_CONFIG;
@@ -315,23 +299,23 @@ S32 setRotation(Buffer *buf, S32 rotation) {
     }
 
     switch (rotation % 360) {
-        case 90:
-            buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
-            buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_90;
-            buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_90;
-            break;
-        case 180:
-            buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
-            buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_180;
-            buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_180;
-            break;
-        case 270:
-            buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
-            buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_270;
-            buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_270;
-            break;
-        default:
-            break;
+    case 90:
+        buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
+        buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_90;
+        buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_90;
+        break;
+    case 180:
+        buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
+        buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_180;
+        buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_180;
+        break;
+    case 270:
+        buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_ROTATION_MASK;
+        buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_ROTATION_270;
+        buf->stBufArr.reserved2 |= V4L2_BUF_FRAME_FLAG_ROTATION_270;
+        break;
+    default:
+        break;
     }
     return MPP_OK;
 }
@@ -348,17 +332,17 @@ S32 setDownScale(Buffer *buf, S32 scale) {
 
     debug("need to set scale: %d", scale);
     switch (scale) {
-        case 2:
-            buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_SCALING_MASK;
-            buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_SCALING_2;
-            break;
-        case 4:
-            buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_SCALING_MASK;
-            buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_SCALING_4;
-            break;
-        default:
-            error("do not support this scale factor :%d", scale);
-            break;
+    case 2:
+        buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_SCALING_MASK;
+        buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_SCALING_2;
+        break;
+    case 4:
+        buf->stBufArr.flags &= ~V4L2_BUF_FRAME_FLAG_SCALING_MASK;
+        buf->stBufArr.flags |= V4L2_BUF_FRAME_FLAG_SCALING_4;
+        break;
+    default:
+        error("do not support this scale factor :%d", scale);
+        break;
     }
     return MPP_OK;
 }
@@ -394,13 +378,9 @@ void setEPRflag(Buffer *buf) {
     buf->stBufArr.flags |= V4L2_BUF_FLAG_MVX_BUFFER_EPR;
 }
 
-void setQPofEPR(Buffer *buf, S32 data) {
-    buf->nQp = data;
-}
+void setQPofEPR(Buffer *buf, S32 data) { buf->nQp = data; }
 
-S32 getQPofEPR(Buffer *buf) {
-    return buf->nQp;
-}
+S32 getQPofEPR(Buffer *buf) { return buf->nQp; }
 
 BOOL isGeneralBuffer(Buffer *buf) {
     return (buf->stBufArr.flags & V4L2_BUF_FLAG_MVX_BUFFER_EPR) == V4L2_BUF_FLAG_MVX_BUFFER_EPR;
@@ -417,7 +397,7 @@ void update(Buffer *buf, struct v4l2_buffer b) {
     }
 }
 
-S32 memoryMap(Buffer *buf, S32 fd) {
+void memoryMap(Buffer *buf, S32 fd) {
     if (V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type)) {
         for (U32 i = 0; i < buf->stBufArr.length; ++i) {
             struct v4l2_plane *p = &(buf->stBufArr.m.planes[i]);
@@ -425,14 +405,14 @@ S32 memoryMap(Buffer *buf, S32 fd) {
             if (p->length > 0) {
                 if (V4L2_MEMORY_MMAP == buf->nMemType) {
                     buf->pUserPtr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, p->m.mem_offset);
-                    if (buf->pUserPtr[i] == MAP_FAILED) {
-                        error("Failed to mmap multi plane memory (%s)", strerror(errno));
-                        return MPP_MMAP_FAILED;
-                    }
                 } else if (buf->nMemType == V4L2_MEMORY_USERPTR) {
                     // userptr mode, not allocate here, use the external point
                     // buf->pUserPtr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE,
                     //                         MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+                }
+
+                if (buf->pUserPtr[i] == MAP_FAILED) {
+                    error("Failed to mmap multi plane memory (%s)", strerror(errno));
                 }
 
                 buf->nPlaneLength[i] = p->length;
@@ -448,7 +428,6 @@ S32 memoryMap(Buffer *buf, S32 fd) {
                 mmap(NULL, buf->nTotalLength, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.planes[0].m.fd, 0);
             if (buf->pUserPtr[0] == MAP_FAILED) {
                 error("Failed to mmap multi plane memory (%s)", strerror(errno));
-                return MPP_MMAP_FAILED;
             }
             buf->nPlaneOffset[0] = 0;
 
@@ -466,22 +445,25 @@ S32 memoryMap(Buffer *buf, S32 fd) {
                 }
             }
         } else if (V4L2_MEMORY_DMABUF == buf->nMemType && MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType) {
-            debug("dmabuf external, not alloc dmabuf here, always used for video encode!");
+            debug("dmabuf external, not alloc dmabuf here, always used for video "
+                    "encode!");
         }
+
     } else {
         if (buf->stBufArr.length > 0) {
             if (V4L2_MEMORY_MMAP == buf->nMemType) {
                 buf->pUserPtr[0] =
                     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf->stBufArr.m.offset);
-            } else if (V4L2_MEMORY_DMABUF == buf->nMemType
-                && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
+            } else if (V4L2_MEMORY_DMABUF == buf->nMemType &&
+                        MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
                 buf->nTotalLength = buf->stBufArr.length;
                 buf->stBufArr.m.fd = allocDmaBuf(buf->pDmaBufWrapper, buf->stBufArr.length);
                 buf->pUserPtr[0] =
                     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.fd, 0);
-            } else if (V4L2_MEMORY_DMABUF == buf->nMemType
-                && MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType) {
-                debug("dmabuf external, not alloc dmabuf here, always used for video encode!");
+            } else if (V4L2_MEMORY_DMABUF == buf->nMemType &&
+                        MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType) {
+                debug("dmabuf external, not alloc dmabuf here, always used for video "
+                        "encode!");
             } else if (V4L2_MEMORY_USERPTR == buf->nMemType) {
                 // userptr mode, not allocate here, use the external point
                 // buf->pUserPtr[0] =
@@ -491,12 +473,9 @@ S32 memoryMap(Buffer *buf, S32 fd) {
 
             if (buf->pUserPtr[0] == MAP_FAILED) {
                 error("Failed to mmap single plane memory (%s)", strerror(errno));
-                return MPP_MMAP_FAILED;
             }
         }
     }
-
-    return MPP_OK;
 }
 
 S32 memoryUnmap(Buffer *buf) {
@@ -504,19 +483,15 @@ S32 memoryUnmap(Buffer *buf) {
         if (buf->nMemType == V4L2_MEMORY_DMABUF) {
             if (buf->pUserPtr[0] && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
                 if (munmap(buf->pUserPtr[0], buf->nTotalLength)) {
-                    error(
-                        "dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)",
-                        buf->nTotalLength,
-                        buf->pUserPtr[0],
-                        strerror(errno));
+                    error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)", buf->nTotalLength,
+                        buf->pUserPtr[0], strerror(errno));
                     return MPP_MUNMAP_FAILED;
                 }
                 freeDmaBuf(buf->pDmaBufWrapper);
                 close(buf->stBufArr.m.planes[0].m.fd);
             } else {
-                debug(
-                    "maybe dmabuf external, not free dmabuf here, always used for "
-                    "video encode!");
+                debug("maybe dmabuf external, not free dmabuf here, always used for "
+                        "video encode!");
             }
         } else if (buf->nMemType == V4L2_MEMORY_MMAP) {
             for (U32 i = 0; i < buf->stBufArr.length; i++) {
@@ -531,19 +506,15 @@ S32 memoryUnmap(Buffer *buf) {
         if (buf->nMemType == V4L2_MEMORY_DMABUF) {
             if (buf->pUserPtr[0] && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
                 if (munmap(buf->pUserPtr[0], buf->nTotalLength)) {
-                    error(
-                        "dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)",
-                        buf->nTotalLength,
-                        buf->pUserPtr[0],
-                        strerror(errno));
+                    error("dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)", buf->nTotalLength,
+                        buf->pUserPtr[0], strerror(errno));
                     return MPP_MUNMAP_FAILED;
                 }
                 freeDmaBuf(buf->pDmaBufWrapper);
                 close(buf->stBufArr.m.fd);
             } else {
-                debug(
-                    "maybe dmabuf external, not free dmabuf here, always used for "
-                    "video encode!");
+                debug("maybe dmabuf external, not free dmabuf here, always used for "
+                        "video encode!");
             }
         } else if (buf->nMemType == V4L2_MEMORY_MMAP) {
             if (buf->pUserPtr[0]) {
@@ -593,9 +564,7 @@ void setRoiCfg(Buffer *buf, struct v4l2_mvx_roi_regions roi) {
     buf->isRoiCfg = MPP_TRUE;
 }
 
-BOOL getRoiCfgflag(Buffer *buf) {
-    return buf->isRoiCfg;
-}
+BOOL getRoiCfgflag(Buffer *buf) { return buf->isRoiCfg; }
 
 /***
  * struct v4l2_buffer_param_region
@@ -617,9 +586,7 @@ BOOL getRoiCfgflag(Buffer *buf) {
  *   struct v4l2_buffer_param_region roi[V4L2_MVX_MAX_FRAME_REGIONS];
  * };
  */
-struct v4l2_mvx_roi_regions getRoiCfg(Buffer *buf) {
-    return buf->roi_cfg;
-}
+struct v4l2_mvx_roi_regions getRoiCfg(Buffer *buf) { return buf->roi_cfg; }
 
 void setSuperblock(Buffer *buf, BOOL superblock) {
     buf->stBufArr.flags &= ~(V4L2_BUF_FLAG_MVX_AFBC_32X8_SUPERBLOCK);
@@ -628,17 +595,11 @@ void setSuperblock(Buffer *buf, BOOL superblock) {
     }
 }
 
-S32 getExtraId(Buffer *buf) {
-    return buf->nExtraId;
-}
+S32 getExtraId(Buffer *buf) { return buf->nExtraId; }
 
-S32 getExtraFd(Buffer *buf) {
-    return buf->nExtraFd;
-}
+S32 getExtraFd(Buffer *buf) { return buf->nExtraFd; }
 
-BOOL getIsQueued(Buffer *buf) {
-    return buf->bIsQueued;
-}
+BOOL getIsQueued(Buffer *buf) { return buf->bIsQueued; }
 
 S32 setIsQueued(Buffer *buf, BOOL queued) {
     buf->bIsQueued = queued;

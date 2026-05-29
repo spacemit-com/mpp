@@ -14,8 +14,8 @@
 #ifndef DEMUX_TYPE_H
 #define DEMUX_TYPE_H
 
-#include "sys/type.h"
 #include "sys/sys_type.h"
+#include "sys/type.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -40,6 +40,7 @@ extern "C" {
 #define ERR_DEMUX_NOT_STARTED (-1007)
 #define ERR_DEMUX_OPEN_FAIL (-1008)
 #define ERR_DEMUX_NO_STREAM (-1009)
+#define ERR_DEMUX_UNSUPPORTED (-1010)
 
 /* ======================== 枚举 ======================== */
 
@@ -49,6 +50,7 @@ typedef enum _DemuxCodecType {
     DEMUX_CODEC_H264 = 0,
     DEMUX_CODEC_H265,
     DEMUX_CODEC_MJPEG,
+    DEMUX_CODEC_AAC,
     DEMUX_CODEC_UNKNOWN
 } DemuxCodecType;
 
@@ -109,4 +111,4 @@ typedef struct _DemuxChnAttr {
 #endif
 #endif /* __cplusplus */
 
-#endif /* DEMUX_TYPE_H */
+#endif /* __DEMUX_TYPE_H__ */

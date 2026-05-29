@@ -68,7 +68,7 @@ struct _Codec {
     BOOL bIsInterlaced;
     U32 nInputFormatFourcc;
     U32 nOutputFormatFourcc;
-    U32 nInputMemtype;   // V4L2_MEMORY_MMAP/V4L2_MEMORY_USERPTR/V4L2_MEMORY_DMABUF
+    U32 nInputMemtype;  // V4L2_MEMORY_MMAP/V4L2_MEMORY_USERPTR/V4L2_MEMORY_DMABUF
     U32 nOutputMemtype;  // V4L2_MEMORY_MMAP/V4L2_MEMORY_USERPTR/V4L2_MEMORY_DMABUF
     U32 nInputBufferNum;
     U32 nOutputBufferNum;
@@ -99,23 +99,9 @@ struct _Codec {
     MppFrameBufferType eBufferType;
 };
 
-Codec *createCodec(
-    S32 fd,
-    S32 width,
-    S32 height,
-    S32 align,
-    BOOL isInterlaced,
-    enum v4l2_buf_type inputType,
-    enum v4l2_buf_type outputType,
-    U32 input_format_fourcc,
-    U32 output_format_fourcc,
-    U32 input_memtype,
-    U32 output_memtype,
-    U32 input_buffer_num,
-    U32 output_buffer_num,
-    BOOL block,
-    MppFrameBufferType buffer_type
-) {
+Codec *createCodec(S32 fd, S32 width, S32 height, S32 align, BOOL isInterlaced, enum v4l2_buf_type inputType,
+    enum v4l2_buf_type outputType, U32 input_format_fourcc, U32 output_format_fourcc, U32 input_memtype,
+    U32 output_memtype, U32 input_buffer_num, U32 output_buffer_num, BOOL block, MppFrameBufferType buffer_type) {
     Codec *codec_tmp = (Codec *)malloc(sizeof(Codec));
     if (!codec_tmp) {
         error("can not malloc Codec, please check! (%s)", strerror(errno));
@@ -123,17 +109,9 @@ Codec *createCodec(
     }
     memset(codec_tmp, 0, sizeof(Codec));
 
-    debug(
-        "create a codec, width=%d height=%d align=%d inputtype=%d outputtype=%d "
-        "inputformat=%x outputformat=%x inputbufnum=%d outputbufnum=%d",
-        width,
-        height,
-        align,
-        inputType,
-        outputType,
-        input_format_fourcc,
-        output_format_fourcc,
-        input_buffer_num,
+    debug("create a codec, width=%d height=%d align=%d inputtype=%d outputtype=%d "
+            "inputformat=%x outputformat=%x inputbufnum=%d outputbufnum=%d",
+        width, height, align, inputType, outputType, input_format_fourcc, output_format_fourcc, input_buffer_num,
         output_buffer_num);
 
     codec_tmp->nVideoFd = fd;
@@ -184,61 +162,33 @@ void destoryCodec(Codec *codec) {
     free(codec);
 }
 
-Port *getInputPort(Codec *codec) {
-    return codec->stInputPort;
-}
+Port *getInputPort(Codec *codec) { return codec->stInputPort; }
 
-Port *getOutputPort(Codec *codec) {
-    return codec->stOutputPort;
-}
+Port *getOutputPort(Codec *codec) { return codec->stOutputPort; }
 
-BOOL getCsweo(Codec *codec) {
-    return codec->bCsweo;
-}
+BOOL getCsweo(Codec *codec) { return codec->bCsweo; }
 
-U32 getFps(Codec *codec) {
-    return codec->nFps;
-}
+U32 getFps(Codec *codec) { return codec->nFps; }
 
-U32 getBps(Codec *codec) {
-    return codec->nBps;
-}
+U32 getBps(Codec *codec) { return codec->nBps; }
 
-U32 getMinqp(Codec *codec) {
-    return codec->nMinqp;
-}
+U32 getMinqp(Codec *codec) { return codec->nMinqp; }
 
-U32 getMaxqp(Codec *codec) {
-    return codec->nMaxqp;
-}
+U32 getMaxqp(Codec *codec) { return codec->nMaxqp; }
 
-U32 getFixedqp(Codec *codec) {
-    return codec->nFixedqp;
-}
+U32 getFixedqp(Codec *codec) { return codec->nFixedqp; }
 
-void setCsweo(Codec *codec, BOOL csweo) {
-    codec->bCsweo = csweo;
-}
+void setCsweo(Codec *codec, BOOL csweo) { codec->bCsweo = csweo; }
 
-void setFps(Codec *codec, U32 fps) {
-    codec->nFps = fps;
-}
+void setFps(Codec *codec, U32 fps) { codec->nFps = fps; }
 
-void setBps(Codec *codec, U32 bps) {
-    codec->nBps = bps;
-}
+void setBps(Codec *codec, U32 bps) { codec->nBps = bps; }
 
-void setMinqp(Codec *codec, U32 minqp) {
-    codec->nMinqp = minqp;
-}
+void setMinqp(Codec *codec, U32 minqp) { codec->nMinqp = minqp; }
 
-void setMaxqp(Codec *codec, U32 maxqp) {
-    codec->nMaxqp = maxqp;
-}
+void setMaxqp(Codec *codec, U32 maxqp) { codec->nMaxqp = maxqp; }
 
-void setFixedqp(Codec *codec, U32 fixedqp) {
-    codec->nFixedqp = fixedqp;
-}
+void setFixedqp(Codec *codec, U32 fixedqp) { codec->nFixedqp = fixedqp; }
 
 S32 stream(Codec *codec) {
     /* Set NALU. */
@@ -314,19 +264,17 @@ S32 stream(Codec *codec) {
     return MPP_OK;
 }
 
-BOOL isVPx(U32 format) {
-    return format == V4L2_PIX_FMT_VP8 || format == V4L2_PIX_FMT_VP9;
-}
+BOOL isVPx(U32 format) { return format == V4L2_PIX_FMT_VP8 || format == V4L2_PIX_FMT_VP9; }
 
 BOOL isAFBC(U32 format) {
     switch (format) {
-        case V4L2_PIX_FMT_YUV420_AFBC_8:
-        case V4L2_PIX_FMT_YUV420_AFBC_10:
-        case V4L2_PIX_FMT_YUV422_AFBC_8:
-        case V4L2_PIX_FMT_YUV422_AFBC_10:
-            return MPP_TRUE;
-        default:
-            return MPP_FALSE;
+    case V4L2_PIX_FMT_YUV420_AFBC_8:
+    case V4L2_PIX_FMT_YUV420_AFBC_10:
+    case V4L2_PIX_FMT_YUV422_AFBC_8:
+    case V4L2_PIX_FMT_YUV422_AFBC_10:
+        return MPP_TRUE;
+    default:
+        return MPP_FALSE;
     }
 }
 
@@ -377,11 +325,7 @@ void enumerateFramesizes(Codec *codec, U32 format) {
 
     S32 ret = ioctl(codec->nVideoFd, VIDIOC_ENUM_FRAMESIZES, &frmsize);
     if (ret != 0) {
-        error(
-            "Failed to enumerate frame sizes. fd=%d format=%d ret=%d error=%s",
-            codec->nVideoFd,
-            format,
-            ret,
+        error("Failed to enumerate frame sizes. fd=%d format=%d ret=%d error=%s", codec->nVideoFd, format, ret,
             strerror(errno));
     }
 
@@ -389,19 +333,19 @@ void enumerateFramesizes(Codec *codec, U32 format) {
     //       frmsize.pixel_format);
 
     switch (frmsize.type) {
-        case V4L2_FRMIVAL_TYPE_DISCRETE:
-            break;
-        case V4L2_FRMIVAL_TYPE_CONTINUOUS:
-        case V4L2_FRMIVAL_TYPE_STEPWISE:
-            // debug(
-            //     "min_width=%d max_width=%d step_width=%d  min_height=%d "
-            //     "max_height=%d step_height=%d",
-            //     frmsize.stepwise.min_width, frmsize.stepwise.max_width,
-            //     frmsize.stepwise.step_width, frmsize.stepwise.min_height,
-            //     frmsize.stepwise.max_height, frmsize.stepwise.step_height);
-            break;
-        default:
-            error("Unsupported enumerate frame size type. type=%d", frmsize.type);
+    case V4L2_FRMIVAL_TYPE_DISCRETE:
+        break;
+    case V4L2_FRMIVAL_TYPE_CONTINUOUS:
+    case V4L2_FRMIVAL_TYPE_STEPWISE:
+        // debug(
+        //     "min_width=%d max_width=%d step_width=%d  min_height=%d "
+        //     "max_height=%d step_height=%d",
+        //     frmsize.stepwise.min_width, frmsize.stepwise.max_width,
+        //     frmsize.stepwise.step_width, frmsize.stepwise.min_height,
+        //     frmsize.stepwise.max_height, frmsize.stepwise.step_height);
+        break;
+    default:
+        error("Unsupported enumerate frame size type. type=%d", frmsize.type);
     }
 }
 
@@ -437,9 +381,7 @@ void subscribeEvent(Codec *codec, U32 event) {
     }
 }
 
-void unsubscribeEvents(Codec *codec) {
-    unsubscribeEvent(codec, V4L2_EVENT_ALL);
-}
+void unsubscribeEvents(Codec *codec) { unsubscribeEvent(codec, V4L2_EVENT_ALL); }
 
 void unsubscribeEvent(Codec *codec, U32 event) {
     struct v4l2_event_subscription sub;
@@ -481,26 +423,35 @@ void streamoffCodec(Codec *codec) {
 S32 handleEvent(Codec *codec) {
     struct v4l2_event event;
     S32 ret;
+    S32 eventCount = 0;
 
-    ret = ioctl(codec->nVideoFd, VIDIOC_DQEVENT, &event);
-    if (ret != 0) {
-        error("Failed to dequeue event, please check!");
-        return MPP_IOCTL_FAILED;
-    }
+    /* Drain ALL pending events to prevent event queue overflow.
+     * V4L2 event queue has limited capacity; if not drained in time,
+     * subsequent poll() may return POLLERR. */
+    while (1) {
+        ret = ioctl(codec->nVideoFd, VIDIOC_DQEVENT, &event);
+        if (ret != 0) {
+            if (eventCount == 0) {
+                error("Failed to dequeue event, please check!");
+                return MPP_IOCTL_FAILED;
+            }
+            break; /* No more pending events */
+        }
+        eventCount++;
 
-    if (event.type == V4L2_EVENT_MVX_COLOR_DESC) {
-        // struct v4l2_mvx_color_desc color = getColorDesc(codec);
-        // printColorDesc(color);
-        error("V4L2_EVENT_MVX_COLOR_DESC event is not support yet, please check!");
-    }
+        if (event.type == V4L2_EVENT_MVX_COLOR_DESC) {
+            /* HDR color description - acknowledge but no action needed */
+            debug("V4L2_EVENT_MVX_COLOR_DESC event received");
+        }
 
-    if (event.type == V4L2_EVENT_SOURCE_CHANGE && (event.u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION)) {
-        debug("get V4L2_EVENT_SOURCE_CHANGE event, do notify!");
-        notifySourceChange(codec->stOutputPort);
-    }
+        if (event.type == V4L2_EVENT_SOURCE_CHANGE && (event.u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION)) {
+            debug("get V4L2_EVENT_SOURCE_CHANGE event, do notify!");
+            notifySourceChange(codec->stOutputPort);
+        }
 
-    if (event.type == V4L2_EVENT_EOS) {
-        error("V4L2_EVENT_EOS event is not support yet, please check!");
+        if (event.type == V4L2_EVENT_EOS) {
+            debug("V4L2_EVENT_EOS event received");
+        }
     }
 
     return MPP_OK;
@@ -509,12 +460,22 @@ S32 handleEvent(Codec *codec) {
 void handleFlush(Codec *codec, BOOL eof) {
     streamoff(codec->stInputPort);
     streamoff(codec->stOutputPort);
+
+    /* For DMABUF_EXTERNAL mode: DO NOT reallocate buffers here!
+     * The buffers are owned by MPI layer (VB pool), and reallocation
+     * would cause MPI's stExtBuf[] to become out of sync with V4L2.
+     * Just do streamoff/streamon, and let MPI layer re-queue buffers. */
+
     streamon(codec->stInputPort);
     // this sleep is used to fix a bug, ffplay on linux sometimes get a streamon
     // failed(Operation now in progress) error
     usleep(5000);
     streamon(codec->stOutputPort);
-    queueBuffers(codec->stOutputPort, MPP_FALSE);
+
+    /* Only queue internal buffers; external buffers queued by MPI layer */
+    if (getPortBufferType(codec->stOutputPort) != MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL) {
+        queueBuffers(codec->stOutputPort, MPP_FALSE);
+    }
     // port->nFramesProcessed = 0;
 }
 
@@ -540,8 +501,11 @@ S32 runPoll(Codec *codec, struct pollfd *p) {
     }
 
     if (p->revents & POLLERR) {
-        error("Poll returned error event.");
-        return MPP_POLL_FAILED;
+        /* POLLERR from V4L2 means no buffers are queued on this port.
+         * For INPUT: decoder queue is full, need to wait for output consumption.
+         * For OUTPUT: no output buffers available, need to wait for recycle.
+         * This is a transient condition, not a fatal error. */
+        return MPP_POLL_FAILED; /* Caller should retry later */
     }
 
     if (0 == ret) {

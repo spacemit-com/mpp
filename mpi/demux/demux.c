@@ -1,91 +1,419 @@
 /*
  *------------------------------------------------------------------------------
  * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
- * that can be found in the LICENSE file.
+ * BSD-style license.
  *
  * @File      :    demux.c
- * @Date      :    2026-04-15
- * @Author    :    rmwei(rongmin.wei@spacemit.com)
- * @Brief     :    DEMUX module implementation for MPP.
+ * @Brief     :    demux implementation.
+ *                 - Context API: Demux_Create/Open/ReadPacket/...
+ *                 - Channel API: DEMUX_Init/CreateChn/StartChn/...
+ *                 Features: Auto-reconnect, callback/bind modes, thread-safe.
  *------------------------------------------------------------------------------
  */
 
-#include "demux/demux_api.h"
+#include "demux.h"
 
-#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "common/url_parser.h"
 #include "sys/sys_api.h"
 
-#ifdef __cplusplus
-extern "C" {
+#ifdef DEMUX_RTSP
+#include "protocol/rtsp/rtsp_client.h"
 #endif
-#include <libavcodec/avcodec.h>
-#include <libavcodec/bsf.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
-#ifdef __cplusplus
+
+#ifdef DEMUX_MP4
+#include "container/mp4/mp4_demuxer.h"
+#endif
+
+#ifdef DEMUX_FLV
+#include "container/flv/flv_demuxer.h"
+#endif
+
+#ifdef DEMUX_TS
+#include "container/ts/ts_demuxer.h"
+#endif
+
+struct _DemuxCtx {
+    DemuxProtocol eProto;
+    CHAR szUrl[DEMUX_URL_MAX_LEN];
+
+    union {
+#ifdef DEMUX_RTSP
+        RtspClient *pRtsp;
+#endif
+#ifdef DEMUX_MP4
+        Mp4Demuxer *pMp4;
+#endif
+#ifdef DEMUX_FLV
+        FlvDemuxer *pFlv;
+#endif
+#ifdef DEMUX_TS
+        TsDemuxer *pTs;
+#endif
+        void *pGeneric;
+    } impl;
+};
+
+DemuxProtocol Demux_DetectProtocol(const CHAR *pszUrl) {
+    if (!pszUrl)
+        return DEMUX_PROTO_UNKNOWN;
+
+    /* Check scheme */
+    if (strncasecmp(pszUrl, "rtsp://", 7) == 0) {
+        return DEMUX_PROTO_RTSP;
+    }
+    if (strncasecmp(pszUrl, "rtmp://", 7) == 0) {
+        return DEMUX_PROTO_RTMP;
+    }
+    if (strncasecmp(pszUrl, "http://", 7) == 0 || strncasecmp(pszUrl, "https://", 8) == 0) {
+        const CHAR *pExt = Url_GetExtension(pszUrl);
+        if (strcasecmp(pExt, "m3u8") == 0)
+            return DEMUX_PROTO_HLS;
+        if (strcasecmp(pExt, "flv") == 0)
+            return DEMUX_PROTO_HTTP_FLV;
+    }
+
+    /* Check file extension */
+    if (Url_IsFile(pszUrl)) {
+        const CHAR *pExt = Url_GetExtension(pszUrl);
+        if (strcasecmp(pExt, "mp4") == 0)
+            return DEMUX_PROTO_FILE_MP4;
+        if (strcasecmp(pExt, "ts") == 0)
+            return DEMUX_PROTO_FILE_TS;
+        if (strcasecmp(pExt, "flv") == 0)
+            return DEMUX_PROTO_FILE_FLV;
+    }
+
+    return DEMUX_PROTO_UNKNOWN;
 }
+
+BOOL Demux_IsSupported(DemuxProtocol eProto) {
+    switch (eProto) {
+#ifdef DEMUX_RTSP
+    case DEMUX_PROTO_RTSP:
+        return MPP_TRUE;
 #endif
+#ifdef DEMUX_RTMP
+    case DEMUX_PROTO_RTMP:
+        return MPP_TRUE;
+#endif
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        return MPP_TRUE;
+#endif
+#ifdef DEMUX_FLV
+    case DEMUX_PROTO_FILE_FLV:
+        return MPP_TRUE;
+    case DEMUX_PROTO_HTTP_FLV:
+        return MPP_TRUE;
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        return MPP_TRUE;
+#endif
+#ifdef DEMUX_HLS
+    case DEMUX_PROTO_HLS:
+        return MPP_TRUE;
+#endif
+    default:
+        return MPP_FALSE;
+    }
+}
+
+DemuxCtx *Demux_Create(const CHAR *pszUrl) {
+    DemuxCtx *pCtx;
+
+    if (!pszUrl)
+        return NULL;
+
+    pCtx = (DemuxCtx *)calloc(1, sizeof(DemuxCtx));
+    if (!pCtx)
+        return NULL;
+
+    pCtx->eProto = Demux_DetectProtocol(pszUrl);
+    strncpy(pCtx->szUrl, pszUrl, DEMUX_URL_MAX_LEN - 1);
+
+    if (!Demux_IsSupported(pCtx->eProto)) {
+        free(pCtx);
+        return NULL;
+    }
+
+    /* Create protocol-specific context */
+    switch (pCtx->eProto) {
+#ifdef DEMUX_RTSP
+    case DEMUX_PROTO_RTSP:
+        pCtx->impl.pRtsp = RtspClient_Create();
+        if (!pCtx->impl.pRtsp) {
+            free(pCtx);
+            return NULL;
+        }
+        break;
+#endif
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        pCtx->impl.pMp4 = Mp4Demuxer_Create();
+        if (!pCtx->impl.pMp4) {
+            free(pCtx);
+            return NULL;
+        }
+        break;
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        pCtx->impl.pTs = TsDemuxer_Create();
+        if (!pCtx->impl.pTs) {
+            free(pCtx);
+            return NULL;
+        }
+        break;
+#endif
+#ifdef DEMUX_FLV
+    case DEMUX_PROTO_FILE_FLV:
+        pCtx->impl.pFlv = FlvDemuxer_Create();
+        if (!pCtx->impl.pFlv) {
+            free(pCtx);
+            return NULL;
+        }
+        break;
+#endif
+    default:
+        break;
+    }
+
+    return pCtx;
+}
+
+VOID Demux_Destroy(DemuxCtx *pCtx) {
+    if (!pCtx)
+        return;
+
+    switch (pCtx->eProto) {
+#ifdef DEMUX_RTSP
+    case DEMUX_PROTO_RTSP:
+        if (pCtx->impl.pRtsp) {
+            RtspClient_Destroy(pCtx->impl.pRtsp);
+        }
+        break;
+#endif
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        if (pCtx->impl.pMp4) {
+            Mp4Demuxer_Destroy(pCtx->impl.pMp4);
+        }
+        break;
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        if (pCtx->impl.pTs) {
+            TsDemuxer_Destroy(pCtx->impl.pTs);
+        }
+        break;
+#endif
+#ifdef DEMUX_FLV
+    case DEMUX_PROTO_FILE_FLV:
+        if (pCtx->impl.pFlv) {
+            FlvDemuxer_Destroy(pCtx->impl.pFlv);
+        }
+        break;
+#endif
+    default:
+        break;
+    }
+
+    free(pCtx);
+}
+
+S32 Demux_Open(DemuxCtx *pCtx, BOOL bPreferTcp, U32 u32TimeoutMs) {
+    if (!pCtx)
+        return ERR_DEMUX_NULL_PTR;
+
+    switch (pCtx->eProto) {
+#ifdef DEMUX_RTSP
+    case DEMUX_PROTO_RTSP:
+        return RtspClient_Connect(pCtx->impl.pRtsp, pCtx->szUrl, bPreferTcp, u32TimeoutMs);
+#endif
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        return Mp4Demuxer_Open(pCtx->impl.pMp4, pCtx->szUrl);
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        return TsDemuxer_Open(pCtx->impl.pTs, pCtx->szUrl);
+#endif
+#ifdef DEMUX_FLV
+    case DEMUX_PROTO_FILE_FLV:
+        return FlvDemuxer_Open(pCtx->impl.pFlv, pCtx->szUrl);
+#endif
+    default:
+        return ERR_DEMUX_OPEN_FAIL;
+    }
+}
+
+VOID Demux_Close(DemuxCtx *pCtx) {
+    if (!pCtx)
+        return;
+
+    switch (pCtx->eProto) {
+#ifdef DEMUX_RTSP
+    case DEMUX_PROTO_RTSP:
+        RtspClient_Disconnect(pCtx->impl.pRtsp);
+        break;
+#endif
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        Mp4Demuxer_Close(pCtx->impl.pMp4);
+        break;
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        TsDemuxer_Close(pCtx->impl.pTs);
+        break;
+#endif
+#ifdef DEMUX_FLV
+    case DEMUX_PROTO_FILE_FLV:
+        FlvDemuxer_Close(pCtx->impl.pFlv);
+        break;
+#endif
+    default:
+        break;
+    }
+}
+
+S32 Demux_GetStreamInfoCtx(DemuxCtx *pCtx, DemuxStreamInfo *pstInfo) {
+    if (!pCtx || !pstInfo)
+        return ERR_DEMUX_NULL_PTR;
+
+    switch (pCtx->eProto) {
+#ifdef DEMUX_RTSP
+    case DEMUX_PROTO_RTSP:
+        return RtspClient_GetStreamInfo(pCtx->impl.pRtsp, pstInfo);
+#endif
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        return Mp4Demuxer_GetStreamInfo(pCtx->impl.pMp4, pstInfo);
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        return TsDemuxer_GetStreamInfo(pCtx->impl.pTs, pstInfo);
+#endif
+#ifdef DEMUX_FLV
+    case DEMUX_PROTO_FILE_FLV:
+        return FlvDemuxer_GetStreamInfo(pCtx->impl.pFlv, pstInfo);
+#endif
+    default:
+        return ERR_DEMUX_NOT_STARTED;
+    }
+}
+
+S32 Demux_ReadPacket(DemuxCtx *pCtx, DemuxPacket *pstPkt) {
+    if (!pCtx || !pstPkt)
+        return ERR_DEMUX_NULL_PTR;
+
+    switch (pCtx->eProto) {
+#ifdef DEMUX_RTSP
+    case DEMUX_PROTO_RTSP:
+        return RtspClient_ReadPacket(pCtx->impl.pRtsp, pstPkt);
+#endif
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        return Mp4Demuxer_ReadPacket(pCtx->impl.pMp4, pstPkt);
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        return TsDemuxer_ReadPacket(pCtx->impl.pTs, pstPkt);
+#endif
+#ifdef DEMUX_FLV
+    case DEMUX_PROTO_FILE_FLV:
+        return FlvDemuxer_ReadPacket(pCtx->impl.pFlv, pstPkt);
+#endif
+    default:
+        return ERR_DEMUX_NO_STREAM;
+    }
+}
+
+S32 Demux_Seek(DemuxCtx *pCtx, S64 s64PtsUs) {
+    if (!pCtx)
+        return ERR_DEMUX_NULL_PTR;
+
+    switch (pCtx->eProto) {
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        return Mp4Demuxer_Seek(pCtx->impl.pMp4, s64PtsUs);
+#endif
+#ifdef DEMUX_TS
+    case DEMUX_PROTO_FILE_TS:
+        return TsDemuxer_Seek(pCtx->impl.pTs, s64PtsUs);
+#endif
+    default:
+        return ERR_DEMUX_NOT_STARTED; /* Live streams don't support seek */
+    }
+}
+
+S64 Demux_GetDuration(DemuxCtx *pCtx) {
+    if (!pCtx)
+        return 0;
+
+    switch (pCtx->eProto) {
+#ifdef DEMUX_MP4
+    case DEMUX_PROTO_FILE_MP4:
+        return Mp4Demuxer_GetDuration(pCtx->impl.pMp4);
+#endif
+    default:
+        return 0; /* Live streams have no duration */
+    }
+}
+
+/* ============================================================================
+ * Channel-based API Implementation
+ * Compatible with mpp_demux, with auto-reconnect and thread management.
+ * ============================================================================ */
 
 #define DEMUX_LOGE(fmt, ...) fprintf(stderr, "[DEMUX][ERR] " fmt "\n", ##__VA_ARGS__)
 #define DEMUX_LOGI(fmt, ...) fprintf(stdout, "[DEMUX][INF] " fmt "\n", ##__VA_ARGS__)
 
-#define DEMUX_STATE_IDLE 0
-#define DEMUX_STATE_CREATED 1
-#define DEMUX_STATE_RUNNING 2
-#define DEMUX_STATE_STOPPING 3
+#define CHN_STATE_IDLE 0
+#define CHN_STATE_CREATED 1
+#define CHN_STATE_RUNNING 2
+#define CHN_STATE_STOPPING 3
 
-#define DEMUX_TIME_BASE_US 1000000ULL
-
-typedef struct _DemuxPsCache {
-    U8 *pu8Vps;
-    U32 u32VpsLen;
-    U8 *pu8Sps;
-    U32 u32SpsLen;
-    U8 *pu8Pps;
-    U32 u32PpsLen;
-} DemuxPsCache;
-
-typedef struct _DemuxChannel {
+typedef struct _DemuxChn {
     S32 s32Created;
     S32 s32State;
-    S32 s32Stop;
+    volatile S32 s32Stop;
     S32 s32ThreadAlive;
     S32 s32ChnId;
     pthread_t thread;
     pthread_mutex_t lock;
+
     DemuxChnAttr stAttr;
     DemuxStreamInfo stStreamInfo;
     DemuxPacketCallback pfnCb;
     VOID *pCbPriv;
     MppNode stSrcNode;
-    AVFormatContext *pstFmt;
-    AVBSFContext *pstBsf;
-    S32 s32VideoIndex;
-    S64 s64IoDeadlineMs;
-    DemuxPsCache stPs;
-} DemuxChannel;
 
-typedef struct _DemuxContext {
+    /* Native demux context */
+    DemuxCtx *pCtx;
+
+    /* Statistics */
+    U64 u64PacketCount;
+    U64 u64ReconnectCount;
+
+    /* Reconnect state: wait for keyframe after reconnect */
+    BOOL bWaitKeyFrame;
+} DemuxChn;
+
+typedef struct _DemuxGlobal {
     S32 s32Init;
     pthread_mutex_t lock;
-    DemuxChannel astChn[DEMUX_MAX_CHN];
-} DemuxContext;
+    DemuxChn astChn[DEMUX_MAX_CHN];
+} DemuxGlobal;
 
-static DemuxContext g_stDemuxCtx = {0};
-
-static int64_t demux_now_ms(VOID) {
-    struct timespec ts;
-
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (int64_t)ts.tv_sec * 1000LL + (int64_t)ts.tv_nsec / 1000000LL;
-}
+static DemuxGlobal g_stDemuxCtx = {0};
 
 static S32 demux_check_chn(S32 s32ChnId) {
     if (s32ChnId < 0 || s32ChnId >= DEMUX_MAX_CHN) {
@@ -94,548 +422,260 @@ static S32 demux_check_chn(S32 s32ChnId) {
     return ERR_DEMUX_OK;
 }
 
-static VOID demux_free_ps_cache(DemuxPsCache *pstPs) {
-    if (!pstPs) {
-        return;
+static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
+    S32 ret = ERR_DEMUX_OK;
+
+    /* After reconnect, wait for keyframe to avoid decoder errors */
+    if (pChn->bWaitKeyFrame) {
+        if (!pPkt->bKeyFrame) {
+            /* Skip non-keyframe until we get an IDR */
+            return ERR_DEMUX_OK;
+        }
+        /* Got keyframe, clear the flag */
+        pChn->bWaitKeyFrame = MPP_FALSE;
+        DEMUX_LOGI("Channel %d: Got keyframe after reconnect, resuming", pChn->s32ChnId);
     }
 
-    free(pstPs->pu8Vps);
-    free(pstPs->pu8Sps);
-    free(pstPs->pu8Pps);
-    memset(pstPs, 0, sizeof(*pstPs));
-}
-
-static VOID demux_close_bsf(DemuxChannel *pstChn) {
-    if (!pstChn) {
-        return;
+    /* User callback */
+    if (pChn->pfnCb) {
+        ret = pChn->pfnCb(pChn->s32ChnId, pPkt, pChn->pCbPriv);
     }
 
-    if (pstChn->pstBsf) {
-        av_bsf_free(&pstChn->pstBsf);
-        pstChn->pstBsf = NULL;
-    }
-}
+    /* SYS_SendStream for bind mode */
+    if (ret == ERR_DEMUX_OK) {
+        StreamBufferInfo stStream;
+        memset(&stStream, 0, sizeof(stStream));
 
-static VOID demux_close_input(DemuxChannel *pstChn) {
-    if (!pstChn) {
-        return;
-    }
+        stStream.pu8Addr = pPkt->pu8Data;
+        stStream.u32Size = pPkt->u32Size;
+        stStream.bKeyFrame = pPkt->bKeyFrame;
+        stStream.bEndOfStream = MPP_FALSE;
+        stStream.u64PTS = pPkt->u64PTS;
+        stStream.u32Width = pPkt->u32Width;
+        stStream.u32Height = pPkt->u32Height;
 
-    demux_close_bsf(pstChn);
-    if (pstChn->pstFmt) {
-        avformat_close_input(&pstChn->pstFmt);
-        pstChn->pstFmt = NULL;
-    }
-    pstChn->s32VideoIndex = -1;
-}
-
-static int demux_interrupt_cb(VOID *opaque) {
-    DemuxChannel *pstChn = (DemuxChannel *)opaque;
-
-    if (!pstChn) {
-        return 1;
-    }
-    if (pstChn->s32Stop) {
-        return 1;
-    }
-    if (pstChn->s64IoDeadlineMs > 0 && demux_now_ms() > pstChn->s64IoDeadlineMs) {
-        return 1;
-    }
-    return 0;
-}
-
-static VOID demux_set_opt_us(AVDictionary **ppDict, const CHAR *pszKey, U32 u32Ms) {
-    char szVal[32];
-    int64_t us;
-
-    if (!ppDict || !pszKey || u32Ms == 0) {
-        return;
-    }
-
-    us = (int64_t)u32Ms * 1000LL;
-    snprintf(szVal, sizeof(szVal), "%" PRId64, us);
-    av_dict_set(ppDict, pszKey, szVal, 0);
-}
-
-static S32 demux_codec_from_ffmpeg(enum AVCodecID eCodecId) {
-    switch (eCodecId) {
-        case AV_CODEC_ID_H264:
-            return DEMUX_CODEC_H264;
-        case AV_CODEC_ID_HEVC:
-            return DEMUX_CODEC_H265;
-        case AV_CODEC_ID_MJPEG:
-            return DEMUX_CODEC_MJPEG;
+        switch (pPkt->eCodecType) {
+        case DEMUX_CODEC_H264:
+            stStream.eCodecType = MPP_STREAM_CODEC_H264;
+            break;
+        case DEMUX_CODEC_H265:
+            stStream.eCodecType = MPP_STREAM_CODEC_H265;
+            break;
+        case DEMUX_CODEC_MJPEG:
+            stStream.eCodecType = MPP_STREAM_CODEC_MJPEG;
+            break;
         default:
-            return DEMUX_CODEC_UNKNOWN;
-    }
-}
-
-static S32 demux_annexb_has_complete_ps(const U8 *pu8Data, S32 s32Size, S32 s32CodecType) {
-    S32 i;
-    S32 bHasVps = 0;
-    S32 bHasSps = 0;
-    S32 bHasPps = 0;
-
-    if (!pu8Data || s32Size <= 4) {
-        return 0;
-    }
-
-    for (i = 0; i + 4 <= s32Size; ++i) {
-        S32 prefix = 0;
-        S32 nstart;
-        U8 type;
-
-        if (i + 3 < s32Size && pu8Data[i] == 0 && pu8Data[i + 1] == 0 && pu8Data[i + 2] == 1) {
-            prefix = 3;
-        } else if (
-            i + 4 < s32Size && pu8Data[i] == 0 && pu8Data[i + 1] == 0 && pu8Data[i + 2] == 0 && pu8Data[i + 3] == 1
-        ) {
-            prefix = 4;
-        }
-
-        if (prefix == 0) {
-            continue;
-        }
-
-        nstart = i + prefix;
-        if (nstart >= s32Size) {
+            stStream.eCodecType = MPP_STREAM_CODEC_UNKNOWN;
             break;
         }
 
-        if (s32CodecType == DEMUX_CODEC_H265) {
-            type = (pu8Data[nstart] >> 1) & 0x3f;
-            if (type == 32) {
-                bHasVps = 1;
-            } else if (type == 33) {
-                bHasSps = 1;
-            } else if (type == 34) {
-                bHasPps = 1;
-            }
-            if (bHasVps && bHasSps && bHasPps) {
-                return 1;
-            }
-        } else if (s32CodecType == DEMUX_CODEC_H264) {
-            type = pu8Data[nstart] & 0x1f;
-            if (type == 7) {
-                bHasSps = 1;
-            } else if (type == 8) {
-                bHasPps = 1;
-            }
-            if (bHasSps && bHasPps) {
-                return 1;
-            }
+        /* For file protocols, limit send rate to avoid overwhelming decoder.
+         * Network protocols (RTSP/RTMP) have natural flow control. */
+        BOOL isFileProto =
+            (pChn->pCtx && (pChn->pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pChn->pCtx->eProto == DEMUX_PROTO_FILE_TS ||
+                                pChn->pCtx->eProto == DEMUX_PROTO_FILE_FLV));
+
+        /* Send with backpressure.
+         * File demux has no natural network backpressure. Dropping one TS PES can
+         * poison all following P frames in a long GOP, so file mode must wait
+         * until the bound consumer has room instead of silently discarding data. */
+        S32 send_ret;
+        U32 retry = 0;
+        U32 maxRetries = isFileProto ? 1500 : 50; /* File: up to 30s */
+        U32 retryDelayUs = isFileProto ? 20000 : 10000;
+
+        while (!pChn->s32Stop && (send_ret = SYS_SendStream(&pChn->stSrcNode, &stStream)) != 0 && retry < maxRetries) {
+            usleep(retryDelayUs);
+            retry++;
+        }
+        if (send_ret != 0) {
+            DEMUX_LOGE("Channel %d: SYS_SendStream failed after %u retries, dropping packet size=%u key=%d pts=%llu",
+                pChn->s32ChnId, retry, pPkt->u32Size, pPkt->bKeyFrame, (uint64_t)pPkt->u64PTS);
+            return send_ret;
         }
     }
 
-    return 0;
-}
-
-static VOID demux_copy_nalu_with_sc(U8 **ppu8Dst, U32 *pu32DstLen, const U8 *pu8Src, U32 u32Len) {
-    static const U8 au8Sc[4] = {0, 0, 0, 1};
-    U8 *pu8Buf;
-
-    if (!ppu8Dst || !pu32DstLen || !pu8Src || u32Len == 0) {
-        return;
-    }
-
-    pu8Buf = (U8 *)malloc(u32Len + 4);
-    if (!pu8Buf) {
-        return;
-    }
-
-    memcpy(pu8Buf, au8Sc, 4);
-    memcpy(pu8Buf + 4, pu8Src, u32Len);
-
-    free(*ppu8Dst);
-    *ppu8Dst = pu8Buf;
-    *pu32DstLen = u32Len + 4;
-}
-
-static VOID demux_cache_h264_extradata(const AVCodecParameters *pstPar, DemuxPsCache *pstPs) {
-    const U8 *pu8Data;
-    S32 s32Size;
-    S32 off;
-    U8 num;
-
-    if (!pstPar || !pstPs || !pstPar->extradata || pstPar->extradata_size <= 0) {
-        return;
-    }
-
-    pu8Data = pstPar->extradata;
-    s32Size = pstPar->extradata_size;
-
-    if (demux_annexb_has_complete_ps(pu8Data, s32Size, DEMUX_CODEC_H264)) {
-        return;
-    }
-
-    if (s32Size < 7 || pu8Data[0] != 1) {
-        return;
-    }
-
-    off = 5;
-    num = pu8Data[off++] & 0x1f;
-    while (num > 0 && off + 2 <= s32Size) {
-        U32 len = ((U32)pu8Data[off] << 8) | pu8Data[off + 1];
-        off += 2;
-        if (off + (S32)len > s32Size) {
-            return;
-        }
-        demux_copy_nalu_with_sc(&pstPs->pu8Sps, &pstPs->u32SpsLen, pu8Data + off, len);
-        off += (S32)len;
-        num--;
-    }
-
-    if (off + 1 > s32Size) {
-        return;
-    }
-
-    num = pu8Data[off++];
-    while (num > 0 && off + 2 <= s32Size) {
-        U32 len = ((U32)pu8Data[off] << 8) | pu8Data[off + 1];
-        off += 2;
-        if (off + (S32)len > s32Size) {
-            return;
-        }
-        demux_copy_nalu_with_sc(&pstPs->pu8Pps, &pstPs->u32PpsLen, pu8Data + off, len);
-        off += (S32)len;
-        num--;
-    }
-}
-
-static VOID demux_make_packet_with_ps(
-    DemuxChannel *pstChn, const U8 *pu8Data, U32 u32Size, DemuxPacket *pstPkt, U8 **ppu8Out, U32 *pu32OutLen
-) {
-    U32 total = 0;
-    U8 *pu8Buf;
-    U8 *p;
-
-    if (!pstChn || !pstPkt || !ppu8Out || !pu32OutLen || !pu8Data || u32Size == 0) {
-        return;
-    }
-
-    if (pstPkt->eCodecType == DEMUX_CODEC_H265) {
-        total += pstChn->stPs.u32VpsLen + pstChn->stPs.u32SpsLen + pstChn->stPs.u32PpsLen;
-    } else if (pstPkt->eCodecType == DEMUX_CODEC_H264) {
-        total += pstChn->stPs.u32SpsLen + pstChn->stPs.u32PpsLen;
-    }
-    total += u32Size;
-
-    if (total == u32Size) {
-        return;
-    }
-
-    pu8Buf = (U8 *)malloc(total);
-    if (!pu8Buf) {
-        return;
-    }
-
-    p = pu8Buf;
-    if (pstPkt->eCodecType == DEMUX_CODEC_H265) {
-        if (pstChn->stPs.u32VpsLen) {
-            memcpy(p, pstChn->stPs.pu8Vps, pstChn->stPs.u32VpsLen);
-            p += pstChn->stPs.u32VpsLen;
-        }
-        if (pstChn->stPs.u32SpsLen) {
-            memcpy(p, pstChn->stPs.pu8Sps, pstChn->stPs.u32SpsLen);
-            p += pstChn->stPs.u32SpsLen;
-        }
-        if (pstChn->stPs.u32PpsLen) {
-            memcpy(p, pstChn->stPs.pu8Pps, pstChn->stPs.u32PpsLen);
-            p += pstChn->stPs.u32PpsLen;
-        }
-    } else {
-        if (pstChn->stPs.u32SpsLen) {
-            memcpy(p, pstChn->stPs.pu8Sps, pstChn->stPs.u32SpsLen);
-            p += pstChn->stPs.u32SpsLen;
-        }
-        if (pstChn->stPs.u32PpsLen) {
-            memcpy(p, pstChn->stPs.pu8Pps, pstChn->stPs.u32PpsLen);
-            p += pstChn->stPs.u32PpsLen;
-        }
-    }
-
-    memcpy(p, pu8Data, u32Size);
-    *ppu8Out = pu8Buf;
-    *pu32OutLen = total;
-}
-
-static S32 demux_open_bsf(DemuxChannel *pstChn) {
-    const AVBitStreamFilter *pstFilter;
-    const AVCodecParameters *pstPar;
-    const CHAR *pszBsfName = NULL;
-    S32 ret;
-
-    if (!pstChn || !pstChn->pstFmt || pstChn->s32VideoIndex < 0) {
-        return ERR_DEMUX_OK;
-    }
-
-    demux_close_bsf(pstChn);
-
-    pstPar = pstChn->pstFmt->streams[pstChn->s32VideoIndex]->codecpar;
-    if (pstPar->codec_id == AV_CODEC_ID_H264) {
-        pszBsfName = "h264_mp4toannexb";
-    } else if (pstPar->codec_id == AV_CODEC_ID_HEVC) {
-        pszBsfName = "hevc_mp4toannexb";
-    } else {
-        return ERR_DEMUX_OK;
-    }
-
-    pstFilter = av_bsf_get_by_name(pszBsfName);
-    if (!pstFilter) {
-        return ERR_DEMUX_OK;
-    }
-
-    ret = av_bsf_alloc(pstFilter, &pstChn->pstBsf);
-    if (ret < 0) {
-        DEMUX_LOGE("av_bsf_alloc failed, ret=%d", ret);
-        return ERR_DEMUX_OPEN_FAIL;
-    }
-
-    ret = avcodec_parameters_copy(pstChn->pstBsf->par_in, pstPar);
-    if (ret < 0) {
-        DEMUX_LOGE("avcodec_parameters_copy failed, ret=%d", ret);
-        demux_close_bsf(pstChn);
-        return ERR_DEMUX_OPEN_FAIL;
-    }
-
-    ret = av_bsf_init(pstChn->pstBsf);
-    if (ret < 0) {
-        DEMUX_LOGE("av_bsf_init failed, ret=%d", ret);
-        demux_close_bsf(pstChn);
-        return ERR_DEMUX_OPEN_FAIL;
-    }
-
-    return ERR_DEMUX_OK;
-}
-
-static S32 demux_deliver_packet(DemuxChannel *pstChn, const U8 *pu8Data, U32 u32Size, S64 s64Pts) {
-    DemuxPacket stPkt;
-    U8 *pu8Tmp = NULL;
-    U32 u32TmpLen = 0;
-    S32 ret = ERR_DEMUX_OK;
-
-    if (!pstChn || !pu8Data || u32Size == 0) {
-        return ERR_DEMUX_NULL_PTR;
-    }
-
-    memset(&stPkt, 0, sizeof(stPkt));
-    stPkt.pu8Data = pu8Data;
-    stPkt.u32Size = u32Size;
-    stPkt.eCodecType = pstChn->stStreamInfo.eCodecType;
-    stPkt.u32Width = pstChn->stStreamInfo.u32Width;
-    stPkt.u32Height = pstChn->stStreamInfo.u32Height;
-    stPkt.u64PTS = (s64Pts == AV_NOPTS_VALUE) ? 0
-                                                : (U64)av_rescale_q(
-                                                    s64Pts,
-                                                    pstChn->pstFmt->streams[pstChn->s32VideoIndex]->time_base,
-                                                    (AVRational){1, (int)DEMUX_TIME_BASE_US});
-
-    if (stPkt.eCodecType == DEMUX_CODEC_H264 && u32Size > 4) {
-        U8 type = pu8Data[4] & 0x1f;
-        stPkt.bKeyFrame = (type == 5) ? MPP_TRUE : MPP_FALSE;
-    } else if (stPkt.eCodecType == DEMUX_CODEC_H265 && u32Size > 5) {
-        U8 type = (pu8Data[4] >> 1) & 0x3f;
-        stPkt.bKeyFrame = (type == 19 || type == 20) ? MPP_TRUE : MPP_FALSE;
-    }
-
-    if (pstChn->stAttr.bInjectPS && stPkt.bKeyFrame &&
-        !demux_annexb_has_complete_ps(pu8Data, (S32)u32Size, stPkt.eCodecType)) {
-        demux_make_packet_with_ps(pstChn, pu8Data, u32Size, &stPkt, &pu8Tmp, &u32TmpLen);
-        if (pu8Tmp && u32TmpLen > 0) {
-            stPkt.pu8Data = pu8Tmp;
-            stPkt.u32Size = u32TmpLen;
-        }
-    }
-
-    if (pstChn->pfnCb) {
-        ret = pstChn->pfnCb(pstChn->s32ChnId, &stPkt, pstChn->pCbPriv);
-    }
-
-    if (ret == ERR_DEMUX_OK) {
-        StreamBufferInfo stStream;
-
-        memset(&stStream, 0, sizeof(stStream));
-        stStream.pu8Addr = stPkt.pu8Data;
-        stStream.u32Size = stPkt.u32Size;
-        stStream.bKeyFrame = stPkt.bKeyFrame;
-        stStream.bEndOfStream = MPP_FALSE;
-        stStream.eCodecType = MPP_STREAM_CODEC_UNKNOWN;
-        stStream.u64PTS = stPkt.u64PTS;
-        stStream.u32Width = stPkt.u32Width;
-        stStream.u32Height = stPkt.u32Height;
-
-        if (stPkt.eCodecType == DEMUX_CODEC_H264) {
-            stStream.eCodecType = MPP_STREAM_CODEC_H264;
-        } else if (stPkt.eCodecType == DEMUX_CODEC_H265) {
-            stStream.eCodecType = MPP_STREAM_CODEC_H265;
-        } else if (stPkt.eCodecType == DEMUX_CODEC_MJPEG) {
-            stStream.eCodecType = MPP_STREAM_CODEC_MJPEG;
-        }
-
-        (VOID) SYS_SendStream(&pstChn->stSrcNode, &stStream);
-    }
-
-    free(pu8Tmp);
+    pChn->u64PacketCount++;
     return ret;
 }
 
-static VOID *demux_thread_proc(VOID *arg) {
-    DemuxChannel *pstChn = (DemuxChannel *)arg;
-    AVPacket *pstPkt = NULL;
-    AVPacket *pstOut = NULL;
+static S32 demux_deliver_eos(DemuxChn *pChn) {
+    StreamBufferInfo stStream;
+    S32 send_ret;
+    U32 retry = 0;
 
-    if (!pstChn) {
+    if (!pChn) {
+        return ERR_DEMUX_NULL_PTR;
+    }
+
+    memset(&stStream, 0, sizeof(stStream));
+    stStream.bEndOfStream = MPP_TRUE;
+    stStream.eCodecType = MPP_STREAM_CODEC_UNKNOWN;
+
+    while (!pChn->s32Stop && (send_ret = SYS_SendStream(&pChn->stSrcNode, &stStream)) != 0 && retry < 1500) {
+        usleep(20000);
+        retry++;
+    }
+
+    if (send_ret != 0) {
+        DEMUX_LOGE("Channel %d: failed to send EOS after %u retries", pChn->s32ChnId, retry);
+        return send_ret;
+    }
+
+    DEMUX_LOGI("Channel %d: EOS sent", pChn->s32ChnId);
+    return ERR_DEMUX_OK;
+}
+
+static void *demux_thread_proc(void *arg) {
+    DemuxChn *pChn = (DemuxChn *)arg;
+    DemuxPacket pkt;
+    S32 ret;
+
+    if (!pChn)
         return NULL;
-    }
 
-    pstPkt = av_packet_alloc();
-    pstOut = av_packet_alloc();
-    if (!pstPkt || !pstOut) {
-        DEMUX_LOGE("av_packet_alloc failed");
-        goto exit;
-    }
+    pChn->s32ThreadAlive = 1;
+    DEMUX_LOGI("Channel %d thread started", pChn->s32ChnId);
 
-    pstChn->s32ThreadAlive = 1;
-
-    while (!pstChn->s32Stop) {
-        AVDictionary *pstOpts = NULL;
-        const AVCodecParameters *pstPar;
-        S32 ret;
-        U32 fps = 0;
-
-        demux_close_input(pstChn);
-        demux_free_ps_cache(&pstChn->stPs);
-
-        pstChn->pstFmt = avformat_alloc_context();
-        if (!pstChn->pstFmt) {
-            DEMUX_LOGE("avformat_alloc_context failed");
-            usleep((useconds_t)pstChn->stAttr.u32ReconnectMs * 1000);
-            continue;
-        }
-
-        pstChn->pstFmt->interrupt_callback.callback = demux_interrupt_cb;
-        pstChn->pstFmt->interrupt_callback.opaque = pstChn;
-
-        if (pstChn->stAttr.eInputType == DEMUX_INPUT_RTSP && pstChn->stAttr.bPreferTcp) {
-            av_dict_set(&pstOpts, "rtsp_transport", "tcp", 0);
-        }
-        if (pstChn->stAttr.bLowLatency) {
-            av_dict_set(&pstOpts, "fflags", "nobuffer", 0);
-            av_dict_set(&pstOpts, "reorder_queue_size", "0", 0);
-            av_dict_set(&pstOpts, "avioflags", "direct", 0);
-        }
-        demux_set_opt_us(&pstOpts, "stimeout", pstChn->stAttr.u32OpenTimeoutMs);
-        demux_set_opt_us(&pstOpts, "rw_timeout", pstChn->stAttr.u32RwTimeoutMs);
-        if (pstChn->stAttr.u32AnalyzeDurationMs) {
-            char szVal[32];
-            snprintf(szVal, sizeof(szVal), "%u", pstChn->stAttr.u32AnalyzeDurationMs * 1000U);
-            av_dict_set(&pstOpts, "analyzeduration", szVal, 0);
-        }
-        if (pstChn->stAttr.u32ProbeSizeBytes) {
-            char szVal[32];
-            snprintf(szVal, sizeof(szVal), "%u", pstChn->stAttr.u32ProbeSizeBytes);
-            av_dict_set(&pstOpts, "probesize", szVal, 0);
-        }
-
-        pstChn->s64IoDeadlineMs = demux_now_ms() + (int64_t)pstChn->stAttr.u32OpenTimeoutMs + 500LL;
-        ret = avformat_open_input(&pstChn->pstFmt, pstChn->stAttr.szUrl, NULL, &pstOpts);
-        av_dict_free(&pstOpts);
-        if (ret < 0) {
-            DEMUX_LOGE(
-                "avformat_open_input failed, chn=%d, ret=%d, url=%s", pstChn->s32ChnId, ret, pstChn->stAttr.szUrl);
-            demux_close_input(pstChn);
-            usleep((useconds_t)pstChn->stAttr.u32ReconnectMs * 1000);
-            continue;
-        }
-
-        pstChn->s64IoDeadlineMs = demux_now_ms() + (int64_t)pstChn->stAttr.u32OpenTimeoutMs + 500LL;
-        ret = avformat_find_stream_info(pstChn->pstFmt, NULL);
-        if (ret < 0) {
-            DEMUX_LOGE("avformat_find_stream_info failed, chn=%d, ret=%d", pstChn->s32ChnId, ret);
-            demux_close_input(pstChn);
-            usleep((useconds_t)pstChn->stAttr.u32ReconnectMs * 1000);
-            continue;
-        }
-
-        pstChn->s32VideoIndex = -1;
-        for (U32 i = 0; i < pstChn->pstFmt->nb_streams; ++i) {
-            if (pstChn->pstFmt->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-                pstChn->s32VideoIndex = (S32)i;
-                break;
-            }
-        }
-        if (pstChn->s32VideoIndex < 0) {
-            DEMUX_LOGE("no video stream found, chn=%d", pstChn->s32ChnId);
-            demux_close_input(pstChn);
-            usleep((useconds_t)pstChn->stAttr.u32ReconnectMs * 1000);
-            continue;
-        }
-
-        pstPar = pstChn->pstFmt->streams[pstChn->s32VideoIndex]->codecpar;
-        pstChn->stStreamInfo.eCodecType = demux_codec_from_ffmpeg(pstPar->codec_id);
-        pstChn->stStreamInfo.u32Width = (U32)pstPar->width;
-        pstChn->stStreamInfo.u32Height = (U32)pstPar->height;
-        if (pstChn->pstFmt->streams[pstChn->s32VideoIndex]->avg_frame_rate.num > 0 &&
-            pstChn->pstFmt->streams[pstChn->s32VideoIndex]->avg_frame_rate.den > 0) {
-            fps = (U32)av_q2d(pstChn->pstFmt->streams[pstChn->s32VideoIndex]->avg_frame_rate);
-        }
-        pstChn->stStreamInfo.u32Fps = fps;
-
-        if (pstPar->codec_id == AV_CODEC_ID_H264) {
-            demux_cache_h264_extradata(pstPar, &pstChn->stPs);
-        }
-
-        demux_open_bsf(pstChn);
-        DEMUX_LOGI(
-            "channel %d connected: %ux%u fps=%u codec=%d",
-            pstChn->s32ChnId,
-            pstChn->stStreamInfo.u32Width,
-            pstChn->stStreamInfo.u32Height,
-            pstChn->stStreamInfo.u32Fps,
-            pstChn->stStreamInfo.eCodecType);
-
-        while (!pstChn->s32Stop) {
-            pstChn->s64IoDeadlineMs = demux_now_ms() + (int64_t)pstChn->stAttr.u32RwTimeoutMs + 500LL;
-            ret = av_read_frame(pstChn->pstFmt, pstPkt);
-            if (ret < 0) {
-                break;
-            }
-
-            if (pstPkt->stream_index != pstChn->s32VideoIndex) {
-                av_packet_unref(pstPkt);
+    while (!pChn->s32Stop) {
+        /* Create/reconnect */
+        if (!pChn->pCtx) {
+            pChn->pCtx = Demux_Create(pChn->stAttr.szUrl);
+            if (!pChn->pCtx) {
+                DEMUX_LOGE("Channel %d: Demux_Create failed", pChn->s32ChnId);
+                usleep(pChn->stAttr.u32ReconnectMs * 1000);
                 continue;
             }
+        }
 
-            if (pstChn->pstBsf) {
-                if (av_bsf_send_packet(pstChn->pstBsf, pstPkt) == 0) {
-                    while (av_bsf_receive_packet(pstChn->pstBsf, pstOut) == 0) {
-                        demux_deliver_packet(pstChn, pstOut->data, (U32)pstOut->size, pstOut->pts);
-                        av_packet_unref(pstOut);
+        /* Connect */
+        ret = Demux_Open(pChn->pCtx, pChn->stAttr.bPreferTcp, pChn->stAttr.u32OpenTimeoutMs);
+        if (ret != 0) {
+            DEMUX_LOGE("Channel %d: Connect failed (ret=%d), reconnecting in %ums", pChn->s32ChnId, ret,
+                pChn->stAttr.u32ReconnectMs);
+            Demux_Destroy(pChn->pCtx);
+            pChn->pCtx = NULL;
+            pChn->u64ReconnectCount++;
+            usleep(pChn->stAttr.u32ReconnectMs * 1000);
+            continue;
+        }
+
+        /* Get stream info */
+        Demux_GetStreamInfoCtx(pChn->pCtx, &pChn->stStreamInfo);
+
+        BOOL bIsFileProto =
+            (pChn->pCtx && (pChn->pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pChn->pCtx->eProto == DEMUX_PROTO_FILE_TS ||
+                                pChn->pCtx->eProto == DEMUX_PROTO_FILE_FLV));
+
+        /* If resolution not available from SDP, probe first packets to get SPS.
+         * File streams are intentionally not probed here: probing delivers up to
+         * 100 packets without playback pacing, which can overrun VDEC input
+         * before the normal paced read loop starts. VDEC will report resolution
+         * through source-change once it receives SPS in the paced loop. */
+        if (!bIsFileProto && (pChn->stStreamInfo.u32Width == 0 || pChn->stStreamInfo.u32Height == 0)) {
+            DEMUX_LOGI("Channel %d: probing stream for resolution...", pChn->s32ChnId);
+            DemuxPacket probePkt;
+            S32 probeCount = 0;
+            const S32 maxProbe = 100; /* Read up to 100 packets to find SPS */
+
+            while (probeCount < maxProbe && !pChn->s32Stop) {
+                memset(&probePkt, 0, sizeof(probePkt));
+                ret = Demux_ReadPacket(pChn->pCtx, &probePkt);
+                if (ret != 0)
+                    break;
+
+                probeCount++;
+
+                /* Check if packet contains resolution info (parsed from SPS) */
+                if (probePkt.u32Width > 0 && probePkt.u32Height > 0) {
+                    pChn->stStreamInfo.u32Width = probePkt.u32Width;
+                    pChn->stStreamInfo.u32Height = probePkt.u32Height;
+                    DEMUX_LOGI("Channel %d: probed resolution %ux%u from packet %d", pChn->s32ChnId, probePkt.u32Width,
+                        probePkt.u32Height, probeCount);
+
+                    /* Deliver this packet too */
+                    if (probePkt.pu8Data && probePkt.u32Size > 0) {
+                        demux_deliver_packet(pChn, &probePkt);
                     }
+                    break;
                 }
-            } else {
-                demux_deliver_packet(pstChn, pstPkt->data, (U32)pstPkt->size, pstPkt->pts);
+
+                /* Deliver probe packets */
+                if (probePkt.pu8Data && probePkt.u32Size > 0) {
+                    demux_deliver_packet(pChn, &probePkt);
+                }
+            }
+        }
+
+        DEMUX_LOGI("Channel %d connected: %ux%u fps=%u codec=%d", pChn->s32ChnId, pChn->stStreamInfo.u32Width,
+            pChn->stStreamInfo.u32Height, pChn->stStreamInfo.u32Fps, pChn->stStreamInfo.eCodecType);
+
+        /* Read loop */
+        /* For file protocols, pace the read rate to match playback fps,
+         * mimicking the natural pacing of network protocols (RTSP/RTMP). */
+        U32 u32FrameIntervalUs = 0;
+        if (bIsFileProto) {
+            U32 fps = pChn->stStreamInfo.u32Fps;
+            if (fps == 0 || fps > 120)
+                fps = 25; /* default 25fps */
+            u32FrameIntervalUs = 1000000 / fps;
+        }
+
+        while (!pChn->s32Stop) {
+            memset(&pkt, 0, sizeof(pkt));
+            ret = Demux_ReadPacket(pChn->pCtx, &pkt);
+
+            if (ret == ERR_DEMUX_NO_STREAM) {
+                DEMUX_LOGI("Channel %d: End of stream", pChn->s32ChnId);
+                /* For file-based protocols, exit cleanly on EOF */
+                if (pChn->pCtx &&
+                    (pChn->pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pChn->pCtx->eProto == DEMUX_PROTO_FILE_TS ||
+                        pChn->pCtx->eProto == DEMUX_PROTO_FILE_FLV)) {
+                    demux_deliver_eos(pChn);
+                    pChn->s32Stop = 1; /* Signal stop to exit thread */
+                }
+                break;
+            }
+            if (ret != 0) {
+                if (pChn->s32Stop)
+                    break;
+                DEMUX_LOGE("Channel %d: Read error (ret=%d)", pChn->s32ChnId, ret);
+                break;
             }
 
-            av_packet_unref(pstPkt);
+            if (pkt.pu8Data && pkt.u32Size > 0) {
+                demux_deliver_packet(pChn, &pkt);
+            }
+
+            /* Pace file reading to match playback rate */
+            if (u32FrameIntervalUs > 0) {
+                usleep(u32FrameIntervalUs);
+            }
         }
 
-        demux_close_input(pstChn);
-        if (!pstChn->s32Stop) {
-            usleep((useconds_t)pstChn->stAttr.u32ReconnectMs * 1000);
+        /* Cleanup for reconnect */
+        Demux_Close(pChn->pCtx);
+        Demux_Destroy(pChn->pCtx);
+        pChn->pCtx = NULL;
+
+        if (!pChn->s32Stop) {
+            pChn->u64ReconnectCount++;
+            /* Set flag to wait for keyframe after reconnect */
+            pChn->bWaitKeyFrame = MPP_TRUE;
+            DEMUX_LOGI("Channel %d: Reconnecting in %ums (count=%llu)", pChn->s32ChnId, pChn->stAttr.u32ReconnectMs,
+                (uint64_t)pChn->u64ReconnectCount);
+            usleep(pChn->stAttr.u32ReconnectMs * 1000);
         }
     }
 
-exit:
-    if (pstOut) {
-        av_packet_free(&pstOut);
-    }
-    if (pstPkt) {
-        av_packet_free(&pstPkt);
-    }
-    pstChn->s32ThreadAlive = 0;
+    DEMUX_LOGI("Channel %d thread exiting (packets=%llu, reconnects=%llu)", pChn->s32ChnId,
+        (uint64_t)pChn->u64PacketCount, (uint64_t)pChn->u64ReconnectCount);
+
+    pChn->s32ThreadAlive = 0;
     return NULL;
 }
+
+/* ======================== Channel Public API ======================== */
 
 S32 DEMUX_Init(VOID) {
     S32 i;
@@ -645,23 +685,21 @@ S32 DEMUX_Init(VOID) {
     }
 
     if (pthread_mutex_init(&g_stDemuxCtx.lock, NULL) != 0) {
-        DEMUX_LOGE("pthread_mutex_init failed");
         return ERR_DEMUX_BUSY;
     }
 
-    for (i = 0; i < DEMUX_MAX_CHN; ++i) {
-        DemuxChannel *pstChn = &g_stDemuxCtx.astChn[i];
-        memset(pstChn, 0, sizeof(*pstChn));
-        pstChn->s32ChnId = i;
-        pstChn->s32VideoIndex = -1;
-        pstChn->stSrcNode.eModId = MPP_ID_DEMUX;
-        pstChn->stSrcNode.s32DevId = 0;
-        pstChn->stSrcNode.s32ChnId = i;
-        pthread_mutex_init(&pstChn->lock, NULL);
+    for (i = 0; i < DEMUX_MAX_CHN; i++) {
+        DemuxChn *pChn = &g_stDemuxCtx.astChn[i];
+        memset(pChn, 0, sizeof(*pChn));
+        pChn->s32ChnId = i;
+        pChn->stSrcNode.eModId = MPP_ID_DEMUX;
+        pChn->stSrcNode.s32DevId = 0;
+        pChn->stSrcNode.s32ChnId = i;
+        pthread_mutex_init(&pChn->lock, NULL);
     }
 
-    avformat_network_init();
     g_stDemuxCtx.s32Init = 1;
+    DEMUX_LOGI("Initialized");
     return ERR_DEMUX_OK;
 }
 
@@ -672,233 +710,245 @@ S32 DEMUX_Exit(VOID) {
         return ERR_DEMUX_NOT_INIT;
     }
 
-    for (i = 0; i < DEMUX_MAX_CHN; ++i) {
+    for (i = 0; i < DEMUX_MAX_CHN; i++) {
         if (g_stDemuxCtx.astChn[i].s32Created) {
             DEMUX_DestroyChn(i);
         }
         pthread_mutex_destroy(&g_stDemuxCtx.astChn[i].lock);
     }
 
-    avformat_network_deinit();
     pthread_mutex_destroy(&g_stDemuxCtx.lock);
     memset(&g_stDemuxCtx, 0, sizeof(g_stDemuxCtx));
+
+    DEMUX_LOGI("Exited");
     return ERR_DEMUX_OK;
 }
 
 S32 DEMUX_CreateChn(S32 s32ChnId, const DemuxChnAttr *pstAttr) {
-    DemuxChannel *pstChn;
+    DemuxChn *pChn;
     S32 ret;
 
-    if (!pstAttr) {
+    if (!pstAttr)
         return ERR_DEMUX_NULL_PTR;
-    }
-    if (!g_stDemuxCtx.s32Init) {
+    if (!g_stDemuxCtx.s32Init)
         return ERR_DEMUX_NOT_INIT;
-    }
 
     ret = demux_check_chn(s32ChnId);
-    if (ret != ERR_DEMUX_OK) {
+    if (ret != ERR_DEMUX_OK)
         return ret;
-    }
 
-    pstChn = &g_stDemuxCtx.astChn[s32ChnId];
-    pthread_mutex_lock(&pstChn->lock);
-    if (pstChn->s32Created) {
-        pthread_mutex_unlock(&pstChn->lock);
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
+    pthread_mutex_lock(&pChn->lock);
+    if (pChn->s32Created) {
+        pthread_mutex_unlock(&pChn->lock);
         return ERR_DEMUX_BUSY;
     }
 
-    memcpy(&pstChn->stAttr, pstAttr, sizeof(*pstAttr));
-    if (pstChn->stAttr.u32OpenTimeoutMs == 0) {
-        pstChn->stAttr.u32OpenTimeoutMs = 3000;
-    }
-    if (pstChn->stAttr.u32RwTimeoutMs == 0) {
-        pstChn->stAttr.u32RwTimeoutMs = 3000;
-    }
-    if (pstChn->stAttr.u32ReconnectMs == 0) {
-        pstChn->stAttr.u32ReconnectMs = 1500;
-    }
-    pstChn->s32State = DEMUX_STATE_CREATED;
-    pstChn->s32Created = 1;
-    pthread_mutex_unlock(&pstChn->lock);
+    memcpy(&pChn->stAttr, pstAttr, sizeof(*pstAttr));
+
+    /* Set defaults */
+    if (pChn->stAttr.u32OpenTimeoutMs == 0)
+        pChn->stAttr.u32OpenTimeoutMs = 5000;
+    if (pChn->stAttr.u32RwTimeoutMs == 0)
+        pChn->stAttr.u32RwTimeoutMs = 5000;
+    if (pChn->stAttr.u32ReconnectMs == 0)
+        pChn->stAttr.u32ReconnectMs = 2000;
+
+    pChn->s32State = CHN_STATE_CREATED;
+    pChn->s32Created = 1;
+    pChn->u64PacketCount = 0;
+    pChn->u64ReconnectCount = 0;
+
+    pthread_mutex_unlock(&pChn->lock);
+
+    DEMUX_LOGI("Channel %d created: %s", s32ChnId, pstAttr->szUrl);
     return ERR_DEMUX_OK;
 }
 
 S32 DEMUX_DestroyChn(S32 s32ChnId) {
-    DemuxChannel *pstChn;
+    DemuxChn *pChn;
     S32 ret;
 
-    if (!g_stDemuxCtx.s32Init) {
+    if (!g_stDemuxCtx.s32Init)
         return ERR_DEMUX_NOT_INIT;
-    }
 
     ret = demux_check_chn(s32ChnId);
-    if (ret != ERR_DEMUX_OK) {
+    if (ret != ERR_DEMUX_OK)
         return ret;
-    }
 
-    pstChn = &g_stDemuxCtx.astChn[s32ChnId];
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
     DEMUX_StopChn(s32ChnId);
 
-    pthread_mutex_lock(&pstChn->lock);
-    demux_close_input(pstChn);
-    demux_free_ps_cache(&pstChn->stPs);
-    memset(&pstChn->stStreamInfo, 0, sizeof(pstChn->stStreamInfo));
-    pstChn->pfnCb = NULL;
-    pstChn->pCbPriv = NULL;
-    pstChn->s32Created = 0;
-    pstChn->s32State = DEMUX_STATE_IDLE;
-    pthread_mutex_unlock(&pstChn->lock);
+    pthread_mutex_lock(&pChn->lock);
+
+    if (pChn->pCtx) {
+        Demux_Close(pChn->pCtx);
+        Demux_Destroy(pChn->pCtx);
+        pChn->pCtx = NULL;
+    }
+
+    memset(&pChn->stStreamInfo, 0, sizeof(pChn->stStreamInfo));
+    pChn->pfnCb = NULL;
+    pChn->pCbPriv = NULL;
+    pChn->s32Created = 0;
+    pChn->s32State = CHN_STATE_IDLE;
+
+    pthread_mutex_unlock(&pChn->lock);
+
+    DEMUX_LOGI("Channel %d destroyed", s32ChnId);
     return ERR_DEMUX_OK;
 }
 
 S32 DEMUX_StartChn(S32 s32ChnId) {
-    DemuxChannel *pstChn;
+    DemuxChn *pChn;
     S32 ret;
 
-    if (!g_stDemuxCtx.s32Init) {
+    if (!g_stDemuxCtx.s32Init)
         return ERR_DEMUX_NOT_INIT;
-    }
 
     ret = demux_check_chn(s32ChnId);
-    if (ret != ERR_DEMUX_OK) {
+    if (ret != ERR_DEMUX_OK)
         return ret;
-    }
 
-    pstChn = &g_stDemuxCtx.astChn[s32ChnId];
-    pthread_mutex_lock(&pstChn->lock);
-    if (!pstChn->s32Created) {
-        pthread_mutex_unlock(&pstChn->lock);
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
+    pthread_mutex_lock(&pChn->lock);
+
+    if (!pChn->s32Created) {
+        pthread_mutex_unlock(&pChn->lock);
         return ERR_DEMUX_INVALID_CHN;
     }
-    if (pstChn->s32State == DEMUX_STATE_RUNNING) {
-        pthread_mutex_unlock(&pstChn->lock);
+
+    if (pChn->s32State == CHN_STATE_RUNNING) {
+        pthread_mutex_unlock(&pChn->lock);
         return ERR_DEMUX_OK;
     }
 
-    pstChn->s32Stop = 0;
-    pstChn->s32State = DEMUX_STATE_RUNNING;
-    if (pthread_create(&pstChn->thread, NULL, demux_thread_proc, pstChn) != 0) {
-        pstChn->s32State = DEMUX_STATE_CREATED;
-        pthread_mutex_unlock(&pstChn->lock);
-        DEMUX_LOGE("pthread_create failed, chn=%d", s32ChnId);
+    pChn->s32Stop = 0;
+    pChn->s32State = CHN_STATE_RUNNING;
+
+    if (pthread_create(&pChn->thread, NULL, demux_thread_proc, pChn) != 0) {
+        pChn->s32State = CHN_STATE_CREATED;
+        pthread_mutex_unlock(&pChn->lock);
+        DEMUX_LOGE("Channel %d: pthread_create failed", s32ChnId);
         return ERR_DEMUX_BUSY;
     }
-    pthread_mutex_unlock(&pstChn->lock);
+
+    pthread_mutex_unlock(&pChn->lock);
+
+    DEMUX_LOGI("Channel %d started", s32ChnId);
     return ERR_DEMUX_OK;
 }
 
 S32 DEMUX_StopChn(S32 s32ChnId) {
-    DemuxChannel *pstChn;
+    DemuxChn *pChn;
     S32 ret;
 
-    if (!g_stDemuxCtx.s32Init) {
+    if (!g_stDemuxCtx.s32Init)
         return ERR_DEMUX_NOT_INIT;
-    }
 
     ret = demux_check_chn(s32ChnId);
-    if (ret != ERR_DEMUX_OK) {
+    if (ret != ERR_DEMUX_OK)
         return ret;
-    }
 
-    pstChn = &g_stDemuxCtx.astChn[s32ChnId];
-    pthread_mutex_lock(&pstChn->lock);
-    if (!pstChn->s32Created) {
-        pthread_mutex_unlock(&pstChn->lock);
-        return ERR_DEMUX_INVALID_CHN;
-    }
-    if (pstChn->s32State != DEMUX_STATE_RUNNING) {
-        pthread_mutex_unlock(&pstChn->lock);
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
+    pthread_mutex_lock(&pChn->lock);
+
+    if (!pChn->s32Created || pChn->s32State != CHN_STATE_RUNNING) {
+        pthread_mutex_unlock(&pChn->lock);
         return ERR_DEMUX_OK;
     }
 
-    pstChn->s32Stop = 1;
-    pstChn->s32State = DEMUX_STATE_STOPPING;
-    pthread_mutex_unlock(&pstChn->lock);
+    pChn->s32Stop = 1;
+    pChn->s32State = CHN_STATE_STOPPING;
+    pthread_mutex_unlock(&pChn->lock);
 
-    pthread_join(pstChn->thread, NULL);
+    pthread_join(pChn->thread, NULL);
 
-    pthread_mutex_lock(&pstChn->lock);
-    pstChn->s32State = DEMUX_STATE_CREATED;
-    pthread_mutex_unlock(&pstChn->lock);
+    pthread_mutex_lock(&pChn->lock);
+    pChn->s32State = CHN_STATE_CREATED;
+    pthread_mutex_unlock(&pChn->lock);
+
+    DEMUX_LOGI("Channel %d stopped", s32ChnId);
     return ERR_DEMUX_OK;
 }
 
 S32 DEMUX_GetStreamInfo(S32 s32ChnId, DemuxStreamInfo *pstInfo) {
-    DemuxChannel *pstChn;
+    DemuxChn *pChn;
     S32 ret;
 
-    if (!pstInfo) {
+    if (!pstInfo)
         return ERR_DEMUX_NULL_PTR;
-    }
-    if (!g_stDemuxCtx.s32Init) {
+    if (!g_stDemuxCtx.s32Init)
         return ERR_DEMUX_NOT_INIT;
-    }
 
     ret = demux_check_chn(s32ChnId);
-    if (ret != ERR_DEMUX_OK) {
+    if (ret != ERR_DEMUX_OK)
         return ret;
-    }
 
-    pstChn = &g_stDemuxCtx.astChn[s32ChnId];
-    pthread_mutex_lock(&pstChn->lock);
-    if (!pstChn->s32Created) {
-        pthread_mutex_unlock(&pstChn->lock);
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
+    pthread_mutex_lock(&pChn->lock);
+    if (!pChn->s32Created) {
+        pthread_mutex_unlock(&pChn->lock);
         return ERR_DEMUX_INVALID_CHN;
     }
-    memcpy(pstInfo, &pstChn->stStreamInfo, sizeof(*pstInfo));
-    pthread_mutex_unlock(&pstChn->lock);
+    memcpy(pstInfo, &pChn->stStreamInfo, sizeof(*pstInfo));
+    pthread_mutex_unlock(&pChn->lock);
+
     return ERR_DEMUX_OK;
 }
 
 S32 DEMUX_SetPacketCallback(S32 s32ChnId, DemuxPacketCallback pfnCb, VOID *pPriv) {
-    DemuxChannel *pstChn;
+    DemuxChn *pChn;
     S32 ret;
 
-    if (!g_stDemuxCtx.s32Init) {
+    if (!g_stDemuxCtx.s32Init)
         return ERR_DEMUX_NOT_INIT;
-    }
 
     ret = demux_check_chn(s32ChnId);
-    if (ret != ERR_DEMUX_OK) {
+    if (ret != ERR_DEMUX_OK)
         return ret;
-    }
 
-    pstChn = &g_stDemuxCtx.astChn[s32ChnId];
-    pthread_mutex_lock(&pstChn->lock);
-    if (!pstChn->s32Created) {
-        pthread_mutex_unlock(&pstChn->lock);
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
+    pthread_mutex_lock(&pChn->lock);
+    if (!pChn->s32Created) {
+        pthread_mutex_unlock(&pChn->lock);
         return ERR_DEMUX_INVALID_CHN;
     }
-    pstChn->pfnCb = pfnCb;
-    pstChn->pCbPriv = pPriv;
-    pthread_mutex_unlock(&pstChn->lock);
+    pChn->pfnCb = pfnCb;
+    pChn->pCbPriv = pPriv;
+    pthread_mutex_unlock(&pChn->lock);
+
     return ERR_DEMUX_OK;
 }
 
 S32 DEMUX_GetSrcNode(S32 s32ChnId, MppNode *pstNode) {
-    DemuxChannel *pstChn;
+    DemuxChn *pChn;
     S32 ret;
 
-    if (!pstNode) {
+    if (!pstNode)
         return ERR_DEMUX_NULL_PTR;
-    }
-    if (!g_stDemuxCtx.s32Init) {
+    if (!g_stDemuxCtx.s32Init)
         return ERR_DEMUX_NOT_INIT;
-    }
 
     ret = demux_check_chn(s32ChnId);
-    if (ret != ERR_DEMUX_OK) {
+    if (ret != ERR_DEMUX_OK)
         return ret;
-    }
 
-    pstChn = &g_stDemuxCtx.astChn[s32ChnId];
-    pthread_mutex_lock(&pstChn->lock);
-    if (!pstChn->s32Created) {
-        pthread_mutex_unlock(&pstChn->lock);
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
+    pthread_mutex_lock(&pChn->lock);
+    if (!pChn->s32Created) {
+        pthread_mutex_unlock(&pChn->lock);
         return ERR_DEMUX_INVALID_CHN;
     }
-    *pstNode = pstChn->stSrcNode;
-    pthread_mutex_unlock(&pstChn->lock);
+    *pstNode = pChn->stSrcNode;
+    pthread_mutex_unlock(&pChn->lock);
+
     return ERR_DEMUX_OK;
 }

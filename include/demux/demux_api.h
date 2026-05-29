@@ -14,8 +14,8 @@
 #ifndef DEMUX_API_H
 #define DEMUX_API_H
 
-#include "sys/type.h"
 #include "demux_type.h"
+#include "sys/type.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -99,4 +99,4 @@ S32 DEMUX_GetSrcNode(S32 s32ChnId, MppNode *pstNode);
 #endif
 #endif /* __cplusplus */
 
-#endif /* DEMUX_API_H */
+#endif /* __DEMUX_API_H__ */

@@ -216,7 +216,7 @@ void setQPofEPR(Buffer *buf, S32 data);
 S32 getQPofEPR(Buffer *buf);
 BOOL isGeneralBuffer(Buffer *buf);
 
-S32 memoryMap(Buffer *buf, S32 fd);
+void memoryMap(Buffer *buf, S32 fd);
 S32 memoryUnmap(Buffer *buf);
 S32 getLength(Buffer *buf, U32 plane);
 S32 getExtraId(Buffer *buf);
@@ -224,4 +224,4 @@ S32 getExtraFd(Buffer *buf);
 BOOL getIsQueued(Buffer *buf);
 S32 setIsQueued(Buffer *buf, BOOL queued);
 
-#endif /*LINLONV5V7_BUFFER_H*/
+#endif /*_LINLONV5V7_BUFFER_H_*/

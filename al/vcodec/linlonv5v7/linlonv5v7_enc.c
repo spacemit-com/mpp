@@ -75,9 +75,9 @@ typedef struct _ALLinlonv5v7EncContext ALLinlonv5v7EncContext;
 
 struct _ALLinlonv5v7EncContext {
     ALEncBaseContext stAlEncBaseContext;
-    MppVencPara *pVencPara;       // parameters
+    MppVencPara *pVencPara;  // parameters
     MppPixelFormat ePixelFormat;  // input stream format
-    MppCodingType eCodingType;    // output frame format
+    MppCodingType eCodingType;  // output frame format
 
     Codec *stCodec;
 
@@ -151,9 +151,7 @@ struct _ALLinlonv5v7EncContext {
     U32 nHeaderSize;
 };
 
-static void changeSWEO(ALLinlonv5v7EncContext *context, U32 csweo) {
-    setCsweo(context->stCodec, (csweo == 1));
-}
+static void changeSWEO(ALLinlonv5v7EncContext *context, U32 csweo) { setCsweo(context->stCodec, (csweo == 1)); }
 
 /***
  * V4L2_CID_MVE_VIDEO_FRAME_RATE
@@ -453,8 +451,7 @@ static void setEncoderFrameCount(ALLinlonv5v7EncContext *context, S32 frames) {
  * in MVE_OPT_RATE_CONTROL_MODE_VARIABLE.
  */
 static void setEncoderRateControl(
-    ALLinlonv5v7EncContext *context, const char *rc, S32 target_bitrate, S32 maximum_bitrate
-) {
+    ALLinlonv5v7EncContext *context, const char *rc, S32 target_bitrate, S32 maximum_bitrate) {
     struct v4l2_rate_control v4l2_rc;
     memset(&v4l2_rc, 0, sizeof(v4l2_rc));
     if (strcmp(rc, "standard") == 0) {
@@ -591,22 +588,10 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
 
     debug("video fd = %d, device path = '%s', rot:%d", context->nVideoFd, context->sDevicePath, context->nRotation);
 
-    context->stCodec = createCodec(
-        context->nVideoFd,
-        context->nWidth,
-        context->nHeight,
-        context->nAlign,
-        context->bIsInterlaced,
-        context->nInputType,
-        context->nOutputType,
-        context->nInputFormatFourcc,
-        context->nOutputFormatFourcc,
-        context->nInputMemType,
-        context->nOutputMemType,
-        ENCODER_INPUT_BUF_NUM,
-        ENCODER_OUTPUT_BUF_NUM,
-        context->bIsBlockMode,
-        para->eFrameBufferType);
+    context->stCodec = createCodec(context->nVideoFd, context->nWidth, context->nHeight, context->nAlign,
+        context->bIsInterlaced, context->nInputType, context->nOutputType, context->nInputFormatFourcc,
+        context->nOutputFormatFourcc, context->nInputMemType, context->nOutputMemType, ENCODER_INPUT_BUF_NUM,
+        ENCODER_OUTPUT_BUF_NUM, context->bIsBlockMode, para->eFrameBufferType);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
         return MPP_INIT_FAILED;
@@ -646,76 +631,76 @@ S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
 S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
     switch (cmd) {
-        case MPP_VENC_CMD_SET_PARAM_H264_FIXED_QP:
-            MppVencParaH264FixedQP *fixedQpParaH264 = (MppVencParaH264FixedQP *)para;
-            setH264FixedQPI(context, fixedQpParaH264->nIQp);
-            setH264FixedQPP(context, fixedQpParaH264->nPQp);
-            setH264FixedQPB(context, fixedQpParaH264->nBQp);
-            setPFrames(context, fixedQpParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_FIXED_QP:
-            MppVencParaHEVCFixedQP *fixedQpParaHEVC = (MppVencParaHEVCFixedQP *)para;
-            setHEVCFixedQPI(context, fixedQpParaHEVC->nIQp);
-            setHEVCFixedQPP(context, fixedQpParaHEVC->nPQp);
-            setHEVCFixedQPB(context, fixedQpParaHEVC->nBQp);
-            setPFrames(context, fixedQpParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_H264_CBR:
-            MppVencParaH264CBR *rcCbrParaH264 = (MppVencParaH264CBR *)para;
-            setH264EncMinQP(getOutputPort(context->stCodec), rcCbrParaH264->nMinQP);
-            setH264EncMaxQP(getOutputPort(context->stCodec), rcCbrParaH264->nMaxQP);
-            setPFrames(context, rcCbrParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_CBR:
-            MppVencParaHEVCCBR *rcCbrParaHEVC = (MppVencParaHEVCCBR *)para;
-            setHEVCEncMinQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMinQP);
-            setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMaxQP);
-            setPFrames(context, rcCbrParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_H264_VBR:
-            MppVencParaH264VBR *rcVbrParaH264 = (MppVencParaH264VBR *)para;
-            setH264EncMinQP(getOutputPort(context->stCodec), rcVbrParaH264->nMinQP);
-            setH264EncMaxQP(getOutputPort(context->stCodec), rcVbrParaH264->nMaxQP);
-            setPFrames(context, rcVbrParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_VBR:
-            MppVencParaHEVCCBR *rcVbrParaHEVC = (MppVencParaHEVCCBR *)para;
-            setHEVCEncMinQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMinQP);
-            setHEVCEncMaxQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMaxQP);
-            setPFrames(context, rcVbrParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_H264_CVBR:
-            MppVencParaH264CVBR *rcCvbrParaH264 = (MppVencParaH264CVBR *)para;
-            setH264EncMinQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMinQP);
-            setH264EncMaxQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMaxQP);
-            setPFrames(context, rcCvbrParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_CVBR:
-            MppVencParaHEVCCVBR *rcCvbrParaHEVC = (MppVencParaHEVCCVBR *)para;
-            setHEVCEncMinQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMinQP);
-            setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMaxQP);
-            setPFrames(context, rcCvbrParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM:
-        case MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM:
-        case MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM:
-            MppVencRateControl *paramBitrate = (MppVencRateControl *)para;
-            setRateControl(getOutputPort(context->stCodec), (struct v4l2_rate_control *)paramBitrate);
-            break;
-        case MPP_VENC_CMD_SET_ROI_REGIONS_PARAM:
-            MppVencRoiRegions *paramRoi = (MppVencRoiRegions *)para;
-            setRoiRegion(getOutputPort(context->stCodec), (struct v4l2_mvx_roi_regions *)paramRoi);
-            break;
-        case MPP_VENC_CMD_SET_MIRROR:
-            MppVencMirror *paramMirror = (MppVencMirror *)para;
-            setEncoderMirror(context, paramMirror->nMirror);
-            break;
-        case MPP_VENC_CMD_SET_SLICE:
-            MppVencSlice *paramSlice = (MppVencSlice *)para;
-            setEncSliceSpacing(getOutputPort(context->stCodec), paramSlice->nSpacing);
-            break;
-        default:
-            return MPP_OK;
+    case MPP_VENC_CMD_SET_PARAM_H264_FIXED_QP:
+        MppVencParaH264FixedQP *fixedQpParaH264 = (MppVencParaH264FixedQP *)para;
+        setH264FixedQPI(context, fixedQpParaH264->nIQp);
+        setH264FixedQPP(context, fixedQpParaH264->nPQp);
+        setH264FixedQPB(context, fixedQpParaH264->nBQp);
+        setPFrames(context, fixedQpParaH264->nGop);
+        break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_FIXED_QP:
+        MppVencParaHEVCFixedQP *fixedQpParaHEVC = (MppVencParaHEVCFixedQP *)para;
+        setHEVCFixedQPI(context, fixedQpParaHEVC->nIQp);
+        setHEVCFixedQPP(context, fixedQpParaHEVC->nPQp);
+        setHEVCFixedQPB(context, fixedQpParaHEVC->nBQp);
+        setPFrames(context, fixedQpParaHEVC->nGop);
+        break;
+    case MPP_VENC_CMD_SET_PARAM_H264_CBR:
+        MppVencParaH264CBR *rcCbrParaH264 = (MppVencParaH264CBR *)para;
+        setH264EncMinQP(getOutputPort(context->stCodec), rcCbrParaH264->nMinQP);
+        setH264EncMaxQP(getOutputPort(context->stCodec), rcCbrParaH264->nMaxQP);
+        setPFrames(context, rcCbrParaH264->nGop);
+        break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_CBR:
+        MppVencParaHEVCCBR *rcCbrParaHEVC = (MppVencParaHEVCCBR *)para;
+        setHEVCEncMinQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMinQP);
+        setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMaxQP);
+        setPFrames(context, rcCbrParaHEVC->nGop);
+        break;
+    case MPP_VENC_CMD_SET_PARAM_H264_VBR:
+        MppVencParaH264VBR *rcVbrParaH264 = (MppVencParaH264VBR *)para;
+        setH264EncMinQP(getOutputPort(context->stCodec), rcVbrParaH264->nMinQP);
+        setH264EncMaxQP(getOutputPort(context->stCodec), rcVbrParaH264->nMaxQP);
+        setPFrames(context, rcVbrParaH264->nGop);
+        break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_VBR:
+        MppVencParaHEVCCBR *rcVbrParaHEVC = (MppVencParaHEVCCBR *)para;
+        setHEVCEncMinQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMinQP);
+        setHEVCEncMaxQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMaxQP);
+        setPFrames(context, rcVbrParaHEVC->nGop);
+        break;
+    case MPP_VENC_CMD_SET_PARAM_H264_CVBR:
+        MppVencParaH264CVBR *rcCvbrParaH264 = (MppVencParaH264CVBR *)para;
+        setH264EncMinQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMinQP);
+        setH264EncMaxQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMaxQP);
+        setPFrames(context, rcCvbrParaH264->nGop);
+        break;
+    case MPP_VENC_CMD_SET_PARAM_HEVC_CVBR:
+        MppVencParaHEVCCVBR *rcCvbrParaHEVC = (MppVencParaHEVCCVBR *)para;
+        setHEVCEncMinQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMinQP);
+        setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMaxQP);
+        setPFrames(context, rcCvbrParaHEVC->nGop);
+        break;
+    case MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM:
+    case MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM:
+    case MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM:
+        MppVencRateControl *paramBitrate = (MppVencRateControl *)para;
+        setRateControl(getOutputPort(context->stCodec), (struct v4l2_rate_control *)paramBitrate);
+        break;
+    case MPP_VENC_CMD_SET_ROI_REGIONS_PARAM:
+        MppVencRoiRegions *paramRoi = (MppVencRoiRegions *)para;
+        setRoiRegion(getOutputPort(context->stCodec), (struct v4l2_mvx_roi_regions *)paramRoi);
+        break;
+    case MPP_VENC_CMD_SET_MIRROR:
+        MppVencMirror *paramMirror = (MppVencMirror *)para;
+        setEncoderMirror(context, paramMirror->nMirror);
+        break;
+    case MPP_VENC_CMD_SET_SLICE:
+        MppVencSlice *paramSlice = (MppVencSlice *)para;
+        setEncSliceSpacing(getOutputPort(context->stCodec), paramSlice->nSpacing);
+        break;
+    default:
+        return MPP_OK;
     }
     return MPP_OK;
 }
@@ -755,32 +740,24 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
         struct v4l2_buffer *b = getV4l2Buffer(buf);
         if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
             if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
-                setExternalUserPtrFrame(
-                    buf,
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                    NULL,
-                    FRAME_GetID(sink_frame));
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL, FRAME_GetID(sink_frame));
             } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
-                setExternalUserPtrFrame(
-                    buf,
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 2),
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), (U8 *)FRAME_GetDataPointer(sink_frame, 2),
                     FRAME_GetID(sink_frame));
-            } else if (
-                context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA || context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
-                context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA || context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
-                context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV || context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY
-            ) {
+            } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
                 setExternalUserPtrFrame(
                     buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, FRAME_GetID(sink_frame));
             }
         } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
             setExternalDmaBuf(
-                buf, FRAME_GetFD(sink_frame, 0),
-                (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                FRAME_GetID(sink_frame));
+                buf, FRAME_GetFD(sink_frame, 0), (U8 *)FRAME_GetDataPointer(sink_frame, 0), FRAME_GetID(sink_frame));
         }
         setTimeStamp(buf, FRAME_GetPts(sink_frame));
 
@@ -792,50 +769,59 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
 
         context->nInputQueuedNum++;
     } else {
-        Buffer *buf = getBuffer(getInputPort(context->stCodec), FRAME_GetID(sink_frame));
+        /* Runtime phase: use round-robin buffer index */
+        S32 numBufs = getBufNum(getInputPort(context->stCodec));
+        S32 bufIdx = context->nInputQueuedNum % numBufs;
+        Buffer *buf = getBuffer(getInputPort(context->stCodec), bufIdx);
 
-        if (!getIsQueued(buf)) {
-            if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-                if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
-                    setExternalUserPtrFrame(
-                        buf,
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                        NULL,
-                        FRAME_GetID(sink_frame));
-                } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
-                    setExternalUserPtrFrame(
-                        buf,
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 2),
-                        FRAME_GetID(sink_frame));
-                } else if (
-                    context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA || context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
-                    context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA || context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
-                    context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV || context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY
-                ) {
-                    setExternalUserPtrFrame(
-                        buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, FRAME_GetID(sink_frame));
-                }
-            } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
-                setExternalDmaBuf(
-                    buf, FRAME_GetFD(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    FRAME_GetID(sink_frame));
-            }
-            setTimeStamp(buf, FRAME_GetPts(sink_frame));
-            setEndOfStream(buf, context->bInputEos);
-            ret = queueBuffer(getInputPort(context->stCodec), buf);
-            if (ret) {
-                error("should not queue fail, please check!");
+        /* If this buffer is still queued, try to recycle one */
+        if (getIsQueued(buf)) {
+            struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
+            ret = runPoll(context->stCodec, &p);
+            if (ret != MPP_OK || !(p.revents & POLLOUT)) {
+                /* No buffer available yet - encoder is busy */
                 return MPP_POLL_FAILED;
             }
-            setIsQueued(buf, MPP_TRUE);
-        } else {
-            error("wait a moment!");
+
+            Buffer *dqBuf = dequeueBuffer(getInputPort(context->stCodec));
+            if (!dqBuf) {
+                error("dequeueBuffer failed after POLLOUT ready");
+                return MPP_POLL_FAILED;
+            }
+            setIsQueued(dqBuf, MPP_FALSE);
+
+            /* Use the dequeued buffer instead */
+            bufIdx = getExtraId(dqBuf);
+            buf = getBuffer(getInputPort(context->stCodec), bufIdx);
+        }
+
+        if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
+            if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL, bufIdx);
+            } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), (U8 *)FRAME_GetDataPointer(sink_frame, 2), bufIdx);
+            } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, bufIdx);
+            }
+        } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
+            setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0), (U8 *)FRAME_GetDataPointer(sink_frame, 0), bufIdx);
+        }
+        setTimeStamp(buf, FRAME_GetPts(sink_frame));
+        setEndOfStream(buf, context->bInputEos);
+        ret = queueBuffer(getInputPort(context->stCodec), buf);
+        if (ret) {
+            error("should not queue fail, please check!");
             return MPP_POLL_FAILED;
         }
+        setIsQueued(buf, MPP_TRUE);
+        context->nInputQueuedNum++;
     }
 
     return MPP_OK;
@@ -850,9 +836,8 @@ S32 al_enc_return_input_frame(ALBaseContext *ctx, MppData *sink_data) {
     if (MPP_OK == ret && p.revents & POLLOUT) {
         Buffer *buffer = dequeueBuffer(getInputPort(context->stCodec));
         if (!buffer) {
-            error(
-                "dequeueBuffer failed, this dequeueBuffer must successed, because it "
-                "is after Poll, please check!");
+            error("dequeueBuffer failed, this dequeueBuffer must successed, because it "
+                    "is after Poll, please check!");
         }
         setIsQueued(buffer, MPP_FALSE);
         return getExtraId(buffer);

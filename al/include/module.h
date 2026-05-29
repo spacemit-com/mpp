@@ -48,4 +48,4 @@ void module_destory(MppModule *module);
  */
 void *module_get_so_path(MppModule *module);
 
-#endif /*MODULE_H*/
+#endif /*_MPP_MODULE_H_*/
