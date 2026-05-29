@@ -40,6 +40,17 @@ S32 AAC_ParseAdts(const U8 *pu8Data, U32 u32Len, AdtsHeader *pstHeader) {
 
     pstHeader->u16FrameLen = ((pu8Data[3] & 0x03) << 11) | (pu8Data[4] << 3) | ((pu8Data[5] >> 5) & 0x07);
 
+    /*
+     * Sanity-check the frame length. It is a 13-bit field that, per the ADTS
+     * spec, counts the whole frame including the header, so it must be at
+     * least ADTS_HEADER_SIZE bytes. It must also not exceed the data we were
+     * given, otherwise a caller that trusts u16FrameLen would read past the
+     * end of the buffer.
+     */
+    if (pstHeader->u16FrameLen < 7 || pstHeader->u16FrameLen > u32Len) {
+        return -1;
+    }
+
     pstHeader->u32SampleRate = AAC_GetSampleRate(pstHeader->u8SampleRateIdx);
 
     return 0;
