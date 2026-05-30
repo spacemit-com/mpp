@@ -792,37 +792,63 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
 
         context->nInputQueuedNum++;
     } else {
-        Buffer *buf = getBuffer(getInputPort(context->stCodec), FRAME_GetID(sink_frame));
+        /* Runtime phase: use round-robin buffer index */
+        S32 numBufs = getBufNum(getInputPort(context->stCodec));
+        S32 bufIdx = context->nInputQueuedNum % numBufs;
+        Buffer *buf = getBuffer(getInputPort(context->stCodec), bufIdx);
 
-        if (!getIsQueued(buf)) {
+        /* If this buffer is still queued, try to recycle one */
+        if (getIsQueued(buf)) {
+            struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
+            ret = runPoll(context->stCodec, &p);
+            if (ret != MPP_OK || !(p.revents & POLLOUT)) {
+                /* No buffer available yet - encoder is busy */
+                return MPP_POLL_FAILED;
+            }
+
+            Buffer *dqBuf = dequeueBuffer(getInputPort(context->stCodec));
+            if (!dqBuf) {
+                error("dequeueBuffer failed after POLLOUT ready");
+                return MPP_POLL_FAILED;
+            }
+            setIsQueued(dqBuf, MPP_FALSE);
+
+            /*
+             * dequeueBuffer() already returns the exact Buffer slot the driver
+             * handed back (port->stBuf[buf.index]), so reuse it directly. Do
+             * NOT re-locate via getExtraId(): nExtraId stores the input frame
+             * ID (consumed by al_enc_return_input_frame), not a buffer index,
+             * so treating it as an index would index the buffer array with a
+             * frame ID.
+             */
+            buf = dqBuf;
+        }
+
+        /*
+         * extra_id must carry the input frame ID so that al_enc_return_input_frame()
+         * (which returns getExtraId() of the dequeued buffer) reports the correct
+         * frame back to the caller. bufIdx only selects which Buffer slot to reuse
+         * and must NOT be stored as the frame ID, otherwise the caller sees an
+         * internal buffer index instead of its own frame ID.
+         */
+        S32 frameId = FRAME_GetID(sink_frame);
             if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
                 if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
-                    setExternalUserPtrFrame(
-                        buf,
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                        NULL,
-                        FRAME_GetID(sink_frame));
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL, frameId);
                 } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
-                    setExternalUserPtrFrame(
-                        buf,
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                        (U8 *)FRAME_GetDataPointer(sink_frame, 2),
-                        FRAME_GetID(sink_frame));
-                } else if (
-                    context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA || context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
-                    context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA || context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
-                    context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV || context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY
-                ) {
-                    setExternalUserPtrFrame(
-                        buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, FRAME_GetID(sink_frame));
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
+                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), (U8 *)FRAME_GetDataPointer(sink_frame, 2), frameId);
+            } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV ||
+                        context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
+                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, frameId);
                 }
             } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
-                setExternalDmaBuf(
-                    buf, FRAME_GetFD(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    FRAME_GetID(sink_frame));
+            setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0), (U8 *)FRAME_GetDataPointer(sink_frame, 0), frameId);
             }
             setTimeStamp(buf, FRAME_GetPts(sink_frame));
             setEndOfStream(buf, context->bInputEos);
@@ -832,10 +858,7 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
                 return MPP_POLL_FAILED;
             }
             setIsQueued(buf, MPP_TRUE);
-        } else {
-            error("wait a moment!");
-            return MPP_POLL_FAILED;
-        }
+        context->nInputQueuedNum++;
     }
 
     return MPP_OK;

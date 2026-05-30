@@ -425,6 +425,9 @@ S32 memoryMap(Buffer *buf, S32 fd) {
             if (p->length > 0) {
                 if (V4L2_MEMORY_MMAP == buf->nMemType) {
                     buf->pUserPtr[i] = mmap(NULL, p->length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, p->m.mem_offset);
+
+                    /* Only the MMAP path actually calls mmap(), so only it can
+                     * return MAP_FAILED. USERPTR uses an external pointer. */
                     if (buf->pUserPtr[i] == MAP_FAILED) {
                         error("Failed to mmap multi plane memory (%s)", strerror(errno));
                         return MPP_MMAP_FAILED;
@@ -473,12 +476,24 @@ S32 memoryMap(Buffer *buf, S32 fd) {
             if (V4L2_MEMORY_MMAP == buf->nMemType) {
                 buf->pUserPtr[0] =
                     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf->stBufArr.m.offset);
+
+                /* Only branches that actually call mmap() can return
+                 * MAP_FAILED. USERPTR / DMABUF_EXTERNAL never map here. */
+                if (buf->pUserPtr[0] == MAP_FAILED) {
+                    error("Failed to mmap single plane memory (%s)", strerror(errno));
+                    return MPP_MMAP_FAILED;
+                }
             } else if (V4L2_MEMORY_DMABUF == buf->nMemType
                 && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
                 buf->nTotalLength = buf->stBufArr.length;
                 buf->stBufArr.m.fd = allocDmaBuf(buf->pDmaBufWrapper, buf->stBufArr.length);
                 buf->pUserPtr[0] =
                     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.fd, 0);
+
+                if (buf->pUserPtr[0] == MAP_FAILED) {
+                    error("Failed to mmap single plane memory (%s)", strerror(errno));
+                    return MPP_MMAP_FAILED;
+                }
             } else if (V4L2_MEMORY_DMABUF == buf->nMemType
                 && MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType) {
                 debug("dmabuf external, not alloc dmabuf here, always used for video encode!");
@@ -487,11 +502,6 @@ S32 memoryMap(Buffer *buf, S32 fd) {
                 // buf->pUserPtr[0] =
                 //     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE,
                 //          MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-            }
-
-            if (buf->pUserPtr[0] == MAP_FAILED) {
-                error("Failed to mmap single plane memory (%s)", strerror(errno));
-                return MPP_MMAP_FAILED;
             }
         }
     }

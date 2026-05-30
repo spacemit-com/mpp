@@ -22,6 +22,8 @@ CTestTestfile.cmake
 compile_commands.json
 ._*
 .DS*
+doc/build/
+.venv*
 .claude*
 CLAUUDE*
 *.log
