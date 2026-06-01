@@ -11,18 +11,14 @@
  *------------------------------------------------------------------------------
  */
 
-#include "mux/mux_api.h"
-
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/avutil.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include "mux_rtsp_internal.h"
+#include "mux/mux_api.h"
+#include "mux_rtsp_server.h"
 #include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
 
@@ -48,29 +44,16 @@ static S32 mux_check_chn(S32 s32ChnId) {
     return ERR_MUX_OK;
 }
 
-static enum AVCodecID mux_codec_to_ffmpeg(MuxCodecType eCodecType) {
-    switch (eCodecType) {
-        case MUX_CODEC_H264:
-            return AV_CODEC_ID_H264;
-        case MUX_CODEC_H265:
-            return AV_CODEC_ID_HEVC;
-        case MUX_CODEC_MJPEG:
-            return AV_CODEC_ID_MJPEG;
-        default:
-            return AV_CODEC_ID_NONE;
-    }
-}
-
 static MuxCodecType mux_codec_from_stream(MppStreamCodecType eCodecType) {
     switch (eCodecType) {
-        case MPP_STREAM_CODEC_H264:
-            return MUX_CODEC_H264;
-        case MPP_STREAM_CODEC_H265:
-            return MUX_CODEC_H265;
-        case MPP_STREAM_CODEC_MJPEG:
-            return MUX_CODEC_MJPEG;
-        default:
-            return MUX_CODEC_UNKNOWN;
+    case MPP_STREAM_CODEC_H264:
+        return MUX_CODEC_H264;
+    case MPP_STREAM_CODEC_H265:
+        return MUX_CODEC_H265;
+    case MPP_STREAM_CODEC_MJPEG:
+        return MUX_CODEC_MJPEG;
+    default:
+        return MUX_CODEC_UNKNOWN;
     }
 }
 
@@ -119,9 +102,6 @@ static VOID *mux_bind_worker(VOID *arg) {
 }
 
 static S32 mux_open_output(MuxChannel *pstChn) {
-    enum AVCodecID eCodecId;
-    S32 ret;
-
     if (!pstChn) {
         return ERR_MUX_NULL_PTR;
     }
@@ -130,57 +110,9 @@ static S32 mux_open_output(MuxChannel *pstChn) {
         return mux_rtsp_server_start(pstChn);
     }
 
-    eCodecId = mux_codec_to_ffmpeg(pstChn->stAttr.stStreamAttr.eCodecType);
-    if (eCodecId == AV_CODEC_ID_NONE) {
-        return ERR_MUX_OPEN_FAIL;
-    }
-
-    ret = avformat_alloc_output_context2(&pstChn->pstFmt, NULL, NULL, pstChn->stAttr.szUrl);
-    if (ret < 0 || !pstChn->pstFmt) {
-        MUX_LOGE("avformat_alloc_output_context2 failed, ret=%d, url=%s", ret, pstChn->stAttr.szUrl);
-        return ERR_MUX_OPEN_FAIL;
-    }
-
-    pstChn->pstStream = avformat_new_stream(pstChn->pstFmt, NULL);
-    if (!pstChn->pstStream) {
-        MUX_LOGE("avformat_new_stream failed, chn=%d", pstChn->s32ChnId);
-        avformat_free_context(pstChn->pstFmt);
-        pstChn->pstFmt = NULL;
-        return ERR_MUX_NOMEM;
-    }
-
-    pstChn->pstStream->time_base = (AVRational){1, 1000000};
-    pstChn->pstStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
-    pstChn->pstStream->codecpar->codec_id = eCodecId;
-    pstChn->pstStream->codecpar->width = (int)pstChn->stAttr.stStreamAttr.u32Width;
-    pstChn->pstStream->codecpar->height = (int)pstChn->stAttr.stStreamAttr.u32Height;
-    pstChn->pstStream->codecpar->bit_rate = (int64_t)pstChn->stAttr.stStreamAttr.u32BitrateKbps * 1000LL;
-
-    if (!(pstChn->pstFmt->oformat->flags & AVFMT_NOFILE)) {
-        ret = avio_open2(&pstChn->pstFmt->pb, pstChn->stAttr.szUrl, AVIO_FLAG_WRITE, NULL, NULL);
-        if (ret < 0) {
-            MUX_LOGE("avio_open2 failed, ret=%d, url=%s", ret, pstChn->stAttr.szUrl);
-            avformat_free_context(pstChn->pstFmt);
-            pstChn->pstFmt = NULL;
-            pstChn->pstStream = NULL;
-            return ERR_MUX_OPEN_FAIL;
-        }
-    }
-
-    ret = avformat_write_header(pstChn->pstFmt, NULL);
-    if (ret < 0) {
-        MUX_LOGE("avformat_write_header failed, ret=%d", ret);
-        if (!(pstChn->pstFmt->oformat->flags & AVFMT_NOFILE) && pstChn->pstFmt->pb) {
-            avio_closep(&pstChn->pstFmt->pb);
-        }
-        avformat_free_context(pstChn->pstFmt);
-        pstChn->pstFmt = NULL;
-        pstChn->pstStream = NULL;
-        return ERR_MUX_OPEN_FAIL;
-    }
-
-    pstChn->s32HeaderWritten = 1;
-    return ERR_MUX_OK;
+    /* Only RTSP output is supported (native implementation) */
+    MUX_LOGE("Only RTSP output is supported, url=%s", pstChn->stAttr.szUrl);
+    return ERR_MUX_OPEN_FAIL;
 }
 
 static VOID mux_close_output(MuxChannel *pstChn) {
@@ -190,23 +122,7 @@ static VOID mux_close_output(MuxChannel *pstChn) {
 
     if (pstChn->stAttr.eOutputType == MUX_OUTPUT_RTSP) {
         mux_rtsp_server_stop(pstChn);
-        return;
     }
-
-    if (!pstChn->pstFmt) {
-        return;
-    }
-
-    if (pstChn->s32HeaderWritten) {
-        av_write_trailer(pstChn->pstFmt);
-    }
-    if (!(pstChn->pstFmt->oformat->flags & AVFMT_NOFILE) && pstChn->pstFmt->pb) {
-        avio_closep(&pstChn->pstFmt->pb);
-    }
-    avformat_free_context(pstChn->pstFmt);
-    pstChn->pstFmt = NULL;
-    pstChn->pstStream = NULL;
-    pstChn->s32HeaderWritten = 0;
 }
 
 S32 MUX_Init(VOID) {
@@ -230,7 +146,6 @@ S32 MUX_Init(VOID) {
         pthread_mutex_init(&pstChn->lock, NULL);
     }
 
-    avformat_network_init();
     g_stMuxCtx.s32Init = 1;
     return ERR_MUX_OK;
 }
@@ -249,7 +164,6 @@ S32 MUX_Exit(VOID) {
         pthread_mutex_destroy(&g_stMuxCtx.astChn[i].lock);
     }
 
-    avformat_network_deinit();
     pthread_mutex_destroy(&g_stMuxCtx.lock);
     memset(&g_stMuxCtx, 0, sizeof(g_stMuxCtx));
     return ERR_MUX_OK;
@@ -397,7 +311,6 @@ S32 MUX_StopChn(S32 s32ChnId) {
 
 S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt) {
     MuxChannel *pstChn;
-    AVPacket stPkt = {0};
     S32 ret;
 
     if (!pstPkt) {
@@ -429,29 +342,9 @@ S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt) {
         return ret;
     }
 
-    if (!pstChn->pstFmt || !pstChn->pstStream) {
-        pthread_mutex_unlock(&pstChn->lock);
-        return ERR_MUX_NOT_STARTED;
-    }
-
-    // av_init_packet(&stPkt);
-    stPkt.data = (U8 *)pstPkt->pu8Data;
-    stPkt.size = (S32)pstPkt->u32Size;
-    stPkt.stream_index = pstChn->pstStream->index;
-    stPkt.pts = (S64)pstPkt->u64PTS;
-    stPkt.dts = (S64)pstPkt->u64PTS;
-    stPkt.duration = 0;
-    if (pstPkt->bKeyFrame) {
-        stPkt.flags |= AV_PKT_FLAG_KEY;
-    }
-
-    ret = av_interleaved_write_frame(pstChn->pstFmt, &stPkt);
+    /* Only RTSP output is supported */
     pthread_mutex_unlock(&pstChn->lock);
-    if (ret < 0) {
-        MUX_LOGE("av_interleaved_write_frame failed, chn=%d, ret=%d", s32ChnId, ret);
-        return ERR_MUX_OPEN_FAIL;
-    }
-    return ERR_MUX_OK;
+    return ERR_MUX_NOT_STARTED;
 }
 
 S32 MUX_GetChnStat(S32 s32ChnId, MuxChnStat *pstStat) {

@@ -14,8 +14,8 @@
 #ifndef MUX_TYPE_H
 #define MUX_TYPE_H
 
-#include "sys/type.h"
 #include "sys/sys_type.h"
+#include "sys/type.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -78,4 +78,4 @@ typedef struct _MuxChnStat {
 #endif
 #endif /* __cplusplus */
 
-#endif /* MUX_TYPE_H */
+#endif /* __MUX_TYPE_H__ */

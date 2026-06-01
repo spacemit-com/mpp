@@ -14,6 +14,8 @@
 #include <errno.h>
 #include <linux/videodev2.h>
 #include <poll.h>
+#include <stdatomic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -138,14 +140,20 @@ struct _ALLinlonv5v7DecContext {
     BOOL bInputEos;
 
     pthread_t pollthread;
+    BOOL bPollThreadCreated;
 
     /***
      * default MPP_FLASE
      *
      * when al_dec_destory is called, bIsDestoryed will be set to MPP_TRUE, some
      * threads stop and some resources recycle.
+     *
+     * Accessed from both the destroy thread (writer) and the poll thread
+     * (reader). 'volatile' alone does not provide inter-thread ordering or
+     * atomicity, so this is a C11 atomic to give well-defined, race-free
+     * publication of the shutdown request.
      */
-    BOOL bIsDestoryed;
+    atomic_bool bIsDestoryed;
 
     /***
      * num of input buffer in driver
@@ -281,14 +289,19 @@ static S32 checkInputParameters(MppCodingType type, S32 profile, MppPixelFormat 
  */
 void *runpoll(void *private_data) {
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)private_data;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
     while (1) {
         static S32 tmp = 0;
-        if (context->bIsDestoryed)
-            pthread_exit(NULL);
+        if (atomic_load(&context->bIsDestoryed))
+            break;
 
         struct pollfd p = {.fd = context->nVideoFd, .events = POLLPRI};
         S32 ret = poll(&p, 1, POLL_TIMEOUT);
+
+        if (atomic_load(&context->bIsDestoryed))
+            break;
 
         if (ret < 0) {
             error("Poll returned error code.");
@@ -303,17 +316,20 @@ void *runpoll(void *private_data) {
             // error("Event poll timed out.");
         }
 
-        if (p.revents & POLLPRI) {
+        if ((p.revents & POLLPRI) && !atomic_load(&context->bIsDestoryed)) {
             handleEvent(context->stCodec);
         }
 
         usleep(10000);
+        pthread_testcancel();
         tmp++;
         if (200 == tmp) {
             tmp = 0;
             // info("Now k1 hardware decoding ...");
         }
     }
+
+    pthread_exit(NULL);
 }
 
 ALBaseContext *al_dec_create() {
@@ -374,9 +390,10 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
     context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT;
     context->nOutputType = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
     context->bInputEos = MPP_FALSE;
-    context->bIsDestoryed = MPP_FALSE;
+    atomic_store(&context->bIsDestoryed, false);
     context->nInputQueuedNum = 0;
     context->nEosPts = -1;
+    context->bPollThreadCreated = MPP_FALSE;
 
     // if APP do not set nInputBufferNum and nOutputBufferNum, use default value,
     // and sync MPP this default value to APP.
@@ -442,6 +459,27 @@ RETURN al_dec_init(ALBaseContext *ctx, MppVdecPara *para) {
 
     // pthread for handle event or something
     ret = pthread_create(&context->pollthread, NULL, runpoll, (void *)context);
+    if (ret == 0) {
+        context->bPollThreadCreated = MPP_TRUE;
+    } else {
+        /*
+         * Without the poll thread the decoder can never dequeue frames, so
+         * initialization has effectively failed. Tear down what we already set
+         * up (stream off, destroy codec, close fd) and report the failure
+         * instead of returning MPP_OK and leaving the caller with a dead
+         * decoder.
+         */
+        error("create poll thread failed (%s)", strerror(ret));
+        enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
+        enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
+        mpp_v4l2_stream_off(context->nVideoFd, &input_type);
+        mpp_v4l2_stream_off(context->nVideoFd, &output_type);
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return MPP_INIT_FAILED;
+    }
 
     context->pVdecPara->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
 
@@ -630,8 +668,11 @@ RETURN al_dec_request_output_frame_2(ALBaseContext *ctx, MppData **src_data, U32
         return MPP_POLL_FAILED;
     }
     if (p.revents & POLLERR) {
-        error("poll returned error event");
-        return MPP_POLL_FAILED;
+        /* POLLERR from V4L2 typically means no buffers are queued.
+         * This is NOT a fatal error - just means we need to wait for
+         * buffers to be recycled back to the decoder. Return NO_DATA
+         * instead of POLL_FAILED to allow recovery. */
+        return MPP_CODER_NO_DATA;
     }
     if (ret == 0 || !(p.revents & POLLIN)) {
         return MPP_CODER_NO_DATA;
@@ -801,10 +842,8 @@ void al_dec_destory(ALBaseContext *ctx) {
     if (!ctx)
         return;
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
-    context->bIsDestoryed = MPP_TRUE;
+    atomic_store(&context->bIsDestoryed, true);
     debug("destory start");
-    pthread_join(context->pollthread, NULL);
-    debug("pthread join finish");
 
     if (context->nVideoFd && context->stCodec) {
         enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
@@ -812,7 +851,22 @@ void al_dec_destory(ALBaseContext *ctx) {
         mpp_v4l2_stream_off(context->nVideoFd, &input_type);
         mpp_v4l2_stream_off(context->nVideoFd, &output_type);
         debug("stream off finish");
+    }
 
+    if (context->bPollThreadCreated) {
+        /*
+         * The poll loop checks bIsDestoryed on every iteration (POLL_TIMEOUT is
+         * non-blocking and the loop only sleeps 10ms), so it exits promptly once
+         * bIsDestoryed is set above. We must block here until the thread has
+         * fully exited before destroying the codec/context below, otherwise the
+         * poll thread could touch already-freed resources (use-after-free).
+         */
+        pthread_join(context->pollthread, NULL);
+        debug("pthread join finish");
+        context->bPollThreadCreated = MPP_FALSE;
+    }
+
+    if (context->nVideoFd && context->stCodec) {
         destoryCodec(context->stCodec);
         debug("destory codec finish");
         close(context->nVideoFd);

@@ -479,14 +479,60 @@ void streamoffCodec(Codec *codec) {
 }
 
 S32 handleEvent(Codec *codec) {
+    /* Upper bound on events drained in a single call. The V4L2 event queue is
+     * small, so this is never reached in normal operation; it only prevents an
+     * abnormal, never-ending event stream from blocking the poll thread. */
+#define MAX_DQEVENT_PER_DRAIN 64
+    /* Upper bound on consecutive EINTR retries. A signal interrupting the
+     * ioctl is transient and normally clears on the first retry; bounding it
+     * guarantees the loop terminates even under a relentless signal storm. */
+#define MAX_DQEVENT_EINTR_RETRY 16
     struct v4l2_event event;
     S32 ret;
+    S32 eventCount = 0;
+    S32 eintrRetry = 0;
 
+    /* Drain ALL pending events to prevent event queue overflow.
+     * V4L2 event queue has limited capacity; if not drained in time,
+     * subsequent poll() may return POLLERR.
+     * A hard upper bound guards against an unexpectedly endless stream of
+     * events (e.g. a misbehaving driver or repeated EINTR) so this loop can
+     * never block the poll thread indefinitely. */
+    while (eventCount < MAX_DQEVENT_PER_DRAIN) {
+        /*
+         * Guard the dequeue with a zero-timeout poll. The device fd may have
+         * been opened in BLOCKING mode (e.g. find_v4l2_decoder() opens it
+         * without O_NONBLOCK), and on such an fd VIDIOC_DQEVENT blocks
+         * indefinitely (wait_event_interruptible) once the event queue is
+         * empty. That would pin this thread inside the ioctl forever, so the
+         * poll thread can never observe bIsDestoryed and pthread_join() during
+         * teardown would deadlock. Only dequeue while POLLPRI confirms a
+         * pending event; break out as soon as the queue drains.
+         */
+        struct pollfd pe = {.fd = codec->nVideoFd, .events = POLLPRI};
+        if (poll(&pe, 1, 0) <= 0 || !(pe.revents & POLLPRI)) {
+            break; /* no more pending events */
+        }
     ret = ioctl(codec->nVideoFd, VIDIOC_DQEVENT, &event);
     if (ret != 0) {
+            /*
+             * A signal can interrupt the ioctl (EINTR) even though events are
+             * still queued; retry in that case instead of mistaking it for an
+             * empty queue. The retry count is bounded separately so a
+             * relentless signal storm can never spin this loop forever.
+             */
+            if (errno == EINTR && eintrRetry < MAX_DQEVENT_EINTR_RETRY) {
+                eintrRetry++;
+                continue;
+            }
+            if (eventCount == 0) {
         error("Failed to dequeue event, please check!");
         return MPP_IOCTL_FAILED;
     }
+            break; /* No more pending events */
+        }
+        eintrRetry = 0; /* a successful dequeue resets the retry budget */
+        eventCount++;
 
     if (event.type == V4L2_EVENT_MVX_COLOR_DESC) {
         // struct v4l2_mvx_color_desc color = getColorDesc(codec);
@@ -500,7 +546,8 @@ S32 handleEvent(Codec *codec) {
     }
 
     if (event.type == V4L2_EVENT_EOS) {
-        error("V4L2_EVENT_EOS event is not support yet, please check!");
+            debug("V4L2_EVENT_EOS event received");
+        }
     }
 
     return MPP_OK;
@@ -509,12 +556,22 @@ S32 handleEvent(Codec *codec) {
 void handleFlush(Codec *codec, BOOL eof) {
     streamoff(codec->stInputPort);
     streamoff(codec->stOutputPort);
+
+    /* For DMABUF_EXTERNAL mode: DO NOT reallocate buffers here!
+     * The buffers are owned by MPI layer (VB pool), and reallocation
+     * would cause MPI's stExtBuf[] to become out of sync with V4L2.
+     * Just do streamoff/streamon, and let MPI layer re-queue buffers. */
+
     streamon(codec->stInputPort);
     // this sleep is used to fix a bug, ffplay on linux sometimes get a streamon
     // failed(Operation now in progress) error
     usleep(5000);
     streamon(codec->stOutputPort);
+
+    /* Only queue internal buffers; external buffers queued by MPI layer */
+    if (getPortBufferType(codec->stOutputPort) != MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL) {
     queueBuffers(codec->stOutputPort, MPP_FALSE);
+    }
     // port->nFramesProcessed = 0;
 }
 
