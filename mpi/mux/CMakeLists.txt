@@ -10,27 +10,16 @@ set(MUX_SRCS
 
 add_library(mpp_mux STATIC ${MUX_SRCS})
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(FFMPEG REQUIRED
-    libavformat
-    libavcodec
-    libavutil
-)
-
 target_include_directories(mpp_mux
     PUBLIC
         ${MPP_INCLUDE_DIRS}
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${FFMPEG_INCLUDE_DIRS}
 )
 
 target_link_libraries(mpp_mux
     PUBLIC  mpp_sys
-    PRIVATE ${FFMPEG_LIBRARIES}
 )
-
-target_link_directories(mpp_mux PRIVATE ${FFMPEG_LIBRARY_DIRS})
 
 set_target_properties(mpp_mux PROPERTIES
     OUTPUT_NAME "mpp_mux"

@@ -13,7 +13,6 @@
 #define AL_INTERFACE_VI_H
 
 #include "al_interface_base.h"
-#include "processflow.h"
 #include "vi/vi_api.h"
 
 #ifdef __cplusplus

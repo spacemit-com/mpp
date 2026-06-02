@@ -14,8 +14,8 @@
 #ifndef MUX_API_H
 #define MUX_API_H
 
-#include "sys/type.h"
 #include "mux_type.h"
+#include "sys/type.h"
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -102,4 +102,4 @@ S32 MUX_GetSinkNode(S32 s32ChnId, MppNode *pstNode);
 #endif
 #endif /* __cplusplus */
 
-#endif /* MUX_API_H */
+#endif /* __MUX_API_H__ */
