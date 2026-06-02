@@ -15,7 +15,7 @@ if(K3_SKIP_CCIC_LIB AND K3_SKIP_VI_LIB AND K3_SKIP_ISP_LIB)
 else()
     message(STATUS "K1 camera libraries not found — building vi_k3_cam_plugin (K3/V4L2 platform)")
 
-    include_directories(include)
+    include_directories(BEFORE include)
 
     set(VI_K3_SRCS
         vi_k3.c
@@ -24,7 +24,7 @@ else()
 
     add_library(vi_k3_cam_plugin SHARED ${VI_K3_SRCS})
 
-    target_include_directories(vi_k3_cam_plugin
+    target_include_directories(vi_k3_cam_plugin BEFORE
         PUBLIC
             ${MPP_INCLUDE_DIRS}
         PRIVATE

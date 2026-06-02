@@ -6,33 +6,32 @@ set(MPP_SAMPLE_COMMON_DEFS _GNU_SOURCE)
 add_executable(sample_uvc_vdec sample_uvc_vdec.c)
 target_compile_definitions(sample_uvc_vdec PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
 target_include_directories(sample_uvc_vdec PRIVATE ${MPP_INCLUDE_DIRS})
-target_link_libraries(sample_uvc_vdec PRIVATE mpp_uvc mpp_vdec mpp_sys)
+target_link_libraries(sample_uvc_vdec PRIVATE mpp)
 
 # RTSP pull via DEMUX
 add_executable(sample_rtsp_pull sample_rtsp_pull.c)
 target_compile_definitions(sample_rtsp_pull PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
 target_include_directories(sample_rtsp_pull PRIVATE ${MPP_INCLUDE_DIRS})
-target_link_libraries(sample_rtsp_pull PRIVATE mpp_demux mpp_sys)
+target_link_libraries(sample_rtsp_pull PRIVATE mpp)
 
 # UVC → VDEC decode → VENC encode and save H.264
 add_executable(sample_uvc_vdec_venc sample_uvc_vdec_venc.c)
 target_compile_definitions(sample_uvc_vdec_venc PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
 target_include_directories(sample_uvc_vdec_venc PRIVATE ${MPP_INCLUDE_DIRS})
-target_link_libraries(sample_uvc_vdec_venc PRIVATE mpp_uvc mpp_vdec mpp_venc mpp_sys)
+target_link_libraries(sample_uvc_vdec_venc PRIVATE mpp)
 
 # UVC → VDEC → VENC → RTSP (MUX)
 add_executable(sample_uvc_vdec_venc_rtsp sample_uvc_vdec_venc_rtsp.c)
 target_compile_definitions(sample_uvc_vdec_venc_rtsp PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
 target_include_directories(sample_uvc_vdec_venc_rtsp PRIVATE ${MPP_INCLUDE_DIRS})
-target_link_libraries(sample_uvc_vdec_venc_rtsp PRIVATE mpp_uvc mpp_vdec mpp_venc mpp_mux mpp_sys)
+target_link_libraries(sample_uvc_vdec_venc_rtsp PRIVATE mpp)
 
 # Multi-Stream RTSP Transcoder (Core Application)
-add_executable(sample_multi_rtsp 
-    sample_multi_rtsp.c 
+add_executable(sample_multi_rtsp
+    sample_multi_rtsp.c
     ${CMAKE_SOURCE_DIR}/mpi/stream/mpp_stream_manager.c
     ${CMAKE_SOURCE_DIR}/mpi/stream/mpp_queue.c
 )
 target_compile_definitions(sample_multi_rtsp PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
 target_include_directories(sample_multi_rtsp PRIVATE ${MPP_INCLUDE_DIRS})
-target_link_libraries(sample_multi_rtsp PRIVATE 
-    mpp_demux mpp_vdec mpp_venc mpp_mux mpp_sys pthread)
+target_link_libraries(sample_multi_rtsp PRIVATE mpp)

@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/sys  →  libmpp_sys (static)
+# mpi/sys  →  mpp_sys (OBJECT, aggregated into libmpp.so)
 # Covers: SYS module + VB (Video Buffer) module
 # ============================================================
 
@@ -10,28 +10,13 @@ set(SYS_SRCS
     dma_alloc.c
 )
 
-add_library(mpp_sys STATIC ${SYS_SRCS})
-
-find_package(Threads REQUIRED)
+add_library(mpp_sys OBJECT ${SYS_SRCS})
 
 target_include_directories(mpp_sys
     PUBLIC
         ${MPP_INCLUDE_DIRS}
 )
 
-target_link_libraries(mpp_sys PUBLIC Threads::Threads)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(mpp_sys PUBLIC rt)
-endif()
-
-set_target_properties(mpp_sys PROPERTIES
-    OUTPUT_NAME "mpp_sys"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-)
-
-install(TARGETS mpp_sys
-    ARCHIVE DESTINATION lib
-)
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/sys/sys_api.h"
     "${CMAKE_SOURCE_DIR}/include/sys/sys_type.h"

@@ -21,7 +21,7 @@ if(CAM_SENSORS_LIB AND VI_LIB AND ISP_LIB AND CCIC_LIB)
     message(STATUS "  libisp: ${ISP_LIB}")
     message(STATUS "  libccic: ${CCIC_LIB}")
 
-    include_directories(include)
+    include_directories(BEFORE include)
 
     set(VI_SRCS
         vi_k1.c
@@ -42,14 +42,14 @@ if(CAM_SENSORS_LIB AND VI_LIB AND ISP_LIB AND CCIC_LIB)
 
     add_library(vi_k1_cam_plugin SHARED ${VI_SRCS})
 
-    target_include_directories(vi_k1_cam_plugin
+    target_include_directories(vi_k1_cam_plugin BEFORE
         PUBLIC
             ${MPP_INCLUDE_DIRS}
         PRIVATE
             ${VI_PRIVATE_INCLUDE_DIRS}
     )
 
-    target_link_libraries(vi_k1_cam_plugin PUBLIC mpp_v2d vi isp cam_sensors ccic)
+    target_link_libraries(vi_k1_cam_plugin PRIVATE mpp vi isp cam_sensors ccic)
 
     set_target_properties(vi_k1_cam_plugin PROPERTIES
         OUTPUT_NAME "vi_k1_cam_plugin"

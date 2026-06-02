@@ -3,11 +3,12 @@
 # ============================================================
 
 # ---- LinlonV5V7 plugin ----
-include_directories(linlonv5v7/include)
-
-# venc_type.h / vdec_type.h live under include/venc and include/vdec
-include_directories(${PROJECT_SOURCE_DIR}/include/venc)
-include_directories(${PROJECT_SOURCE_DIR}/include/vdec)
+# BEFORE ensures project headers win over stale /usr/include copies.
+include_directories(BEFORE
+    linlonv5v7/include
+    ${PROJECT_SOURCE_DIR}/include/venc
+    ${PROJECT_SOURCE_DIR}/include/vdec
+)
 
 set(LINLONV5V7_SRCS
     linlonv5v7/linlonv5v7_dec.c
@@ -19,9 +20,9 @@ set(LINLONV5V7_SRCS
 
 add_library(v4l2_linlonv5v7_codec2 SHARED ${LINLONV5V7_SRCS})
 
-# Link utils if available as a target, otherwise just rely on include paths
-if(TARGET utils)
-    target_link_libraries(v4l2_linlonv5v7_codec2 PRIVATE utils)
+# Link mpp shared library if available, otherwise just rely on include paths
+if(TARGET mpp)
+    target_link_libraries(v4l2_linlonv5v7_codec2 PRIVATE mpp)
 endif()
 
 # Post-build: try copying to /usr/lib first; if no permission, fall back to $HOME/.mpp/plugins

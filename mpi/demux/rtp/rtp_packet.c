@@ -53,5 +53,24 @@ S32 Rtp_ParseHeader(const U8 *pu8Data, U32 u32Len, RtpHeader *pstHdr) {
         return -1;
     }
 
+    pstHdr->u32PayloadOffset = u32HdrLen;
     return (S32)u32HdrLen; /* Return payload offset */
+}
+
+S32 RTP_ParseHeader(const U8 *pu8Data, U32 u32Len, RtpHeader *pstHeader) {
+    return Rtp_ParseHeader(pu8Data, u32Len, pstHeader) < 0 ? -1 : 0;
+}
+
+const U8 *RTP_GetPayload(const U8 *pu8Data, const RtpHeader *pstHeader) {
+    if (!pu8Data || !pstHeader) {
+        return NULL;
+    }
+    return pu8Data + pstHeader->u32PayloadOffset;
+}
+
+U32 RTP_GetPayloadSize(U32 u32PacketLen, const RtpHeader *pstHeader) {
+    if (!pstHeader || pstHeader->u32PayloadOffset >= u32PacketLen) {
+        return 0;
+    }
+    return u32PacketLen - pstHeader->u32PayloadOffset;
 }

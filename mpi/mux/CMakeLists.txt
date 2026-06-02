@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/mux  →  libmpp_mux (static)
+# mpi/mux  →  mpp_mux (OBJECT, aggregated into libmpp.so)
 # ============================================================
 
 set(MUX_SRCS
@@ -8,7 +8,7 @@ set(MUX_SRCS
     mux_rtp.c
 )
 
-add_library(mpp_mux STATIC ${MUX_SRCS})
+add_library(mpp_mux OBJECT ${MUX_SRCS})
 
 target_include_directories(mpp_mux
     PUBLIC
@@ -17,16 +17,6 @@ target_include_directories(mpp_mux
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(mpp_mux
-    PUBLIC  mpp_sys
-)
-
-set_target_properties(mpp_mux PROPERTIES
-    OUTPUT_NAME "mpp_mux"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-)
-
-install(TARGETS mpp_mux ARCHIVE DESTINATION lib)
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/mux/mux_api.h"
     "${CMAKE_SOURCE_DIR}/include/mux/mux_type.h"
