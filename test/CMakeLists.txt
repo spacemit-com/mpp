@@ -62,15 +62,18 @@ target_include_directories(test_uvc_vdec PRIVATE ${MPP_INCLUDE_DIRS})
 add_test(NAME test_uvc_vdec COMMAND $<TARGET_FILE:test_uvc_vdec>)
 
 # File-based single-module codec tests
-add_executable(test_venc_file test_venc_file.c)
-target_compile_definitions(test_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
-target_link_libraries(test_venc_file PRIVATE mpp)
-target_include_directories(test_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
-
 add_executable(test_vi_venc_file test_vi_venc_file.c)
 target_compile_definitions(test_vi_venc_file PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_vi_venc_file PRIVATE mpp)
 target_include_directories(test_vi_venc_file PRIVATE ${MPP_INCLUDE_DIRS})
+
+# VENC: API / format / param / multi-channel regression (select via --test).
+# Uses synthetic NV12 frames, no external input required.
+add_executable(test_venc venc/test_venc.c)
+target_compile_definitions(test_venc PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_venc PRIVATE mpp)
+target_include_directories(test_venc PRIVATE ${MPP_INCLUDE_DIRS})
+add_test(NAME test_venc COMMAND $<TARGET_FILE:test_venc> --test api)
 
 # VDEC: API / multi-codec / scale regression (select suites via --test)
 # Paths are relative to this directory (test/), not project root.

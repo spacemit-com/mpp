@@ -59,7 +59,11 @@ typedef enum {
     MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM,
     MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
     MPP_VENC_CMD_SET_MIRROR,
-    MPP_VENC_CMD_SET_SLICE
+    MPP_VENC_CMD_SET_SLICE,
+    MPP_VENC_CMD_SET_FRAMERATE,
+    MPP_VENC_CMD_SET_RATE_CONTROL,
+    MPP_VENC_CMD_SET_CROP,
+    MPP_VENC_CMD_SET_FORCE_IDR
 } MppVencCmd;
 
 /**
@@ -84,6 +88,43 @@ typedef enum _VencRcMode {
 } VencRcMode;
 
 /* ======================== Structures ======================== */
+
+typedef struct _VencRcAttr {
+    VencRcMode  enRcMode;             /**< rate control mode */
+    U32         u32BitRate;           /**< target bitrate in bps */
+    U32         u32MaxBitRate;        /**< max bitrate for CVBR */
+    U32         u32MinQp;             /**< min QP for RC */
+    U32         u32MaxQp;             /**< max QP for RC */
+    U32         u32IQp;               /**< I-frame QP (FIXQP mode) */
+    U32         u32PQp;               /**< P-frame QP (FIXQP mode) */
+    U32         u32BQp;               /**< B-frame QP (FIXQP mode) */
+} VencRcAttr;
+
+typedef struct _VencCropAttr {
+    S32     s32Left;
+    S32     s32Right;
+    S32     s32Top;
+    S32     s32Bottom;
+} VencCropAttr;
+
+#define MPP_MAX_FRAME_REGIONS 16
+typedef struct _VencRegion {
+    U16     u16MbxLeft;     /**< X coordinate of the left most macroblock */
+    U16     u16MbxRight;    /**< X coordinate of the right most macroblock */
+    U16     u16MbyTop;      /**< Y coordinate of the top most macroblock */
+    U16     u16MbyBottom;   /**< Y coordinate of the bottom most macroblock */
+    S16     s16QpDelta;     /**< QP delta value. This region will be encoded with qp = qp_default + qp_delta. */
+} VencRegion;
+
+typedef struct _VencRoiAttr {
+    U32         u32PicIndex;
+    U8          u8QpPresent;
+    U8          u8Qp;
+    U8          u8RoiPresent;
+    U8          u8NumRoi;
+    VencRegion  stRoi[MPP_MAX_FRAME_REGIONS];
+} VencRoiAttr;
+
 
 /**
  * @brief VENC channel attributes (set before VENC_EnableChn)

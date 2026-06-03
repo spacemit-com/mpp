@@ -26,6 +26,7 @@
 #include "log.h"
 #include "mvx-v4l2-controls.h"
 #include "v4l2_utils.h"
+#include "venc_type.h"
 
 #define MODULE_TAG "linlonv5v7_enc"
 
@@ -714,6 +715,72 @@ S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
             MppVencSlice *paramSlice = (MppVencSlice *)para;
             setEncSliceSpacing(getOutputPort(context->stCodec), paramSlice->nSpacing);
             break;
+        case MPP_VENC_CMD_SET_FRAMERATE: {
+            S32 *pFrameRate = (S32 *)para;
+            setEncoderFramerate(context, (U32)(*pFrameRate));
+            break;
+        }
+        case MPP_VENC_CMD_SET_RATE_CONTROL: {
+            VencRcAttr *pRcAttr = (VencRcAttr *)para;
+            const char *rcMode = "off";
+            S32 targetBitrate = (S32)pRcAttr->u32BitRate;
+            S32 maxBitrate = (S32)pRcAttr->u32MaxBitRate;
+            switch (pRcAttr->enRcMode) {
+                case VENC_RC_MODE_CBR:
+                    rcMode = "constant";
+                    break;
+                case VENC_RC_MODE_VBR:
+                    rcMode = "variable";
+                    break;
+                case VENC_RC_MODE_CVBR:
+                    rcMode = "cvbr";
+                    break;
+                case VENC_RC_MODE_FIXQP:
+                default:
+                    rcMode = "off";
+                    break;
+            }
+            setEncoderRateControl(context, rcMode, targetBitrate, maxBitrate);
+            if (pRcAttr->u32MinQp > 0 || pRcAttr->u32MaxQp > 0) {
+                if (context->eCodingType == CODING_H265) {
+                    setHEVCMinQP(context, pRcAttr->u32MinQp);
+                    setHEVCMaxQP(context, pRcAttr->u32MaxQp);
+                } else {
+                    setH264MinQP(context, pRcAttr->u32MinQp);
+                    setH264MaxQP(context, pRcAttr->u32MaxQp);
+                }
+            }
+            if (pRcAttr->enRcMode == VENC_RC_MODE_FIXQP) {
+                if (context->eCodingType == CODING_H265) {
+                    setHEVCFixedQPI(context, pRcAttr->u32IQp);
+                    setHEVCFixedQPP(context, pRcAttr->u32PQp);
+                    setHEVCFixedQPB(context, pRcAttr->u32BQp);
+                } else {
+                    setH264FixedQPI(context, pRcAttr->u32IQp);
+                    setH264FixedQPP(context, pRcAttr->u32PQp);
+                    setH264FixedQPB(context, pRcAttr->u32BQp);
+                }
+            }
+            break;
+        }
+        case MPP_VENC_CMD_SET_CROP: {
+            VencCropAttr *pCrop = (VencCropAttr *)para;
+            setEncoderCropLeft(context, pCrop->s32Left);
+            setEncoderCropRight(context, pCrop->s32Right);
+            setEncoderCropTop(context, pCrop->s32Top);
+            setEncoderCropBottom(context, pCrop->s32Bottom);
+            break;
+        }
+        case MPP_VENC_CMD_SET_FORCE_IDR: {
+            struct v4l2_control control;
+            memset(&control, 0, sizeof(control));
+            control.id = V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME;
+            control.value = 0;
+            if (-1 == ioctl(context->nVideoFd, VIDIOC_S_CTRL, &control)) {
+                error("Failed to force IDR frame");
+            }
+            break;
+        }
         default:
             return MPP_OK;
     }
