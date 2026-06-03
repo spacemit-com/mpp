@@ -140,6 +140,11 @@ target_compile_definitions(test_vi_k3_cam PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_vi_k3_cam PRIVATE mpp)
 target_include_directories(test_vi_k3_cam PRIVATE ${MPP_INCLUDE_DIRS})
 
+add_executable(test_vi_k3_cam_yuv test_vi_k3_cam_yuv.c)
+target_compile_definitions(test_vi_k3_cam_yuv PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vi_k3_cam_yuv PRIVATE mpp_vi mpp_sys)
+target_include_directories(test_vi_k3_cam_yuv PRIVATE ${MPP_INCLUDE_DIRS})
+
 add_executable(test_vi_k1_ispbypass test_vi_k1_ispbypass.c)
 target_compile_definitions(test_vi_k1_ispbypass PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_vi_k1_ispbypass PRIVATE mpp)

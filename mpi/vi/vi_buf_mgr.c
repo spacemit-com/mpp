@@ -150,6 +150,17 @@ S32 MPI_VI_CalcFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameI
             pstFrameInfo->stVFrame.u32PlaneSizeValid[0] = pstFrameInfo->stVFrame.u32PlaneSize[0];
             pstFrameInfo->stVFrame.u32TotalSize = pstFrameInfo->stVFrame.u32PlaneSize[0];
             break;
+        case MPP_PIXEL_FORMAT_UYVY:
+        case MPP_PIXEL_FORMAT_YUYV:
+        case MPP_PIXEL_FORMAT_YVYU:
+        case MPP_PIXEL_FORMAT_VYUY:
+            /* YUV422 packed: 2 bytes per pixel, single plane (e.g. UYVY, YUYV). */
+            pstFrameInfo->stVFrame.u32PlaneNum = 1;
+            pstFrameInfo->stVFrame.u32PlaneStride[0] = u32Stride * 2U;
+            pstFrameInfo->stVFrame.u32PlaneSize[0] = pstFrameInfo->stVFrame.u32PlaneStride[0] * u32Height;
+            pstFrameInfo->stVFrame.u32PlaneSizeValid[0] = pstFrameInfo->stVFrame.u32PlaneSize[0];
+            pstFrameInfo->stVFrame.u32TotalSize = pstFrameInfo->stVFrame.u32PlaneSize[0];
+            break;
         default:
             return MPI_VI_ERR_NOT_SUPPORT;
     }

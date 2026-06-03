@@ -78,7 +78,7 @@ static S32 k3_errno_to_err(S32 fallback) {
 
 static const char *k3_devnode(void) {
     const char *dev = getenv("K3_V4L2_DEV");
-    return (dev != NULL) ? dev : "/dev/video8";
+    return (dev != NULL) ? dev : "/dev/video3";
 }
 
 S32 K3_V4L2_Open(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
@@ -106,6 +106,29 @@ S32 K3_V4L2_Open(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
     if (!(cap.capabilities & V4L2_CAP_STREAMING))
         return K3_VI_ERR_BAD_FORMAT;
     return K3_VI_SUCCESS;
+}
+
+static U32 k3_mpp_to_v4l2_pixfmt(MppPixelFormat eFmt) {
+    switch (eFmt) {
+        case MPP_PIXEL_FORMAT_UYVY:
+            return V4L2_PIX_FMT_UYVY;
+        case MPP_PIXEL_FORMAT_YUYV:
+            return V4L2_PIX_FMT_YUYV;
+        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS_PACKED:
+        default:
+            return v4l2_fourcc('p', 'B', 'A', 'A');
+    }
+}
+
+static U32 k3_mpp_to_v4l2_colorspace(MppPixelFormat eFmt) {
+    switch (eFmt) {
+        case MPP_PIXEL_FORMAT_UYVY:
+        case MPP_PIXEL_FORMAT_YUYV:
+            return V4L2_COLORSPACE_SMPTE170M;
+        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS_PACKED:
+        default:
+            return V4L2_COLORSPACE_RAW;
+    }
 }
 
 S32 K3_V4L2_Config(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
@@ -136,9 +159,9 @@ S32 K3_V4L2_Config(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
     fmt.fmt.pix_mp.width = width;
     fmt.fmt.pix_mp.height = height;
-    fmt.fmt.pix_mp.pixelformat = v4l2_fourcc('p', 'B', 'A', 'A');
+    fmt.fmt.pix_mp.pixelformat = k3_mpp_to_v4l2_pixfmt(pstCtx->stChnAttr.ePixelFormat);
     fmt.fmt.pix_mp.field = V4L2_FIELD_NONE;
-    fmt.fmt.pix_mp.colorspace = V4L2_COLORSPACE_RAW;
+    fmt.fmt.pix_mp.colorspace = k3_mpp_to_v4l2_colorspace(pstCtx->stChnAttr.ePixelFormat);
 
     info(
         "K3_V4L2_Config: set format %ux%u, pixfmt=0x%08X\n",
