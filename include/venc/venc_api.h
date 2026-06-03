@@ -18,7 +18,6 @@
 #include "sys/type.h"
 #include "sys/sys_type.h"
 #include "sys/vb_type.h"
-#include "para.h"
 #include "venc_type.h"
 
 #ifdef __cplusplus
