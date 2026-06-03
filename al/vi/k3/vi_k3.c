@@ -50,7 +50,7 @@ S32 K3_VI_DeInit(VOID) {
     for (d = 0; d < VI_MAX_DEV_NUM; d++) {
         for (c = 0; c < VI_MAX_CHN_NUM; c++) {
             if (g_stK3ViCtx.astChnCtx[d][c].bEnabled) {
-                error("K3_VI_DeInit: dev %d chn %d still enabled\n", d, c);
+                error("K3_VI_DeInit: dev %d chn %d still enabled", d, c);
             }
         }
     }
@@ -112,7 +112,7 @@ S32 K3_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
     K3_VI_CHN_CTX_S *pChn;
     S32 i;
 
-    info("K3_VI_EnableChn: ViDev=%d, ViChn=%d\n", ViDev, ViChn);
+    info("K3_VI_EnableChn: ViDev=%d, ViChn=%d", ViDev, ViChn);
     if (ViDev < 0 || ViDev >= K3_VI_MAX_DEV_NUM || ViChn < 0 || ViChn >= K3_VI_MAX_CHN_NUM)
         return K3_VI_ERR_INVALID_PARAM;
 
@@ -326,7 +326,7 @@ static S32 k3_vi_set_external_buf_pool(
     (void)paulBufferId;
 
     info(
-        "k3_vi_set_external_buf_pool: dev=%d chn=%d bufCnt=%u fd[0]=%d\n",
+        "k3_vi_set_external_buf_pool: dev=%d chn=%d bufCnt=%u fd[0]=%d",
         ViDev,
         ViChn,
         u32BufCnt,

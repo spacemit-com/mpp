@@ -65,7 +65,7 @@ static int save_frame(FILE *fp, const VideoFrameInfo *frame, U32 idx) {
     }
 
     printf("  plane[0]: addr=%p size_valid=%u size_total=%u using=%u\n",
-           addr, size_valid, size_total, size);
+            addr, size_valid, size_total, size);
 
     if (addr == NULL || size == 0)
         return -1;
@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
     chnAttr.u32Width     = K3_YUV_DEFAULT_WIDTH;
     chnAttr.u32Height    = K3_YUV_DEFAULT_HEIGHT;
     chnAttr.eStrideAlign = VI_STRIDE_ALIGN_DEFAULT;
-
+    chnAttr.u32Depth     = 1;
     ret = VI_SetChnAttr(K3_YUV_DEV, K3_YUV_CHN, &chnAttr);
     if (ret != 0) {
         printf("VI_SetChnAttr failed: %d\n", ret);
@@ -150,12 +150,14 @@ int main(int argc, char **argv) {
     }
 
     printf("started UYVY capture from %s (%ux%u)\n",
-           dev, K3_YUV_DEFAULT_WIDTH, K3_YUV_DEFAULT_HEIGHT);
+            dev, K3_YUV_DEFAULT_WIDTH, K3_YUV_DEFAULT_HEIGHT);
     usleep(30000);
 
     FILE *save_fp = fopen(K3_YUV_SAVE_PATH, "wb");
     if (save_fp == NULL) {
         printf("fopen(%s) failed: %s\n", K3_YUV_SAVE_PATH, strerror(errno));
+        ret = 1;
+        goto out;
     }
 
     for (i = 0; i < K3_YUV_FRAME_COUNT; ++i) {
@@ -179,7 +181,7 @@ int main(int argc, char **argv) {
         fclose(save_fp);
         printf("all frames saved to %s\n", K3_YUV_SAVE_PATH);
         printf("play with: ffplay -f rawvideo -pixel_format uyvy422 -video_size %dx%d %s\n",
-               K3_YUV_DEFAULT_WIDTH, K3_YUV_DEFAULT_HEIGHT, K3_YUV_SAVE_PATH);
+                K3_YUV_DEFAULT_WIDTH, K3_YUV_DEFAULT_HEIGHT, K3_YUV_SAVE_PATH);
     }
 
 out:

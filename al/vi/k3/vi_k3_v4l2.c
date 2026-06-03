@@ -72,32 +72,37 @@ static S32 k3_errno_to_err(S32 fallback) {
 
 #define K3_IOCTL_FAIL(_name, _fallback)                                                \
     do {                                                                               \
-        error("K3_V4L2: %s failed, errno=%d (%s)\n", (_name), errno, strerror(errno)); \
+        error("K3_V4L2: %s failed, errno=%d (%s)", (_name), errno, strerror(errno)); \
         return k3_errno_to_err(_fallback);                                             \
     } while (0)
 
-static const char *k3_devnode(void) {
-    const char *dev = getenv("K3_V4L2_DEV");
-    return (dev != NULL) ? dev : "/dev/video3";
+/* Map (ViDev, ViChn) to a V4L2 device node.
+ * Default: dev0/chn0 → /dev/video0, dev0/chn1 → /dev/video1, ...
+ * Override with K3_V4L2_DEV env var (applies to all channels). */
+static const char *k3_devnode(VI_DEV ViDev, VI_CHN ViChn, char *buf, size_t n) {
+    const char *env = getenv("K3_V4L2_DEV");
+    if (env != NULL)
+        return env;
+    (void)ViDev;
+    snprintf(buf, n, "/dev/video%d", ViChn);
+    return buf;
 }
 
 S32 K3_V4L2_Open(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
     struct v4l2_capability cap;
+    char path[32];
     const char *dev;
-
-    (void)ViDev;
-    (void)ViChn;
 
     if (pstCtx == NULL)
         return K3_VI_ERR_INVALID_PARAM;
     if (pstCtx->s32Fd >= 0)
         return K3_VI_SUCCESS;
 
-    dev = k3_devnode();
+    dev = k3_devnode(ViDev, ViChn, path, sizeof(path));
     pstCtx->s32Fd = open(dev, O_RDWR | O_NONBLOCK, 0);
-    info("K3_V4L2_Open: open %s, fd=%d\n", dev, pstCtx->s32Fd);
+    info("K3_V4L2_Open: open %s, fd=%d", dev, pstCtx->s32Fd);
     if (pstCtx->s32Fd < 0) {
-        error("K3_V4L2_Open: open(%s) failed, errno=%d (%s)\n", dev, errno, strerror(errno));
+        error("K3_V4L2_Open: open(%s) failed, errno=%d (%s)", dev, errno, strerror(errno));
         return k3_errno_to_err(K3_VI_ERR_OPEN_FAIL);
     }
 
@@ -151,7 +156,7 @@ S32 K3_V4L2_Config(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
     if (width == 0U || height == 0U) {
         width = K3_V4L2_DEMO_WIDTH;
         height = K3_V4L2_DEMO_HEIGHT;
-        info("K3_V4L2_Config: ChnAttr is 0x0, fallback to demo resolution %ux%u\n", width, height);
+        info("K3_V4L2_Config: ChnAttr is 0x0, fallback to demo resolution %ux%u", width, height);
     }
 
     /* ========== Step 1: Set format ========== */
@@ -163,8 +168,8 @@ S32 K3_V4L2_Config(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
     fmt.fmt.pix_mp.field = V4L2_FIELD_NONE;
     fmt.fmt.pix_mp.colorspace = k3_mpp_to_v4l2_colorspace(pstCtx->stChnAttr.ePixelFormat);
 
-    info(
-        "K3_V4L2_Config: set format %ux%u, pixfmt=0x%08X\n",
+    debug(
+        "K3_V4L2_Config: set format %ux%u, pixfmt=0x%08X",
         fmt.fmt.pix_mp.width,
         fmt.fmt.pix_mp.height,
         fmt.fmt.pix_mp.pixelformat);
@@ -187,9 +192,9 @@ S32 K3_V4L2_Config(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
 
     /* Save plane sizes for later QBUF (will be overwritten by
      * al_vi_set_external_buf_pool if MPI provides explicit sizes) */
-    for (U32 i = 0; i < pstCtx->u32PlaneCnt; i++) {
-        info("K3_V4L2_Config: plane[%u] sizeimage=%u\n", i, fmt.fmt.pix_mp.plane_fmt[i].sizeimage);
-    }
+    // for (U32 i = 0; i < pstCtx->u32PlaneCnt; i++) {
+    //     info("K3_V4L2_Config: plane[%u] sizeimage=%u", i, fmt.fmt.pix_mp.plane_fmt[i].sizeimage);
+    // }
 
     /* ========== Step 2: REQBUFS (DMABUF) ========== */
     u32ReqCnt = K3_V4L2_DEMO_BUFCNT;
@@ -199,20 +204,15 @@ S32 K3_V4L2_Config(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
     req.memory = V4L2_MEMORY_DMABUF;
     req.count = u32ReqCnt;
     if (k3_xioctl(pstCtx->s32Fd, VIDIOC_REQBUFS, &req) < 0) {
-        error("K3_V4L2_Config: VIDIOC_REQBUFS(DMABUF) failed: %s\n", strerror(errno));
+        error("K3_V4L2_Config: VIDIOC_REQBUFS(DMABUF) failed: %s", strerror(errno));
         return k3_errno_to_err(K3_VI_ERR_REQBUFS);
     }
 
     if (req.count < 2) {
-        error("K3_V4L2_Config: insufficient buffer count: %u\n", req.count);
+        error("K3_V4L2_Config: insufficient buffer count: %u", req.count);
         return K3_VI_ERR_NO_MEM;
     }
 
-    info(
-        "K3_V4L2_Config: REQBUFS(DMABUF) requested=%u granted=%u, planes=%u\n",
-        u32ReqCnt,
-        req.count,
-        pstCtx->u32PlaneCnt);
     pstCtx->u32BufCnt = (req.count < u32ReqCnt) ? req.count : u32ReqCnt;
 
     return K3_VI_SUCCESS;
@@ -232,7 +232,7 @@ S32 K3_V4L2_Start(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
     for (i = 0; i < pstCtx->u32BufCnt; ++i) {
         s32Ret = K3_V4L2_QBuf_DmaBuf(ViDev, ViChn, pstCtx, i);
         if (s32Ret != K3_VI_SUCCESS) {
-            error("K3_V4L2_Start: QBuf_DmaBuf[%u] failed: %d\n", i, s32Ret);
+            error("K3_V4L2_Start: QBuf_DmaBuf[%u] failed: %d", i, s32Ret);
             return s32Ret;
         }
     }
@@ -255,7 +255,7 @@ S32 K3_V4L2_Stop(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx) {
         return K3_VI_ERR_BAD_STATE;
     if (pstCtx->bStreaming == MPP_TRUE) {
         if (k3_xioctl(pstCtx->s32Fd, VIDIOC_STREAMOFF, &type) < 0)
-            error("K3_V4L2_Stop: VIDIOC_STREAMOFF failed, errno=%d (%s)\n", errno, strerror(errno));
+            error("K3_V4L2_Stop: VIDIOC_STREAMOFF failed, errno=%d (%s)", errno, strerror(errno));
     }
     pstCtx->bStreaming = MPP_FALSE;
     return K3_VI_SUCCESS;
@@ -297,7 +297,7 @@ S32 K3_V4L2_QBuf_DmaBuf(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx, U32
     if (pstCtx->s32Fd < 0)
         return K3_VI_ERR_BAD_STATE;
     if (pstCtx->as32DmaBufFd[u32BufIdx] < 0) {
-        error("K3_V4L2_QBuf_DmaBuf: slot %u has no dmabuf fd (call set_external_buf_pool first)\n", u32BufIdx);
+        error("K3_V4L2_QBuf_DmaBuf: slot %u has no dmabuf fd (call set_external_buf_pool first)", u32BufIdx);
         return K3_VI_ERR_BAD_STATE;
     }
 
@@ -313,8 +313,19 @@ S32 K3_V4L2_QBuf_DmaBuf(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx, U32
         vbuf.planes[i].length = pstCtx->au32PlaneSize[u32BufIdx][i];
     }
 
-    if (k3_xioctl(pstCtx->s32Fd, VIDIOC_QBUF, &vbuf.buf) < 0)
-        K3_IOCTL_FAIL("VIDIOC_QBUF(DMABUF)", K3_VI_ERR_QBUF);
+    if (k3_xioctl(pstCtx->s32Fd, VIDIOC_QBUF, &vbuf.buf) < 0) {
+        /* EINVAL at teardown: VENC hardware cleanup (REQBUFS count=0) releases
+         * DMA buffer kernel refs, leaving the driver in a state where it rejects
+         * re-queue for those slots.  Downgrade to info — the MPI recycle task
+         * already handles this gracefully and MPI_VI_DestroyOutBufPool will
+         * release the held ref during channel teardown. */
+        if (errno == EINVAL) {
+            // info("K3_V4L2_QBuf_DmaBuf: slot %u: VIDIOC_QBUF rejected (EINVAL)", u32BufIdx);
+        } else {
+            K3_IOCTL_FAIL("VIDIOC_QBUF(DMABUF)", K3_VI_ERR_QBUF);
+        }
+        return k3_errno_to_err(K3_VI_ERR_QBUF);
+    }
 
     return K3_VI_SUCCESS;
 }
@@ -363,7 +374,7 @@ S32 K3_V4L2_DQBuf_Wait(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx, S32 
     if (sel == 0)
         return K3_VI_ERR_BUSY; /* timeout */
     if (sel < 0) {
-        error("K3_V4L2_DQBuf_Wait: select failed: %s\n", strerror(errno));
+        error("K3_V4L2_DQBuf_Wait: select failed: %s", strerror(errno));
         return k3_errno_to_err(K3_VI_ERR_SELECT);
     }
 
@@ -377,12 +388,12 @@ S32 K3_V4L2_DQBuf_Wait(VI_DEV ViDev, VI_CHN ViChn, K3_VI_CHN_CTX_S *pstCtx, S32 
     if (k3_xioctl(pstCtx->s32Fd, VIDIOC_DQBUF, &vbuf.buf) < 0) {
         if (errno == EAGAIN)
             return K3_VI_ERR_TRY_AGAIN;
-        error("K3_V4L2_DQBuf_Wait: VIDIOC_DQBUF failed: %s\n", strerror(errno));
+        error("K3_V4L2_DQBuf_Wait: VIDIOC_DQBUF failed: %s", strerror(errno));
         return k3_errno_to_err(K3_VI_ERR_DQBUF);
     }
 
     if (vbuf.buf.index >= pstCtx->u32BufCnt) {
-        error("K3_V4L2_DQBuf_Wait: out-of-range index %u\n", vbuf.buf.index);
+        error("K3_V4L2_DQBuf_Wait: out-of-range index %u", vbuf.buf.index);
         return K3_VI_ERR_BAD_STATE;
     }
 
