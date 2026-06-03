@@ -4,9 +4,7 @@
   <version>0.1.0</version>
   <description>Media Process Platform</description>
 
-  <system_depend check="pkg-config --exists libavformat">libavformat-dev</system_depend>
-  <system_depend check="pkg-config --exists libavcodec">libavcodec-dev</system_depend>
-  <system_depend check="pkg-config --exists libavutil">libavutil-dev</system_depend>
+  <system_depend check="python3 -c 'import catkin_pkg'">python3-catkin-pkg</system_depend>
 
   <export>
     <build_type>cmake</build_type>
