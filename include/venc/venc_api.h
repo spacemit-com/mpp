@@ -128,13 +128,35 @@ S32 VENC_Flush(S32 s32ChnId);
 S32 VENC_Reset(S32 s32ChnId);
 
 /**
- * @brief  Set encoder parameter dynamically (e.g. rate control, ROI).
- * @param  s32ChnId  Channel ID
- * @param  cmd       Parameter command type
- * @param  pPara     Parameter data pointer
+ * @brief  Set encoder frame rate dynamically.
+ * @param  s32ChnId    Channel ID
+ * @param  s32FrameRate  Target frame rate (fps)
  * @return 0 on success, error code on failure
  */
-S32 VENC_SetParam(S32 s32ChnId, MppVencCmd cmd, void *pPara);
+S32 VENC_SetFrameRate(S32 s32ChnId, S32 s32FrameRate);
+
+/**
+ * @brief  Set encoder rate control attributes dynamically.
+ * @param  s32ChnId   Channel ID
+ * @param  pstRcAttr  Pointer to rate control attributes
+ * @return 0 on success, error code on failure
+ */
+S32 VENC_SetRateControl(S32 s32ChnId, VencRcAttr *pstRcAttr);
+
+/**
+ * @brief  Set encoder crop attributes dynamically.
+ * @param  s32ChnId     Channel ID
+ * @param  pstCropAttr  Pointer to crop attributes
+ * @return 0 on success, error code on failure
+ */
+S32 VENC_SetCropAttr(S32 s32ChnId, VencCropAttr *pstCropAttr);
+
+/**
+ * @brief  Force an IDR frame on the encoder.
+ * @param  s32ChnId  Channel ID
+ * @return 0 on success, error code on failure
+ */
+S32 VENC_SetForceIDR(S32 s32ChnId);
 
 #ifdef __cplusplus
 #if __cplusplus
