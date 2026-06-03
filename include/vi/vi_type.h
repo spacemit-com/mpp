@@ -100,6 +100,9 @@ typedef struct _ViChnAttrS {
     U32 u32CropWidth;
     U32 u32CropHeight;
     ViStrideAlignE eStrideAlign;
+    /* 0 = bind-only (frames auto-pushed via SYS_SendFrame, VI_GetChnFrame unavailable);
+     * >0 = depth-queue size, enables VI_GetChnFrame pull in addition to SYS bind. */
+    U32 u32Depth;
 } ViChnAttrS;
 
 typedef struct _ViBayerReadAttr {

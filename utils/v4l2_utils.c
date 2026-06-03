@@ -807,9 +807,13 @@ BOOL check_v4l2_linlonv5v7(void) {
             device_caps = vcap.capabilities;
         }
 
-        error("%s is not a M2M device (caps=0x%08x), skip", device_path, device_caps);
-        if (!V4L2_IS_M2M(device_caps)) {
-            error("%s is not a M2M device (caps=0x%08x), skip", device_path, device_caps);
+        /* Skip obvious non-M2M devices (CAPTURE-only, e.g. VI nodes) to
+         * avoid wasting time probing them.  Pure M2M devices may or may not
+         * have V4L2_CAP_VIDEO_M2M set depending on kernel version, so fall
+         * through to the format probe when caps are ambiguous. */
+        if ((device_caps & (V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_CAPTURE_MPLANE)) &&
+            !(device_caps & (V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_VIDEO_OUTPUT_MPLANE))) {
+            debug("%s is capture-only (caps=0x%08x), skip", device_path, device_caps);
             continue;
         }
 

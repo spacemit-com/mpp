@@ -26,6 +26,18 @@ target_compile_definitions(sample_uvc_vdec_venc_rtsp PRIVATE ${MPP_SAMPLE_COMMON
 target_include_directories(sample_uvc_vdec_venc_rtsp PRIVATE ${MPP_INCLUDE_DIRS})
 target_link_libraries(sample_uvc_vdec_venc_rtsp PRIVATE mpp)
 
+# VI -> VENC -> file
+add_executable(sample_vi_k3_venc_bind sample_vi_k3_venc_bind.c)
+target_compile_definitions(sample_vi_k3_venc_bind PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(sample_vi_k3_venc_bind PRIVATE mpp pthread)
+target_include_directories(sample_vi_k3_venc_bind PRIVATE ${MPP_INCLUDE_DIRS})
+
+# VI -> VENC -> file (4 streams)
+add_executable(sample_vi_k3_4venc_bind sample_vi_k3_4venc_bind.c)
+target_compile_definitions(sample_vi_k3_4venc_bind PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(sample_vi_k3_4venc_bind PRIVATE mpp pthread)
+target_include_directories(sample_vi_k3_4venc_bind PRIVATE ${MPP_INCLUDE_DIRS})
+
 # Multi-Stream RTSP Transcoder (Core Application)
 add_executable(sample_multi_rtsp
     sample_multi_rtsp.c

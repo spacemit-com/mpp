@@ -83,7 +83,7 @@ set(MPP_INCLUDE_DIRS
 # Testing support
 # ────────────────────────────────────────────────────────────
 option(BUILD_TESTS "Build API unit tests and test executables" ON)
-set(BUILD_ROS2_EXAMPLES "AUTO" CACHE STRING "Build ROS2 examples: AUTO | ON | OFF")
+set(BUILD_ROS2_EXAMPLES "OFF" CACHE STRING "Build ROS2 examples: AUTO | ON | OFF")
 set_property(CACHE BUILD_ROS2_EXAMPLES PROPERTY STRINGS AUTO ON OFF)
 
 if(BUILD_TESTS)

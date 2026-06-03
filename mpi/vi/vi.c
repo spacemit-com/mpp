@@ -3,28 +3,63 @@
 
 #include <dlfcn.h>
 #include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <time.h>
+#include <pthread.h>
 
 #include "log.h"
 #include "module.h"
 #include "vi_buf_mgr.h"
+#include "sys/sys_api.h"
+#include "sys/vb_api.h"
 
 #define VI_MPI_MAX_BUF_CNT 8
+#define VI_MPI_MAX_DEPTH   8
 #define MPI_VI_ERR_INVALID_PARAM (-1)
 #define MPI_VI_ERR_BUSY (-4)
+#define MPI_VI_ERR_NOT_SUPPORT (-3)
+
+/* ============================================================
+ * Internal structures
+ * ============================================================ */
+
+typedef struct {
+    VI_DEV ViDev;
+    VI_CHN ViChn;
+} MpiViTaskArg;
+
+typedef struct _MpiViDepthEntry {
+    UL ulBufferId;
+    VideoFrameInfo stFrameInfo;
+} MpiViDepthEntry;
 
 typedef struct _MpiViChnBufCtx {
     BOOL bEnabled;
     UL ulPoolId;
     U32 u32BufCnt;
     ViChnAttrS stChnAttr;
-    U32 u32ReadyHead;
-    U32 u32ReadyTail;
-    U32 u32ReadyNum;
-    U32 au32ReadyQueue[VI_MPI_MAX_BUF_CNT];
-    U8 au8NodeState[VI_MPI_MAX_BUF_CNT];
+
+    /* Buffer metadata table — indexed by V4L2 slot */
     VideoFrameInfo stFrameTemplate;
     VideoFrameInfo astFrameInfo[VI_MPI_MAX_BUF_CNT];
     UL aulBufferId[VI_MPI_MAX_BUF_CNT];
+
+    /* Push / recycle threads */
+    VI_DEV ViDev;
+    VI_CHN ViChn;
+    volatile BOOL bTaskRun;
+    pthread_t hPushTid;
+    pthread_t hRecycleTid;
+    U32 u32BadSlotMask;  /* bitmask of slots where QBUF has persistently failed */
+
+    /* Depth queue (pull mode, used only when u32Depth > 0) */
+    pthread_mutex_t depthLock;
+    pthread_cond_t  depthNotEmpty;
+    U32 u32DepthHead;
+    U32 u32DepthTail;
+    U32 u32DepthCount;
+    MpiViDepthEntry astDepthQueue[VI_MPI_MAX_DEPTH];
 } MpiViChnBufCtx;
 
 typedef struct _MpiViOfflineInputCtx {
@@ -41,13 +76,6 @@ typedef struct _MpiViRawDumpCtx {
     VideoFrameInfo stFrameInfo;
 } MpiViRawDumpCtx;
 
-typedef enum _MpiViBufNodeState {
-    MPI_VI_BUF_NODE_IDLE = 0,
-    MPI_VI_BUF_NODE_IN_HW,
-    MPI_VI_BUF_NODE_READY,
-    MPI_VI_BUF_NODE_USER,
-} MpiViBufNodeState;
-
 static MpiViChnBufCtx g_astViBufCtx[VI_MAX_DEV_NUM][VI_MAX_CHN_NUM];
 static MpiViOfflineInputCtx g_astViOfflineInputCtx[VI_MAX_DEV_NUM][VI_MAX_CHN_NUM];
 static MpiViRawDumpCtx g_astViRawDumpCtx[VI_MAX_DEV_NUM][VI_MAX_CHN_NUM];
@@ -63,19 +91,173 @@ static const ViAlOps *g_pViOps = NULL;
 
 static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn);
 
-static S32 mpi_vi_find_buffer_index(const MpiViChnBufCtx *pstBufCtx, UL ulBufferId) {
-    U32 i;
+/* ============================================================
+ * Push thread: DQBUF → SYS_SendFrame (+ depth queue if depth>0)
+ * ============================================================ */
 
-    if (pstBufCtx == NULL)
-        return MPI_VI_ERR_INVALID_PARAM;
+static void *mpi_vi_push_task(void *arg) {
+    MpiViTaskArg *pArg = (MpiViTaskArg *)arg;
+    VI_DEV ViDev = pArg->ViDev;
+    VI_CHN ViChn = pArg->ViChn;
+    free(pArg);
 
-    for (i = 0; i < pstBufCtx->u32BufCnt; ++i) {
-        if (pstBufCtx->aulBufferId[i] == ulBufferId)
-            return (S32)i;
+    MpiViChnBufCtx *pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
+
+    MppNode stSrcNode;
+    stSrcNode.eModId   = MPP_ID_VI;
+    stSrcNode.s32DevId = ViDev;
+    stSrcNode.s32ChnId = ViChn;
+
+    info("vi push task started: dev=%d chn=%d depth=%u", ViDev, ViChn, pstBufCtx->stChnAttr.u32Depth);
+
+    while (pstBufCtx->bTaskRun) {
+        U32 u32Index = 0;
+        S32 s32Ret = g_pViOps->dequeue_done_buffer(ViDev, ViChn, &u32Index, 100);
+        if (s32Ret != MPP_OK)
+            continue;
+        if (u32Index >= pstBufCtx->u32BufCnt) {
+            error("vi push task: bad buf index %u", u32Index);
+            continue;
+        }
+
+        UL ulBuf = pstBufCtx->aulBufferId[u32Index];
+
+        /* Build frame info: copy template, fill PTS/sequence from DQBUF metadata,
+         * convert frame type so VENC can accept it directly. */
+        VideoFrameInfo stFrame = pstBufCtx->astFrameInfo[u32Index];
+
+        if (g_pViOps->query_dqbuf_meta != NULL) {
+            U64 u64Pts = 0;
+            U32 u32Seq = 0;
+            U32 au32BytesUsed[VIDEO_MAX_PLANES] = {0};
+            if (g_pViOps->query_dqbuf_meta(ViDev, ViChn, u32Index, &u64Pts, &u32Seq, au32BytesUsed) == MPP_OK) {
+                stFrame.stVFrame.u64PTS = u64Pts;
+                stFrame.stVFrame.u32PlaneSizeValid[0] = au32BytesUsed[0];
+                if (stFrame.stVFrame.u32PlaneNum > 1)
+                    stFrame.stVFrame.u32PlaneSizeValid[1] = au32BytesUsed[1];
+            }
+        }
+
+        /* Convert to VENC frame type so VENC's frame input thread can handle it.
+         * stViFrameInfo and stVencFrameInfo share the same union storage; save
+         * stCommFrameInfo to a local copy before reinterpreting the union to
+         * avoid a self-assignment that is fragile against layout changes. */
+        CommonFrameInfo stCommInfo = stFrame.stViFrameInfo.stCommFrameInfo;
+        stFrame.eFrameType = FRAME_TYPE_VENC;
+        stFrame.eModId     = MPP_ID_VENC;
+        stFrame.stVencFrameInfo.stCommFrameInfo = stCommInfo;
+
+        VB_UpdateBufferFrameInfo(ulBuf, &stFrame);
+
+        /* 1. Push to all SYS-bound sinks (no-op / NOT_FOUND if no bind) */
+        (void)SYS_SendFrame(&stSrcNode, ulBuf);
+
+        /* 2. If depth > 0, also push into the depth queue for VI_GetChnFrame */
+        U32 u32Depth = pstBufCtx->stChnAttr.u32Depth;
+        if (u32Depth > 0) {
+            VB_RefAdd(ulBuf);
+
+            pthread_mutex_lock(&pstBufCtx->depthLock);
+
+            if (pstBufCtx->u32DepthCount >= u32Depth) {
+                /* Queue full — evict oldest entry */
+                MpiViDepthEntry *pOld = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthHead];
+                VB_ReleaseBuffer(pOld->ulBufferId);
+                pstBufCtx->u32DepthHead = (pstBufCtx->u32DepthHead + 1) % VI_MPI_MAX_DEPTH;
+                pstBufCtx->u32DepthCount--;
+            }
+
+            MpiViDepthEntry *pNew = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthTail];
+            pNew->ulBufferId  = ulBuf;
+            pNew->stFrameInfo = stFrame;
+            pstBufCtx->u32DepthTail = (pstBufCtx->u32DepthTail + 1) % VI_MPI_MAX_DEPTH;
+            pstBufCtx->u32DepthCount++;
+
+            pthread_cond_signal(&pstBufCtx->depthNotEmpty);
+            pthread_mutex_unlock(&pstBufCtx->depthLock);
+        }
+
+        /* 3. Release the V4L2 base ref — recycle thread will QBUF when all refs drop */
+        VB_ReleaseBuffer(ulBuf);
     }
 
-    return MPI_VI_ERR_INVALID_PARAM;
+    info("vi push task exiting: dev=%d chn=%d", ViDev, ViChn);
+    return NULL;
 }
+
+/* ============================================================
+ * Recycle thread: VB_GetBuffer → QBUF back to V4L2
+ * Mirrors uvc_recycle_task (mpi/uvc/uvc.c:547-588).
+ * ============================================================ */
+
+static void *mpi_vi_recycle_task(void *arg) {
+    MpiViTaskArg *pArg = (MpiViTaskArg *)arg;
+    VI_DEV ViDev = pArg->ViDev;
+    VI_CHN ViChn = pArg->ViChn;
+    free(pArg);
+
+    MpiViChnBufCtx *pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
+
+    info("vi recycle task started: dev=%d chn=%d pool=%lu", ViDev, ViChn, pstBufCtx->ulPoolId);
+
+    while (pstBufCtx->bTaskRun) {
+        /* Block until some consumer releases a buffer back to the pool */
+        UL ulBuf = VB_GetBuffer(pstBufCtx->ulPoolId, 100);
+        if (ulBuf == 0 || ulBuf == (UL)-1)
+            continue;
+
+        /* Re-check after the potentially long wait: shutdown may have started.
+         * Do NOT call VB_ReleaseBuffer here — keep ref=1 so that
+         * MPI_VI_DestroyOutBufPool can release every acquired buffer in one
+         * consistent pass during channel teardown. */
+        if (!pstBufCtx->bTaskRun)
+            break;
+
+        /* Find which V4L2 slot this VB handle belongs to */
+        U32 slot = (U32)-1;
+        for (U32 i = 0; i < pstBufCtx->u32BufCnt; i++) {
+            if (pstBufCtx->aulBufferId[i] == ulBuf) {
+                slot = i;
+                break;
+            }
+        }
+
+        if (slot == (U32)-1) {
+            error("vi recycle task: unknown VB handle %lu", ulBuf);
+            VB_ReleaseBuffer(ulBuf);
+            continue;
+        }
+
+        /* If this slot previously failed QBUF, skip re-queuing it to V4L2.
+         * Keep ref=1 (acquired via VB_GetBuffer above) — MPI_VI_DestroyOutBufPool
+         * will release it during channel teardown.  Do not release here, as that
+         * would return the slot to the free pool and cause it to be re-acquired
+         * in the next VB_GetBuffer call, creating a tight loop. */
+        if (pstBufCtx->u32BadSlotMask & (1u << slot))
+            continue;
+
+        /* QBUF back to V4L2; ref=1 from VB_GetBuffer represents "V4L2 owns it". */
+        pstBufCtx->aulBufferId[slot] = ulBuf;
+        if (g_pViOps->queue_buffer(ViDev, ViChn, slot) != MPP_OK) {
+            /* Log only on the first failure per slot so a systematic driver
+             * misconfiguration is visible, while teardown EINVAL noise is not
+             * repeated.  Keep ref=1 — MPI_VI_DestroyOutBufPool releases it. */
+            if (!(pstBufCtx->u32BadSlotMask & (1u << slot))) {
+                error("vi recycle: slot %u (dev=%d chn=%d) QBUF failed; "
+                    "marking bad, capture continues on remaining slots",
+                    slot, ViDev, ViChn);
+                pstBufCtx->u32BadSlotMask |= (1u << slot);
+            }
+        }
+    }
+
+    info("vi recycle task exiting: dev=%d chn=%d", ViDev, ViChn);
+    return NULL;
+}
+
+/* ============================================================
+ * Rawdump helpers (unchanged)
+ * ============================================================ */
 
 static VOID mpi_vi_destroy_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     MpiViRawDumpCtx *pstRawCtx = NULL;
@@ -184,7 +366,6 @@ static S32 mpi_vi_prepare_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     pstRawCtx->stFrameInfo.ulBufferId = pstRawCtx->ulBufferId;
     pstRawCtx->stFrameInfo.stVFrame.u32PrivateData = ((U32)ViDev << 16) | (U32)ViChn;
 
-    /* Populate vir addr and dma-buf fd so the plugin can extract them. */
     {
         S32 s32Fd = -1;
         U32 j;
@@ -206,82 +387,13 @@ static S32 mpi_vi_prepare_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     return MPP_OK;
 }
 
-static VOID mpi_vi_reset_ready_queue(MpiViChnBufCtx *pstBufCtx) {
-    if (pstBufCtx == NULL)
-        return;
-
-    pstBufCtx->u32ReadyHead = 0;
-    pstBufCtx->u32ReadyTail = 0;
-    pstBufCtx->u32ReadyNum = 0;
-}
-
-static VOID mpi_vi_set_buf_state(MpiViChnBufCtx *pstBufCtx, U32 u32Index, MpiViBufNodeState eState) {
-    if (pstBufCtx == NULL || u32Index >= pstBufCtx->u32BufCnt)
-        return;
-
-    pstBufCtx->au8NodeState[u32Index] = (U8)eState;
-}
-
-static S32 mpi_vi_ready_push(MpiViChnBufCtx *pstBufCtx, U32 u32Index) {
-    if (pstBufCtx == NULL || u32Index >= pstBufCtx->u32BufCnt)
-        return MPI_VI_ERR_INVALID_PARAM;
-    if (pstBufCtx->u32ReadyNum >= VI_MPI_MAX_BUF_CNT)
-        return MPI_VI_ERR_BUSY;
-
-    pstBufCtx->au32ReadyQueue[pstBufCtx->u32ReadyTail] = u32Index;
-    pstBufCtx->u32ReadyTail = (pstBufCtx->u32ReadyTail + 1U) % VI_MPI_MAX_BUF_CNT;
-    pstBufCtx->u32ReadyNum++;
-    return MPP_OK;
-}
-
-static S32 mpi_vi_ready_pop(MpiViChnBufCtx *pstBufCtx, U32 *pu32Index) {
-    if (pstBufCtx == NULL || pu32Index == NULL)
-        return MPP_NULL_POINTER;
-    if (pstBufCtx->u32ReadyNum == 0)
-        return MPI_VI_ERR_BUSY;
-
-    *pu32Index = pstBufCtx->au32ReadyQueue[pstBufCtx->u32ReadyHead];
-    pstBufCtx->u32ReadyHead = (pstBufCtx->u32ReadyHead + 1U) % VI_MPI_MAX_BUF_CNT;
-    pstBufCtx->u32ReadyNum--;
-    return MPP_OK;
-}
-
-static S32 mpi_vi_drain_done_buffers(VI_DEV ViDev, VI_CHN ViChn, S32 s32MilliSec) {
-    MpiViChnBufCtx *pstBufCtx = NULL;
-    U32 u32Index = 0;
-    S32 s32Ret = MPP_OK;
-    S32 s32WaitMs = s32MilliSec;
-
-    if (g_pViOps == NULL || g_pViOps->dequeue_done_buffer == NULL)
-        return MPP_INIT_FAILED;
-    if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
-        return MPI_VI_ERR_INVALID_PARAM;
-
-    pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
-    if (pstBufCtx->bEnabled != MPP_TRUE)
-        return MPI_VI_ERR_INVALID_PARAM;
-
-    for (;;) {
-        s32Ret = g_pViOps->dequeue_done_buffer(ViDev, ViChn, &u32Index, s32WaitMs);
-        if (s32Ret != MPP_OK)
-            break;
-        if (u32Index >= pstBufCtx->u32BufCnt)
-            return MPI_VI_ERR_INVALID_PARAM;
-
-        mpi_vi_set_buf_state(pstBufCtx, u32Index, MPI_VI_BUF_NODE_READY);
-        s32Ret = mpi_vi_ready_push(pstBufCtx, u32Index);
-        if (s32Ret != MPP_OK)
-            return s32Ret;
-        s32WaitMs = 0;
-    }
-
-    return (s32Ret == MPI_VI_ERR_BUSY) ? MPP_OK : s32Ret;
-}
+/* ============================================================
+ * Channel buffer context helpers
+ * ============================================================ */
 
 static VOID mpi_vi_reset_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return;
-
     memset(&g_astViBufCtx[ViDev][ViChn], 0, sizeof(g_astViBufCtx[ViDev][ViChn]));
 }
 
@@ -298,13 +410,6 @@ static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     mpi_vi_reset_chn_buf_ctx(ViDev, ViChn);
 }
 
-static VOID mpi_vi_reset_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn) {
-    if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
-        return;
-
-    memset(&g_astViOfflineInputCtx[ViDev][ViChn], 0, sizeof(g_astViOfflineInputCtx[ViDev][ViChn]));
-}
-
 static VOID mpi_vi_destroy_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     MpiViOfflineInputCtx *pstInputCtx = NULL;
     UL aulBufferId[1] = {0};
@@ -318,7 +423,7 @@ static VOID mpi_vi_destroy_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn) {
         MPI_VI_DestroyOutBufPool(pstInputCtx->ulPoolId, 1, aulBufferId);
     }
 
-    mpi_vi_reset_offline_input_ctx(ViDev, ViChn);
+    memset(pstInputCtx, 0, sizeof(*pstInputCtx));
 }
 
 static S32 mpi_vi_rebuild_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
@@ -339,14 +444,9 @@ static S32 mpi_vi_rebuild_offline_input_ctx(VI_DEV ViDev, VI_CHN ViChn, const Vi
         mpi_vi_destroy_offline_input_ctx(ViDev, ViChn);
 
     s32Ret = MPI_VI_CreateOutBufPool(
-        ViDev,
-        ViChn,
-        pstChnAttr,
-        1,
-        &pstInputCtx->ulPoolId,
-        &stFrameTemplate,
-        &pstInputCtx->stFrameInfo,
-        &pstInputCtx->ulBufferId);
+        ViDev, ViChn, pstChnAttr, 1,
+        &pstInputCtx->ulPoolId, &stFrameTemplate,
+        &pstInputCtx->stFrameInfo, &pstInputCtx->ulBufferId);
     if (s32Ret != MPP_OK)
         return s32Ret;
 
@@ -374,23 +474,20 @@ static S32 mpi_vi_rebuild_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAtt
         mpi_vi_destroy_chn_buf_ctx(ViDev, ViChn);
 
     s32Ret = MPI_VI_CreateOutBufPool(
-        ViDev,
-        ViChn,
-        pstChnAttr,
-        u32BufCnt,
-        &pstBufCtx->ulPoolId,
-        &pstBufCtx->stFrameTemplate,
-        pstBufCtx->astFrameInfo,
-        pstBufCtx->aulBufferId);
+        ViDev, ViChn, pstChnAttr, u32BufCnt,
+        &pstBufCtx->ulPoolId, &pstBufCtx->stFrameTemplate,
+        pstBufCtx->astFrameInfo, pstBufCtx->aulBufferId);
     if (s32Ret != MPP_OK)
         return s32Ret;
 
     pstBufCtx->u32BufCnt = u32BufCnt;
     pstBufCtx->stChnAttr = *pstChnAttr;
-    mpi_vi_reset_ready_queue(pstBufCtx);
-    memset(pstBufCtx->au8NodeState, MPI_VI_BUF_NODE_IDLE, sizeof(pstBufCtx->au8NodeState));
     return MPP_OK;
 }
+
+/* ============================================================
+ * Plugin loader
+ * ============================================================ */
 
 static S32 vi_load_plugin(VOID) {
     PFN_al_vi_get_ops pfn_get_ops;
@@ -399,7 +496,6 @@ static S32 vi_load_plugin(VOID) {
     if (g_pViOps != NULL)
         return MPP_OK;
 
-    /* Try K3 (pure V4L2) first, fall back to K1 (full ISP). */
     g_pViModule = module_init(VI_K3_CAM);
     if (g_pViModule == NULL)
         g_pViModule = module_init(VI_K1_CAM);
@@ -433,7 +529,6 @@ static S32 vi_load_plugin(VOID) {
         return MPP_INIT_FAILED;
     }
 
-    /* Validate required ops. */
     if (g_pViOps->init == NULL || g_pViOps->deinit == NULL || g_pViOps->set_dev_attr == NULL ||
         g_pViOps->get_dev_attr == NULL || g_pViOps->enable_dev == NULL || g_pViOps->disable_dev == NULL ||
         g_pViOps->set_chn_attr == NULL || g_pViOps->get_chn_attr == NULL || g_pViOps->set_chn_framerate == NULL ||
@@ -449,6 +544,10 @@ static S32 vi_load_plugin(VOID) {
 
     return MPP_OK;
 }
+
+/* ============================================================
+ * Public VI API
+ * ============================================================ */
 
 #ifdef __cplusplus
 #if __cplusplus
@@ -546,6 +645,7 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
         return MPP_INIT_FAILED;
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
+
     memset(&stChnAttr, 0, sizeof(stChnAttr));
     s32Ret = g_pViOps->get_chn_attr(ViDev, ViChn, &stChnAttr);
     if (s32Ret != MPP_OK)
@@ -559,7 +659,8 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
     }
 
     s32Ret = g_pViOps->set_external_buf_pool(
-        ViDev, ViChn, pstBufCtx->ulPoolId, pstBufCtx->u32BufCnt, pstBufCtx->aulBufferId, pstBufCtx->astFrameInfo);
+        ViDev, ViChn, pstBufCtx->ulPoolId, pstBufCtx->u32BufCnt,
+        pstBufCtx->aulBufferId, pstBufCtx->astFrameInfo);
     if (s32Ret != MPP_OK) {
         mpi_vi_destroy_chn_buf_ctx(ViDev, ViChn);
         return s32Ret;
@@ -571,11 +672,59 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
         return s32Ret;
     }
 
-    for (U32 i = 0; i < pstBufCtx->u32BufCnt; ++i)
-        mpi_vi_set_buf_state(pstBufCtx, i, MPI_VI_BUF_NODE_IN_HW);
-
-    mpi_vi_reset_ready_queue(pstBufCtx);
     pstBufCtx->bEnabled = MPP_TRUE;
+    pstBufCtx->ViDev    = ViDev;
+    pstBufCtx->ViChn    = ViChn;
+
+    /* Clamp depth to depth-queue array size */
+    if (pstBufCtx->stChnAttr.u32Depth > VI_MPI_MAX_DEPTH)
+        pstBufCtx->stChnAttr.u32Depth = VI_MPI_MAX_DEPTH;
+
+    pthread_mutex_init(&pstBufCtx->depthLock, NULL);
+    pthread_cond_init(&pstBufCtx->depthNotEmpty, NULL);
+    pstBufCtx->u32DepthHead  = 0;
+    pstBufCtx->u32DepthTail  = 0;
+    pstBufCtx->u32DepthCount = 0;
+
+    pstBufCtx->bTaskRun = MPP_TRUE;
+
+    MpiViTaskArg *pPushArg = (MpiViTaskArg *)malloc(sizeof(MpiViTaskArg));
+    MpiViTaskArg *pRecycleArg = (MpiViTaskArg *)malloc(sizeof(MpiViTaskArg));
+    if (pPushArg == NULL || pRecycleArg == NULL) {
+        free(pPushArg);
+        free(pRecycleArg);
+        pstBufCtx->bTaskRun = MPP_FALSE;
+        s32Ret = MPI_VI_ERR_BUSY;
+        goto err_threads;
+    }
+
+    pPushArg->ViDev    = pRecycleArg->ViDev = ViDev;
+    pPushArg->ViChn    = pRecycleArg->ViChn = ViChn;
+
+    if (pthread_create(&pstBufCtx->hPushTid, NULL, mpi_vi_push_task, pPushArg) != 0) {
+        free(pPushArg);
+        free(pRecycleArg);
+        pstBufCtx->bTaskRun = MPP_FALSE;
+        s32Ret = MPP_INIT_FAILED;
+        goto err_threads;
+    }
+
+    if (pthread_create(&pstBufCtx->hRecycleTid, NULL, mpi_vi_recycle_task, pRecycleArg) != 0) {
+        free(pRecycleArg);
+        pstBufCtx->bTaskRun = MPP_FALSE;
+        pthread_join(pstBufCtx->hPushTid, NULL);
+        s32Ret = MPP_INIT_FAILED;
+        goto err_threads;
+    }
+
+    return MPP_OK;
+
+err_threads:
+    pthread_mutex_destroy(&pstBufCtx->depthLock);
+    pthread_cond_destroy(&pstBufCtx->depthNotEmpty);
+    pstBufCtx->bTaskRun = MPP_FALSE;
+    g_pViOps->disable_chn(ViDev, ViChn);
+    mpi_vi_destroy_chn_buf_ctx(ViDev, ViChn);
     return s32Ret;
 }
 
@@ -587,11 +736,25 @@ S32 VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn) {
         return MPP_INIT_FAILED;
     if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
-    s32Ret = g_pViOps->disable_chn(ViDev, ViChn);
+
     pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
+
+    /* Stop push/recycle threads before disabling V4L2 streaming */
+    if (pstBufCtx->bTaskRun) {
+        pstBufCtx->bTaskRun = MPP_FALSE;
+        pthread_join(pstBufCtx->hPushTid,    NULL);
+        pthread_join(pstBufCtx->hRecycleTid, NULL);
+    }
+
+    pthread_mutex_destroy(&pstBufCtx->depthLock);
+    pthread_cond_destroy(&pstBufCtx->depthNotEmpty);
+
+    s32Ret = g_pViOps->disable_chn(ViDev, ViChn);
     pstBufCtx->bEnabled = MPP_FALSE;
+
     if (pstBufCtx->ulPoolId != 0)
         mpi_vi_destroy_chn_buf_ctx(ViDev, ViChn);
+
     mpi_vi_destroy_rawdump_ctx(ViDev, ViChn);
     mpi_vi_destroy_offline_input_ctx(ViDev, ViChn);
     return s32Ret;
@@ -599,8 +762,6 @@ S32 VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn) {
 
 S32 VI_GetChnFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec) {
     MpiViChnBufCtx *pstBufCtx = NULL;
-    U32 u32Index;
-    S32 s32Ret;
 
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
@@ -612,16 +773,60 @@ S32 VI_GetChnFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S3
     pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
     if (pstBufCtx->bEnabled != MPP_TRUE)
         return MPI_VI_ERR_INVALID_PARAM;
-    s32Ret = mpi_vi_drain_done_buffers(ViDev, ViChn, s32MilliSec);
-    if (s32Ret != MPP_OK)
-        return s32Ret;
-    s32Ret = mpi_vi_ready_pop(pstBufCtx, &u32Index);
-    if (s32Ret != MPP_OK)
-        return s32Ret;
 
-    *pstVideoFrame = pstBufCtx->astFrameInfo[u32Index];
-    mpi_vi_set_buf_state(pstBufCtx, u32Index, MPI_VI_BUF_NODE_USER);
+    if (pstBufCtx->stChnAttr.u32Depth == 0)
+        return MPI_VI_ERR_NOT_SUPPORT;  /* bind-only mode, use SYS_Bind + VENC_GetStream */
+
+    pthread_mutex_lock(&pstBufCtx->depthLock);
+
+    if (s32MilliSec == 0) {
+        /* Non-blocking */
+        if (pstBufCtx->u32DepthCount == 0) {
+            pthread_mutex_unlock(&pstBufCtx->depthLock);
+            return MPI_VI_ERR_BUSY;
+        }
+    } else {
+        /* Timed wait */
+        while (pstBufCtx->u32DepthCount == 0 && pstBufCtx->bTaskRun) {
+            if (s32MilliSec < 0) {
+                pthread_cond_wait(&pstBufCtx->depthNotEmpty, &pstBufCtx->depthLock);
+            } else {
+                struct timespec ts;
+                clock_gettime(CLOCK_REALTIME, &ts);
+                ts.tv_sec  += s32MilliSec / 1000;
+                ts.tv_nsec += (s32MilliSec % 1000) * 1000000L;
+                if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+                int rc = pthread_cond_timedwait(&pstBufCtx->depthNotEmpty, &pstBufCtx->depthLock, &ts);
+                if (rc == ETIMEDOUT)
+                    break;
+            }
+        }
+        if (pstBufCtx->u32DepthCount == 0) {
+            pthread_mutex_unlock(&pstBufCtx->depthLock);
+            return MPI_VI_ERR_BUSY;
+        }
+    }
+
+    MpiViDepthEntry *pEntry = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthHead];
+    *pstVideoFrame = pEntry->stFrameInfo;
+    pstBufCtx->u32DepthHead = (pstBufCtx->u32DepthHead + 1) % VI_MPI_MAX_DEPTH;
+    pstBufCtx->u32DepthCount--;
+
+    pthread_mutex_unlock(&pstBufCtx->depthLock);
     return MPP_OK;
+}
+
+S32 VI_ReleaseChnFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame) {
+    if (vi_load_plugin() != MPP_OK)
+        return MPP_INIT_FAILED;
+    if (pstVideoFrame == NULL)
+        return MPP_NULL_POINTER;
+    if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
+        return MPI_VI_ERR_INVALID_PARAM;
+
+    /* Release the depth-queue reference; recycle thread re-QBUFs to V4L2
+     * once all consumers (SYS sinks + depth queue) have released. */
+    return VB_ReleaseBuffer(pstVideoFrame->ulBufferId);
 }
 
 S32 VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn) {
@@ -686,18 +891,16 @@ S32 VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, 
     pstInputCtx->stFrameInfo.stVFrame.u32TotalSize = u32RawSize;
 
     return g_pViOps->offline_set_input_addr(
-        ViDev,
-        ViChn,
-        pstInputCtx->ulPoolId,
-        pstInputCtx->ulBufferId,
-        &pstInputCtx->stFrameInfo,
-        pu8RawVirAddr,
-        u32RawSize);
+        ViDev, ViChn,
+        pstInputCtx->ulPoolId, pstInputCtx->ulBufferId, &pstInputCtx->stFrameInfo,
+        pu8RawVirAddr, u32RawSize);
 }
 
 S32 VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
+    /* Threads already running from VI_EnableChn; plugin op is a no-op for K3.
+     * Caller should use SYS_Bind() directly to establish the binding. */
     return g_pViOps->attach_bind_sink(ViDev, ViChn, pstSinkNode);
 }
 
@@ -705,31 +908,6 @@ S32 VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
     return g_pViOps->detach_bind_sink(ViDev, ViChn, pstSinkNode);
-}
-
-S32 VI_ReleaseChnFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame) {
-    MpiViChnBufCtx *pstBufCtx = NULL;
-    U32 i;
-
-    if (vi_load_plugin() != MPP_OK)
-        return MPP_INIT_FAILED;
-    if (pstVideoFrame == NULL)
-        return MPP_NULL_POINTER;
-    if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
-        return MPI_VI_ERR_INVALID_PARAM;
-
-    pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
-    if (pstBufCtx->bEnabled != MPP_TRUE)
-        return MPI_VI_ERR_INVALID_PARAM;
-    for (i = 0; i < pstBufCtx->u32BufCnt; ++i) {
-        if (pstBufCtx->aulBufferId[i] != pstVideoFrame->ulBufferId)
-            continue;
-
-        mpi_vi_set_buf_state(pstBufCtx, i, MPI_VI_BUF_NODE_IN_HW);
-        return g_pViOps->queue_buffer(ViDev, ViChn, i);
-    }
-
-    return MPI_VI_ERR_INVALID_PARAM;
 }
 
 #ifdef __cplusplus
