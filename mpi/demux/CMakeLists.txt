@@ -107,8 +107,7 @@ if(DEMUX_BUILD_HLS)
     add_definitions(-DDEMUX_HLS=1)
 endif()
 
-# Build library (mpp_demux for compatibility)
-add_library(mpp_demux STATIC ${DEMUX_SOURCES})
+add_library(mpp_demux OBJECT ${DEMUX_SOURCES})
 
 target_include_directories(mpp_demux 
     PUBLIC
@@ -117,21 +116,7 @@ target_include_directories(mpp_demux
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(mpp_demux
-    PUBLIC  mpp_sys
-    PRIVATE pthread
-)
-
-set_target_properties(mpp_demux PROPERTIES
-    OUTPUT_NAME "mpp_demux"
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-)
-
 # Install
-install(TARGETS mpp_demux
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/demux/demux_api.h"
     "${CMAKE_SOURCE_DIR}/include/demux/demux_type.h"

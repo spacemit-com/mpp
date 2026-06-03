@@ -18,6 +18,7 @@
 #include "packet.h"
 #include "para.h"
 #include "ringbuffer.h"
+#include "vb_type.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/cpp  →  libmpp_cpp (static)
+# mpi/cpp  →  mpp_cpp (OBJECT, aggregated into libmpp.so)
 # CPP wrapper backed by real k1x-cam cpp implementation
 # ============================================================
 
@@ -17,7 +17,7 @@ if(CPP_LIB)
         cpp.c
     )
 
-    add_library(mpp_cpp STATIC ${CPP_SRCS})
+    add_library(mpp_cpp OBJECT ${CPP_SRCS})
 
     target_include_directories(mpp_cpp
         PUBLIC
@@ -27,21 +27,11 @@ if(CPP_LIB)
             "${K1X_CAM_INCLUDE_DIR}"
     )
 
-    target_link_directories(mpp_cpp PRIVATE "${K1X_CAM_LIB_DIR}")
+    # Export cpp link info to parent scope for libmpp.so aggregation
+    set(MPP_CPP_AVAILABLE ON PARENT_SCOPE)
+    set(MPP_CPP_LIB_DIR "${K1X_CAM_LIB_DIR}" PARENT_SCOPE)
+    set(MPP_CPP_LINK_LIBS cpp PARENT_SCOPE)
 
-    target_link_libraries(mpp_cpp
-        PUBLIC
-            mpp_sys
-        PRIVATE
-            cpp
-    )
-
-    set_target_properties(mpp_cpp PROPERTIES
-        OUTPUT_NAME "mpp_cpp"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    )
-
-    install(TARGETS mpp_cpp ARCHIVE DESTINATION lib)
     install(FILES
         "${CMAKE_SOURCE_DIR}/include/cpp/cpp_api.h"
         "${CMAKE_SOURCE_DIR}/include/cpp/cpp_type.h"
@@ -49,4 +39,5 @@ if(CPP_LIB)
     )
 else()
     message(STATUS "K1 cpp library NOT found, skipping mpp_cpp")
+    set(MPP_CPP_AVAILABLE OFF PARENT_SCOPE)
 endif()

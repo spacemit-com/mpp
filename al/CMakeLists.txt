@@ -2,14 +2,16 @@
 # al  →  Abstract Layer (codec plugins, loaded via dlopen)
 # ============================================================
 
-# AL-layer headers (al_interface_dec.h, al_interface_enc.h, module.h, etc.)
-include_directories(include)
-
-# Project public headers (type.h, sys_type.h, vb_type.h, etc.)
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/include/sys)
-
-include_directories(vi/include)
+# Use BEFORE so project headers take precedence over any stale
+# MPP headers that may be installed in /usr/include.
+include_directories(BEFORE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/include/sys
+    ${PROJECT_SOURCE_DIR}/utils/include
+    ${PROJECT_SOURCE_DIR}/utils/os/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/vi/include
+)
 
 add_subdirectory(vi/k1)
 add_subdirectory(vi/k3)

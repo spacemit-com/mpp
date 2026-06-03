@@ -1,6 +1,6 @@
 # ============================================================
 # utils  →  shared helpers (frame, packet, log, v4l2, dma-buf, …)
-# Built as a static library for AL plugins and future MPI use.
+# Built as an OBJECT library, aggregated into libmpp.so.
 # ============================================================
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -21,7 +21,7 @@ set(MPP_UTILS_SRCS
     os/linux/os_log.c
 )
 
-add_library(utils STATIC ${MPP_UTILS_SRCS})
+add_library(utils OBJECT ${MPP_UTILS_SRCS})
 
 target_include_directories(utils
     PUBLIC
@@ -29,6 +29,3 @@ target_include_directories(utils
         ${CMAKE_CURRENT_SOURCE_DIR}/os/include
         ${PROJECT_SOURCE_DIR}/include/sys
 )
-
-find_package(Threads REQUIRED)
-target_link_libraries(utils PUBLIC Threads::Threads)

@@ -28,20 +28,19 @@ include_directories(
 
 link_directories(
   ${MPP_BUILD_ROOT}/lib
-  ${MPP_BUILD_ROOT}/utils
 )
 
 add_executable(mpp_isp_camera_node "${MPP_ROOT}/test/test_vi_isp_cam_ros2_node.cpp")
 ament_target_dependencies(mpp_isp_camera_node rclcpp sensor_msgs mpp_msgs)
-target_link_libraries(mpp_isp_camera_node mpp_vi mpp_al_module utils mpp_sys pthread dl)
+target_link_libraries(mpp_isp_camera_node mpp)
 
 add_executable(mpp_uvc_camera_node "${MPP_ROOT}/test/test_uvc_ros2_node.cpp")
 ament_target_dependencies(mpp_uvc_camera_node rclcpp sensor_msgs mpp_msgs)
-target_link_libraries(mpp_uvc_camera_node mpp_uvc mpp_sys pthread dl)
+target_link_libraries(mpp_uvc_camera_node mpp)
 
 add_executable(mpp_frame_consumer_node "${MPP_ROOT}/test/test_vi_isp_cam_ros2_consumer.cpp")
 ament_target_dependencies(mpp_frame_consumer_node rclcpp mpp_msgs)
-target_link_libraries(mpp_frame_consumer_node mpp_sys pthread)
+target_link_libraries(mpp_frame_consumer_node mpp)
 
 install(TARGETS
   mpp_isp_camera_node
