@@ -199,10 +199,6 @@ S32 K1_VI_HandleNormalCallback(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pst
     if (pstChnCtx == NULL || pstBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
-    if (K1_VI_ShouldKeepFrame(pstChnCtx) != MPP_TRUE) {
-        return K1_VI_HandleDroppedFrame(pstChnCtx, pstBufNode);
-    }
-
     pstBufNode->enState = K1_VI_BUF_STATE_READY;
     return K1_VI_DonePush(pstChnCtx, pstBufNode->u32Index);
 }

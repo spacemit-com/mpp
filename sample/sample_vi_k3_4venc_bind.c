@@ -8,14 +8,13 @@
  * @Brief     :    Demo: K3 VI 4-channel → 4×VENC via SYS bind, save 4 H.264 files.
  *
  *                 Device mapping:
- *                   dev0/chn0 → /dev/video0 → VENC chn0 → output_chn0.h264
- *                   dev0/chn1 → /dev/video1 → VENC chn1 → output_chn1.h264
- *                   dev0/chn2 → /dev/video2 → VENC chn2 → output_chn2.h264
- *                   dev0/chn3 → /dev/video3 → VENC chn3 → output_chn3.h264
+ *                   dev0/chn0 → /dev/video0 → VENC chn0 → output_chn0.h264  (full rate, reference)
+ *                   dev0/chn1 → /dev/video1 → VENC chn1 → output_chn1.h264  (1/2 rate)
+ *                   dev0/chn2 → /dev/video2 → VENC chn2 → output_chn2.h264  (1/3 rate)
+ *                   dev0/chn3 → /dev/video3 → VENC chn3 → output_chn3.h264  (full rate)
  *
- *                 Each VI channel runs in bind-only mode (u32Depth=0).
- *                 A dedicated reader thread per VENC channel pulls encoded
- *                 NAL units and writes them to the corresponding file.
+ *                 chn0 is the reference channel. When it saves frame_count frames
+ *                 all other channels stop and report their actual saved counts.
  *
  *                 Usage: ./sample_vi_k3_4venc_bind [frame_count]
  *                   default frame_count = 300  (~10 s @ 30 fps)
@@ -30,6 +29,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
@@ -44,32 +44,32 @@
 #define DEFAULT_HEIGHT 720
 #define DEFAULT_FRAMES 300
 
+/* Global stop flag: set by chn0 when it reaches frame_count */
+static volatile int g_stop = 0;
+
 typedef struct {
-    int   venc_chn;
-    FILE *fp;
-    int   frame_count;
-    int   saved;
-    int   error;
+    int    venc_chn;
+    FILE  *fp;
+    int    frame_count;   /* only meaningful for trigger channel (chn0) */
+    int    is_trigger;    /* 1 = chn0, drives g_stop */
+    int    saved;
+    int    error;
+    double elapsed_s;
 } ReaderArg;
 
 static void *reader_thread(void *arg) {
     ReaderArg *ra = arg;
     StreamBufferInfo stream;
     S32 ret;
+    struct timespec t0, t1;
 
-    while (ra->saved < ra->frame_count) {
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+
+    while (!g_stop) {
         memset(&stream, 0, sizeof(stream));
-        ret = VENC_GetStream(ra->venc_chn, &stream, 3000);
-        if (ret != 0) {
-            fprintf(stderr, "[chn%d] VENC_GetStream error on frame %d: %d\n",
-                    ra->venc_chn, ra->saved, ret);
-            ra->error++;
-            if (ra->error > 10) {
-                fprintf(stderr, "[chn%d] too many errors, aborting\n", ra->venc_chn);
-                break;
-            }
+        ret = VENC_GetStream(ra->venc_chn, &stream, 100);  /* short timeout to check g_stop */
+        if (ret != 0)
             continue;
-        }
 
         if (fwrite(stream.pu8Addr, 1, stream.u32Size, ra->fp) != stream.u32Size)
             fprintf(stderr, "[chn%d] short write on frame %d\n", ra->venc_chn, ra->saved);
@@ -77,15 +77,32 @@ static void *reader_thread(void *arg) {
         VENC_ReleaseStream(ra->venc_chn, &stream);
         ra->saved++;
 
-        if (ra->saved % 30 == 0)
-            printf("[chn%d] saved %d / %d frames\n", ra->venc_chn, ra->saved, ra->frame_count);
+        if (ra->saved % 30 == 0) {
+            if (ra->is_trigger)
+                printf("[chn0] saved %d / %d frames\n", ra->saved, ra->frame_count);
+            else
+                printf("[chn%d] saved %d frames so far\n", ra->venc_chn, ra->saved);
+        }
+
+        /* Trigger channel: stop all when frame_count reached */
+        if (ra->is_trigger && ra->saved >= ra->frame_count) {
+            g_stop = 1;
+            break;
+        }
     }
+
+    /* Ensure other threads are unblocked if this thread exits for any reason */
+    if (ra->is_trigger)
+        g_stop = 1;
+
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    ra->elapsed_s = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) * 1e-9;
     return NULL;
 }
 
 static void usage(const char *prog) {
     printf("Usage: %s [frame_count]\n", prog);
-    printf("  frame_count  number of encoded frames per channel (default %d)\n", DEFAULT_FRAMES);
+    printf("  frame_count  frames for chn0 (reference channel, default %d)\n", DEFAULT_FRAMES);
 }
 
 int main(int argc, char **argv) {
@@ -191,6 +208,33 @@ int main(int argc, char **argv) {
     }
 
     /* ------------------------------------------------------------------ */
+    /* 2b. Frame rate control: chn1 half-rate, chn2 one-third rate         */
+    /* ------------------------------------------------------------------ */
+    {
+        ViFrameRateCtrlS frc;
+
+        /* chn1: output 1 out of every 2 input frames → ~15 fps */
+        frc.u32InputFrameStep  = 2;
+        frc.u32OutputFrameStep = 1;
+        ret = VI_SetChnFrameRate(VI_DEV_ID, 1, &frc);
+        if (ret != 0)
+            fprintf(stderr, "VI_SetChnFrameRate(chn1) failed: %d\n", ret);
+        else
+            printf("VI chn1 frame rate: %u/%u (every %u-th frame)\n",
+                frc.u32OutputFrameStep, frc.u32InputFrameStep, frc.u32InputFrameStep);
+
+        /* chn2: output 1 out of every 3 input frames → ~10 fps */
+        frc.u32InputFrameStep  = 3;
+        frc.u32OutputFrameStep = 1;
+        ret = VI_SetChnFrameRate(VI_DEV_ID, 2, &frc);
+        if (ret != 0)
+            fprintf(stderr, "VI_SetChnFrameRate(chn2) failed: %d\n", ret);
+        else
+            printf("VI chn2 frame rate: %u/%u (every %u-th frame)\n",
+                frc.u32OutputFrameStep, frc.u32InputFrameStep, frc.u32InputFrameStep);
+    }
+
+    /* ------------------------------------------------------------------ */
     /* 3. VENC init: 4 channels, each H.264 CBR 2 Mbps                     */
     /* ------------------------------------------------------------------ */
     ret = VENC_Init();
@@ -258,6 +302,7 @@ int main(int argc, char **argv) {
         reader_args[i].venc_chn    = i;
         reader_args[i].fp          = fps[i];
         reader_args[i].frame_count = frame_count;
+        reader_args[i].is_trigger  = (i == 0) ? 1 : 0;
         reader_args[i].saved       = 0;
         reader_args[i].error       = 0;
 
@@ -278,17 +323,21 @@ int main(int argc, char **argv) {
             pthread_join(tids[i], NULL);
     }
 
-    printf("\nAll channels done:\n");
+    printf("\nResults (chn0 is reference, others stopped when chn0 reached %d frames):\n",
+        frame_count);
+    printf("  %-6s  %-8s  %-10s  %-12s  %s\n",
+        "chn", "frames", "elapsed(s)", "actual fps", "file");
     for (i = 0; i < NUM_CHN; i++) {
         snprintf(outpath, sizeof(outpath), "./output_chn%d.h264", i);
-        printf("  chn%d: %d frames saved to %s\n", i, reader_args[i].saved, outpath);
+        double fps_actual = (reader_args[i].elapsed_s > 0.0)
+            ? reader_args[i].saved / reader_args[i].elapsed_s : 0.0;
+        printf("  chn%-3d  %-8d  %-10.2f  %-12.1f  %s%s\n",
+            i, reader_args[i].saved, reader_args[i].elapsed_s, fps_actual, outpath,
+            (i == 0) ? "  [reference]" : "");
     }
 
-    ret = 0;
-    for (i = 0; i < NUM_CHN; i++) {
-        if (reader_args[i].saved != frame_count)
-            ret = 1;
-    }
+    /* Success only requires chn0 to hit its target */
+    ret = (reader_args[0].saved >= frame_count) ? 0 : 1;
 
     /* ------------------------------------------------------------------ */
     /* 7. Cleanup (reverse order)                                           */
