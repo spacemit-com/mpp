@@ -12,6 +12,7 @@
  *------------------------------------------------------------------------------
  */
 
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -376,7 +377,7 @@ static void *vdec_thread_func(void *arg)
         }
     }
 
-    LOG_STREAM(p->id, "VDEC thread exiting (count=%llu)", (uint64_t)p->vdecCount);
+    LOG_STREAM(p->id, "VDEC thread exiting (count=%" PRIu64 ")", (uint64_t)p->vdecCount);
     return NULL;
 }
 
@@ -593,7 +594,7 @@ static void *venc_thread_func(void *arg) {
         VDEC_ReleaseFrame(lastVdecChn, lastBufferId);
     }
 
-    LOG_STREAM(p->id, "VENC thread exiting (count=%llu)", (uint64_t)p->vencCount);
+    LOG_STREAM(p->id, "VENC thread exiting (count=%" PRIu64 ")", (uint64_t)p->vencCount);
     return NULL;
 }
 
@@ -638,7 +639,7 @@ static void *mux_thread_func(void *arg) {
         p->muxCount++;
     }
 
-    LOG_STREAM(p->id, "MUX thread exiting (count=%llu)", (uint64_t)p->muxCount);
+    LOG_STREAM(p->id, "MUX thread exiting (count=%" PRIu64 ")", (uint64_t)p->muxCount);
     return NULL;
 }
 
@@ -980,7 +981,8 @@ static void *monitor_thread_func(void *arg) {
             }
         }
 
-        printf("[MONITOR] streams: %d running, %d errors, %llu total frames\n", running, errors, (uint64_t)totalFrames);
+        printf("[MONITOR] streams: %d running, %d errors, %" PRIu64 " total frames\n",
+            running, errors, (uint64_t)totalFrames);
 
         pthread_mutex_unlock(&mgr->lock);
     }

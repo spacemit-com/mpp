@@ -52,25 +52,40 @@ int main(int argc, char **argv) {
     S32 ret = 0;
 
     if (argc > 1) {
-        if (argv[1][0] == '-') { usage(argv[0]); return 0; }
+        if (argv[1][0] == '-') {
+            usage(argv[0]);
+            return 0;
+        }
         frame_count = atoi(argv[1]);
-        if (frame_count <= 0) { usage(argv[0]); return 1; }
+        if (frame_count <= 0) {
+            usage(argv[0]);
+            return 1;
+        }
     }
 
     /* ------------------------------------------------------------------ */
     /* 1. System init                                                       */
     /* ------------------------------------------------------------------ */
     ret = SYS_Init();
-    if (ret != 0) { fprintf(stderr, "SYS_Init failed: %d\n", ret); return 1; }
+    if (ret != 0) {
+        fprintf(stderr, "SYS_Init failed: %d\n", ret);
+        return 1;
+    }
 
     ret = VB_Init();
-    if (ret != 0) { fprintf(stderr, "VB_Init failed: %d\n", ret); goto err_sys; }
+    if (ret != 0) {
+        fprintf(stderr, "VB_Init failed: %d\n", ret);
+        goto err_sys;
+    }
 
     /* ------------------------------------------------------------------ */
     /* 2. VI init and enable                                                */
     /* ------------------------------------------------------------------ */
     ret = VI_Init();
-    if (ret != 0) { fprintf(stderr, "VI_Init failed: %d\n", ret); goto err_vb; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_Init failed: %d\n", ret);
+        goto err_vb;
+    }
 
     ViDevAttrS devAttr;
     memset(&devAttr, 0, sizeof(devAttr));
@@ -81,10 +96,16 @@ int main(int argc, char **argv) {
     devAttr.u32mbps      = 800;
 
     ret = VI_SetDevAttr(VI_DEV_ID, &devAttr);
-    if (ret != 0) { fprintf(stderr, "VI_SetDevAttr failed: %d\n", ret); goto err_vi; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_SetDevAttr failed: %d\n", ret);
+        goto err_vi;
+    }
 
     ret = VI_EnableDev(VI_DEV_ID);
-    if (ret != 0) { fprintf(stderr, "VI_EnableDev failed: %d\n", ret); goto err_vi; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_EnableDev failed: %d\n", ret);
+        goto err_vi;
+    }
 
     ViChnAttrS chnAttr;
     memset(&chnAttr, 0, sizeof(chnAttr));
@@ -96,10 +117,16 @@ int main(int argc, char **argv) {
     chnAttr.u32Depth     = 0;  /* bind-only: frames auto-pushed via SYS_SendFrame */
 
     ret = VI_SetChnAttr(VI_DEV_ID, VI_CHN_ID, &chnAttr);
-    if (ret != 0) { fprintf(stderr, "VI_SetChnAttr failed: %d\n", ret); goto err_vi_dev; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_SetChnAttr failed: %d\n", ret);
+        goto err_vi_dev;
+    }
 
     ret = VI_EnableChn(VI_DEV_ID, VI_CHN_ID);
-    if (ret != 0) { fprintf(stderr, "VI_EnableChn failed: %d\n", ret); goto err_vi_dev; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_EnableChn failed: %d\n", ret);
+        goto err_vi_dev;
+    }
 
     printf("VI enabled: %dx%d UYVY (bind-only mode)\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
@@ -107,7 +134,10 @@ int main(int argc, char **argv) {
     /* 3. VENC init and create channel                                      */
     /* ------------------------------------------------------------------ */
     ret = VENC_Init();
-    if (ret != 0) { fprintf(stderr, "VENC_Init failed: %d\n", ret); goto err_vi_chn; }
+    if (ret != 0) {
+        fprintf(stderr, "VENC_Init failed: %d\n", ret);
+        goto err_vi_chn;
+    }
 
     VencChnAttr vencAttr;
     memset(&vencAttr, 0, sizeof(vencAttr));
@@ -121,10 +151,16 @@ int main(int argc, char **argv) {
     vencAttr.u32Gop            = 30;
 
     ret = VENC_CreateChn(VENC_CHN_ID, &vencAttr);
-    if (ret != 0) { fprintf(stderr, "VENC_CreateChn failed: %d\n", ret); goto err_venc; }
+    if (ret != 0) {
+        fprintf(stderr, "VENC_CreateChn failed: %d\n", ret);
+        goto err_venc;
+    }
 
     ret = VENC_EnableChn(VENC_CHN_ID);
-    if (ret != 0) { fprintf(stderr, "VENC_EnableChn failed: %d\n", ret); goto err_venc_chn; }
+    if (ret != 0) {
+        fprintf(stderr, "VENC_EnableChn failed: %d\n", ret);
+        goto err_venc_chn;
+    }
 
     printf("VENC enabled: H.264 %dx%d 2Mbps\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
@@ -136,7 +172,10 @@ int main(int argc, char **argv) {
     MppNode vencNode = { MPP_ID_VENC, 0,         VENC_CHN_ID };
 
     ret = SYS_Bind(&viNode, &vencNode);
-    if (ret != 0) { fprintf(stderr, "SYS_Bind failed: %d\n", ret); goto err_venc_enable; }
+    if (ret != 0) {
+        fprintf(stderr, "SYS_Bind failed: %d\n", ret);
+        goto err_venc_enable;
+    }
 
     printf("SYS bind established: VI(dev=%d,chn=%d) → VENC(chn=%d)\n",
             VI_DEV_ID, VI_CHN_ID, VENC_CHN_ID);

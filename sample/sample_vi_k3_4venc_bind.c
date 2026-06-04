@@ -109,25 +109,40 @@ int main(int argc, char **argv) {
     memset(reader_args, 0, sizeof(reader_args));
 
     if (argc > 1) {
-        if (argv[1][0] == '-') { usage(argv[0]); return 0; }
+        if (argv[1][0] == '-') {
+            usage(argv[0]);
+            return 0;
+        }
         frame_count = atoi(argv[1]);
-        if (frame_count <= 0) { usage(argv[0]); return 1; }
+        if (frame_count <= 0) {
+            usage(argv[0]);
+            return 1;
+        }
     }
 
     /* ------------------------------------------------------------------ */
     /* 1. System init                                                       */
     /* ------------------------------------------------------------------ */
     ret = SYS_Init();
-    if (ret != 0) { fprintf(stderr, "SYS_Init failed: %d\n", ret); return 1; }
+    if (ret != 0) {
+        fprintf(stderr, "SYS_Init failed: %d\n", ret);
+        return 1;
+    }
 
     ret = VB_Init();
-    if (ret != 0) { fprintf(stderr, "VB_Init failed: %d\n", ret); goto cleanup_sys; }
+    if (ret != 0) {
+        fprintf(stderr, "VB_Init failed: %d\n", ret);
+        goto cleanup_sys;
+    }
 
     /* ------------------------------------------------------------------ */
     /* 2. VI init: one device, 4 channels                                   */
     /* ------------------------------------------------------------------ */
     ret = VI_Init();
-    if (ret != 0) { fprintf(stderr, "VI_Init failed: %d\n", ret); goto cleanup_vb; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_Init failed: %d\n", ret);
+        goto cleanup_vb;
+    }
 
     ViDevAttrS devAttr;
     memset(&devAttr, 0, sizeof(devAttr));
@@ -138,10 +153,16 @@ int main(int argc, char **argv) {
     devAttr.u32mbps       = 800;
 
     ret = VI_SetDevAttr(VI_DEV_ID, &devAttr);
-    if (ret != 0) { fprintf(stderr, "VI_SetDevAttr failed: %d\n", ret); goto cleanup_vi; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_SetDevAttr failed: %d\n", ret);
+        goto cleanup_vi;
+    }
 
     ret = VI_EnableDev(VI_DEV_ID);
-    if (ret != 0) { fprintf(stderr, "VI_EnableDev failed: %d\n", ret); goto cleanup_vi; }
+    if (ret != 0) {
+        fprintf(stderr, "VI_EnableDev failed: %d\n", ret);
+        goto cleanup_vi;
+    }
 
     for (i = 0; i < NUM_CHN; i++) {
         ViChnAttrS chnAttr;
@@ -173,7 +194,10 @@ int main(int argc, char **argv) {
     /* 3. VENC init: 4 channels, each H.264 CBR 2 Mbps                     */
     /* ------------------------------------------------------------------ */
     ret = VENC_Init();
-    if (ret != 0) { fprintf(stderr, "VENC_Init failed: %d\n", ret); goto cleanup_vi_chns; }
+    if (ret != 0) {
+        fprintf(stderr, "VENC_Init failed: %d\n", ret);
+        goto cleanup_vi_chns;
+    }
 
     for (i = 0; i < NUM_CHN; i++) {
         VencChnAttr vencAttr;

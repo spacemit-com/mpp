@@ -684,13 +684,13 @@ static void rtsp_get_digest_auth(
     }
 
     /* HA1 = MD5(username:realm:password) */
-    CHAR szHA1Input[512], szHA1[33];
+    CHAR szHA1Input[1024], szHA1[33];
     snprintf(
         szHA1Input, sizeof(szHA1Input), "%s:%s:%s", pClient->stUrl.szUser, pClient->szRealm, pClient->stUrl.szPass);
     md5_hash_string(szHA1Input, szHA1);
 
     /* HA2 = MD5(method:uri) */
-    CHAR szHA2Input[512], szHA2[33];
+    CHAR szHA2Input[1024], szHA2[33];
     snprintf(szHA2Input, sizeof(szHA2Input), "%s:%s", pszMethod, pszUri);
     md5_hash_string(szHA2Input, szHA2);
 
@@ -706,13 +706,16 @@ static void rtsp_get_digest_auth(
 }
 
 static S32 rtsp_send_request(RtspClient *pClient, const CHAR *pszMethod, const CHAR *pszExtra) {
-    CHAR szReq[1024];
-    CHAR szAuth[512];
-    CHAR szUri[512];
+    CHAR szReq[4096];
+    CHAR szAuth[2048];
+    CHAR szUri[1024];
     S32 s32Len;
 
-    snprintf(
+    s32Len = snprintf(
         szUri, sizeof(szUri), "rtsp://%s:%u%s", pClient->stUrl.szHost, pClient->stUrl.u16Port, pClient->stUrl.szPath);
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
+        return -1;
+    }
     rtsp_get_digest_auth(pClient, pszMethod, szUri, szAuth, sizeof(szAuth));
 
     s32Len = snprintf(szReq, sizeof(szReq),
@@ -724,6 +727,9 @@ static S32 rtsp_send_request(RtspClient *pClient, const CHAR *pszMethod, const C
         "\r\n",
         pszMethod, szUri, pClient->u32CSeq++, szAuth, pClient->szSession[0] ? "Session: " : "",
         pClient->szSession[0] ? pClient->szSession : "");
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szReq)) {
+        return -1;
+    }
 
     return Socket_SendAll(pClient->s32Fd, (U8 *)szReq, s32Len) > 0 ? 0 : -1;
 }
@@ -731,13 +737,16 @@ static S32 rtsp_send_request(RtspClient *pClient, const CHAR *pszMethod, const C
 static S32 rtsp_send_options(RtspClient *pClient) { return rtsp_send_request(pClient, "OPTIONS", ""); }
 
 static S32 rtsp_send_describe(RtspClient *pClient) {
-    CHAR szReq[1024];
-    CHAR szAuth[512];
-    CHAR szUri[512];
+    CHAR szReq[4096];
+    CHAR szAuth[2048];
+    CHAR szUri[1024];
     S32 s32Len;
 
-    snprintf(
+    s32Len = snprintf(
         szUri, sizeof(szUri), "rtsp://%s:%u%s", pClient->stUrl.szHost, pClient->stUrl.u16Port, pClient->stUrl.szPath);
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
+        return -1;
+    }
     rtsp_get_digest_auth(pClient, "DESCRIBE", szUri, szAuth, sizeof(szAuth));
 
     s32Len = snprintf(szReq, sizeof(szReq),
@@ -748,20 +757,26 @@ static S32 rtsp_send_describe(RtspClient *pClient) {
         "Accept: application/sdp\r\n"
         "\r\n",
         szUri, pClient->u32CSeq++, szAuth);
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szReq)) {
+        return -1;
+    }
 
     return Socket_SendAll(pClient->s32Fd, (U8 *)szReq, s32Len) > 0 ? 0 : -1;
 }
 
 static S32 rtsp_send_setup(RtspClient *pClient) {
-    CHAR szReq[1024];
-    CHAR szAuth[512];
-    CHAR szUri[512];
+    CHAR szReq[4096];
+    CHAR szAuth[2048];
+    CHAR szUri[1024];
     S32 s32Len;
     const CHAR *pszTransport;
 
     /* Use track0 instead of trackID=N to match server format */
-    snprintf(szUri, sizeof(szUri), "rtsp://%s:%u%s/track%d", pClient->stUrl.szHost, pClient->stUrl.u16Port,
+    s32Len = snprintf(szUri, sizeof(szUri), "rtsp://%s:%u%s/track%d", pClient->stUrl.szHost, pClient->stUrl.u16Port,
         pClient->stUrl.szPath, pClient->stSdp.s32VideoTrackId);
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
+        return -1;
+    }
     rtsp_get_digest_auth(pClient, "SETUP", szUri, szAuth, sizeof(szAuth));
 
     CHAR szTransport[128];
@@ -781,18 +796,24 @@ static S32 rtsp_send_setup(RtspClient *pClient) {
         "Transport: %s\r\n"
         "\r\n",
         szUri, pClient->u32CSeq++, szAuth, pszTransport);
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szReq)) {
+        return -1;
+    }
 
     return Socket_SendAll(pClient->s32Fd, (U8 *)szReq, s32Len) > 0 ? 0 : -1;
 }
 
 static S32 rtsp_send_play(RtspClient *pClient) {
-    CHAR szReq[1024];
-    CHAR szAuth[512];
-    CHAR szUri[512];
+    CHAR szReq[4096];
+    CHAR szAuth[2048];
+    CHAR szUri[1024];
     S32 s32Len;
 
-    snprintf(
+    s32Len = snprintf(
         szUri, sizeof(szUri), "rtsp://%s:%u%s", pClient->stUrl.szHost, pClient->stUrl.u16Port, pClient->stUrl.szPath);
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
+        return -1;
+    }
     rtsp_get_digest_auth(pClient, "PLAY", szUri, szAuth, sizeof(szAuth));
 
     s32Len = snprintf(szReq, sizeof(szReq),
@@ -804,6 +825,9 @@ static S32 rtsp_send_play(RtspClient *pClient) {
         "Range: npt=0.000-\r\n"
         "\r\n",
         szUri, pClient->u32CSeq++, szAuth, pClient->szSession);
+    if (s32Len < 0 || (size_t)s32Len >= sizeof(szReq)) {
+        return -1;
+    }
 
     return Socket_SendAll(pClient->s32Fd, (U8 *)szReq, s32Len) > 0 ? 0 : -1;
 }

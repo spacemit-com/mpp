@@ -13,6 +13,7 @@
 
 #include "demux.h"
 
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -497,7 +498,8 @@ static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
             retry++;
         }
         if (send_ret != 0) {
-            DEMUX_LOGE("Channel %d: SYS_SendStream failed after %u retries, dropping packet size=%u key=%d pts=%llu",
+            DEMUX_LOGE("Channel %d: SYS_SendStream failed after %u retries, "
+                "dropping packet size=%u key=%d pts=%" PRIu64,
                 pChn->s32ChnId, retry, pPkt->u32Size, pPkt->bKeyFrame, (uint64_t)pPkt->u64PTS);
             return send_ret;
         }
@@ -670,13 +672,13 @@ static void *demux_thread_proc(void *arg) {
             pChn->u64ReconnectCount++;
             /* Set flag to wait for keyframe after reconnect */
             pChn->bWaitKeyFrame = MPP_TRUE;
-            DEMUX_LOGI("Channel %d: Reconnecting in %ums (count=%llu)", pChn->s32ChnId, pChn->stAttr.u32ReconnectMs,
-                (uint64_t)pChn->u64ReconnectCount);
+            DEMUX_LOGI("Channel %d: Reconnecting in %ums (count=%" PRIu64 ")", pChn->s32ChnId,
+                pChn->stAttr.u32ReconnectMs, (uint64_t)pChn->u64ReconnectCount);
             usleep(pChn->stAttr.u32ReconnectMs * 1000);
         }
     }
 
-    DEMUX_LOGI("Channel %d thread exiting (packets=%llu, reconnects=%llu)", pChn->s32ChnId,
+    DEMUX_LOGI("Channel %d thread exiting (packets=%" PRIu64 ", reconnects=%" PRIu64 ")", pChn->s32ChnId,
         (uint64_t)pChn->u64PacketCount, (uint64_t)pChn->u64ReconnectCount);
 
     pChn->s32ThreadAlive = 0;
