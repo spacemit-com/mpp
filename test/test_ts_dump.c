@@ -3,6 +3,7 @@
  * so we can compare with ffmpeg-extracted reference H.264.
  */
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,9 +54,9 @@ int main(int argc, char *argv[]) {
                 kf++;
             fwrite(pkt.pu8Data, 1, pkt.u32Size, fp);
             if (n <= 5 || n % 50 == 0) {
-                printf("Packet %d: size=%u keyframe=%d pts=%llu first=%02x%02x%02x%02x%02x%02x\n", n, pkt.u32Size,
-                    pkt.bKeyFrame, (uint64_t)pkt.u64PTS, pkt.pu8Data[0], pkt.pu8Data[1], pkt.pu8Data[2], pkt.pu8Data[3],
-                    pkt.pu8Data[4], pkt.pu8Data[5]);
+                printf("Packet %d: size=%u keyframe=%d pts=%" PRIu64 " first=%02x%02x%02x%02x%02x%02x\n", n,
+                    pkt.u32Size, pkt.bKeyFrame, (uint64_t)pkt.u64PTS, pkt.pu8Data[0], pkt.pu8Data[1], pkt.pu8Data[2],
+                    pkt.pu8Data[3], pkt.pu8Data[4], pkt.pu8Data[5]);
             }
         }
     }

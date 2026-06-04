@@ -22,6 +22,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -158,7 +159,7 @@ static U32 mux_rtsp_get_cseq(const CHAR *pszReq) {
 
 static VOID mux_rtsp_make_session_id(CHAR *pszBuf, U32 u32BufLen) {
     unsigned int r = (unsigned int)rand();
-    snprintf(pszBuf, u32BufLen, "%08x%08llx", r, (uint64_t)time(NULL));
+    snprintf(pszBuf, u32BufLen, "%08x%08" PRIx64, r, (uint64_t)time(NULL));
 }
 
 static S32 mux_rtsp_send_response(MuxRtspClient *pstClient, const CHAR *pszBody, const CHAR *pszFmt, ...) {

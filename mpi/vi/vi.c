@@ -795,7 +795,10 @@ S32 VI_GetChnFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S3
                 clock_gettime(CLOCK_REALTIME, &ts);
                 ts.tv_sec  += s32MilliSec / 1000;
                 ts.tv_nsec += (s32MilliSec % 1000) * 1000000L;
-                if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+                if (ts.tv_nsec >= 1000000000L) {
+                    ts.tv_sec++;
+                    ts.tv_nsec -= 1000000000L;
+                }
                 int rc = pthread_cond_timedwait(&pstBufCtx->depthNotEmpty, &pstBufCtx->depthLock, &ts);
                 if (rc == ETIMEDOUT)
                     break;

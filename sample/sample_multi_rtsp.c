@@ -29,6 +29,7 @@
  */
 
 #include <getopt.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -81,14 +82,16 @@ static void print_stats(StreamManager *mgr, S32 numStreams) {
     printf("\n============ Statistics ============\n");
     printf("Streams: %d running / %d total, %d errors\n", mgrStats.runningStreams, mgrStats.totalStreams,
         mgrStats.errorStreams);
-    printf("Total: %llu frames, %llu drops\n\n", (uint64_t)mgrStats.totalFrames, (uint64_t)mgrStats.totalDrops);
+    printf("Total: %" PRIu64 " frames, %" PRIu64 " drops\n\n", (uint64_t)mgrStats.totalFrames,
+        (uint64_t)mgrStats.totalDrops);
 
     for (S32 i = 0; i < numStreams; i++) {
         StreamStats stats;
         if (StreamManager_GetStreamStats(mgr, i, &stats) == 0) {
             const char *stateNames[] = {"IDLE", "STARTING", "RUNNING", "ERROR", "STOPPING"};
-            printf("  [%d] %s: demux=%llu vdec=%llu venc=%llu mux=%llu drop=%llu err=%llu\n", i,
-                stateNames[stats.state], (uint64_t)stats.demuxFrames, (uint64_t)stats.vdecFrames,
+            printf("  [%d] %s: demux=%" PRIu64 " vdec=%" PRIu64 " venc=%" PRIu64 " mux=%" PRIu64 " drop=%" PRIu64
+                " err=%" PRIu64 "\n",
+                i, stateNames[stats.state], (uint64_t)stats.demuxFrames, (uint64_t)stats.vdecFrames,
                 (uint64_t)stats.vencFrames, (uint64_t)stats.muxFrames, (uint64_t)stats.dropFrames,
                 (uint64_t)stats.errorCount);
         }
