@@ -672,7 +672,7 @@ static S32 pipeline_start(StreamPipeline *p) {
 
     /* Create DEMUX channel */
     DemuxChnAttr demuxAttr = {0};
-    strncpy(demuxAttr.szUrl, p->config.inputUrl, sizeof(demuxAttr.szUrl) - 1);
+    snprintf(demuxAttr.szUrl, sizeof(demuxAttr.szUrl), "%s", p->config.inputUrl);
     demuxAttr.bPreferTcp = p->config.preferTcp;
     demuxAttr.u32ReconnectMs = 3000;
 

@@ -43,7 +43,7 @@
 /* ======================== Test 1: Basic Lifecycle ======================== */
 static void test_basic_lifecycle(void) {
     const char *name = "basic_lifecycle";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UL pool_id, buf1, buf2;
 
     ret = SYS_Init();
@@ -90,7 +90,7 @@ static void test_basic_lifecycle(void) {
 /* ======================== Test 2: Pool Exhaustion & Timeout ======================== */
 static void test_exhaustion_timeout(void) {
     const char *name = "exhaustion_timeout";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UL pool_id;
     UL bufs[3];
 
@@ -229,7 +229,7 @@ static void *thread_worker(void *arg) {
 
 static void test_multithread(void) {
     const char *name = "multithread";
-    S32 ret;
+    S32 ret __attribute__((unused));
     int num_threads = 8;
     int iterations = 200;
 

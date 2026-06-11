@@ -18,12 +18,12 @@
 #include <unistd.h>
 
 #include "mux/mux_api.h"
+#include "mux_common.h"
+#include "mux_file.h"
+#include "mux_rtmp.h"
 #include "mux_rtsp_server.h"
 #include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
-
-#define MUX_LOGE(fmt, ...) fprintf(stderr, "[MUX][ERR] " fmt "\n", ##__VA_ARGS__)
-#define MUX_LOGI(fmt, ...) fprintf(stdout, "[MUX][INF] " fmt "\n", ##__VA_ARGS__)
 
 #define MUX_STATE_IDLE 0
 #define MUX_STATE_CREATED 1
@@ -81,9 +81,9 @@ static VOID *mux_bind_worker(VOID *arg) {
         stStream.u32Size = MPP_STREAM_MAX_PAYLOAD;
         ret = SYS_RecvStream(&pstChn->stSinkNode, &stStream, 100);
         if (ret != 0) {
-            if (SYS_ERR_NOT_FOUND == ret) {
-                usleep(20000);  // Sleep 20ms before retrying to avoid busy loop when no stream is bound
-            }
+            /* No data yet, or no producer bound (manual MUX_SendPacket mode):
+             * back off to avoid a busy loop and error-log flooding. */
+            usleep(20000);  // 20ms
             continue;
         }
 
@@ -106,12 +106,31 @@ static S32 mux_open_output(MuxChannel *pstChn) {
         return ERR_MUX_NULL_PTR;
     }
 
-    if (pstChn->stAttr.eOutputType == MUX_OUTPUT_RTSP) {
-        return mux_rtsp_server_start(pstChn);
+    switch (pstChn->stAttr.eOutputType) {
+        case MUX_OUTPUT_RTSP:
+            return mux_rtsp_server_start(pstChn);
+
+        case MUX_OUTPUT_FILE:
+            pstChn->pOutputCtx = MuxFile_Create(&pstChn->stAttr.stSegment, &pstChn->stAttr.stStreamAttr);
+            if (!pstChn->pOutputCtx) {
+                MUX_LOGE("create file recorder failed, url=%s", pstChn->stAttr.szUrl);
+                return ERR_MUX_OPEN_FAIL;
+            }
+            return ERR_MUX_OK;
+
+        case MUX_OUTPUT_RTMP:
+            pstChn->pOutputCtx = MuxRtmp_Create(pstChn->stAttr.szUrl, &pstChn->stAttr.stStreamAttr);
+            if (!pstChn->pOutputCtx) {
+                MUX_LOGE("create rtmp publisher failed, url=%s", pstChn->stAttr.szUrl);
+                return ERR_MUX_OPEN_FAIL;
+            }
+            return ERR_MUX_OK;
+
+        default:
+            break;
     }
 
-    /* Only RTSP output is supported (native implementation) */
-    MUX_LOGE("Only RTSP output is supported, url=%s", pstChn->stAttr.szUrl);
+    MUX_LOGE("unsupported output type %d, url=%s", pstChn->stAttr.eOutputType, pstChn->stAttr.szUrl);
     return ERR_MUX_OPEN_FAIL;
 }
 
@@ -120,8 +139,27 @@ static VOID mux_close_output(MuxChannel *pstChn) {
         return;
     }
 
-    if (pstChn->stAttr.eOutputType == MUX_OUTPUT_RTSP) {
-        mux_rtsp_server_stop(pstChn);
+    switch (pstChn->stAttr.eOutputType) {
+        case MUX_OUTPUT_RTSP:
+            mux_rtsp_server_stop(pstChn);
+            break;
+
+        case MUX_OUTPUT_FILE:
+            if (pstChn->pOutputCtx) {
+                MuxFile_Destroy((MuxFile *)pstChn->pOutputCtx);
+                pstChn->pOutputCtx = NULL;
+            }
+            break;
+
+        case MUX_OUTPUT_RTMP:
+            if (pstChn->pOutputCtx) {
+                MuxRtmp_Destroy((MuxRtmp *)pstChn->pOutputCtx);
+                pstChn->pOutputCtx = NULL;
+            }
+            break;
+
+        default:
+            break;
     }
 }
 
@@ -342,9 +380,51 @@ S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt) {
         return ret;
     }
 
-    /* Only RTSP output is supported */
+    if (pstChn->stAttr.eOutputType == MUX_OUTPUT_FILE && pstChn->pOutputCtx) {
+        ret = MuxFile_Write((MuxFile *)pstChn->pOutputCtx, pstPkt->pu8Data, pstPkt->u32Size, pstPkt->bKeyFrame,
+                            pstPkt->u64PTS);
+        pthread_mutex_unlock(&pstChn->lock);
+        return ret;
+    }
+
+    if (pstChn->stAttr.eOutputType == MUX_OUTPUT_RTMP && pstChn->pOutputCtx) {
+        ret = MuxRtmp_Write((MuxRtmp *)pstChn->pOutputCtx, pstPkt->pu8Data, pstPkt->u32Size, pstPkt->bKeyFrame,
+                            pstPkt->u64PTS);
+        pthread_mutex_unlock(&pstChn->lock);
+        return ret;
+    }
+
     pthread_mutex_unlock(&pstChn->lock);
     return ERR_MUX_NOT_STARTED;
+}
+
+S32 MUX_SplitFile(S32 s32ChnId) {
+    MuxChannel *pstChn;
+    S32 ret;
+
+    if (!g_stMuxCtx.s32Init) {
+        return ERR_MUX_NOT_INIT;
+    }
+
+    ret = mux_check_chn(s32ChnId);
+    if (ret != ERR_MUX_OK) {
+        return ret;
+    }
+
+    pstChn = &g_stMuxCtx.astChn[s32ChnId];
+    pthread_mutex_lock(&pstChn->lock);
+    if (!pstChn->s32Created) {
+        pthread_mutex_unlock(&pstChn->lock);
+        return ERR_MUX_INVALID_CHN;
+    }
+    if (pstChn->stAttr.eOutputType != MUX_OUTPUT_FILE || !pstChn->pOutputCtx) {
+        pthread_mutex_unlock(&pstChn->lock);
+        return ERR_MUX_UNSUPPORTED;
+    }
+
+    ret = MuxFile_RequestSplit((MuxFile *)pstChn->pOutputCtx);
+    pthread_mutex_unlock(&pstChn->lock);
+    return ret;
 }
 
 S32 MUX_GetChnStat(S32 s32ChnId, MuxChnStat *pstStat) {
@@ -377,6 +457,9 @@ S32 MUX_GetChnStat(S32 s32ChnId, MuxChnStat *pstStat) {
         pstStat->u32ActiveClients = pstChn->stRtspServer.u32ActiveClients;
         pstStat->u64TotalPkts = pstChn->stRtspServer.u64TotalPkts;
         pstStat->u64TotalBytes = pstChn->stRtspServer.u64TotalBytes;
+    } else if (pstChn->stAttr.eOutputType == MUX_OUTPUT_FILE && pstChn->pOutputCtx) {
+        MuxFile_GetStat((MuxFile *)pstChn->pOutputCtx, &pstStat->u32FileCount, &pstStat->u64CurFileBytes,
+                        pstStat->szCurFile, (U32)sizeof(pstStat->szCurFile));
     }
 
     pthread_mutex_unlock(&pstChn->lock);

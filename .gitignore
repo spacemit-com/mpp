@@ -25,7 +25,7 @@ compile_commands.json
 doc/build/
 .venv*
 .claude*
-CLAUUDE*
+CLAUDE*
 *.log
 *.dmp
 *.diff

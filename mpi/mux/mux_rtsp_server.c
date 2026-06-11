@@ -188,8 +188,9 @@ static S32 mux_rtsp_send_response(MuxRtspClient *pstClient, const CHAR *pszBody,
 static S32 mux_rtsp_base64_encode(const U8 *pu8Src, U32 u32SrcLen, CHAR *pszDst, U32 u32DstLen) {
     static const CHAR s_szTable[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     U32 i = 0, j = 0;
+    U32 u32Need = ((u32SrcLen + 2) / 3) * 4 + 1; /* +1 for NUL */
 
-    if (!pu8Src || !pszDst || u32DstLen < ((u32SrcLen + 2) / 3) * 4 + 1) {
+    if (!pu8Src || !pszDst || u32DstLen == 0 || u32DstLen < u32Need) {
         return -1;
     }
 
@@ -302,7 +303,7 @@ static S32 mux_rtsp_handle_options(MuxRtspClient *pstClient, U32 u32CSeq) {
 }
 
 static S32 mux_rtsp_handle_describe(MuxRtspClient *pstClient, const CHAR *pszReq, U32 u32CSeq) {
-    CHAR szSdp[1024];
+    CHAR szSdp[4096];
     CHAR szUrl[256] = {0};
     CHAR *pszPath;
     MuxRtspStream *pStream;

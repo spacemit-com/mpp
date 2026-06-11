@@ -116,7 +116,7 @@ S32 PARSE_H265_Parse(
 
     S32 nal_count = 0;
 
-    U8 *start_pos;
+    U8 *start_pos = NULL;
 
     src_mem = stream_start_addr;
 

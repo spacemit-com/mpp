@@ -96,6 +96,17 @@ S32 MUX_GetChnAttr(S32 s32ChnId, MuxChnAttr *pstAttr);
  */
 S32 MUX_GetSinkNode(S32 s32ChnId, MppNode *pstNode);
 
+/**
+ * @brief  手动触发文件录像切片（仅 MUX_OUTPUT_FILE 有效）。
+ *
+ * 立即在下一个关键帧边界结束当前分段文件并开启新文件。常用于按事件
+ * （如报警、手动抓录）切分录像，不影响按大小/时长的自动切片逻辑。
+ *
+ * @param  s32ChnId 通道号
+ * @return 0 成功，错误码失败
+ */
+S32 MUX_SplitFile(S32 s32ChnId);
+
 #ifdef __cplusplus
 #if __cplusplus
 }

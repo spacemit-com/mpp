@@ -98,10 +98,9 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
 
     if (pstCtx->u32PacketCount >= pstCtx->u32LimitPackets) {
         pstCtx->s32Running = 0;
-        return 1;
     }
 
-    return 0;
+    return 1;
 }
 
 int main(int argc, char *argv[]) {

@@ -147,6 +147,10 @@ typedef struct _MuxChannel {
     MuxChnAttr stAttr;
     MppNode stSinkNode;
     MuxRtspServer stRtspServer;
+    /* Non-RTSP output backend context (set per eOutputType). Stored as void*
+     * to keep this shared header free of backend-specific includes. The actual
+     * type is determined by eOutputType: MuxFile* or MuxRtmp*. */
+    void *pOutputCtx;
 } MuxChannel;
 
 S32 mux_rtsp_server_start(MuxChannel *pstChn);
