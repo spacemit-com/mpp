@@ -165,7 +165,8 @@ S32 HttpClient_Get(HttpClient *pClient, const char *pszUrl, HttpResponse *pResp)
                     } else {
                         char value[256];
                         if (ParseHeader(line, "Content-Type", value, sizeof(value)) == 0) {
-                            strncpy(pResp->szContentType, value, sizeof(pResp->szContentType) - 1);
+                            snprintf(pResp->szContentType, sizeof(pResp->szContentType), "%.*s",
+                                (int)sizeof(pResp->szContentType) - 1, value);
                         } else if (ParseHeader(line, "Content-Length", value, sizeof(value)) == 0) {
                             pResp->s64ContentLength = atoll(value);
                         } else if (ParseHeader(line, "Transfer-Encoding", value, sizeof(value)) == 0) {

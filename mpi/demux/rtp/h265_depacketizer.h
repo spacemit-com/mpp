@@ -23,6 +23,11 @@ extern "C" {
  */
 RtpDepacketizer *H265Depack_Create(VOID);
 
+VOID H265Depack_SetVps(RtpDepacketizer *pDepack, const U8 *pu8Vps, U32 u32Len);
+VOID H265Depack_SetSps(RtpDepacketizer *pDepack, const U8 *pu8Sps, U32 u32Len);
+VOID H265Depack_SetPps(RtpDepacketizer *pDepack, const U8 *pu8Pps, U32 u32Len);
+S32 H265Depack_Input(RtpDepacketizer *pDepack, const U8 *pu8Rtp, U32 u32Len);
+
 #ifdef __cplusplus
 }
 #endif

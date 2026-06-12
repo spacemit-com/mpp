@@ -526,7 +526,7 @@ int main(int argc, char *argv[]) {
     printf("  RTSP   : %s\n", g_rtspUrl);
     printf("  Video  : %ux%u @ %u fps, %u bps H.264\n\n", SAMPLE_WIDTH, SAMPLE_HEIGHT, SAMPLE_FPS, SAMPLE_BITRATE);
 
-    S32 ret = SYS_Init();
+    S32 ret __attribute__((unused)) = SYS_Init();
     assert(ret == 0);
     ret = VB_Init();
     assert(ret == 0);

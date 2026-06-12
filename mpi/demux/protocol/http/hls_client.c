@@ -141,12 +141,21 @@ static S32 hls_parse_playlist(HlsClient *pClient, const CHAR *pszPlaylist) {
                 HlsSegment *pSeg = &pClient->astSegments[pClient->u32SegmentCount];
 
                 if (szLine[0] == '/' || strncmp(szLine, "http", 4) == 0) {
-                    strncpy(pSeg->szUrl, szLine, HLS_MAX_URL_LEN - 1);
-                    pSeg->szUrl[HLS_MAX_URL_LEN - 1] = '\0';
+                    snprintf(pSeg->szUrl, HLS_MAX_URL_LEN, "%s", szLine);
                 } else {
-                    /* Combine base URL and segment path */
-                    S32 written = snprintf(pSeg->szUrl, HLS_MAX_URL_LEN, "%s/%s", pClient->szBaseUrl, szLine);
-                    (void)written; /* Truncation is acceptable for long URLs */
+                    /* Combine base URL and segment path. If the combined
+                     * length exceeds HLS_MAX_URL_LEN the URL is truncated
+                     * which would cause an HTTP 404 — log a warning so the
+                     * operator knows the URL limit was exceeded. */
+                    CHAR szCombined[HLS_MAX_URL_LEN * 2];
+                    int n = snprintf(szCombined, sizeof(szCombined), "%s/%s",
+                        pClient->szBaseUrl, szLine);
+                    if (n >= (int)HLS_MAX_URL_LEN) {
+                        fprintf(stderr, "[HLS][WRN] segment URL truncated "
+                            "(%d > %d): %s\n", n, HLS_MAX_URL_LEN - 1, szLine);
+                    }
+                    snprintf(pSeg->szUrl, HLS_MAX_URL_LEN, "%.*s",
+                        (int)(HLS_MAX_URL_LEN - 1), szCombined);
                 }
 
                 pSeg->fDuration = fSegDuration;

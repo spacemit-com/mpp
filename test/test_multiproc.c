@@ -439,7 +439,7 @@ static void test_multiproc_stress(void) {
  */
 static void test_real_phy_addr(void) {
     const char *name = "real_phy_addr";
-    S32 ret;
+    S32 ret __attribute__((unused));
 
     ret = SYS_Init();
     assert(ret == 0);

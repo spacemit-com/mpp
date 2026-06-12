@@ -28,6 +28,12 @@ target_compile_definitions(test_rtsp_pull PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_rtsp_pull PRIVATE ${MPP_INCLUDE_DIRS})
 target_link_libraries(test_rtsp_pull PRIVATE mpp)
 
+# RTSP pull + VDEC decode test
+add_executable(test_rtsp_vdec test_rtsp_vdec.c)
+target_compile_definitions(test_rtsp_vdec PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_rtsp_vdec PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_rtsp_vdec PRIVATE mpp)
+
 # DEMUX file test (MP4/TS demuxing + bind to VDEC, save NV12 frames)
 add_executable(test_demux_file test_demux_file.c)
 target_compile_definitions(test_demux_file PRIVATE ${MPP_TEST_COMMON_DEFS})
@@ -47,6 +53,14 @@ target_compile_definitions(test_demux_seek PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_demux_seek PRIVATE ${MPP_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/mpi/demux)
 target_link_libraries(test_demux_seek PRIVATE mpp)
+
+# MUX shared Annex-B helpers regression test.
+add_executable(test_mux_common test_mux_common.c)
+target_compile_definitions(test_mux_common PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_mux_common PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/mpi/mux)
+target_link_libraries(test_mux_common PRIVATE mpp)
+add_test(NAME test_mux_common COMMAND $<TARGET_FILE:test_mux_common>)
 
 add_executable(test_uvc test_uvc.c)
 target_compile_definitions(test_uvc PRIVATE ${MPP_TEST_COMMON_DEFS})

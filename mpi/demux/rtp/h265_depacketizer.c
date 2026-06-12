@@ -14,18 +14,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "codec/h265_utils.h"
 #include "rtp_depacketizer.h"
 
-/* H265 NAL unit types */
+/* RTP-specific NAL unit types (RFC 7798, not part of the base H.265 spec) */
 #define H265_NAL_TYPE_AP 48 /* Aggregation Packet */
 #define H265_NAL_TYPE_FU 49 /* Fragmentation Unit */
-
-/* Key frame NAL types */
-#define H265_NAL_TYPE_VPS 32
-#define H265_NAL_TYPE_SPS 33
-#define H265_NAL_TYPE_PPS 34
-#define H265_NAL_TYPE_IDR_W 19
-#define H265_NAL_TYPE_IDR_N 20
 
 /* Start code */
 static const U8 START_CODE[] = {0x00, 0x00, 0x00, 0x01};
@@ -48,19 +42,23 @@ typedef struct _H265Depack {
 
     /* FU state */
     BOOL bFuStarted;
+    BOOL bFuIsIdr; /* TRUE when current FU is an IDR slice */
     U32 u32FuTimestamp;
     U8 au8FuNalHdr[2];
 
     /* Current frame state */
     U32 u32LastTimestamp;
     BOOL bKeyFrame;
+    BOOL bFrameHasVps;
+    BOOL bFrameHasSps;
+    BOOL bFrameHasPps;
 } H265Depack;
 
 static U8 get_nal_type(const U8 *pu8Nal) { return (pu8Nal[0] >> 1) & 0x3F; }
 
 static BOOL is_key_frame_nal(U8 u8NalType) {
-    return (u8NalType == H265_NAL_TYPE_VPS || u8NalType == H265_NAL_TYPE_SPS || u8NalType == H265_NAL_TYPE_PPS ||
-            u8NalType == H265_NAL_TYPE_IDR_W || u8NalType == H265_NAL_TYPE_IDR_N);
+    return (u8NalType == H265_NAL_VPS || u8NalType == H265_NAL_SPS || u8NalType == H265_NAL_PPS ||
+            u8NalType == H265_NAL_IDR_W_RADL || u8NalType == H265_NAL_IDR_N_LP);
 }
 
 static void emit_frame(H265Depack *pDepack, U32 u32Timestamp) {
@@ -69,9 +67,12 @@ static void emit_frame(H265Depack *pDepack, U32 u32Timestamp) {
     }
     pDepack->u32FrameLen = 0;
     pDepack->bKeyFrame = MPP_FALSE;
+    pDepack->bFrameHasVps = MPP_FALSE;
+    pDepack->bFrameHasSps = MPP_FALSE;
+    pDepack->bFrameHasPps = MPP_FALSE;
 }
 
-static void append_nal(H265Depack *pDepack, const U8 *pu8Data, U32 u32Len) {
+static void append_raw_nal(H265Depack *pDepack, const U8 *pu8Data, U32 u32Len) {
     if (pDepack->u32FrameLen + 4 + u32Len > sizeof(pDepack->au8Frame)) {
         return;
     }
@@ -81,8 +82,77 @@ static void append_nal(H265Depack *pDepack, const U8 *pu8Data, U32 u32Len) {
 
     memcpy(&pDepack->au8Frame[pDepack->u32FrameLen], pu8Data, u32Len);
     pDepack->u32FrameLen += u32Len;
+}
 
+static void save_parameter_set(H265Depack *pDepack, U8 u8NalType, const U8 *pu8Data, U32 u32Len) {
+    /* Cache the parameter set data. */
+    if (u8NalType == H265_NAL_VPS && u32Len < sizeof(pDepack->au8Vps)) {
+        memcpy(pDepack->au8Vps, pu8Data, u32Len);
+        pDepack->u32VpsLen = u32Len;
+    } else if (u8NalType == H265_NAL_SPS && u32Len < sizeof(pDepack->au8Sps)) {
+        memcpy(pDepack->au8Sps, pu8Data, u32Len);
+        pDepack->u32SpsLen = u32Len;
+    } else if (u8NalType == H265_NAL_PPS && u32Len < sizeof(pDepack->au8Pps)) {
+        memcpy(pDepack->au8Pps, pu8Data, u32Len);
+        pDepack->u32PpsLen = u32Len;
+    }
+
+    /* If we are in the middle of an FU-A IDR reassembly and a parameter set
+     * arrives late (separate RTP packet after FU-A start), inject it into the
+     * frame buffer immediately.  inject_parameter_sets() already ran at FU-A
+     * start and set the bFrameHas* flags for whatever was cached at that
+     * time; newly-arrived PS would otherwise be lost.  Writing it now places
+     * it between the already-written PS (if any) and the IDR slice data that
+     * is still being accumulated, preserving correct decode order. */
+    if (pDepack->bFuStarted && pDepack->bFuIsIdr) {
+        if (u8NalType == H265_NAL_VPS && !pDepack->bFrameHasVps) {
+            append_raw_nal(pDepack, pDepack->au8Vps, pDepack->u32VpsLen);
+            pDepack->bFrameHasVps = MPP_TRUE;
+        } else if (u8NalType == H265_NAL_SPS && !pDepack->bFrameHasSps) {
+            append_raw_nal(pDepack, pDepack->au8Sps, pDepack->u32SpsLen);
+            pDepack->bFrameHasSps = MPP_TRUE;
+        } else if (u8NalType == H265_NAL_PPS && !pDepack->bFrameHasPps) {
+            append_raw_nal(pDepack, pDepack->au8Pps, pDepack->u32PpsLen);
+            pDepack->bFrameHasPps = MPP_TRUE;
+        }
+    }
+}
+
+static void inject_parameter_sets(H265Depack *pDepack) {
+    if (!pDepack->bFrameHasVps && pDepack->u32VpsLen > 0) {
+        append_raw_nal(pDepack, pDepack->au8Vps, pDepack->u32VpsLen);
+        pDepack->bFrameHasVps = MPP_TRUE;
+    }
+    if (!pDepack->bFrameHasSps && pDepack->u32SpsLen > 0) {
+        append_raw_nal(pDepack, pDepack->au8Sps, pDepack->u32SpsLen);
+        pDepack->bFrameHasSps = MPP_TRUE;
+    }
+    if (!pDepack->bFrameHasPps && pDepack->u32PpsLen > 0) {
+        append_raw_nal(pDepack, pDepack->au8Pps, pDepack->u32PpsLen);
+        pDepack->bFrameHasPps = MPP_TRUE;
+    }
+}
+
+static void append_nal(H265Depack *pDepack, const U8 *pu8Data, U32 u32Len) {
     U8 u8NalType = get_nal_type(pu8Data);
+
+    /* Parameter set NALs (VPS/SPS/PPS) are cached but NOT appended directly.
+     * They are only written into the frame buffer by inject_parameter_sets()
+     * which guarantees correct placement before the IDR slice.  Appending
+     * them here would risk placing them after IDR data when packet order
+     * differs from decode order (e.g. FU-A IDR followed by standalone PS). */
+    if (u8NalType == H265_NAL_VPS || u8NalType == H265_NAL_SPS ||
+        u8NalType == H265_NAL_PPS) {
+        save_parameter_set(pDepack, u8NalType, pu8Data, u32Len);
+        return;
+    }
+
+    if (u8NalType == H265_NAL_IDR_W_RADL || u8NalType == H265_NAL_IDR_N_LP) {
+        inject_parameter_sets(pDepack);
+    }
+
+    append_raw_nal(pDepack, pu8Data, u32Len);
+
     if (is_key_frame_nal(u8NalType)) {
         pDepack->bKeyFrame = MPP_TRUE;
     }
@@ -147,11 +217,17 @@ static void handle_fu(H265Depack *pDepack, const U8 *pu8Data, U32 u32Len, U32 u3
         pDepack->u32LastTimestamp = u32Timestamp;
 
         pDepack->bFuStarted = MPP_TRUE;
+        pDepack->bFuIsIdr =
+            (u8NalType == H265_NAL_IDR_W_RADL || u8NalType == H265_NAL_IDR_N_LP);
         pDepack->u32FuTimestamp = u32Timestamp;
 
         /* Reconstruct NAL header (2 bytes for H265) */
         pDepack->au8FuNalHdr[0] = (pu8Data[0] & 0x81) | (u8NalType << 1);
         pDepack->au8FuNalHdr[1] = pu8Data[1];
+
+        if (pDepack->bFuIsIdr) {
+            inject_parameter_sets(pDepack);
+        }
 
         /* Add start code and NAL header */
         memcpy(&pDepack->au8Frame[pDepack->u32FrameLen], START_CODE, 4);
@@ -182,6 +258,7 @@ static void handle_fu(H265Depack *pDepack, const U8 *pu8Data, U32 u32Len, U32 u3
 
     if (u8End) {
         pDepack->bFuStarted = MPP_FALSE;
+        pDepack->bFuIsIdr = MPP_FALSE;
 
         if (u8Marker) {
             emit_frame(pDepack, u32Timestamp);
@@ -195,9 +272,7 @@ RtpDepacketizer *H265Depack_Create(VOID) {
     return (RtpDepacketizer *)pDepack;
 }
 
-/* Note: Destroy, SetCallback, SetSps, SetPps use common implementation */
-/* SetVps implementation for H265 */
-static void h265_set_vps(RtpDepacketizer *pDepack, const U8 *pu8Vps, U32 u32Len) {
+VOID H265Depack_SetVps(RtpDepacketizer *pDepack, const U8 *pu8Vps, U32 u32Len) {
     H265Depack *p = (H265Depack *)pDepack;
     if (p && pu8Vps && u32Len < sizeof(p->au8Vps)) {
         memcpy(p->au8Vps, pu8Vps, u32Len);
@@ -205,8 +280,24 @@ static void h265_set_vps(RtpDepacketizer *pDepack, const U8 *pu8Vps, U32 u32Len)
     }
 }
 
+VOID H265Depack_SetSps(RtpDepacketizer *pDepack, const U8 *pu8Sps, U32 u32Len) {
+    H265Depack *p = (H265Depack *)pDepack;
+    if (p && pu8Sps && u32Len < sizeof(p->au8Sps)) {
+        memcpy(p->au8Sps, pu8Sps, u32Len);
+        p->u32SpsLen = u32Len;
+    }
+}
+
+VOID H265Depack_SetPps(RtpDepacketizer *pDepack, const U8 *pu8Pps, U32 u32Len) {
+    H265Depack *p = (H265Depack *)pDepack;
+    if (p && pu8Pps && u32Len < sizeof(p->au8Pps)) {
+        memcpy(p->au8Pps, pu8Pps, u32Len);
+        p->u32PpsLen = u32Len;
+    }
+}
+
 /* Input for H265 */
-static S32 h265_input(RtpDepacketizer *pDepack, const U8 *pu8Rtp, U32 u32Len) {
+S32 H265Depack_Input(RtpDepacketizer *pDepack, const U8 *pu8Rtp, U32 u32Len) {
     H265Depack *p = (H265Depack *)pDepack;
     if (!p || !pu8Rtp || u32Len < 12)
         return -1;

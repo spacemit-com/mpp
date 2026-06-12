@@ -368,7 +368,7 @@ int main(int argc, char *argv[]) {
     printf("Device node : %s (%s)\n", g_devNode, g_hasHw ? "found" : "not found");
     printf("RTSP URL    : %s\n\n", g_rtspUrl);
 
-    S32 ret = SYS_Init();
+    S32 ret __attribute__((unused)) = SYS_Init();
     assert(ret == 0);
     ret = VB_Init();
     assert(ret == 0);

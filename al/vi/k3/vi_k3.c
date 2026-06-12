@@ -317,7 +317,7 @@ static S32 k3_vi_set_external_buf_pool(
     pChn->u32BufCnt = u32BufCnt;
     for (i = 0; i < u32BufCnt; i++) {
         pChn->as32DmaBufFd[i] = (S32)pastFrameInfo[i].stVFrame.u32Fd[0];
-        for (p = 0; p < VIDEO_MAX_PLANES; p++) {
+        for (p = 0; p < FRAME_MAX_PLANE; p++) {
             pChn->au32PlaneSize[i][p] = pastFrameInfo[i].stVFrame.u32PlaneSize[p];
         }
     }

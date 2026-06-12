@@ -50,6 +50,7 @@ static void usage(const char *prog) {
 int main(int argc, char **argv) {
     int frame_count = DEFAULT_FRAMES;
     S32 ret = 0;
+    int saved = 0;
 
     if (argc > 1) {
         if (argv[1][0] == '-') {
@@ -191,7 +192,6 @@ int main(int argc, char **argv) {
 
     printf("Saving %d frames to %s ...\n", frame_count, OUTPUT_PATH);
 
-    int saved = 0;
     while (saved < frame_count) {
         StreamBufferInfo stream;
         memset(&stream, 0, sizeof(stream));
