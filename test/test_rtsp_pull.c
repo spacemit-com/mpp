@@ -109,6 +109,15 @@ int main(int argc, char *argv[]) {
     S32 ret;
     time_t tStart;
     DemuxChnAttr stAttr;
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            printf("Usage: %s <input_rtsp_url> [limit_packets]\n", argv[0]);
+            printf("  example: %s rtsp://192.168.1.100:554/live 60\n", argv[0]);
+            return 0;
+        }
+    }
 
     if (argc < 2) {
         TEST_SKIP(pszName, "missing input_rtsp_url");

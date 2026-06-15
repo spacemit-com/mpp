@@ -227,6 +227,16 @@ int main(int argc, char *argv[]) {
 
     init_config(&stCfg);
 
+    {
+        int i;
+        for (i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+                usage(argv[0]);
+                return 0;
+            }
+        }
+    }
+
     if (argc < 2) {
         usage(argv[0]);
         return 1;

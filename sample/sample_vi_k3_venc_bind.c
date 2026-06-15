@@ -53,9 +53,13 @@ int main(int argc, char **argv) {
     int saved = 0;
 
     if (argc > 1) {
-        if (argv[1][0] == '-') {
+        if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
             usage(argv[0]);
             return 0;
+        }
+        if (argv[1][0] == '-') {
+            usage(argv[0]);
+            return 1;
         }
         frame_count = atoi(argv[1]);
         if (frame_count <= 0) {

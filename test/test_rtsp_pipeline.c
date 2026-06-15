@@ -48,6 +48,23 @@ static S32 on_demux_packet(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
 int main(int argc, char *argv[]) {
     DemuxChnAttr stDemuxAttr;
     MuxChnAttr stMuxAttr;
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            fprintf(
+                stderr,
+                "usage: %s <input_rtsp_url> <output_rtsp_url>\n"
+                "  example:\n"
+                "    %s rtsp://192.168.1.100:554/live rtsp://0.0.0.0:8554/relay\n"
+                "  then play with:\n"
+                "    ffplay rtsp://127.0.0.1:8554/relay\n"
+                "    vlc rtsp://127.0.0.1:8554/relay\n",
+                argv[0],
+                argv[0]);
+            return 0;
+        }
+    }
 
     if (argc < 3) {
         fprintf(

@@ -115,6 +115,21 @@ int main(int argc, char *argv[]) {
     S32 ret;
     DemuxChnAttr stAttr;
     const char *pszUrl;
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            printf(
+                "usage: %s <input_rtsp_url> [limit_packets]\n"
+                "  example:\n"
+                "    %s rtsp://192.168.1.100:554/live\n"
+                "    %s rtsp://192.168.1.100:554/live 200\n",
+                argv[0],
+                argv[0],
+                argv[0]);
+            return 0;
+        }
+    }
 
     if (argc < 2) {
         fprintf(

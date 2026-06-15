@@ -125,6 +125,16 @@ int main(int argc, char **argv) {
     S32 chn = 0;
     int i;
 
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            printf("Usage:\n");
+            printf("  %s <input.h264|.h265> file <out_pattern> [mp4|ts] [opts]\n", argv[0]);
+            printf("  %s <input.h264|.h265> rtmp <rtmp://host/app/key> [opts]\n", argv[0]);
+            printf("  opts: --h265 --fps N --max-sec N --max-mb N --frag-ms N\n");
+            return 0;
+        }
+    }
+
     if (argc < 4) {
         printf("Usage:\n");
         printf("  %s <input.h264|.h265> file <out_pattern> [mp4|ts] [opts]\n", argv[0]);

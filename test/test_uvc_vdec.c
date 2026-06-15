@@ -354,6 +354,17 @@ static void test_uvc_vdec_venc_mux_pipeline(void) {
 /* ======================== Main ======================== */
 
 int main(int argc, char *argv[]) {
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            printf("Usage: %s [dev_node] [rtsp_url]\n", argv[0]);
+            printf("  dev_node: UVC device node (default: %s)\n", g_devNode);
+            printf("  rtsp_url: output RTSP URL (default: %s)\n", g_rtspUrl);
+            return 0;
+        }
+    }
+
     if (argc > 1)
         g_devNode = argv[1];
     if (argc > 2)

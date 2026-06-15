@@ -276,10 +276,27 @@ cleanup:
 
 /* ======================== Main ======================== */
 
+static void print_usage(const char *prog) {
+    printf("Usage: %s <input_file> [output_yuv]\n", prog);
+    printf("  input_file: MP4 or TS file to demux\n");
+    printf("  output_yuv: Output YUV file (default: test_demux_output.yuv)\n");
+    printf("\nExample:\n");
+    printf("  %s ../test/assets/test_video.mp4\n", prog);
+    printf("  %s ../test/assets/test_video.ts output.yuv\n", prog);
+}
+
 int main(int argc, char *argv[]) {
     S32 ret;
+    int i;
     const char *input_file = NULL;
     const char *output_file = "test_demux_output.yuv";
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        }
+    }
 
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
@@ -291,12 +308,7 @@ int main(int argc, char *argv[]) {
 
     /* Parse arguments */
     if (argc < 2) {
-        printf("Usage: %s <input_file> [output_yuv]\n", argv[0]);
-        printf("  input_file: MP4 or TS file to demux\n");
-        printf("  output_yuv: Output YUV file (default: test_demux_output.yuv)\n");
-        printf("\nExample:\n");
-        printf("  %s ../test/assets/test_video.mp4\n", argv[0]);
-        printf("  %s ../test/assets/test_video.ts output.yuv\n", argv[0]);
+        print_usage(argv[0]);
         return -1;
     }
 
