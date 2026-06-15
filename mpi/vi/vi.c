@@ -13,6 +13,7 @@
 #include "vi_buf_mgr.h"
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "v2d_api.h"
 
 #define VI_MPI_MAX_BUF_CNT 8
 #define VI_MPI_MAX_DEPTH   8
@@ -53,6 +54,17 @@ typedef struct _MpiViChnBufCtx {
     pthread_t hRecycleTid;
     U32 u32BadSlotMask;  /* bitmask of slots where QBUF has persistently failed */
 
+    /* V2D transform output pool — populated when bMirror/bFlip/eRotateMode is set */
+    BOOL bNeedV2dTransform;
+    UL   ulV2dOutPoolId;
+    U32  u32V2dOutBufCnt;
+    VideoFrameInfo astV2dOutFrameInfo[VI_MPI_MAX_BUF_CNT];
+    UL   aulV2dOutBufferId[VI_MPI_MAX_BUF_CNT];
+
+    /* Frame rate control — shared by K1 and K3, enforced in push_task */
+    ViFrameRateCtrlS stFrameRateCtrl;
+    U32 u32FrameRateSeq;
+
     /* Depth queue (pull mode, used only when u32Depth > 0) */
     pthread_mutex_t depthLock;
     pthread_cond_t  depthNotEmpty;
@@ -92,6 +104,55 @@ static const ViAlOps *g_pViOps = NULL;
 static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn);
 
 /* ============================================================
+ * Frame rate control helper (shared by K1 and K3)
+ * ============================================================ */
+
+static BOOL mpi_vi_should_keep_frame(MpiViChnBufCtx *pstBufCtx) {
+    U32 u32In  = pstBufCtx->stFrameRateCtrl.u32InputFrameStep;
+    U32 u32Out = pstBufCtx->stFrameRateCtrl.u32OutputFrameStep;
+    U32 u32Idx;
+
+    if (u32In == 0 || u32Out == 0)
+        return MPP_FALSE;
+    if (u32Out >= u32In)
+        return MPP_TRUE;
+
+    u32Idx = pstBufCtx->u32FrameRateSeq % u32In;
+    pstBufCtx->u32FrameRateSeq++;
+    return (u32Idx < u32Out) ? MPP_TRUE : MPP_FALSE;
+}
+
+/* ============================================================
+ * V2D transform helpers
+ * ============================================================ */
+
+static V2DRotateAngle mpi_vi_get_v2d_rotate(const ViChnAttrS *pstAttr) {
+    if (pstAttr == NULL)
+        return V2D_ROT_0;
+    switch (pstAttr->eRotateMode) {
+        case VI_ROT_0:      return V2D_ROT_0;
+        case VI_ROT_90:     return V2D_ROT_90;
+        case VI_ROT_180:    return V2D_ROT_180;
+        case VI_ROT_270:    return V2D_ROT_270;
+        case VI_ROT_MIRROR: return V2D_ROT_MIRROR;
+        case VI_ROT_FLIP:   return V2D_ROT_FLIP;
+        default:            break;
+    }
+    if (pstAttr->bMirror == MPP_TRUE && pstAttr->bFlip == MPP_TRUE) return V2D_ROT_180;
+    if (pstAttr->bMirror == MPP_TRUE)  return V2D_ROT_MIRROR;
+    if (pstAttr->bFlip == MPP_TRUE)    return V2D_ROT_FLIP;
+    return V2D_ROT_0;
+}
+
+static BOOL mpi_vi_needs_v2d_transform(const ViChnAttrS *pstAttr) {
+    if (pstAttr == NULL)
+        return MPP_FALSE;
+    return (pstAttr->bMirror || pstAttr->bFlip ||
+            (pstAttr->eRotateMode != VI_ROT_0 && pstAttr->eRotateMode != VI_ROT_BUTT))
+        ? MPP_TRUE : MPP_FALSE;
+}
+
+/* ============================================================
  * Push thread: DQBUF → SYS_SendFrame (+ depth queue if depth>0)
  * ============================================================ */
 
@@ -122,6 +183,12 @@ static void *mpi_vi_push_task(void *arg) {
 
         UL ulBuf = pstBufCtx->aulBufferId[u32Index];
 
+        /* Frame rate control: drop frames not scheduled for output */
+        if (mpi_vi_should_keep_frame(pstBufCtx) != MPP_TRUE) {
+            VB_ReleaseBuffer(ulBuf);
+            continue;
+        }
+
         /* Build frame info: copy template, fill PTS/sequence from DQBUF metadata,
          * convert frame type so VENC can accept it directly. */
         VideoFrameInfo stFrame = pstBufCtx->astFrameInfo[u32Index];
@@ -136,6 +203,93 @@ static void *mpi_vi_push_task(void *arg) {
                 if (stFrame.stVFrame.u32PlaneNum > 1)
                     stFrame.stVFrame.u32PlaneSizeValid[1] = au32BytesUsed[1];
             }
+        }
+
+        /* V2D transform path: raw capture buffer → V2D output buffer */
+        if (pstBufCtx->bNeedV2dTransform) {
+            UL ulV2dBuf = VB_GetBuffer(pstBufCtx->ulV2dOutPoolId, 200);
+            if (ulV2dBuf == 0 || ulV2dBuf == (UL)-1) {
+                error("vi push: v2d out pool exhausted, drop frame dev=%d chn=%d", ViDev, ViChn);
+                VB_ReleaseBuffer(ulBuf);
+                continue;
+            }
+
+            U32 v2dSlot = (U32)-1;
+            for (U32 i = 0; i < pstBufCtx->u32V2dOutBufCnt; i++) {
+                if (pstBufCtx->aulV2dOutBufferId[i] == ulV2dBuf) {
+                    v2dSlot = i;
+                    break;
+                }
+            }
+            if (v2dSlot == (U32)-1) {
+                error("vi push: v2d buf %lu not found in slot table", ulV2dBuf);
+                VB_ReleaseBuffer(ulV2dBuf);
+                VB_ReleaseBuffer(ulBuf);
+                continue;
+            }
+
+            VideoFrameInfo stV2dFrame = pstBufCtx->astV2dOutFrameInfo[v2dSlot];
+            stV2dFrame.stVFrame.u64PTS       = stFrame.stVFrame.u64PTS;
+            stV2dFrame.stVFrame.u32FrameFlag = stFrame.stVFrame.u32FrameFlag;
+
+            V2DHandle hV2d = 0;
+            S32 v2dRet = V2D_BeginJob(&hV2d);
+            if (v2dRet == MPP_OK) {
+                v2dRet = V2D_RotateFrame(hV2d, &stFrame, &stV2dFrame,
+                    mpi_vi_get_v2d_rotate(&pstBufCtx->stChnAttr));
+                if (v2dRet == MPP_OK)
+                    v2dRet = V2D_EndJob(hV2d);
+                else
+                    (void)V2D_CancelJob(hV2d);
+            } else {
+                VB_ReleaseBuffer(ulV2dBuf);
+                VB_ReleaseBuffer(ulBuf);
+                continue;
+            }
+            if (v2dRet != MPP_OK) {
+                error("vi push: V2D_RotateFrame failed ret=%d dev=%d chn=%d", v2dRet, ViDev, ViChn);
+                VB_ReleaseBuffer(ulV2dBuf);
+                VB_ReleaseBuffer(ulBuf);
+                continue;
+            }
+
+            stV2dFrame.stVFrame.u32PlaneSizeValid[0] = stV2dFrame.stVFrame.u32PlaneSize[0];
+            if (stV2dFrame.stVFrame.u32PlaneNum > 1)
+                stV2dFrame.stVFrame.u32PlaneSizeValid[1] = stV2dFrame.stVFrame.u32PlaneSize[1];
+
+            /* Release raw capture buffer — recycle thread re-queues it to V4L2 */
+            VB_ReleaseBuffer(ulBuf);
+
+            CommonFrameInfo stV2dCommInfo = stV2dFrame.stViFrameInfo.stCommFrameInfo;
+            stV2dFrame.eFrameType = FRAME_TYPE_VENC;
+            stV2dFrame.eModId     = MPP_ID_VENC;
+            stV2dFrame.stVencFrameInfo.stCommFrameInfo = stV2dCommInfo;
+
+            VB_UpdateBufferFrameInfo(ulV2dBuf, &stV2dFrame);
+            (void)SYS_SendFrame(&stSrcNode, ulV2dBuf);
+
+            U32 u32Depth = pstBufCtx->stChnAttr.u32Depth;
+            if (u32Depth > 0) {
+                VB_RefAdd(ulV2dBuf);
+                pthread_mutex_lock(&pstBufCtx->depthLock);
+                if (pstBufCtx->u32DepthCount >= u32Depth) {
+                    MpiViDepthEntry *pOld = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthHead];
+                    VB_ReleaseBuffer(pOld->ulBufferId);
+                    pstBufCtx->u32DepthHead = (pstBufCtx->u32DepthHead + 1) % VI_MPI_MAX_DEPTH;
+                    pstBufCtx->u32DepthCount--;
+                }
+                MpiViDepthEntry *pNew = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthTail];
+                pNew->ulBufferId  = ulV2dBuf;
+                pNew->stFrameInfo = stV2dFrame;
+                pstBufCtx->u32DepthTail = (pstBufCtx->u32DepthTail + 1) % VI_MPI_MAX_DEPTH;
+                pstBufCtx->u32DepthCount++;
+                pthread_cond_signal(&pstBufCtx->depthNotEmpty);
+                pthread_mutex_unlock(&pstBufCtx->depthLock);
+            }
+
+            VB_ReleaseBuffer(ulV2dBuf);
+
+            continue;
         }
 
         /* Convert to VENC frame type so VENC's frame input thread can handle it.
@@ -404,6 +558,8 @@ static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn) {
         return;
 
     pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
+    if (pstBufCtx->ulV2dOutPoolId != 0)
+        VB_DestroyPool(pstBufCtx->ulV2dOutPoolId);
     if (pstBufCtx->ulPoolId != 0)
         MPI_VI_DestroyOutBufPool(pstBufCtx->ulPoolId, pstBufCtx->u32BufCnt, pstBufCtx->aulBufferId);
 
@@ -482,6 +638,42 @@ static S32 mpi_vi_rebuild_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAtt
 
     pstBufCtx->u32BufCnt = u32BufCnt;
     pstBufCtx->stChnAttr = *pstChnAttr;
+
+    /* Reset frame rate to 1:1 on every rebuild so seq and rate are consistent */
+    pstBufCtx->stFrameRateCtrl.u32InputFrameStep  = 1;
+    pstBufCtx->stFrameRateCtrl.u32OutputFrameStep = 1;
+    pstBufCtx->u32FrameRateSeq = 0;
+
+    /* Create V2D output pool if mirror/flip/rotate is configured */
+    pstBufCtx->bNeedV2dTransform = mpi_vi_needs_v2d_transform(pstChnAttr);
+    if (pstBufCtx->bNeedV2dTransform) {
+        VideoFrameInfo stV2dTemplate;
+        V2DRotateAngle enRot = mpi_vi_get_v2d_rotate(pstChnAttr);
+        ViChnAttrS stOutAttr = *pstChnAttr;
+        if (enRot == V2D_ROT_90 || enRot == V2D_ROT_270) {
+            stOutAttr.u32Width  = pstChnAttr->u32Height;
+            stOutAttr.u32Height = pstChnAttr->u32Width;
+        }
+        pstBufCtx->u32V2dOutBufCnt = u32BufCnt;
+        s32Ret = MPI_VI_CreateOutBufPool(
+            ViDev, ViChn, &stOutAttr, pstBufCtx->u32V2dOutBufCnt,
+            &pstBufCtx->ulV2dOutPoolId, &stV2dTemplate,
+            pstBufCtx->astV2dOutFrameInfo, pstBufCtx->aulV2dOutBufferId);
+        if (s32Ret != MPP_OK) {
+            pstBufCtx->ulV2dOutPoolId  = 0;
+            pstBufCtx->u32V2dOutBufCnt = 0;
+            mpi_vi_destroy_chn_buf_ctx(ViDev, ViChn);
+            return s32Ret;
+        }
+        info("vi v2d out pool created: dev=%d chn=%d rot=%d pool=%lu cnt=%u",
+            ViDev, ViChn, (int)enRot, pstBufCtx->ulV2dOutPoolId, pstBufCtx->u32V2dOutBufCnt);
+
+        /* MPI_VI_CreateOutBufPool acquires every buffer (ref=1). Release them
+         * all so VB_GetBuffer in push_task can acquire them one by one. */
+        for (U32 j = 0; j < pstBufCtx->u32V2dOutBufCnt; j++)
+            VB_ReleaseBuffer(pstBufCtx->aulV2dOutBufferId[j]);
+    }
+
     return MPP_OK;
 }
 
@@ -625,15 +817,30 @@ S32 VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) {
 }
 
 S32 VI_SetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
+    MpiViChnBufCtx *pstBufCtx = NULL;
+
     if (vi_load_plugin() != MPP_OK)
         return MPP_INIT_FAILED;
-    return g_pViOps->set_chn_framerate(ViDev, ViChn, pstFrameRateCtrl);
+    if (pstFrameRateCtrl == NULL || mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
+        return MPI_VI_ERR_INVALID_PARAM;
+    if (pstFrameRateCtrl->u32InputFrameStep == 0 || pstFrameRateCtrl->u32OutputFrameStep == 0)
+        return MPI_VI_ERR_INVALID_PARAM;
+
+    pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
+    if (pstBufCtx->bEnabled != MPP_TRUE)
+        return MPI_VI_ERR_INVALID_PARAM;
+    pstBufCtx->stFrameRateCtrl = *pstFrameRateCtrl;
+    pstBufCtx->u32FrameRateSeq = 0;
+    return MPP_OK;
 }
 
 S32 VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) {
-    if (vi_load_plugin() != MPP_OK)
-        return MPP_INIT_FAILED;
-    return g_pViOps->get_chn_framerate(ViDev, ViChn, pstFrameRateCtrl);
+    if (pstFrameRateCtrl == NULL || mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
+        return MPI_VI_ERR_INVALID_PARAM;
+    if (g_astViBufCtx[ViDev][ViChn].bEnabled != MPP_TRUE)
+        return MPI_VI_ERR_INVALID_PARAM;
+    *pstFrameRateCtrl = g_astViBufCtx[ViDev][ViChn].stFrameRateCtrl;
+    return MPP_OK;
 }
 
 S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
