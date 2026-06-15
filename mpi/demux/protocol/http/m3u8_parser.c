@@ -170,7 +170,7 @@ S32 M3u8_Parse(const char *pContent, U32 u32Len, M3u8Playlist *pPlaylist) {
                 p = skip_ws(p);
                 p = get_line(p, line, sizeof(line));
                 if (line[0] && line[0] != '#') {
-                    strncpy(pPlaylist->astStreams[idx].szUrl, line, M3U8_MAX_URL_LEN - 1);
+                    snprintf(pPlaylist->astStreams[idx].szUrl, M3U8_MAX_URL_LEN, "%s", line);
                     pPlaylist->u32StreamCount++;
                 }
             }
@@ -181,7 +181,7 @@ S32 M3u8_Parse(const char *pContent, U32 u32Len, M3u8Playlist *pPlaylist) {
             if (pPlaylist->u32SegmentCount < M3U8_MAX_SEGMENTS && fDuration > 0) {
                 M3u8Segment *seg = &pPlaylist->astSegments[pPlaylist->u32SegmentCount];
 
-                strncpy(seg->szUrl, line, M3U8_MAX_URL_LEN - 1);
+                snprintf(seg->szUrl, M3U8_MAX_URL_LEN, "%s", line);
                 seg->fDuration = fDuration;
                 seg->bDiscontinuity = bDiscontinuity;
                 seg->s64ByteRangeStart = s64ByteRangeStart;

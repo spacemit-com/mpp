@@ -39,7 +39,7 @@
 /* ======================== Test 1: Init / Exit ======================== */
 static void test_init_exit(void) {
     const char *name = "init_exit";
-    S32 ret;
+    S32 ret __attribute__((unused));
 
     ret = SYS_Init();
     assert(ret == 0);
@@ -246,7 +246,7 @@ static void test_mmz(void) {
 /* ======================== Test 5: Exit with Active Binds ======================== */
 static void test_exit_with_binds(void) {
     const char *name = "exit_with_binds";
-    S32 ret;
+    S32 ret __attribute__((unused));
 
     ret = SYS_Init();
     assert(ret == 0);

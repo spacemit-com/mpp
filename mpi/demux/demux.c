@@ -488,7 +488,7 @@ static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
          * File demux has no natural network backpressure. Dropping one TS PES can
          * poison all following P frames in a long GOP, so file mode must wait
          * until the bound consumer has room instead of silently discarding data. */
-        S32 send_ret;
+        S32 send_ret = 0;
         U32 retry = 0;
         U32 maxRetries = isFileProto ? 1500 : 50; /* File: up to 30s */
         U32 retryDelayUs = isFileProto ? 20000 : 10000;
@@ -511,7 +511,7 @@ static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
 
 static S32 demux_deliver_eos(DemuxChn *pChn) {
     StreamBufferInfo stStream;
-    S32 send_ret;
+    S32 send_ret = 0;
     U32 retry = 0;
 
     if (!pChn) {

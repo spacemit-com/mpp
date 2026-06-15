@@ -9,9 +9,12 @@
 
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <time.h>
 
 #include "codec/h264_utils.h"
 #include "codec/h265_utils.h"
@@ -38,6 +41,12 @@ typedef enum _RtspState {
     RTSP_STATE_STREAMING
 } RtspState;
 
+typedef enum _RtspAuthType {
+    RTSP_AUTH_NONE = 0,
+    RTSP_AUTH_BASIC,
+    RTSP_AUTH_DIGEST
+} RtspAuthType;
+
 struct _RtspClient {
     /* Connection */
     S32 s32Fd;
@@ -48,9 +57,12 @@ struct _RtspClient {
     BOOL bTcpInterleaved;
     U32 u32TimeoutMs;
 
-    /* Digest Auth */
+    /* Auth (Basic / Digest) */
+    RtspAuthType eAuthType;
     CHAR szRealm[128];
     CHAR szNonce[128];
+    CHAR szQop[32];   /* "auth" if server requires qop (RFC 2617) */
+    U32 u32NonceCount; /* nc counter for qop=auth */
     BOOL bAuthRequired;
 
     /* SDP parsed info */
@@ -266,9 +278,18 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
             fprintf(stderr, "[RTSP] 401 but no auth challenge found\n");
             goto fail;
         }
-        fprintf(stdout, "[RTSP] realm=%s, nonce=%s\n", pClient->szRealm, pClient->szNonce);
+        if (!pClient->stUrl.szUser[0]) {
+            fprintf(stderr, "[RTSP] Server requires auth but no credentials in URL\n");
+            goto fail;
+        }
+        if (pClient->eAuthType == RTSP_AUTH_DIGEST) {
+            fprintf(stdout, "[RTSP] Digest auth: realm=%s, nonce=%s, qop=%s\n", pClient->szRealm, pClient->szNonce,
+                pClient->szQop[0] ? pClient->szQop : "(none)");
+        } else {
+            fprintf(stdout, "[RTSP] Basic auth: realm=%s\n", pClient->szRealm);
+        }
 
-        /* Retry DESCRIBE with Digest Auth */
+        /* Retry DESCRIBE with auth */
         fprintf(stdout, "[RTSP] Sending DESCRIBE with auth...\n");
         s32Ret = rtsp_send_describe(pClient);
         if (s32Ret != 0) {
@@ -361,7 +382,11 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
 
         /* Set SPS/PPS from SDP */
         if (pClient->stSdp.u32SpsLen > 0) {
-            RtpDepack_SetSps(pClient->pDepack, pClient->stSdp.au8Sps, pClient->stSdp.u32SpsLen);
+            if (pClient->stSdp.eCodec == SDP_CODEC_H265) {
+                H265Depack_SetSps(pClient->pDepack, pClient->stSdp.au8Sps, pClient->stSdp.u32SpsLen);
+            } else {
+                RtpDepack_SetSps(pClient->pDepack, pClient->stSdp.au8Sps, pClient->stSdp.u32SpsLen);
+            }
 
             /* Parse resolution from SPS if not available in SDP */
             if (pClient->stStreamInfo.u32Width == 0 || pClient->stStreamInfo.u32Height == 0) {
@@ -382,7 +407,14 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
             }
         }
         if (pClient->stSdp.u32PpsLen > 0) {
-            RtpDepack_SetPps(pClient->pDepack, pClient->stSdp.au8Pps, pClient->stSdp.u32PpsLen);
+            if (pClient->stSdp.eCodec == SDP_CODEC_H265) {
+                H265Depack_SetPps(pClient->pDepack, pClient->stSdp.au8Pps, pClient->stSdp.u32PpsLen);
+            } else {
+                RtpDepack_SetPps(pClient->pDepack, pClient->stSdp.au8Pps, pClient->stSdp.u32PpsLen);
+            }
+        }
+        if (pClient->stSdp.eCodec == SDP_CODEC_H265 && pClient->stSdp.u32VpsLen > 0) {
+            H265Depack_SetVps(pClient->pDepack, pClient->stSdp.au8Vps, pClient->stSdp.u32VpsLen);
         }
     }
 
@@ -470,7 +502,11 @@ S32 RtspClient_ReadPacket(RtspClient *pClient, DemuxPacket *pstPkt) {
 
         /* Feed to depacketizer */
         if (pClient->pDepack) {
-            RtpDepack_Input(pClient->pDepack, au8RtpBuf, u32RtpLen);
+            if (pClient->stSdp.eCodec == SDP_CODEC_H265) {
+                H265Depack_Input(pClient->pDepack, au8RtpBuf, u32RtpLen);
+            } else {
+                RtpDepack_Input(pClient->pDepack, au8RtpBuf, u32RtpLen);
+            }
         }
     }
 
@@ -642,44 +678,155 @@ static void md5_hash_string(const CHAR *str, CHAR *out) {
     }
 }
 
-/* Parse 401 response to extract realm and nonce */
+/* Case-insensitive strstr (RTSP header names are case-insensitive) */
+static const CHAR *rtsp_stristr(const CHAR *pszHaystack, const CHAR *pszNeedle) {
+    size_t needleLen = strlen(pszNeedle);
+    if (needleLen == 0)
+        return pszHaystack;
+    for (const CHAR *p = pszHaystack; *p; p++) {
+        if (strncasecmp(p, pszNeedle, needleLen) == 0)
+            return p;
+    }
+    return NULL;
+}
+
+/* Extract a parameter value within a single header line.
+ * pszKey should include the parameter name plus '=' (for example, "realm=").
+ * The value may be quoted or unquoted; optional whitespace and a leading
+ * opening quote are skipped so headers like realm= "value" still parse. */
+static BOOL rtsp_auth_get_param(
+    const CHAR *pszLine, const CHAR *pszLineEnd, const CHAR *pszKey, CHAR *pszOut, U32 u32MaxLen) {
+    const CHAR *p = rtsp_stristr(pszLine, pszKey);
+    if (!p || p >= pszLineEnd)
+        return MPP_FALSE;
+    p += strlen(pszKey);
+    while (p < pszLineEnd && (*p == ' ' || *p == '\t'))
+        p++;
+    if (p < pszLineEnd && *p == '"')
+        p++;
+
+    const CHAR *end = p;
+    while (end < pszLineEnd && *end != '"' && *end != ',' && *end != ';' && *end != '\r' && *end != '\n')
+        end++;
+    if (end <= p)
+        return MPP_FALSE;
+    size_t len = (size_t)(end - p);
+    if (len >= u32MaxLen)
+        len = u32MaxLen - 1;
+    memcpy(pszOut, p, len);
+    pszOut[len] = '\0';
+    return MPP_TRUE;
+}
+
+/*
+ * Parse 401 response to extract the auth challenge.
+ * Servers may send multiple WWW-Authenticate headers (e.g. both Digest and
+ * Basic); Digest is preferred when available. Header name matching must be
+ * case-insensitive per RFC 2326/7826.
+ */
 static void rtsp_parse_www_authenticate(RtspClient *pClient, const CHAR *pszResponse) {
-    const CHAR *p = strstr(pszResponse, "WWW-Authenticate:");
-    if (!p)
-        return;
+    const CHAR *p = pszResponse;
 
-    /* Extract realm */
-    const CHAR *realm = strstr(p, "realm=\"");
-    if (realm) {
-        realm += 7;
-        const CHAR *end = strchr(realm, '"');
-        if (end && (end - realm) < (int)sizeof(pClient->szRealm)) {
-            memcpy(pClient->szRealm, realm, end - realm);
-            pClient->szRealm[end - realm] = '\0';
+    pClient->eAuthType = RTSP_AUTH_NONE;
+    pClient->bAuthRequired = MPP_FALSE;
+    pClient->szRealm[0] = '\0';
+    pClient->szNonce[0] = '\0';
+    pClient->szQop[0] = '\0';
+    pClient->u32NonceCount = 0;
+
+    while ((p = rtsp_stristr(p, "WWW-Authenticate:")) != NULL) {
+        const CHAR *pLine = p + strlen("WWW-Authenticate:");
+        const CHAR *pLineEnd = strstr(pLine, "\r\n");
+        if (!pLineEnd)
+            pLineEnd = pLine + strlen(pLine);
+
+        while (pLine < pLineEnd && (*pLine == ' ' || *pLine == '\t'))
+            pLine++;
+
+        if (strncasecmp(pLine, "Digest", 6) == 0) {
+            CHAR szRealm[sizeof(pClient->szRealm)] = {0};
+            CHAR szNonce[sizeof(pClient->szNonce)] = {0};
+            CHAR szQop[sizeof(pClient->szQop)] = {0};
+
+            if (rtsp_auth_get_param(pLine, pLineEnd, "realm=", szRealm, sizeof(szRealm)) &&
+                rtsp_auth_get_param(pLine, pLineEnd, "nonce=", szNonce, sizeof(szNonce))) {
+                snprintf(pClient->szRealm, sizeof(pClient->szRealm), "%s", szRealm);
+                snprintf(pClient->szNonce, sizeof(pClient->szNonce), "%s", szNonce);
+                /* qop is optional; when present we must use RFC 2617 mode */
+                if (rtsp_auth_get_param(pLine, pLineEnd, "qop=", szQop, sizeof(szQop))) {
+                    /* qop may be a list like "auth,auth-int"; pick "auth" */
+                    if (rtsp_stristr(szQop, "auth") != NULL) {
+                        strncpy(pClient->szQop, "auth", sizeof(pClient->szQop) - 1);
+                    }
+                }
+                pClient->eAuthType = RTSP_AUTH_DIGEST;
+                pClient->bAuthRequired = MPP_TRUE;
+                /* Digest preferred: stop searching */
+                return;
+            }
+        } else if (strncasecmp(pLine, "Basic", 5) == 0) {
+            /* Remember Basic as fallback but keep scanning for Digest */
+            if (pClient->eAuthType == RTSP_AUTH_NONE) {
+                rtsp_auth_get_param(pLine, pLineEnd, "realm=", pClient->szRealm, sizeof(pClient->szRealm));
+                pClient->eAuthType = RTSP_AUTH_BASIC;
+                pClient->bAuthRequired = MPP_TRUE;
+            }
         }
+
+        p = pLineEnd;
     }
 
-    /* Extract nonce */
-    const CHAR *nonce = strstr(p, "nonce=\"");
-    if (nonce) {
-        nonce += 7;
-        const CHAR *end = strchr(nonce, '"');
-        if (end && (end - nonce) < (int)sizeof(pClient->szNonce)) {
-            memcpy(pClient->szNonce, nonce, end - nonce);
-            pClient->szNonce[end - nonce] = '\0';
-        }
-    }
-
-    if (pClient->szRealm[0] && pClient->szNonce[0]) {
-        pClient->bAuthRequired = MPP_TRUE;
+    if (!pClient->bAuthRequired) {
+        fprintf(stderr, "[RTSP] Unrecognized auth challenge, response was:\n%s\n", pszResponse);
     }
 }
 
-/* Generate Digest Auth header */
-static void rtsp_get_digest_auth(
+/* Base64 encoder for Basic auth */
+static void rtsp_base64_encode(const U8 *pu8In, U32 u32InLen, CHAR *pszOut, U32 u32MaxLen) {
+    static const CHAR tbl[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    U32 i, o = 0;
+
+    for (i = 0; i + 2 < u32InLen && o + 4 < u32MaxLen; i += 3) {
+        U32 v = (pu8In[i] << 16) | (pu8In[i + 1] << 8) | pu8In[i + 2];
+        pszOut[o++] = tbl[(v >> 18) & 0x3F];
+        pszOut[o++] = tbl[(v >> 12) & 0x3F];
+        pszOut[o++] = tbl[(v >> 6) & 0x3F];
+        pszOut[o++] = tbl[v & 0x3F];
+    }
+    if (i < u32InLen && o + 4 < u32MaxLen) {
+        U32 rem = u32InLen - i;
+        U32 v = pu8In[i] << 16;
+        if (rem == 2)
+            v |= pu8In[i + 1] << 8;
+        pszOut[o++] = tbl[(v >> 18) & 0x3F];
+        pszOut[o++] = tbl[(v >> 12) & 0x3F];
+        pszOut[o++] = (rem == 2) ? tbl[(v >> 6) & 0x3F] : '=';
+        pszOut[o++] = '=';
+    }
+    pszOut[o] = '\0';
+}
+
+/*
+ * Generate Authorization header (Basic or Digest, with optional qop=auth).
+ * Writes an empty string when no auth is required/possible.
+ */
+static void rtsp_get_auth_header(
     RtspClient *pClient, const CHAR *pszMethod, const CHAR *pszUri, CHAR *pszAuth, U32 u32MaxLen) {
     if (!pClient->bAuthRequired || !pClient->stUrl.szUser[0]) {
         pszAuth[0] = '\0';
+        return;
+    }
+
+    if (pClient->eAuthType == RTSP_AUTH_BASIC) {
+        CHAR szCred[512];
+        CHAR szB64[768];
+        S32 s32Len = snprintf(szCred, sizeof(szCred), "%s:%s", pClient->stUrl.szUser, pClient->stUrl.szPass);
+        if (s32Len < 0 || (size_t)s32Len >= sizeof(szCred)) {
+            pszAuth[0] = '\0';
+            return;
+        }
+        rtsp_base64_encode((const U8 *)szCred, (U32)s32Len, szB64, sizeof(szB64));
+        snprintf(pszAuth, u32MaxLen, "Authorization: Basic %s\r\n", szB64);
         return;
     }
 
@@ -694,15 +841,49 @@ static void rtsp_get_digest_auth(
     snprintf(szHA2Input, sizeof(szHA2Input), "%s:%s", pszMethod, pszUri);
     md5_hash_string(szHA2Input, szHA2);
 
-    /* response = MD5(HA1:nonce:HA2) */
     CHAR szRespInput[512], szResponse[33];
-    snprintf(szRespInput, sizeof(szRespInput), "%s:%s:%s", szHA1, pClient->szNonce, szHA2);
-    md5_hash_string(szRespInput, szResponse);
+    if (pClient->szQop[0]) {
+        /* RFC 2617: response = MD5(HA1:nonce:nc:cnonce:qop:HA2) */
+        CHAR szCNonce[17];
+        CHAR szNc[9];
+        pClient->u32NonceCount++;
+        snprintf(szNc, sizeof(szNc), "%08x", pClient->u32NonceCount);
+        /* Generate cnonce with nanosecond entropy (RFC 2617 requires
+         * unpredictable value). Both clock_gettime and u32CSeq read are
+         * performed under lock to prevent a data race with the packet-
+         * read path that may increment u32CSeq concurrently. */
+        {
+            struct timespec ts;
+            U32 u32Seq;
+            pthread_mutex_lock(&pClient->lock);
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            u32Seq = pClient->u32CSeq;
+            pthread_mutex_unlock(&pClient->lock);
+            snprintf(szCNonce, sizeof(szCNonce), "%08x%08x",
+                (U32)(ts.tv_nsec ^ (ts.tv_sec << 16)),
+                (U32)(uintptr_t)pClient ^ u32Seq);
+        }
 
-    snprintf(pszAuth, u32MaxLen,
-        "Authorization: Digest username=\"%s\", realm=\"%s\", "
-        "nonce=\"%s\", uri=\"%s\", response=\"%s\"\r\n",
-        pClient->stUrl.szUser, pClient->szRealm, pClient->szNonce, pszUri, szResponse);
+        snprintf(szRespInput, sizeof(szRespInput), "%s:%s:%s:%s:%s:%s", szHA1, pClient->szNonce, szNc, szCNonce,
+            pClient->szQop, szHA2);
+        md5_hash_string(szRespInput, szResponse);
+
+        snprintf(pszAuth, u32MaxLen,
+            "Authorization: Digest username=\"%s\", realm=\"%s\", "
+            "nonce=\"%s\", uri=\"%s\", response=\"%s\", "
+            "qop=%s, nc=%s, cnonce=\"%s\"\r\n",
+            pClient->stUrl.szUser, pClient->szRealm, pClient->szNonce, pszUri, szResponse, pClient->szQop, szNc,
+            szCNonce);
+    } else {
+        /* RFC 2069 (legacy): response = MD5(HA1:nonce:HA2) */
+        snprintf(szRespInput, sizeof(szRespInput), "%s:%s:%s", szHA1, pClient->szNonce, szHA2);
+        md5_hash_string(szRespInput, szResponse);
+
+        snprintf(pszAuth, u32MaxLen,
+            "Authorization: Digest username=\"%s\", realm=\"%s\", "
+            "nonce=\"%s\", uri=\"%s\", response=\"%s\"\r\n",
+            pClient->stUrl.szUser, pClient->szRealm, pClient->szNonce, pszUri, szResponse);
+    }
 }
 
 static S32 rtsp_send_request(RtspClient *pClient, const CHAR *pszMethod, const CHAR *pszExtra) {
@@ -716,7 +897,7 @@ static S32 rtsp_send_request(RtspClient *pClient, const CHAR *pszMethod, const C
     if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
         return -1;
     }
-    rtsp_get_digest_auth(pClient, pszMethod, szUri, szAuth, sizeof(szAuth));
+    rtsp_get_auth_header(pClient, pszMethod, szUri, szAuth, sizeof(szAuth));
 
     s32Len = snprintf(szReq, sizeof(szReq),
         "%s %s RTSP/1.0\r\n"
@@ -747,7 +928,7 @@ static S32 rtsp_send_describe(RtspClient *pClient) {
     if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
         return -1;
     }
-    rtsp_get_digest_auth(pClient, "DESCRIBE", szUri, szAuth, sizeof(szAuth));
+    rtsp_get_auth_header(pClient, "DESCRIBE", szUri, szAuth, sizeof(szAuth));
 
     s32Len = snprintf(szReq, sizeof(szReq),
         "DESCRIBE %s RTSP/1.0\r\n"
@@ -777,7 +958,7 @@ static S32 rtsp_send_setup(RtspClient *pClient) {
     if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
         return -1;
     }
-    rtsp_get_digest_auth(pClient, "SETUP", szUri, szAuth, sizeof(szAuth));
+    rtsp_get_auth_header(pClient, "SETUP", szUri, szAuth, sizeof(szAuth));
 
     CHAR szTransport[128];
     if (pClient->bTcpInterleaved) {
@@ -814,7 +995,7 @@ static S32 rtsp_send_play(RtspClient *pClient) {
     if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
         return -1;
     }
-    rtsp_get_digest_auth(pClient, "PLAY", szUri, szAuth, sizeof(szAuth));
+    rtsp_get_auth_header(pClient, "PLAY", szUri, szAuth, sizeof(szAuth));
 
     s32Len = snprintf(szReq, sizeof(szReq),
         "PLAY %s RTSP/1.0\r\n"

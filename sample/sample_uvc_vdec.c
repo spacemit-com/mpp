@@ -116,6 +116,7 @@ static void save_mjpeg_frame(const VideoFrameInfo *pFrame, U32 u32Idx, const cha
 
 static S32 run_uvc_vdec_manual(void) {
     S32 ret;
+    U32 u32Saved = 0;
 
     /* Check device exists */
     if (access(g_devNode, F_OK) != 0) {
@@ -199,7 +200,6 @@ static S32 run_uvc_vdec_manual(void) {
     }
 
     /* --- Main loop: UVC → VDEC → save NV12 --- */
-    U32 u32Saved = 0;
     U32 u32UvcSaved = 0;
     printf("  [INFO] Capturing and decoding, will save %u frames to %s\n", SAMPLE_SAVE_COUNT, g_outDir);
 
@@ -295,6 +295,7 @@ teardown_uvc_dev:
 
 static S32 run_uvc_vdec_bind(void) {
     S32 ret;
+    U32 u32Saved = 0;
 
     if (access(g_devNode, F_OK) != 0) {
         printf("  [SKIP] UVC device %s not found\n", g_devNode);
@@ -379,7 +380,6 @@ static S32 run_uvc_vdec_bind(void) {
     printf("  [INFO] SYS_Bind: UVC(dev=%d,chn=%d) → VDEC(chn=%d) OK\n", uvcDev, uvcChn, vdecChn);
 
     /* --- Main loop: read decoded frames from VDEC --- */
-    U32 u32Saved = 0;
     printf("  [INFO] Waiting for decoded frames (bind mode), will save %u to %s\n", SAMPLE_SAVE_COUNT, g_outDir);
 
     while (g_running && u32Saved < SAMPLE_SAVE_COUNT) {
@@ -481,7 +481,7 @@ int main(int argc, char *argv[]) {
     printf("  Output : %s\n", g_outDir);
     printf("  Frames : %u\n\n", SAMPLE_SAVE_COUNT);
 
-    S32 ret = SYS_Init();
+    S32 ret __attribute__((unused)) = SYS_Init();
     assert(ret == 0);
     ret = VB_Init();
     assert(ret == 0);

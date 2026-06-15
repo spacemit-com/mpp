@@ -163,7 +163,7 @@ static void test_export_invalid(void) {
 /* ======================== Test 3: SYS + VB Combined Flow ======================== */
 static void test_sys_vb_combined(void) {
     const char *name = "sys_vb_combined";
-    S32 ret;
+    S32 ret __attribute__((unused));
 
     /* init both systems */
     ret = SYS_Init();

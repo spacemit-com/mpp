@@ -141,7 +141,7 @@ static void fill_default_chn_attr(UvcChnAttr *attr) {
 
 static void test_init_exit(void) {
     const char *name = "init_exit";
-    S32 ret;
+    S32 ret __attribute__((unused));
 
     ret = UVC_Init();
     assert(ret == 0);
@@ -160,7 +160,7 @@ static void test_init_exit(void) {
 
 static void test_create_destroy_dev(void) {
     const char *name = "create_destroy_dev";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UVC_DEV dev = 0;
     UvcDevAttr attr;
 
@@ -195,7 +195,7 @@ static void test_create_destroy_dev(void) {
 
 static void test_create_multi_dev(void) {
     const char *name = "create_multi_dev";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UvcDevAttr attr;
 
     ret = UVC_Init();
@@ -233,7 +233,7 @@ static void test_create_multi_dev(void) {
 
 static void test_invalid_params(void) {
     const char *name = "invalid_params";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UVC_DEV dev = 0;
     UvcDevAttr attr;
 
@@ -292,7 +292,7 @@ static void test_invalid_params(void) {
 
 static void test_state_machine(void) {
     const char *name = "state_machine";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UVC_DEV dev = 0;
     UvcDevAttr attr;
     UvcChnAttr chnAttr;
@@ -336,7 +336,7 @@ static void test_state_machine(void) {
 
 static void test_effect_not_enabled(void) {
     const char *name = "effect_not_enabled";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UVC_DEV dev = 0;
     UvcDevAttr attr;
     UvcEffectAttr effect;
@@ -713,7 +713,7 @@ teardown:
 
 static void test_exit_force_cleanup(void) {
     const char *name = "exit_force_cleanup";
-    S32 ret;
+    S32 ret __attribute__((unused));
     UVC_DEV dev = 0;
     UvcDevAttr attr;
 
@@ -778,7 +778,7 @@ int main(int argc, char *argv[]) {
     printf("Format: %s, Duration: %u sec\n\n", format_to_str(g_pixelFormat), g_duration);
 
     /* initialize VB module for buffer management */
-    S32 vbRet = SYS_Init();
+    S32 vbRet __attribute__((unused)) = SYS_Init();
     vbRet = VB_Init();
     assert(vbRet == 0);
 

@@ -85,6 +85,7 @@ static S32 write_stream(FILE *fp, const StreamBufferInfo *pstStream, U32 u32Idx)
 
 static S32 run_manual(void) {
     S32 ret;
+    U32 u32Saved = 0;
 
     if (access(g_devNode, F_OK) != 0) {
         printf("  [SKIP] UVC device %s not found\n", g_devNode);
@@ -192,7 +193,6 @@ static S32 run_manual(void) {
     }
 
     /* --- Main loop: UVC → VDEC → VENC → file --- */
-    U32 u32Saved = 0;
     printf("  [INFO] Pipeline running (manual), saving %u frames to %s\n", SAMPLE_SAVE_COUNT, g_outFile);
 
     while (g_running && u32Saved < SAMPLE_SAVE_COUNT) {
@@ -312,6 +312,7 @@ manual_cleanup_uvc_dev:
 
 static S32 run_bind(void) {
     S32 ret;
+    U32 u32Saved = 0;
 
     if (access(g_devNode, F_OK) != 0) {
         printf("  [SKIP] UVC device %s not found\n", g_devNode);
@@ -430,7 +431,6 @@ static S32 run_bind(void) {
     printf("  [INFO] SYS_Bind: VDEC(chn=%d) → VENC(chn=%d) OK\n", vdecChn, vencChn);
 
     /* --- Main loop: read encoded H.264 from VENC --- */
-    U32 u32Saved = 0;
     printf("  [INFO] Pipeline running (bind), saving %u frames to %s\n", SAMPLE_SAVE_COUNT, g_outFile);
 
     while (g_running && u32Saved < SAMPLE_SAVE_COUNT) {
@@ -534,7 +534,7 @@ int main(int argc, char *argv[]) {
     printf("  Bitrate: %u bps\n", SAMPLE_BITRATE);
     printf("  Frames : %u\n\n", SAMPLE_SAVE_COUNT);
 
-    S32 ret = SYS_Init();
+    S32 ret __attribute__((unused)) = SYS_Init();
     assert(ret == 0);
     ret = VB_Init();
     assert(ret == 0);
