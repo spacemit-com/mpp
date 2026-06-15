@@ -95,6 +95,10 @@ static S32 rtsp_send_play(RtspClient *pClient);
 static S32 rtsp_send_teardown(RtspClient *pClient);
 static S32 rtsp_recv_response(RtspClient *pClient, CHAR *pszBuf, U32 u32MaxLen);
 static void rtsp_parse_www_authenticate(RtspClient *pClient, const CHAR *pszResponse);
+/* Case-insensitive strstr; NULL-safe (returns NULL if either argument is
+ * NULL).  Defined below but forward-declared here so every call site has a
+ * visible prototype regardless of source ordering. */
+static const CHAR *rtsp_stristr(const CHAR *pszHaystack, const CHAR *pszNeedle);
 
 /* Parse SPS from Annex-B stream to get resolution */
 static void rtsp_parse_sps_from_annexb(RtspClient *pClient, const U8 *pu8Data, U32 u32Len) {
@@ -678,8 +682,13 @@ static void md5_hash_string(const CHAR *str, CHAR *out) {
     }
 }
 
-/* Case-insensitive strstr (RTSP header names are case-insensitive) */
+/* Case-insensitive strstr (RTSP header names are case-insensitive).
+ * NULL-safe: returns NULL when either argument is NULL so callers that pass
+ * a possibly-empty receive buffer (for example pszBuf in rtsp_recv_response)
+ * never dereference a NULL pointer. */
 static const CHAR *rtsp_stristr(const CHAR *pszHaystack, const CHAR *pszNeedle) {
+    if (pszHaystack == NULL || pszNeedle == NULL)
+        return NULL;
     size_t needleLen = strlen(pszNeedle);
     if (needleLen == 0)
         return pszHaystack;
@@ -1041,12 +1050,45 @@ static S32 rtsp_recv_response(RtspClient *pClient, CHAR *pszBuf, U32 u32MaxLen) 
         s32StatusCode = atoi(pStatus + 9);
     }
 
-    /* Get Content-Length if present */
-    const CHAR *pCL = strstr(pszBuf, "Content-Length:");
-    if (!pCL)
-        pCL = strstr(pszBuf, "Content-length:");
+    /* Get Content-Length if present (header names are case-insensitive per
+     * RFC 2326/7826, so match without regard to case). */
+    const CHAR *pCL = rtsp_stristr(pszBuf, "Content-Length:");
     if (pCL) {
-        s32ContentLen = atoi(pCL + 15);
+        /* Skip past the header name to reach the value.  The offset is the
+         * length of the needle we searched for ("Content-Length:"), not the
+         * length of the matched text: rtsp_stristr matches case-insensitively
+         * so pCL may point at "content-length:" or any other casing, but the
+         * matched run is always exactly strlen("Content-Length:") bytes long,
+         * so advancing by the needle length lands on the value either way. */
+        const CHAR *pVal = pCL + strlen("Content-Length:");
+        /* RFC 2326/7826 allow optional linear white space between the colon
+         * and the field value (e.g. "Content-Length:  128").  strtoll() would
+         * skip leading blanks itself, but skip them explicitly here so the
+         * intent is self-evident. */
+        while (*pVal == ' ' || *pVal == '\t')
+            pVal++;
+        /* Parse with strtoll rather than atoi so we can detect a missing or
+         * malformed number and clamp the range.  Content-Length is allowed by
+         * RFC 2326/7826 to be as large as ~2 GB, but our response buffer is
+         * far smaller, and s32ContentLen is a signed 32-bit value: assigning
+         * an out-of-range or negative length would either invoke signed
+         * overflow or let a bogus value slip past the body-read bounds check
+         * below.  We therefore accept the value only when at least one digit
+         * was parsed and it is positive and strictly smaller than the buffer
+         * space still unused after the headers, i.e. (u32MaxLen - u32Pos).
+         * u32Pos points just past the "\r\n\r\n" header terminator at this
+         * point, so (u32MaxLen - u32Pos) is exactly the room left for the
+         * body, and it is precisely the bound the body-read check below
+         * (u32Pos + s32ContentLen < u32MaxLen) enforces — the parse-time limit
+         * and the read-time limit now agree exactly.  The while loop guarantees
+         * u32Pos < u32MaxLen - 1, so the subtraction cannot underflow.
+         * Otherwise s32ContentLen stays 0 and no body is read.  A 64-bit
+         * accumulator (S64) holds the parsed value so an over-range string
+         * cannot wrap before the bounds check runs. */
+        CHAR *pEnd = NULL;
+        S64 s64ContentLen = strtoll(pVal, &pEnd, 10);
+        if (pEnd != pVal && s64ContentLen > 0 && s64ContentLen < (S64)(u32MaxLen - u32Pos))
+            s32ContentLen = (S32)s64ContentLen;
     }
 
     /* Read body */

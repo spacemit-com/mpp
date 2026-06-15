@@ -234,7 +234,10 @@ int main(int argc, char *argv[]) {
     memset(&stCtx, 0, sizeof(stCtx));
 
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
             port = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--rec") == 0 && i + 1 < argc) {
             pszRec = argv[++i];
@@ -246,7 +249,7 @@ int main(int argc, char *argv[]) {
             want_record = 0;
         } else if (argv[i][0] == '-') {
             usage(argv[0]);
-            return 0;
+            return 1;
         } else if (pszSrc == NULL) {
             pszSrc = argv[i];
         }

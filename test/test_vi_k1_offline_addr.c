@@ -222,6 +222,16 @@ int main(int argc, char *argv[]) {
     ViFrameMetaInfo stFrameMeta;
     S32 s32Ret = 0;
 
+    {
+        int i;
+        for (i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+                offline_addr_demo_usage(argv[0]);
+                return 0;
+            }
+        }
+    }
+
     if (argc < 2) {
         offline_addr_demo_usage(argv[0]);
         return -1;

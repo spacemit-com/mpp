@@ -12,6 +12,15 @@
 #include "demux/demux_api.h"
 
 int main(int argc, char *argv[]) {
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            printf("Usage: %s <input.ts> <output.h264>\n", argv[0]);
+            return 0;
+        }
+    }
+
     if (argc < 3) {
         printf("Usage: %s <input.ts> <output.h264>\n", argv[0]);
         return 1;

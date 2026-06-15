@@ -74,6 +74,15 @@ static S32 probe_packet_cb(S32 s32ChnId, const DemuxPacket *pstPkt, VOID *pPriv)
 }
 
 int main(int argc, char *argv[]) {
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            fprintf(stderr, "usage: %s <rtsp_url> [max_frames] [output.nv12]\n", argv[0]);
+            return 0;
+        }
+    }
+
     if (argc < 2) {
         fprintf(stderr, "usage: %s <rtsp_url> [max_frames] [output.nv12]\n", argv[0]);
         return 1;

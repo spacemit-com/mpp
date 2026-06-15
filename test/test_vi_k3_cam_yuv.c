@@ -87,6 +87,16 @@ int main(int argc, char **argv) {
     ViChnAttrS chnAttr;
     VideoFrameInfo frame;
 
+    {
+        int idx;
+        for (idx = 1; idx < argc; idx++) {
+            if (strcmp(argv[idx], "-h") == 0 || strcmp(argv[idx], "--help") == 0) {
+                printf("Usage: %s\n", argv[0]);
+                printf("  K3 camera YUV capture test (no runtime options; uses built-in defaults)\n");
+                return 0;
+            }
+        }
+    }
     (void)argc;
     (void)argv;
 

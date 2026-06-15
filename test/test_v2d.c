@@ -857,6 +857,16 @@ int main(int argc, char *argv[]) {
     memset(&overlay_frame, 0, sizeof(overlay_frame));
     memset(&dst_frame, 0, sizeof(dst_frame));
 
+    {
+        int i;
+        for (i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+                demo_print_usage(argv[0]);
+                return 0;
+            }
+        }
+    }
+
     if (demo_parse_args(argc, argv, &config) != 0) {
         demo_print_usage(argv[0]);
         return -1;
