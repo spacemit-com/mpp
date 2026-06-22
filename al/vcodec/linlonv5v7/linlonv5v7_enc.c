@@ -1,12 +1,11 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
+ * Copyright 2022-2026 SPACEMIT. All rights reserved.
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
  *
- * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-02-01 10:43:49
- * @LastEditTime: 2026-04-20 11:03:42
- * @Description: video encode plugin for V4L2 codec standard interface
+ * @Description: video encode plugin for V4L2 codec standard interface.
+ *               Consumes MPI public structs directly (VencChnAttr /
+ *               VencChnStatus / VideoFrameInfo / StreamBufferInfo / VencCmd).
  */
 
 #define ENABLE_DEBUG 1
@@ -26,30 +25,29 @@
 #include "log.h"
 #include "mvx-v4l2-controls.h"
 #include "v4l2_utils.h"
-#include "venc_type.h"
 
 #define MODULE_TAG "linlonv5v7_enc"
 
 CODING_TYPE_MAPPING_DEFINE(Linlonv5v7Enc, S32)
 static const ALLinlonv5v7EncCodingTypeMapping stALLinlonv5v7EncCodingTypeMapping[] = {
-    {CODING_H263, V4L2_PIX_FMT_H263},
-    {CODING_H264, V4L2_PIX_FMT_H264},
-    {CODING_H264_MVC, V4L2_PIX_FMT_H264_MVC},
-    {CODING_H264_NO_SC, V4L2_PIX_FMT_H264_NO_SC},
-    {CODING_H265, V4L2_PIX_FMT_HEVC},
-    {CODING_MJPEG, V4L2_PIX_FMT_JPEG},
-    {CODING_JPEG, V4L2_PIX_FMT_JPEG},
-    {CODING_VP8, V4L2_PIX_FMT_VP8},
-    {CODING_VP9, V4L2_PIX_FMT_VP9},
-    {CODING_AVS, V4L2_PIX_FMT_AVS},
-    {CODING_AVS2, V4L2_PIX_FMT_AVS2},
-    {CODING_MPEG1, V4L2_PIX_FMT_MPEG},
-    {CODING_MPEG2, V4L2_PIX_FMT_MPEG2},
-    {CODING_MPEG4, V4L2_PIX_FMT_MPEG4},
-    {CODING_RV, V4L2_PIX_FMT_RV},
-    {CODING_VC1, V4L2_PIX_FMT_VC1_ANNEX_G},
-    {CODING_VC1_ANNEX_L, V4L2_PIX_FMT_VC1_ANNEX_L},
-    {CODING_FWHT, V4L2_PIX_FMT_FWHT},
+    {MPP_STREAM_CODEC_H263, V4L2_PIX_FMT_H263},
+    {MPP_STREAM_CODEC_H264, V4L2_PIX_FMT_H264},
+    {MPP_STREAM_CODEC_H264_MVC, V4L2_PIX_FMT_H264_MVC},
+    {MPP_STREAM_CODEC_H264_NO_SC, V4L2_PIX_FMT_H264_NO_SC},
+    {MPP_STREAM_CODEC_H265, V4L2_PIX_FMT_HEVC},
+    {MPP_STREAM_CODEC_MJPEG, V4L2_PIX_FMT_JPEG},
+    {MPP_STREAM_CODEC_JPEG, V4L2_PIX_FMT_JPEG},
+    {MPP_STREAM_CODEC_VP8, V4L2_PIX_FMT_VP8},
+    {MPP_STREAM_CODEC_VP9, V4L2_PIX_FMT_VP9},
+    {MPP_STREAM_CODEC_AVS, V4L2_PIX_FMT_AVS},
+    {MPP_STREAM_CODEC_AVS2, V4L2_PIX_FMT_AVS2},
+    {MPP_STREAM_CODEC_MPEG1, V4L2_PIX_FMT_MPEG},
+    {MPP_STREAM_CODEC_MPEG2, V4L2_PIX_FMT_MPEG2},
+    {MPP_STREAM_CODEC_MPEG4, V4L2_PIX_FMT_MPEG4},
+    {MPP_STREAM_CODEC_RV, V4L2_PIX_FMT_RV},
+    {MPP_STREAM_CODEC_VC1, V4L2_PIX_FMT_VC1_ANNEX_G},
+    {MPP_STREAM_CODEC_VC1_ANNEX_L, V4L2_PIX_FMT_VC1_ANNEX_L},
+    {MPP_STREAM_CODEC_FWHT, V4L2_PIX_FMT_FWHT},
 };
 CODING_TYPE_MAPPING_CONVERT(Linlonv5v7Enc, linlonv5v7enc, S32)
 
@@ -76,9 +74,9 @@ typedef struct _ALLinlonv5v7EncContext ALLinlonv5v7EncContext;
 
 struct _ALLinlonv5v7EncContext {
     ALEncBaseContext stAlEncBaseContext;
-    MppVencPara *pVencPara;       // parameters
-    MppPixelFormat ePixelFormat;  // input stream format
-    MppCodingType eCodingType;    // output frame format
+    VencChnAttr stAttr;             // channel attributes (copied at init)
+    MppPixelFormat ePixelFormat;    // input frame format
+    MppStreamCodecType eCodecType;  // output stream format
 
     Codec *stCodec;
 
@@ -126,14 +124,10 @@ struct _ALLinlonv5v7EncContext {
     S32 nAlign;
 
     S32 nRotation;
-    S32 nScale;
-    S32 nFrames;
-
-    S32 nNaluFmt;
 
     /***
      * EOS flag, default MPP_FALSE
-     * when a packet with eos=1 comes, bInputEos is set to MPP_TRUE.
+     * when a frame with eos flag comes, bInputEos is set to MPP_TRUE.
      */
     BOOL bInputEos;
     BOOL bOutputEos;
@@ -143,18 +137,13 @@ struct _ALLinlonv5v7EncContext {
      * default 0, also 0 after flush
      */
     U32 nInputQueuedNum;
-    BOOL bBufferNeedReturned[MAX_INPUT_BUF_NUM];
 
     /***
-  +   * SPS/PPS/VPS
-  +   */
+     * SPS/PPS/VPS
+     */
     U8 *pHeader;
     U32 nHeaderSize;
 };
-
-static void changeSWEO(ALLinlonv5v7EncContext *context, U32 csweo) {
-    setCsweo(context->stCodec, (csweo == 1));
-}
 
 /***
  * V4L2_CID_MVE_VIDEO_FRAME_RATE
@@ -172,146 +161,14 @@ static void setEncoderFramerate(ALLinlonv5v7EncContext *context, U32 fps) {
 }
 
 /***
- * V4L2_CID_MPEG_VIDEO_BITRATE
- */
-static void setBitrate(ALLinlonv5v7EncContext *context, U32 bps) {
-    if (!getCsweo(context->stCodec)) {
-        setEncBitrate(getOutputPort(context->stCodec), bps);
-    } else {
-        setEncBitrate(getOutputPort(context->stCodec), bps);
-        setBps(context->stCodec, bps - 500);
-    }
-}
-
-/***
  * V4L2_CID_MVE_VIDEO_P_FRAMES
  *
- * Options related to the group-of-pictures (GOP) and Long Term Reference (LTR)
- * structure, see below.
- *
- * The three options ENC_P_FRAMES, ENC_B_FRAMES, GOP_TYPE can be used to
- * configure the GOP structure. Each GOP begins with an I frame, typically
- * followed by some P, and possibly B frames: ENC_P_FRAMES sets the number of P
- * frames between two I frames. ENC_B_FRAMES sets the number of B frames that
- * comes with each P frame.
+ * ENC_P_FRAMES sets the number of P frames between two I frames.
  */
 static void setPFrames(ALLinlonv5v7EncContext *context, U32 pframes) {
     setEncPFrames(getOutputPort(context->stCodec), pframes);
 }
 
-/***
- * V4L2_CID_MPEG_VIDEO_B_FRAMES
- */
-static void setBFrames(ALLinlonv5v7EncContext *context, U32 bframes) {
-    setEncBFrames(getOutputPort(context->stCodec), bframes);
-}
-
-/***
- * V4L2_CID_MVE_VIDEO_GOP_TYPE
- *
- * GOP_TYPE can be one of the following variants:
- * MVE_OPT_GOP_TYPE_BIDIRECTIONAL For example, with this GOP type, setting
- * ENC_P_FRAMES = 3 and ENC_B_FRAMES = 2 gives the following GOP structure, in
- * display order, so that there is frame re-ordering in the bitstream: IBBPBBP
- *
- * MVE_OPT_GOP_TYPE_LOW_DELAY Conversely, setting ENC_P_FRAMES = 3 and
- * ENC_B_FRAMES = 2 and GOP_TYPE = LOW_DELAY gives the following GOP structure,
- * in display order, with no frame re-ordering: IPBBPBB
- *
- * MVE_OPT_GOP_TYPE_PYRAMID Setting this GOP type, forces the ENC_B_FRAMES
- * parameter to 3. The following image shows some of the B frames used as
- * reference frames: IBBBPBBBP
- */
-static void setH264GOPType(ALLinlonv5v7EncContext *context, U32 gop) {
-    setH264EncGOPType(getOutputPort(context->stCodec), gop);
-}
-
-/***
- * V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB
- * V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE
- *
- * Suggested number of macroblocks, CTUs in one slice.
- */
-static void setSliceSpacing(ALLinlonv5v7EncContext *context, U32 spacing) {
-    setEncSliceSpacing(getOutputPort(context->stCodec), spacing);
-}
-
-/***
- * V4L2_CID_MPEG_VIDEO_MV_H_SEARCH_RANGE
- *
- * For testing and debugging, the search range for motion vectors can be
- * restricted. By default, the largest possible values are used.
- */
-static void setHorizontalMVSearchRange(ALLinlonv5v7EncContext *context, U32 hmvsr) {
-    setEncHorizontalMVSearchRange(getOutputPort(context->stCodec), hmvsr);
-}
-
-/***
- * V4L2_CID_MPEG_VIDEO_MV_V_SEARCH_RANGE
- *
- * For testing and debugging, the search range for motion vectors can be
- * restricted. By default, the largest possible values are used.
- */
-static void setVerticalMVSearchRange(ALLinlonv5v7EncContext *context, U32 vmvsr) {
-    setEncVerticalMVSearchRange(getOutputPort(context->stCodec), vmvsr);
-}
-
-/***
- * V4L2_CID_MVE_VIDEO_FORCE_CHROMA_FORMAT
- */
-static void setH264ForceChroma(ALLinlonv5v7EncContext *context, U32 fmt) {
-    setH264EncForceChroma(getOutputPort(context->stCodec), fmt);
-}
-
-/***
- * V4L2_CID_MVE_VIDEO_BITDEPTH_LUMA
- * V4L2_CID_MVE_VIDEO_BITDEPTH_CHROMA
- */
-static void setH264Bitdepth(ALLinlonv5v7EncContext *context, U32 bd) {
-    setH264EncBitdepth(getOutputPort(context->stCodec), bd);
-}
-
-/***
- * V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB
- */
-static void setH264IntraMBRefresh(ALLinlonv5v7EncContext *context, U32 period) {
-    setH264EncIntraMBRefresh(getOutputPort(context->stCodec), period);
-}
-
-/***
- * V4L2_CID_MPEG_VIDEO_H264_PROFILE
- * V4L2_CID_MVE_VIDEO_H265_PROFILE
- */
-static void setProfile(ALLinlonv5v7EncContext *context, U32 profile) {
-    setEncProfile(getOutputPort(context->stCodec), profile);
-}
-
-static void setLevel(ALLinlonv5v7EncContext *context, U32 level) {
-    setEncLevel(getOutputPort(context->stCodec), level);
-}
-
-static void setConstrainedIntraPred(ALLinlonv5v7EncContext *context, U32 cip) {
-    setEncConstrainedIntraPred(getOutputPort(context->stCodec), cip);
-}
-
-static void setH264EntropyCodingMode(ALLinlonv5v7EncContext *context, U32 ecm) {
-    setH264EncEntropyMode(getOutputPort(context->stCodec), ecm);
-}
-
-/***
- * The valid range of QP values is different for different standards:
- *
- * H.264 and HEVC
- *     0-51.
- *
- * VP8
- *     0-63.
- *     Internally, this is remapped to 0-127 in the bitstream.
- *
- * VP9
- *     0-63.
- *     Internally, this is remapped to 0-255 in the bitstream.
- */
 static void setH264MinQP(ALLinlonv5v7EncContext *context, U32 minqp) {
     if (!getCsweo(context->stCodec)) {
         setH264EncMinQP(getOutputPort(context->stCodec), minqp);
@@ -325,15 +182,6 @@ static void setH264MaxQP(ALLinlonv5v7EncContext *context, U32 maxqp) {
         setH264EncMaxQP(getOutputPort(context->stCodec), maxqp);
     } else {
         setMaxqp(context->stCodec, maxqp);
-    }
-}
-
-static void setH264FixedQP(ALLinlonv5v7EncContext *context, U32 fqp) {
-    if (!getCsweo(context->stCodec)) {
-        setH264EncFixedQP(getOutputPort(context->stCodec), fqp);
-    } else {
-        setH264EncFixedQP(getOutputPort(context->stCodec), fqp);
-        setFixedqp(context->stCodec, fqp + 2);
     }
 }
 
@@ -361,10 +209,6 @@ static void setHEVCFixedQPB(ALLinlonv5v7EncContext *context, U32 fqp) {
     setHEVCEncFixedQPB(getOutputPort(context->stCodec), fqp);
 }
 
-static void setH264Bandwidth(ALLinlonv5v7EncContext *context, U32 bw) {
-    setH264EncBandwidth(getOutputPort(context->stCodec), bw);
-}
-
 static void setHEVCMinQP(ALLinlonv5v7EncContext *context, U32 minqp) {
     if (!getCsweo(context->stCodec)) {
         setHEVCEncMinQP(getOutputPort(context->stCodec), minqp);
@@ -381,47 +225,8 @@ static void setHEVCMaxQP(ALLinlonv5v7EncContext *context, U32 maxqp) {
     }
 }
 
-static void setVP9TileCR(ALLinlonv5v7EncContext *context, U32 tcr) {
-    setVP9EncTileCR(getOutputPort(context->stCodec), tcr);
-}
-
-static void setJPEGRefreshInterval(ALLinlonv5v7EncContext *context, U32 r) {
-    setJPEGEncRefreshInterval(getOutputPort(context->stCodec), r);
-}
-
-static void setJPEGQuality(ALLinlonv5v7EncContext *context, U32 q) {
-    setJPEGEncQuality(getOutputPort(context->stCodec), q);
-}
-
-static void setHEVCEntropySync(ALLinlonv5v7EncContext *context, U32 es) {
-    setHEVCEncEntropySync(getOutputPort(context->stCodec), es);
-}
-
-static void setHEVCTemporalMVP(ALLinlonv5v7EncContext *context, U32 tmvp) {
-    setHEVCEncTemporalMVP(getOutputPort(context->stCodec), tmvp);
-}
-
-/***
- * V4L2_CID_MVE_VIDEO_STREAM_ESCAPING
- *
- * This configures whether the input byte stream contains escape codes or
- * whether it is a raw byte stream without escape codes. The default value is
- * escape codes enabled.
- */
-static void setStreamEscaping(ALLinlonv5v7EncContext *context, U32 sesc) {
-    setEncStreamEscaping(getOutputPort(context->stCodec), sesc);
-}
-
-static void tryStopCmd(ALLinlonv5v7EncContext *context, BOOL tryStop) {
-    tryEncStopCmd(getInputPort(context->stCodec), tryStop);
-}
-
 static void setEncoderMirror(ALLinlonv5v7EncContext *context, S32 mirror) {
     setPortMirror(getInputPort(context->stCodec), mirror);
-}
-
-static void setEncoderFrameCount(ALLinlonv5v7EncContext *context, S32 frames) {
-    setFrameCount(getInputPort(context->stCodec), frames);
 }
 
 /***
@@ -430,28 +235,18 @@ static void setEncoderFrameCount(ALLinlonv5v7EncContext *context, S32 frames) {
  *
  * MVE_OPT_RATE_CONTROL_MODE_OFF:
  * This sets fixed a QP mode, this is the default. The target_bitrate value is
- * ignored and the quantization values QP_I, QP_P and QP_B are used. These can
- * be set in separate options, otherwise default built-in values are used.
+ * ignored and the quantization values QP_I, QP_P and QP_B are used.
  *
  * MVE_OPT_RATE_CONTROL_MODE_VARIABLE:
  * This mode aims to match bitrate target_bitrate while maximizing visual
  * quality. Arm China recommends you use this mode.
- * MVE_OPT_RATE_CONTROL_MODE_STANDARD is deprecated but corresponds to the same
- * mode as MVE_OPT_RATE_CONTROL_MODE_VARIABLE.
  *
  * MVE_OPT_RATE_CONTROL_MODE_CONSTANT:
- * This mode aims to keep the output bitstream at a fixed bitrate. The bitrate
- * is based on a model of a Hypothetical Reference Decoder (HRD) buffer that is
- * emptied at target_bitrate. The size of the HRD buffer is set by default by
- * the encoder, but can also be configured by the host. See
- * MVE_BUFFER_PARAM_TYPE_RATE_CONTOL_HRD_BUF_SIZE. Typically this mode gives a
- * bitrate closer to the target_bitrate, but can sometimes result in lower
- * visual quality.
+ * This mode aims to keep the output bitstream at a fixed bitrate.
  *
  * MVE_OPT_RATE_CONTROL_MODE_C_VARIABLE:
  * Argument: max_bitrate. This mode aims to constrain the maximum bitrate to a
- * desired max_bitrate, and in the meantime to match target_bitrate as described
- * in MVE_OPT_RATE_CONTROL_MODE_VARIABLE.
+ * desired max_bitrate, and in the meantime to match target_bitrate.
  */
 static void setEncoderRateControl(
     ALLinlonv5v7EncContext *context, const char *rc, S32 target_bitrate, S32 maximum_bitrate
@@ -479,9 +274,11 @@ static void setEncoderRateControl(
     }
     setRateControl(getOutputPort(context->stCodec), &v4l2_rc);
 }
+
 static void setEncoderRotation(ALLinlonv5v7EncContext *context, S32 rotation) {
     setPortRotation(getInputPort(context->stCodec), rotation);
 }
+
 static void setEncoderCropLeft(ALLinlonv5v7EncContext *context, S32 left) {
     setCropLeft(getInputPort(context->stCodec), left);
 }
@@ -498,28 +295,63 @@ static void setEncoderCropBottom(ALLinlonv5v7EncContext *context, S32 bottom) {
     setCropBottom(getInputPort(context->stCodec), bottom);
 }
 
-static void setEncoderVuiColourDesc(ALLinlonv5v7EncContext *context, struct v4l2_mvx_color_desc *color) {
-    setVuiColourDesc(getInputPort(context->stCodec), color);
+/**
+ * @brief Apply the initial rate-control state from the channel attributes.
+ *        With FIXQP and all QP fields zero, the legacy plugin defaults are
+ *        used (HEVC fixed QP I=35 / P=30, rate control off).
+ */
+static void applyInitialRateControl(ALLinlonv5v7EncContext *context, const VencChnAttr *pstAttr) {
+    if (pstAttr->eRcMode == VENC_RC_MODE_FIXQP && pstAttr->u32IQp == 0 && pstAttr->u32PQp == 0 &&
+        pstAttr->u32BQp == 0) {
+        /* legacy defaults */
+        setHEVCFixedQPI(context, 35);
+        setHEVCFixedQPP(context, 30);
+        setEncoderRateControl(context, "off", 0, 0);
+        return;
+    }
+
+    const char *rcMode = "off";
+    switch (pstAttr->eRcMode) {
+        case VENC_RC_MODE_CBR:
+            rcMode = "constant";
+            break;
+        case VENC_RC_MODE_VBR:
+            rcMode = "variable";
+            break;
+        case VENC_RC_MODE_CVBR:
+            rcMode = "cvbr";
+            break;
+        case VENC_RC_MODE_FIXQP:
+        default:
+            rcMode = "off";
+            break;
+    }
+    setEncoderRateControl(context, rcMode, (S32)pstAttr->u32Bitrate, (S32)pstAttr->u32Bitrate);
+
+    if (pstAttr->u32MinQp > 0 || pstAttr->u32MaxQp > 0) {
+        if (context->eCodecType == MPP_STREAM_CODEC_H265) {
+            setHEVCMinQP(context, pstAttr->u32MinQp);
+            setHEVCMaxQP(context, pstAttr->u32MaxQp);
+        } else {
+            setH264MinQP(context, pstAttr->u32MinQp);
+            setH264MaxQP(context, pstAttr->u32MaxQp);
+        }
+    }
+
+    if (pstAttr->eRcMode == VENC_RC_MODE_FIXQP) {
+        if (context->eCodecType == MPP_STREAM_CODEC_H265) {
+            setHEVCFixedQPI(context, pstAttr->u32IQp);
+            setHEVCFixedQPP(context, pstAttr->u32PQp);
+            setHEVCFixedQPB(context, pstAttr->u32BQp);
+        } else {
+            setH264FixedQPI(context, pstAttr->u32IQp);
+            setH264FixedQPP(context, pstAttr->u32PQp);
+            setH264FixedQPB(context, pstAttr->u32BQp);
+        }
+    }
 }
 
-static void setEncoderSeiUserData(ALLinlonv5v7EncContext *context, struct v4l2_sei_user_data *sei_user_data) {
-    setSeiUserData(getInputPort(context->stCodec), sei_user_data);
-}
-
-static void setEncoderHRDBufferSize(ALLinlonv5v7EncContext *context, S32 size) {
-    setHRDBufferSize(getInputPort(context->stCodec), size);
-}
-
-static void setEncoderLongTermRef(ALLinlonv5v7EncContext *context, U32 mode, U32 period) {
-    setLongTermRef(getInputPort(context->stCodec), mode, period);
-}
-
-static S32 checkPixelFormatAndCodingTypeAndProfile(MppPixelFormat format, MppCodingType type, S32 profile) {
-    // to do
-    return MPP_OK;
-}
-
-ALBaseContext *al_enc_create() {
+ALBaseContext *al_enc_create(void) {
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)malloc(sizeof(ALLinlonv5v7EncContext));
     if (!context) {
         error("can not malloc ALLinlonv5v7EncContext, please check! (%s)", strerror(errno));
@@ -531,39 +363,29 @@ ALBaseContext *al_enc_create() {
     return &(context->stAlEncBaseContext.stAlBaseContext);
 }
 
-RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
+S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
         return MPP_NULL_POINTER;
     }
 
-    if (!para) {
-        error("input para MppVencData is NULL, please check!");
+    if (!pstAttr) {
+        error("input para VencChnAttr is NULL, please check!");
         return MPP_NULL_POINTER;
-    }
-
-    S32 ret = 0;
-
-    ret = checkPixelFormatAndCodingTypeAndProfile(para->PixelFormat, para->eCodingType, para->nProfile);
-    if (ret) {
-        error("not support this format or profile, please check!");
-        return MPP_NOT_SUPPORTED_FORMAT;
     }
 
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
 
-    context->pVencPara = para;
-    context->ePixelFormat = para->PixelFormat;
-    context->eCodingType = para->eCodingType;
+    context->stAttr = *pstAttr;
+    context->ePixelFormat = pstAttr->eInputPixelFormat;
+    context->eCodecType = pstAttr->eCodecType;
     context->nInputFormatFourcc = get_linlonv5v7enc_codec_pixel_format(context->ePixelFormat);
-    context->nOutputFormatFourcc = get_linlonv5v7enc_codec_coding_type(context->eCodingType);
+    context->nOutputFormatFourcc = get_linlonv5v7enc_codec_coding_type(context->eCodecType);
     context->bIsBlockMode = MPP_FALSE;
-    context->nWidth = para->nWidth;
-    context->nHeight = para->nHeight;
-    context->nAlign = para->nAlign <= 0 ? 1 : para->nAlign;
-    // context->bIsInterlaced = para->bIsInterlaced;
-    context->nRotation = para->nRotateDegree;
-    // context->nScale = para->nScale;
+    context->nWidth = (S32)pstAttr->u32Width;
+    context->nHeight = (S32)pstAttr->u32Height;
+    context->nAlign = pstAttr->u32Align == 0 ? 1 : (S32)pstAttr->u32Align;
+    context->nRotation = (S32)pstAttr->u32RotateDegree;
     context->nInputMemType = V4L2_MEMORY_DMABUF;
     context->nOutputMemType = V4L2_MEMORY_MMAP;
     context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
@@ -571,19 +393,27 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
     context->bInputEos = MPP_FALSE;
     context->bOutputEos = MPP_FALSE;
     context->nInputQueuedNum = 0;
-    for (S32 i = 0; i < MAX_INPUT_BUF_NUM; i++) {
-        context->bBufferNeedReturned[i] = 0;
-    }
 
-    if (para->eFrameBufferType == MPP_FRAME_BUFFERTYPE_NORMAL_EXTERNAL) {
-        context->nInputMemType = V4L2_MEMORY_USERPTR;
+    MppFrameBufferType eBufferType;
+    switch (pstAttr->eFrameBufMode) {
+        case VENC_FRAME_BUF_DMABUF_INTERNAL:
+            eBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
+            break;
+        case VENC_FRAME_BUF_NORMAL_INTERNAL:
+            eBufferType = MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL;
+            break;
+        case VENC_FRAME_BUF_DMABUF_EXTERNAL:
+            eBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
+            break;
+        default:
+            eBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
+            break;
     }
-    para->eDataTransmissinMode = MPP_INPUT_SYNC_OUTPUT_SYNC;
 
     debug(
         "input para check: foramt:0x%x output format:0x%x", context->nInputFormatFourcc, context->nOutputFormatFourcc);
 
-    context->nVideoFd = find_v4l2_encoder(context->sDevicePath, get_linlonv5v7enc_codec_coding_type(para->eCodingType));
+    context->nVideoFd = find_v4l2_encoder(context->sDevicePath, context->nOutputFormatFourcc);
 
     if (-1 == context->nVideoFd) {
         error("can not find the v4l2 codec device, please check!");
@@ -607,23 +437,19 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
         ENCODER_INPUT_BUF_NUM,
         ENCODER_OUTPUT_BUF_NUM,
         context->bIsBlockMode,
-        para->eFrameBufferType);
+        eBufferType);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
         return MPP_INIT_FAILED;
     }
 
     // set some parameters on the stream level
-    // setH264MinQP(context, 1);
-    // setH264MaxQP(context, 20);
-
-    // setHEVCMinQP(context, 1);
-    // setHEVCMaxQP(context, 20);
-    setHEVCFixedQPI(context, 35);
-    setHEVCFixedQPP(context, 30);
-    setEncoderRateControl(context, "off", 0, 0);
+    applyInitialRateControl(context, pstAttr);
+    if (pstAttr->u32Gop > 0)
+        setPFrames(context, pstAttr->u32Gop);
+    if (pstAttr->u32FrameRate > 0)
+        setEncoderFramerate(context, pstAttr->u32FrameRate);
     setEncoderRotation(context, context->nRotation);
-    //  setEncoderMirror(context, 1); //hori
 
     // setformat, allocate buffer, stream on
     stream(context->stCodec);
@@ -633,95 +459,19 @@ RETURN al_enc_init(ALBaseContext *ctx, MppVencPara *para) {
     return MPP_OK;
 }
 
-S32 al_enc_encode(ALBaseContext *ctx, MppData *sink_data) {
+S32 al_enc_set_para(ALBaseContext *ctx, VencCmd cmd, const void *pParam) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
         return MPP_NULL_POINTER;
     }
 
-    /* linlonv5v7 uses async mode (send_input_frame + get_output_stream),
-     * so al_enc_encode is a no-op stub to satisfy the plugin symbol check. */
-    return MPP_OK;
-}
-
-S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+
     switch (cmd) {
-        case MPP_VENC_CMD_SET_PARAM_H264_FIXED_QP:
-            MppVencParaH264FixedQP *fixedQpParaH264 = (MppVencParaH264FixedQP *)para;
-            setH264FixedQPI(context, fixedQpParaH264->nIQp);
-            setH264FixedQPP(context, fixedQpParaH264->nPQp);
-            setH264FixedQPB(context, fixedQpParaH264->nBQp);
-            setPFrames(context, fixedQpParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_FIXED_QP:
-            MppVencParaHEVCFixedQP *fixedQpParaHEVC = (MppVencParaHEVCFixedQP *)para;
-            setHEVCFixedQPI(context, fixedQpParaHEVC->nIQp);
-            setHEVCFixedQPP(context, fixedQpParaHEVC->nPQp);
-            setHEVCFixedQPB(context, fixedQpParaHEVC->nBQp);
-            setPFrames(context, fixedQpParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_H264_CBR:
-            MppVencParaH264CBR *rcCbrParaH264 = (MppVencParaH264CBR *)para;
-            setH264EncMinQP(getOutputPort(context->stCodec), rcCbrParaH264->nMinQP);
-            setH264EncMaxQP(getOutputPort(context->stCodec), rcCbrParaH264->nMaxQP);
-            setPFrames(context, rcCbrParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_CBR:
-            MppVencParaHEVCCBR *rcCbrParaHEVC = (MppVencParaHEVCCBR *)para;
-            setHEVCEncMinQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMinQP);
-            setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCbrParaHEVC->nMaxQP);
-            setPFrames(context, rcCbrParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_H264_VBR:
-            MppVencParaH264VBR *rcVbrParaH264 = (MppVencParaH264VBR *)para;
-            setH264EncMinQP(getOutputPort(context->stCodec), rcVbrParaH264->nMinQP);
-            setH264EncMaxQP(getOutputPort(context->stCodec), rcVbrParaH264->nMaxQP);
-            setPFrames(context, rcVbrParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_VBR:
-            MppVencParaHEVCCBR *rcVbrParaHEVC = (MppVencParaHEVCCBR *)para;
-            setHEVCEncMinQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMinQP);
-            setHEVCEncMaxQP(getOutputPort(context->stCodec), rcVbrParaHEVC->nMaxQP);
-            setPFrames(context, rcVbrParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_H264_CVBR:
-            MppVencParaH264CVBR *rcCvbrParaH264 = (MppVencParaH264CVBR *)para;
-            setH264EncMinQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMinQP);
-            setH264EncMaxQP(getOutputPort(context->stCodec), rcCvbrParaH264->nMaxQP);
-            setPFrames(context, rcCvbrParaH264->nGop);
-            break;
-        case MPP_VENC_CMD_SET_PARAM_HEVC_CVBR:
-            MppVencParaHEVCCVBR *rcCvbrParaHEVC = (MppVencParaHEVCCVBR *)para;
-            setHEVCEncMinQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMinQP);
-            setHEVCEncMaxQP(getOutputPort(context->stCodec), rcCvbrParaHEVC->nMaxQP);
-            setPFrames(context, rcCvbrParaHEVC->nGop);
-            break;
-        case MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM:
-        case MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM:
-        case MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM:
-            MppVencRateControl *paramBitrate = (MppVencRateControl *)para;
-            setRateControl(getOutputPort(context->stCodec), (struct v4l2_rate_control *)paramBitrate);
-            break;
-        case MPP_VENC_CMD_SET_ROI_REGIONS_PARAM:
-            MppVencRoiRegions *paramRoi = (MppVencRoiRegions *)para;
-            setRoiRegion(getOutputPort(context->stCodec), (struct v4l2_mvx_roi_regions *)paramRoi);
-            break;
-        case MPP_VENC_CMD_SET_MIRROR:
-            MppVencMirror *paramMirror = (MppVencMirror *)para;
-            setEncoderMirror(context, paramMirror->nMirror);
-            break;
-        case MPP_VENC_CMD_SET_SLICE:
-            MppVencSlice *paramSlice = (MppVencSlice *)para;
-            setEncSliceSpacing(getOutputPort(context->stCodec), paramSlice->nSpacing);
-            break;
-        case MPP_VENC_CMD_SET_FRAMERATE: {
-            S32 *pFrameRate = (S32 *)para;
-            setEncoderFramerate(context, (U32)(*pFrameRate));
-            break;
-        }
-        case MPP_VENC_CMD_SET_RATE_CONTROL: {
-            VencRcAttr *pRcAttr = (VencRcAttr *)para;
+        case VENC_CMD_SET_RATE_CONTROL: {
+            const VencRcAttr *pRcAttr = (const VencRcAttr *)pParam;
+            if (!pRcAttr)
+                return MPP_NULL_POINTER;
             const char *rcMode = "off";
             S32 targetBitrate = (S32)pRcAttr->u32BitRate;
             S32 maxBitrate = (S32)pRcAttr->u32MaxBitRate;
@@ -742,7 +492,7 @@ S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
             }
             setEncoderRateControl(context, rcMode, targetBitrate, maxBitrate);
             if (pRcAttr->u32MinQp > 0 || pRcAttr->u32MaxQp > 0) {
-                if (context->eCodingType == CODING_H265) {
+                if (context->eCodecType == MPP_STREAM_CODEC_H265) {
                     setHEVCMinQP(context, pRcAttr->u32MinQp);
                     setHEVCMaxQP(context, pRcAttr->u32MaxQp);
                 } else {
@@ -751,7 +501,7 @@ S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
                 }
             }
             if (pRcAttr->enRcMode == VENC_RC_MODE_FIXQP) {
-                if (context->eCodingType == CODING_H265) {
+                if (context->eCodecType == MPP_STREAM_CODEC_H265) {
                     setHEVCFixedQPI(context, pRcAttr->u32IQp);
                     setHEVCFixedQPP(context, pRcAttr->u32PQp);
                     setHEVCFixedQPB(context, pRcAttr->u32BQp);
@@ -763,15 +513,24 @@ S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
             }
             break;
         }
-        case MPP_VENC_CMD_SET_CROP: {
-            VencCropAttr *pCrop = (VencCropAttr *)para;
+        case VENC_CMD_SET_FRAME_RATE: {
+            const VencFrameRateAttr *pFr = (const VencFrameRateAttr *)pParam;
+            if (!pFr)
+                return MPP_NULL_POINTER;
+            setEncoderFramerate(context, pFr->u32FrameRate);
+            break;
+        }
+        case VENC_CMD_SET_CROP: {
+            const VencCropAttr *pCrop = (const VencCropAttr *)pParam;
+            if (!pCrop)
+                return MPP_NULL_POINTER;
             setEncoderCropLeft(context, pCrop->s32Left);
             setEncoderCropRight(context, pCrop->s32Right);
             setEncoderCropTop(context, pCrop->s32Top);
             setEncoderCropBottom(context, pCrop->s32Bottom);
             break;
         }
-        case MPP_VENC_CMD_SET_FORCE_IDR: {
+        case VENC_CMD_SET_FORCE_IDR: {
             struct v4l2_control control;
             memset(&control, 0, sizeof(control));
             control.id = V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME;
@@ -781,38 +540,107 @@ S32 al_enc_set_para(ALBaseContext *ctx, MppVencCmd cmd, void *para) {
             }
             break;
         }
+        case VENC_CMD_SET_ROI: {
+            const VencRoiAttr *pRoi = (const VencRoiAttr *)pParam;
+            if (!pRoi)
+                return MPP_NULL_POINTER;
+            struct v4l2_mvx_roi_regions stRegions;
+            memset(&stRegions, 0, sizeof(stRegions));
+            stRegions.pic_index = pRoi->u32PicIndex;
+            stRegions.qp_present = pRoi->u8QpPresent;
+            stRegions.qp = pRoi->u8Qp;
+            stRegions.roi_present = pRoi->u8RoiPresent;
+            stRegions.num_roi = pRoi->u8NumRoi;
+            U32 u32Num = pRoi->u8NumRoi;
+            if (u32Num > V4L2_MVX_MAX_FRAME_REGIONS)
+                u32Num = V4L2_MVX_MAX_FRAME_REGIONS;
+            if (u32Num > MPP_MAX_FRAME_REGIONS)
+                u32Num = MPP_MAX_FRAME_REGIONS;
+            for (U32 i = 0; i < u32Num; i++) {
+                stRegions.roi[i].mbx_left = pRoi->stRoi[i].u16MbxLeft;
+                stRegions.roi[i].mbx_right = pRoi->stRoi[i].u16MbxRight;
+                stRegions.roi[i].mby_top = pRoi->stRoi[i].u16MbyTop;
+                stRegions.roi[i].mby_bottom = pRoi->stRoi[i].u16MbyBottom;
+                stRegions.roi[i].qp_delta = pRoi->stRoi[i].s16QpDelta;
+            }
+            setRoiRegion(getOutputPort(context->stCodec), &stRegions);
+            break;
+        }
+        case VENC_CMD_SET_MIRROR: {
+            const VencMirrorAttr *pMirror = (const VencMirrorAttr *)pParam;
+            if (!pMirror)
+                return MPP_NULL_POINTER;
+            setEncoderMirror(context, pMirror->s32Mirror);
+            break;
+        }
+        case VENC_CMD_SET_SLICE: {
+            const VencSliceAttr *pSlice = (const VencSliceAttr *)pParam;
+            if (!pSlice)
+                return MPP_NULL_POINTER;
+            setEncSliceSpacing(getOutputPort(context->stCodec), pSlice->s32Spacing);
+            break;
+        }
         default:
             return MPP_OK;
     }
     return MPP_OK;
 }
 
-S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
+/**
+ * @brief Wire one input frame's planes into a V4L2 buffer slot.
+ */
+static void setupInputFrame(ALLinlonv5v7EncContext *context, Buffer *buf, const VideoFrameInfo *pstFrame) {
+    S32 frameId = (S32)pstFrame->u32Idx;
+    const VideoFrame *pstV = &pstFrame->stVFrame;
+
+    if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
+        if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
+            setExternalUserPtrFrame(buf, (U8 *)pstV->ulPlaneVirAddr[0], (U8 *)pstV->ulPlaneVirAddr[1], NULL, frameId);
+        } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
+            setExternalUserPtrFrame(
+                buf,
+                (U8 *)pstV->ulPlaneVirAddr[0],
+                (U8 *)pstV->ulPlaneVirAddr[1],
+                (U8 *)pstV->ulPlaneVirAddr[2],
+                frameId);
+        } else if (
+            context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA || context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
+            context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA || context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
+            context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV || context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
+            setExternalUserPtrFrame(buf, (U8 *)pstV->ulPlaneVirAddr[0], NULL, NULL, frameId);
+        }
+    } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
+        setExternalDmaBuf(buf, (S32)pstV->u32Fd[0], (U8 *)pstV->ulPlaneVirAddr[0], frameId);
+    }
+    setTimeStamp(buf, (S64)pstV->u64PTS);
+}
+
+S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
         return MPP_NULL_POINTER;
     }
 
-    if (!sink_data) {
-        error("input para MppData is NULL, please check!");
+    if (!pstFrame) {
+        error("input para VideoFrameInfo is NULL, please check!");
         return MPP_NULL_POINTER;
     }
 
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
-    MppFrame *sink_frame = FRAME_GetFrame(sink_data);
     S32 ret = 0;
-    // struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
 
-    if (FRAME_GetEos(sink_frame) == FRAME_EOS_WITH_DATA) {
+    BOOL bEosFlag = (pstFrame->stVFrame.u32FrameFlag & MPP_FRAME_FLAG_EOS) ? MPP_TRUE : MPP_FALSE;
+
+    if (bEosFlag && pstFrame->stVFrame.u32PlaneNum > 0) {
         debug("eos flag of input frame with data is set, EOS is coming");
         context->bInputEos = MPP_TRUE;
     }
 
-    if (FRAME_GetEos(sink_frame) == FRAME_EOS_WITHOUT_DATA) {
+    if (bEosFlag && pstFrame->stVFrame.u32PlaneNum == 0) {
         debug("eos flag of input frame without data is set, EOS is coming");
         context->bInputEos = MPP_TRUE;
 
-        // gstreamer last sink_data only had eos flag, no memory
+        // gstreamer last frame may only carry the eos flag, no memory
         sendEncStopCommand(getInputPort(context->stCodec));
         return MPP_OK;
     }
@@ -820,38 +648,10 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
     if (unlikely(context->nInputQueuedNum < (U32)getBufNum(getInputPort(context->stCodec)))) {
         Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
         struct v4l2_buffer *b = getV4l2Buffer(buf);
-        if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-            if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
-                setExternalUserPtrFrame(
-                    buf,
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                    NULL,
-                    FRAME_GetID(sink_frame));
-            } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
-                setExternalUserPtrFrame(
-                    buf,
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 2),
-                    FRAME_GetID(sink_frame));
-            } else if (
-                context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA || context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
-                context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA || context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
-                context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV || context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY
-            ) {
-                setExternalUserPtrFrame(
-                    buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, FRAME_GetID(sink_frame));
-            }
-        } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
-            setExternalDmaBuf(
-                buf, FRAME_GetFD(sink_frame, 0),
-                (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                FRAME_GetID(sink_frame));
-        }
-        setTimeStamp(buf, FRAME_GetPts(sink_frame));
 
-        queueBuffer(getInputPort(context->stCodec), buf);
+        setupInputFrame(context, buf, pstFrame);
+
+        ret = queueBuffer(getInputPort(context->stCodec), buf);
         if (ret) {
             error("Failed to queue buffer. type = %d (%s)", b->type, strerror(errno));
             return MPP_IOCTL_FAILED;
@@ -892,46 +692,32 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, MppData *sink_data) {
         }
 
         /*
-         * extra_id must carry the input frame ID so that al_enc_return_input_frame()
-         * (which returns getExtraId() of the dequeued buffer) reports the correct
-         * frame back to the caller. bufIdx only selects which Buffer slot to reuse
-         * and must NOT be stored as the frame ID, otherwise the caller sees an
-         * internal buffer index instead of its own frame ID.
+         * extra_id must carry the input frame ID (u32Idx) so that
+         * al_enc_return_input_frame() (which returns getExtraId() of the
+         * dequeued buffer) reports the correct frame back to the caller.
+         * bufIdx only selects which Buffer slot to reuse and must NOT be
+         * stored as the frame ID.
          */
-        S32 frameId = FRAME_GetID(sink_frame);
-            if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-                if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
-                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), NULL, frameId);
-                } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
-                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0),
-                    (U8 *)FRAME_GetDataPointer(sink_frame, 1), (U8 *)FRAME_GetDataPointer(sink_frame, 2), frameId);
-            } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA ||
-                        context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
-                        context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA ||
-                        context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
-                        context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV ||
-                        context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
-                setExternalUserPtrFrame(buf, (U8 *)FRAME_GetDataPointer(sink_frame, 0), NULL, NULL, frameId);
-                }
-            } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
-            setExternalDmaBuf(buf, FRAME_GetFD(sink_frame, 0), (U8 *)FRAME_GetDataPointer(sink_frame, 0), frameId);
-            }
-            setTimeStamp(buf, FRAME_GetPts(sink_frame));
-            setEndOfStream(buf, context->bInputEos);
-            ret = queueBuffer(getInputPort(context->stCodec), buf);
-            if (ret) {
-                error("should not queue fail, please check!");
-                return MPP_POLL_FAILED;
-            }
-            setIsQueued(buf, MPP_TRUE);
+        setupInputFrame(context, buf, pstFrame);
+        setEndOfStream(buf, context->bInputEos);
+        ret = queueBuffer(getInputPort(context->stCodec), buf);
+        if (ret) {
+            error("should not queue fail, please check!");
+            return MPP_POLL_FAILED;
+        }
+        setIsQueued(buf, MPP_TRUE);
         context->nInputQueuedNum++;
     }
 
     return MPP_OK;
 }
 
-S32 al_enc_return_input_frame(ALBaseContext *ctx, MppData *sink_data) {
+S32 al_enc_return_input_frame(ALBaseContext *ctx) {
+    if (!ctx) {
+        error("input para ALBaseContext is NULL, please check!");
+        return -1;
+    }
+
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
     S32 ret = 0;
     struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
@@ -943,108 +729,143 @@ S32 al_enc_return_input_frame(ALBaseContext *ctx, MppData *sink_data) {
             error(
                 "dequeueBuffer failed, this dequeueBuffer must successed, because it "
                 "is after Poll, please check!");
+            return -1;
         }
         setIsQueued(buffer, MPP_FALSE);
         return getExtraId(buffer);
-    } else {
-        // error("can not get input buffer");
-        // usleep(2000);
-        return -1;
     }
 
     return -1;
 }
 
-S32 al_enc_get_output_stream(ALBaseContext *ctx, MppData *src_data) {
+S32 al_enc_request_output_stream(ALBaseContext *ctx, StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
         return MPP_NULL_POINTER;
     }
 
-    if (!src_data) {
-        error("input para MppData is NULL, please check!");
+    if (!pstStream || !pstStream->pu8Addr) {
+        error("input para StreamBufferInfo is NULL, please check!");
         return MPP_NULL_POINTER;
     }
 
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
     S32 ret = 0;
     struct pollfd p = {.fd = context->nVideoFd, .events = POLLIN};
-    void *out_ptr = PACKET_GetDataPointer(PACKET_GetPacket(src_data));
+    U8 *out_ptr = (U8 *)pstStream->pu8Addr;
+    U32 u32Capacity = pstStream->u32Size;
 
-    ret = runPoll(context->stCodec, &p);
-    if (MPP_OK == ret && p.revents & POLLIN) {
-        Buffer *buffer = dequeueBuffer(getOutputPort(context->stCodec));
-        struct v4l2_buffer *b = getV4l2Buffer(buffer);
-
-        // stash SPS/PPS
-        if ((b->flags & V4L2_BUF_FLAG_MVX_CODEC_CONFIG) == V4L2_BUF_FLAG_MVX_CODEC_CONFIG) {
-            if (context->nHeaderSize == 0) {
-                context->pHeader = malloc(b->bytesused);
-                context->nHeaderSize = b->bytesused;
-            } else if (context->nHeaderSize < b->bytesused) {
-                void *temp = realloc(context->pHeader, b->bytesused);
-                if (temp == NULL) {
-                    free(context->pHeader);
-                    context->pHeader = NULL;
-                    context->nHeaderSize = 0;
-                }
-                context->pHeader = temp;
-                context->nHeaderSize = b->bytesused;
-            }
-            if (context->pHeader != NULL) {
-                if (context->eCodingType == CODING_H265 || context->eCodingType == CODING_VP9) {
-                    memcpy(context->pHeader, getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
-                } else {
-                    memcpy(context->pHeader, getUserPtr(buffer, 0), b->bytesused);
-                }
-            }
-            return MPP_CODER_NO_DATA;
-        }
-
-        // add SPS/PPS to IDR
-        if (b->flags & V4L2_BUF_FLAG_KEYFRAME) {
-            if (context->pHeader != NULL) {
-                memcpy(out_ptr, context->pHeader, context->nHeaderSize);
-                out_ptr += context->nHeaderSize;
-            }
-        }
-
-        if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
-            debug("Capture EOS.");
-            context->bOutputEos = MPP_TRUE;
-        }
-        // if (buffer == NULL) return MPP_CODER_NO_DATA;
-        if (context->eCodingType == CODING_H265 || context->eCodingType == CODING_VP9) {
-            memcpy(out_ptr, getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
-        } else {
-            memcpy(out_ptr, getUserPtr(buffer, 0), b->bytesused);
-        }
-        if (b->flags & V4L2_BUF_FLAG_KEYFRAME) {
-            PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused + context->nHeaderSize);
-        } else {
-            PACKET_SetLength(PACKET_GetPacket(src_data), b->bytesused);
-        }
-        PACKET_SetPts(PACKET_GetPacket(src_data), (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
-        resetVendorFlags(buffer);
-        queueBuffer(getOutputPort(context->stCodec), buffer);
-
-        if (context->bOutputEos)
-            return MPP_CODER_EOS;
-    } else {
-        // usleep(2000);
+    S32 nTimeoutMs = (u32TimeoutMs == (U32)-1) ? -1 : (S32)u32TimeoutMs;
+    ret = poll(&p, 1, nTimeoutMs);
+    if (ret < 0) {
+        error("poll returned error: %s", strerror(errno));
+        return MPP_POLL_FAILED;
+    }
+    if (ret == 0 || !(p.revents & POLLIN) || (p.revents & POLLERR)) {
         return MPP_CODER_NO_DATA;
     }
+
+    Buffer *buffer = dequeueBuffer(getOutputPort(context->stCodec));
+    if (!buffer)
+        return MPP_CODER_NO_DATA;
+    struct v4l2_buffer *b = getV4l2Buffer(buffer);
+
+    // stash SPS/PPS
+    if ((b->flags & V4L2_BUF_FLAG_MVX_CODEC_CONFIG) == V4L2_BUF_FLAG_MVX_CODEC_CONFIG) {
+        if (context->nHeaderSize == 0) {
+            context->pHeader = malloc(b->bytesused);
+            context->nHeaderSize = b->bytesused;
+        } else if (context->nHeaderSize < b->bytesused) {
+            void *temp = realloc(context->pHeader, b->bytesused);
+            if (temp == NULL) {
+                free(context->pHeader);
+                context->pHeader = NULL;
+                context->nHeaderSize = 0;
+            }
+            context->pHeader = temp;
+            context->nHeaderSize = b->bytesused;
+        }
+        if (context->pHeader != NULL) {
+            if (context->eCodecType == MPP_STREAM_CODEC_H265 || context->eCodecType == MPP_STREAM_CODEC_VP9) {
+                memcpy(context->pHeader, getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
+            } else {
+                memcpy(context->pHeader, getUserPtr(buffer, 0), b->bytesused);
+            }
+        }
+        resetVendorFlags(buffer);
+        queueBuffer(getOutputPort(context->stCodec), buffer);
+        return MPP_CODER_NO_DATA;
+    }
+
+    BOOL bKeyFrame = (b->flags & V4L2_BUF_FLAG_KEYFRAME) ? MPP_TRUE : MPP_FALSE;
+    U32 u32HeaderSize = (bKeyFrame && context->pHeader) ? context->nHeaderSize : 0;
+    U32 u32PayloadSize = b->bytesused + u32HeaderSize;
+
+    /* capacity check before any memcpy (the legacy plugin copied unchecked) */
+    if (u32PayloadSize > u32Capacity) {
+        error("output stream buffer too small: need %u, have %u", u32PayloadSize, u32Capacity);
+        resetVendorFlags(buffer);
+        queueBuffer(getOutputPort(context->stCodec), buffer);
+        return MPP_OUT_OF_MEM;
+    }
+
+    // add SPS/PPS to IDR
+    if (u32HeaderSize > 0) {
+        memcpy(out_ptr, context->pHeader, u32HeaderSize);
+        out_ptr += u32HeaderSize;
+    }
+
+    if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
+        debug("Capture EOS.");
+        context->bOutputEos = MPP_TRUE;
+    }
+
+    if (context->eCodecType == MPP_STREAM_CODEC_H265 || context->eCodecType == MPP_STREAM_CODEC_VP9) {
+        memcpy(out_ptr, getUserPtrForHevcAndVp9Encode(buffer, 0), b->bytesused);
+    } else {
+        memcpy(out_ptr, getUserPtr(buffer, 0), b->bytesused);
+    }
+
+    pstStream->u32Size = u32PayloadSize;
+    pstStream->u64PTS = (U64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec);
+    pstStream->bKeyFrame = bKeyFrame;
+    pstStream->bEndOfStream = context->bOutputEos;
+    pstStream->eCodecType = context->eCodecType;
+    pstStream->u32Width = (U32)context->nWidth;
+    pstStream->u32Height = (U32)context->nHeight;
+
+    resetVendorFlags(buffer);
+    queueBuffer(getOutputPort(context->stCodec), buffer);
+
+    if (context->bOutputEos)
+        return MPP_CODER_EOS;
+
     return MPP_OK;
 }
 
-S32 al_enc_request_output_stream(ALBaseContext *ctx, MppData *src_data) {
-    /* For linlonv5v7, request_output_stream shares the same logic as
-     * get_output_stream: poll capture port and dequeue encoded data. */
-    return al_enc_get_output_stream(ctx, src_data);
-}
+S32 al_enc_get_status(ALBaseContext *ctx, VencChnStatus *pstStatus) {
+    if (!ctx || !pstStatus) {
+        error("input para is NULL, please check!");
+        return MPP_NULL_POINTER;
+    }
 
-S32 al_enc_return_output_stream(ALBaseContext *ctx, MppData *src_data) {
-    /* Buffer is already re-queued inside get_output_stream, nothing to do. */
+    ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+
+    U32 u32Queued = 0;
+    if (context->stCodec) {
+        S32 nBufNum = getBufNum(getInputPort(context->stCodec));
+        for (S32 i = 0; i < nBufNum; i++) {
+            Buffer *buf = getBuffer(getInputPort(context->stCodec), i);
+            if (buf && getIsQueued(buf))
+                u32Queued++;
+        }
+    }
+    pstStatus->u32LeftInputFrames = u32Queued;
+    pstStatus->u32LeftOutputStreams = 0;
+    pstStatus->u32Width = (U32)context->nWidth;
+    pstStatus->u32Height = (U32)context->nHeight;
+    pstStatus->bEndOfStream = context->bOutputEos;
+
     return MPP_OK;
 }
 
@@ -1056,8 +877,6 @@ S32 al_enc_flush(ALBaseContext *ctx) {
     debug("Flush start ========================================");
     handleFlush(context->stCodec, MPP_FALSE);
     context->nInputQueuedNum = 0;
-    // context->pVdecPara->nInputQueueLeftNum =
-    //     getBufNum(getInputPort(context->stCodec));
     debug("Flush finish ========================================");
 
     return MPP_OK;
@@ -1080,6 +899,10 @@ void al_enc_destory(ALBaseContext *ctx) {
         debug("destory codec finish");
 
         close(context->nVideoFd);
+    }
+    if (context->pHeader) {
+        free(context->pHeader);
+        context->pHeader = NULL;
     }
     free(context);
     context = NULL;

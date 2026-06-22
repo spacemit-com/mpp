@@ -1,24 +1,20 @@
 /*
- * Copyright 2022-2023 SPACEMIT. All rights reserved.
+ * Copyright 2022-2026 SPACEMIT. All rights reserved.
  * Use of this source code is governed by a BSD-style license
  * that can be found in the LICENSE file.
  *
- * @Author: David(qiang.fu@spacemit.com)
- * @Date: 2023-02-01 09:34:01
- * @LastEditTime: 2026-04-20 11:06:49
- * @Description: base class of the abstract layer interface
+ * @Description: base definitions of the abstract layer interface.
+ *               AL plugins directly consume MPI public structs
+ *               (VdecChnAttr / VencChnAttr / VideoFrameInfo / StreamBufferInfo).
  */
 
 #ifndef AL_INTERFACE_BASE_H
 #define AL_INTERFACE_BASE_H
 
-#include "data.h"
-#include "dataqueue.h"
-#include "frame.h"
-#include "packet.h"
 #include "para.h"
-#include "ringbuffer.h"
-#include "vb_type.h"
+#include "sys/sys_type.h"
+#include "sys/type.h"
+#include "sys/vb_type.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,33 +53,33 @@ extern "C" {
 
 #define CODING_TYPE_MAPPING_DEFINE(Type, format)  \
     typedef struct _AL##Type##CodingTypeMapping { \
-        MppCodingType eMppCodingType;             \
+        MppStreamCodecType eMppCodecType;         \
         format e##Type##CodingType;               \
     } AL##Type##CodingTypeMapping;
 
 #define CODING_TYPE_MAPPING_CONVERT(Type, type, format)                           \
-    static MppCodingType get_##type##_mpp_coding_type(format src_type) {          \
+    static MppStreamCodecType get_##type##_mpp_coding_type(format src_type) {     \
         S32 i = 0;                                                                \
         S32 mapping_length = NUM_OF(stAL##Type##CodingTypeMapping);               \
         for (i = 0; i < mapping_length; i++) {                                    \
             if (src_type == stAL##Type##CodingTypeMapping[i].e##Type##CodingType) \
-                return stAL##Type##CodingTypeMapping[i].eMppCodingType;           \
+                return stAL##Type##CodingTypeMapping[i].eMppCodecType;            \
         }                                                                         \
                                                                                     \
         error("Can not find the mapping format, please check it !");              \
-        return CODING_UNKNOWN;                                                    \
+        return MPP_STREAM_CODEC_UNKNOWN;                                          \
     }                                                                             \
                                                                                     \
-    static format get_##type##_codec_coding_type(MppCodingType src_type) {        \
+    static format get_##type##_codec_coding_type(MppStreamCodecType src_type) {   \
         S32 i = 0;                                                                \
         S32 mapping_length = NUM_OF(stAL##Type##CodingTypeMapping);               \
         for (i = 0; i < mapping_length; i++) {                                    \
-            if (src_type == stAL##Type##CodingTypeMapping[i].eMppCodingType)      \
+            if (src_type == stAL##Type##CodingTypeMapping[i].eMppCodecType)       \
                 return stAL##Type##CodingTypeMapping[i].e##Type##CodingType;      \
         }                                                                         \
                                                                                     \
         error("Can not find the mapping coding type, please check it !");         \
-        return CODING_UNKNOWN;                                                    \
+        return (format)0;                                                         \
     }
 
 /*

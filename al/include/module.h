@@ -14,8 +14,7 @@
 
 #include <dlfcn.h>
 
-#include "frame.h"
-#include "packet.h"
+#include "para.h"
 
 #define MAX_PATH_LENGTH 2048
 

@@ -1,5 +1,5 @@
 # ============================================================
-# utils  →  shared helpers (frame, packet, log, v4l2, dma-buf, …)
+# utils  →  shared helpers (log, v4l2, dma-buf, …)
 # Built as an OBJECT library, aggregated into libmpp.so.
 # ============================================================
 
@@ -9,13 +9,9 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 set(MPP_UTILS_SRCS
-    dataqueue.c
     dmabufwrapper.c
     env.c
-    frame.c
     log.c
-    packet.c
-    ringbuffer.c
     v4l2_utils.c
     os/linux/os_env.c
     os/linux/os_log.c
