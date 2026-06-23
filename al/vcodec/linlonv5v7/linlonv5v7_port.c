@@ -1516,7 +1516,7 @@ S32 getBufHeight(Port *port) {
     return port->stFormat.fmt.pix_mp.height;
 }
 
-S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
+S32 handleInputBuffer(Port *port, BOOL eof, const StreamBufferInfo *pstStream) {
     S32 index;
     S32 ret;
     Buffer *buffer = dequeueBuffer(port);
@@ -1539,23 +1539,10 @@ S32 handleInputBuffer(Port *port, BOOL eof, MppData *data) {
 
     if (V4L2_BUF_TYPE_VIDEO_OUTPUT == port->eBufType && V4L2_MEMORY_MMAP == port->nMemType) {
         // decode input
-        MppPacket *packet = PACKET_GetPacket(data);
-        memcpy(getUserPtr(buffer, 0), PACKET_GetDataPointer(packet), PACKET_GetLength(packet));
-        b->bytesused = PACKET_GetLength(packet);
-        setTimeStamp(port->stBuf[b->index], PACKET_GetPts(packet));
+        memcpy(getUserPtr(buffer, 0), pstStream->pu8Addr, pstStream->u32Size);
+        b->bytesused = pstStream->u32Size;
+        setTimeStamp(port->stBuf[b->index], (S64)pstStream->u64PTS);
         setEndOfFrame(buffer, MPP_TRUE);
-        // debug("xxx %x %x %x timestamp: %lld",
-        //       *(S32 *)port->stBuf[b->index]->pUserPtr[0],
-        //       *(S32 *)(port->stBuf[b->index]->pUserPtr[0] + 4),
-        //       *(S32 *)(port->stBuf[b->index]->pUserPtr[0] + 8),
-        //       PACKET_GetPts(packet));
-    } else if (V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE == port->eBufType && V4L2_MEMORY_DMABUF == port->nMemType) {
-        // encode input
-        MppFrame *frame = FRAME_GetFrame(data);
-        struct v4l2_buffer *b = getV4l2Buffer(buffer);
-
-        setExternalDmaBuf(buffer, FRAME_GetFD(frame, 0), (U8 *)FRAME_GetDataPointer(frame, 0), FRAME_GetID(frame));
-        setTimeStamp(port->stBuf[b->index], FRAME_GetPts(frame));
     }
 
     setEndOfStream(buffer, eof);
@@ -1610,13 +1597,12 @@ static MppPixelFormat linlon_port_v4l2_to_mpp_pixel(U32 pixfmt) {
     }
 }
 
-S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
+S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
     Buffer *buffer = dequeueBuffer(port);
     if (!buffer)
         return MPP_CODER_NO_DATA;
 
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
-    MppFrame *frame = FRAME_GetFrame(data);
 
     if (V4L2_BUF_TYPE_VIDEO_CAPTURE == port->eBufType) {
         if (V4L2_MEMORY_MMAP == port->nMemType) {
@@ -1625,60 +1611,64 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
             // to do
         }
     } else if (V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE == port->eBufType) {
+        U32 nPlanes = b->length;
+        if (nPlanes > FRAME_MAX_PLANE)
+            nPlanes = FRAME_MAX_PLANE;
+        pstFrame->stVFrame.u32PlaneNum = nPlanes;
         if (V4L2_MEMORY_DMABUF == port->nMemType) {
-            FRAME_SetDataUsedNum(frame, b->length);
-            for (U32 i = 0; i < b->length; i++) {
-                FRAME_SetFD(frame, b->m.planes[i].m.fd, i);
-                FRAME_SetDataPointer(frame, i, getUserPtr(buffer, i));
+            for (U32 i = 0; i < nPlanes; i++) {
+                pstFrame->stVFrame.u32Fd[i] = (UL)b->m.planes[i].m.fd;
+                pstFrame->stVFrame.ulPlaneVirAddr[i] = (UL)getUserPtr(buffer, i);
             }
-            FRAME_SetID(frame, b->index);
-            FRAME_SetBufferType(frame, MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL);
-
-            // debug("request output idx = %d", b->index);
         } else if (V4L2_MEMORY_MMAP == port->nMemType) {
-            FRAME_SetDataUsedNum(frame, b->length);
-            for (U32 i = 0; i < b->length; i++) {
-                FRAME_SetDataPointer(frame, i, getUserPtr(buffer, i));
+            for (U32 i = 0; i < nPlanes; i++) {
+                pstFrame->stVFrame.ulPlaneVirAddr[i] = (UL)getUserPtr(buffer, i);
             }
-
-            FRAME_SetID(frame, b->index);
-            FRAME_SetBufferType(frame, MPP_FRAME_BUFFERTYPE_NORMAL_EXTERNAL);
         }
+        pstFrame->u32Idx = (U32)b->index;
+        pstFrame->stVFrame.u64PTS = (U64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec);
 
-        FRAME_SetPts(frame, (S64)(b->timestamp.tv_sec * 1000000 + b->timestamp.tv_usec));
-
-        /* Fill MppFrame geometry so upper layers (VDEC_RecvFrame / VideoFrameInfo)
-         * see non-zero width/height/format/stride; linlon DQBUF only wires fds/ptrs. */
+        /* Fill geometry and true per-plane layout from the V4L2 format so the
+         * caller never has to guess strides or plane sizes. */
         if (port->ePortDirection == OUTPUT) {
             if (port->stFormat.fmt.pix_mp.width == 0 || port->stFormat.fmt.pix_mp.height == 0) {
                 getPortFormat(port);
             }
             const struct v4l2_pix_format_mplane *mp = &port->stFormat.fmt.pix_mp;
+            pstFrame->eFrameType = FRAME_TYPE_VDEC;
+            CommonFrameInfo *pstComm = &pstFrame->stVdecFrameInfo.stCommFrameInfo;
             if (mp->width > 0 && mp->height > 0) {
-                FRAME_SetWidth(frame, (S32)mp->width);
-                FRAME_SetHeight(frame, (S32)mp->height);
+                pstComm->u32Width = mp->width;
+                pstComm->u32Height = mp->height;
             }
-            /* bytesperline lives in pix_mp.plane_fmt[], not in struct v4l2_plane
-             * (older kernels' v4l2_plane has no bytesperline member). */
-            S32 bytesperline = 0;
-            if (mp->num_planes > 0)
-                bytesperline = (S32)mp->plane_fmt[0].bytesperline;
-            if (bytesperline <= 0 && mp->width > 0) {
-                S32 al = port->nAlign > 0 ? port->nAlign : 64;
-                bytesperline = (S32)ST_ALIGN_UP((S32)mp->width, al);
+            pstComm->u32Align = port->nAlign > 0 ? (U32)port->nAlign : 1;
+
+            U32 u32Total = 0;
+            for (U32 i = 0; i < nPlanes; i++) {
+                /* bytesperline lives in pix_mp.plane_fmt[], not in struct
+                 * v4l2_plane (older kernels' v4l2_plane has no bytesperline). */
+                U32 stride = (i < mp->num_planes) ? mp->plane_fmt[i].bytesperline : 0;
+                if (stride == 0 && mp->width > 0) {
+                    S32 al = port->nAlign > 0 ? port->nAlign : 64;
+                    stride = (U32)ST_ALIGN_UP((S32)mp->width, al);
+                }
+                pstFrame->stVFrame.u32PlaneStride[i] = stride;
+                pstFrame->stVFrame.u32PlaneSize[i] = (i < mp->num_planes) ? mp->plane_fmt[i].sizeimage : 0;
+                pstFrame->stVFrame.u32PlaneSizeValid[i] = b->m.planes[i].bytesused;
+                u32Total += pstFrame->stVFrame.u32PlaneSize[i];
             }
-            if (bytesperline > 0)
-                FRAME_SetLineStride(frame, bytesperline);
+            pstFrame->stVFrame.u32TotalSize = u32Total;
 
             MppPixelFormat mpp_pf = linlon_port_v4l2_to_mpp_pixel(port->nFormatFourcc);
             if (mpp_pf != MPP_PIXEL_FORMAT_UNKNOWN)
-                FRAME_SetPixelFormat(frame, (S32)mpp_pf);
+                pstComm->ePixelFormat = mpp_pf;
         }
     }
 
     /* EOS on capture port-> */
     if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
         debug("Capture EOS");
+        pstFrame->stVdecFrameInfo.bEndOfStream = MPP_TRUE;
         return MPP_CODER_EOS;
     }
 
@@ -1739,7 +1729,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
             // to do
         } else if (V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE == port->eBufType) {
             for (U32 i = 0; i < b->length; i++) {
-                fwrite(FRAME_GetDataPointer(frame, i), b->m.planes[i].length, 1, port->pOutputFile);
+                fwrite(getUserPtr(buffer, i), b->m.planes[i].length, 1, port->pOutputFile);
             }
         }
     }
@@ -1767,73 +1757,6 @@ S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data) {
     }
 
     return MPP_OK;
-}
-
-BOOL handleBuffer(Port *port, BOOL eof, MppData *data) {
-    Buffer *buffer = dequeueBuffer(port);
-    struct v4l2_buffer *b = getV4l2Buffer(buffer);
-    if (eof) {
-        if (port->bTryDecStop) {
-            sendDecStopCommand(port);
-        }
-        return MPP_TRUE;
-    }
-
-    /* EOS on capture port-> */
-    if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
-        debug("Capture EOS.");
-        return MPP_TRUE;
-    }
-
-    /* Resolution change. we should only handle this on decode
-     * output:V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE*/
-    if (!V4L2_TYPE_IS_OUTPUT(b->type) && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
-        (0 == getBytesUsed(b) ||
-            (b->flags & V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) != V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) &&
-        0 == (b->flags & V4L2_BUF_FLAG_ERROR)) {
-        struct v4l2_format fmt = port->stFormat;
-        getPortFormat(port);
-        BOOL isResChange = MPP_TRUE;
-        if (V4L2_TYPE_IS_MULTIPLANAR(port->eBufType)) {
-            struct v4l2_pix_format_mplane f = fmt.fmt.pix_mp;
-            isResChange =
-                ((f.width != port->stFormat.fmt.pix_mp.width) || (f.height != port->stFormat.fmt.pix_mp.height)) &&
-                (f.width * f.height) < (port->stFormat.fmt.pix_mp.height * port->stFormat.fmt.pix_mp.width);
-        } else {
-            struct v4l2_pix_format f = fmt.fmt.pix;
-            isResChange = ((f.width != port->stFormat.fmt.pix.width) || (f.height != port->stFormat.fmt.pix.height)) &&
-                (f.width * f.height) < (port->stFormat.fmt.pix.height * port->stFormat.fmt.pix.width);
-        }
-        if ((b->flags & V4L2_BUF_FLAG_MVX_BUFFER_NEED_REALLOC) == V4L2_BUF_FLAG_MVX_BUFFER_NEED_REALLOC) {
-            debug("Resolution changed:%d", isResChange);
-            handleResolutionChange(port, eof);
-            return MPP_FALSE;
-        }
-    }
-
-    /* Remove vendor custom flags. */
-    // decoder specfied frames count to be processed
-    if (port->ePortDirection == OUTPUT && V4L2_TYPE_IS_MULTIPLANAR(b->type) &&
-        (b->flags & V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) == V4L2_BUF_FLAG_MVX_BUFFER_FRAME_PRESENT) {
-        port->nFramesProcessed++;
-    }
-    resetVendorFlags(buffer);
-    if (port->ePortDirection == OUTPUT && port->nFramesCount > 0 && port->nFramesProcessed >= port->nFramesCount) {
-        clearBytesUsed(buffer);
-        setEndOfStream(buffer, MPP_TRUE);
-        queueBuffer(port, buffer);
-        return MPP_TRUE;
-    } else {
-        setEndOfStream(buffer, eof);
-    }
-
-    queueBuffer(port, buffer);
-
-    if (eof) {
-        sendEncStopCommand(port);
-    }
-
-    return MPP_TRUE;
 }
 
 void handleResolutionChange(Port *port, BOOL eof) {

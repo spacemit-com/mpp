@@ -4,7 +4,6 @@
 
 set(VENC_SRCS
     venc.c
-    venc_api.c
 )
 
 add_library(mpp_venc OBJECT ${VENC_SRCS})

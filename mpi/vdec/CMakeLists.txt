@@ -4,7 +4,6 @@
 
 set(VDEC_SRCS
     vdec.c
-    vdec_api.c
 )
 
 add_library(mpp_vdec OBJECT ${VDEC_SRCS})

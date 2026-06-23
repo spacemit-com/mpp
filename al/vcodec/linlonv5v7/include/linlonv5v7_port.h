@@ -22,14 +22,13 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "data.h"
-#include "frame.h"
 #include "linlonv5v7_buffer.h"
 #include "linlonv5v7_constant.h"
 #include "log.h"
 #include "mvx-v4l2-controls.h"
-#include "packet.h"
+#include "sys_type.h"
 #include "v4l2_utils.h"
+#include "vb_type.h"
 
 /***
  * V4L2_CID_MVE_VIDEO_NALU_FORMAT
@@ -224,9 +223,8 @@ Buffer *dequeueBuffer(Port *port);
  */
 void printBuffer(Port *port, struct v4l2_buffer buf, const char *prefix);
 
-BOOL handleBuffer(Port *port, BOOL eof, MppData *data);
-S32 handleInputBuffer(Port *port, BOOL eof, MppData *data);
-S32 handleOutputBuffer(Port *port, BOOL eof, MppData *data);
+S32 handleInputBuffer(Port *port, BOOL eof, const StreamBufferInfo *pstStream);
+S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame);
 
 /**
  * @description: handle resolution changed info

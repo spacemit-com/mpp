@@ -212,6 +212,9 @@ typedef enum _ColorSpace {
     COLOR_SPACE_MAX
 } ColorSpace;
 
+/* Bit flags for VideoFrame.u32FrameFlag */
+#define MPP_FRAME_FLAG_EOS (1u << 0) /**< end of stream: with planes = EOS-with-data, u32PlaneNum==0 = empty EOS */
+
 typedef struct _VideoFrame {
     U32 u32TotalSize;
     U32 u32PlaneNum;
@@ -286,7 +289,7 @@ typedef struct _VdecFrameInfo {
 typedef struct _VideoFrameInfo {
     VideoFrame stVFrame;
     FrameType eFrameType;
-    U32 u32Idx;
+    U32 u32Idx; /**< for VDEC/VENC in-flight frames: V4L2 buffer index, owned by the codec plugin */
     ModId eModId;
     UL ulPoolId;
     UL ulBufferId;

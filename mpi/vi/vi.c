@@ -2,6 +2,7 @@
 #include "vi_al_ops.h"
 
 #include <dlfcn.h>
+#include <linux/videodev2.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>

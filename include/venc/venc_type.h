@@ -45,26 +45,19 @@ extern "C" {
 
 /* ======================== Enums ======================== */
 
-typedef enum {
-    MPP_VENC_CMD_SET_PARAM_H264_FIXED_QP,
-    MPP_VENC_CMD_SET_PARAM_HEVC_FIXED_QP,
-    MPP_VENC_CMD_SET_PARAM_H264_CBR,
-    MPP_VENC_CMD_SET_PARAM_H264_VBR,
-    MPP_VENC_CMD_SET_PARAM_H264_CVBR,
-    MPP_VENC_CMD_SET_PARAM_HEVC_CBR,
-    MPP_VENC_CMD_SET_PARAM_HEVC_VBR,
-    MPP_VENC_CMD_SET_PARAM_HEVC_CVBR,
-    MPP_VENC_CMD_SET_CBR_RATE_CONTROL_PARAM,
-    MPP_VENC_CMD_SET_VBR_RATE_CONTROL_PARAM,
-    MPP_VENC_CMD_SET_CVBR_RATE_CONTROL_PARAM,
-    MPP_VENC_CMD_SET_ROI_REGIONS_PARAM,
-    MPP_VENC_CMD_SET_MIRROR,
-    MPP_VENC_CMD_SET_SLICE,
-    MPP_VENC_CMD_SET_FRAMERATE,
-    MPP_VENC_CMD_SET_RATE_CONTROL,
-    MPP_VENC_CMD_SET_CROP,
-    MPP_VENC_CMD_SET_FORCE_IDR
-} MppVencCmd;
+/**
+ * @brief VENC dynamic parameter commands (passed to AL plugin via al_enc_set_para)
+ */
+typedef enum _VencCmd {
+    VENC_CMD_SET_RATE_CONTROL = 0, /**< param: VencRcAttr */
+    VENC_CMD_SET_FRAME_RATE,       /**< param: VencFrameRateAttr */
+    VENC_CMD_SET_CROP,             /**< param: VencCropAttr */
+    VENC_CMD_SET_FORCE_IDR,        /**< param: NULL */
+    VENC_CMD_SET_ROI,              /**< param: VencRoiAttr */
+    VENC_CMD_SET_MIRROR,           /**< param: VencMirrorAttr */
+    VENC_CMD_SET_SLICE,            /**< param: VencSliceAttr */
+    VENC_CMD_MAX
+} VencCmd;
 
 /**
  * @brief Frame buffer input mode for encoder
@@ -125,6 +118,18 @@ typedef struct _VencRoiAttr {
     VencRegion  stRoi[MPP_MAX_FRAME_REGIONS];
 } VencRoiAttr;
 
+
+typedef struct _VencFrameRateAttr {
+    U32 u32FrameRate; /**< target frame rate in fps */
+} VencFrameRateAttr;
+
+typedef struct _VencMirrorAttr {
+    S32 s32Mirror; /**< 0 = off, 1 = horizontal, 2 = vertical */
+} VencMirrorAttr;
+
+typedef struct _VencSliceAttr {
+    S32 s32Spacing; /**< slice spacing in macroblock rows (0 = disabled) */
+} VencSliceAttr;
 
 /**
  * @brief VENC channel attributes (set before VENC_EnableChn)
