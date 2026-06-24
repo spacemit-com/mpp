@@ -5,7 +5,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(mpp
+project(mpp2
     VERSION 1.0.0
     DESCRIPTION "SPACEMIT Media Processing Platform"
     LANGUAGES C CXX

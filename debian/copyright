@@ -1,5 +1,5 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: mpp
+Upstream-Name: mpp2
 Source: <url://example.com>
 #
 # Please double check copyright with the licensecheck(1) command.
@@ -401,7 +401,7 @@ License:   __UNKNOWN__
  How to use
  1.  apt install clang-format(if not root, do it in docker)
  2.  su username, switch from root to normal
- 3.  ./format.sh in the mpp root directory
+ 3.  ./format.sh in the mpp2 root directory
  4.  check the code and verify it again, code-stype optimization may cause trouble
 
 Files:     test/parse/h264parse.c
@@ -625,7 +625,7 @@ License:   __UNKNOWN__
  @Author: David(qiang.fu@spacemit.com)
  @Date: 2022-12-21 17:05:26
  @LastEditTime: 2023-02-02 10:14:48
- @Description: util, tar the mpp code to a tar.gz, naming with commit and date info
+ @Description: util, tar the mpp2 code to a tar.gz, naming with commit and date info
 
 Files:     test/include/defaultparse.h
 Copyright: 2022-2023 SPACEMIT.
@@ -930,7 +930,7 @@ License:   __UNKNOWN__
 
 #----------------------------------------------------------------------------
 # xml and html files (skipped):
-#         mpp.cppcheck
+#         mpp2.cppcheck
 
 #----------------------------------------------------------------------------
 # huge files   (skipped):
