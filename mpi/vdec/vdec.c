@@ -36,9 +36,7 @@
 #define MODULE_TAG "mpp_vdec"
 
 #define VDEC_MAX_EXT_BUF 64
-#define VDEC_DEFAULT_BUF_CNT 12                     /* default output buffer count */
-#define VDEC_DEPTH_DEFAULT VDEC_DEFAULT_BUF_CNT / 2 /* depth = half of buf cnt */
-#define VDEC_DEPTH_MAX VDEC_DEPTH_DEFAULT
+#define VDEC_DEFAULT_BUF_CNT 12
 
 /* ======================== Internal Channel Context ======================== */
 
@@ -100,7 +98,8 @@ typedef struct _VdecChnCtx {
     VdecExtBuf stExtBuf[VDEC_MAX_EXT_BUF];
 
     /* depth queue (ring buffer, protected by depthLock) */
-    VdecDepthEntry astDepth[VDEC_DEPTH_MAX];
+    VdecDepthEntry *pstDepth;   /**< dynamically allocated depth ring buffer */
+    U32 u32DepthMax;   /**< capacity of the depth ring buffer */
     U32 u32DepthHead;  /**< read index  */
     U32 u32DepthTail;  /**< write index */
     U32 u32DepthCount; /**< current entries */
@@ -426,10 +425,10 @@ static S32 vdec_requeue_ext_buffers(VdecChnCtx *pChn) {
 
 static void vdec_drain_depth_queue_locked(VdecChnCtx *pChn) {
     while (pChn->u32DepthCount > 0) {
-        VdecDepthEntry *pEntry = &pChn->astDepth[pChn->u32DepthHead];
+        VdecDepthEntry *pEntry = &pChn->pstDepth[pChn->u32DepthHead];
         if (pEntry->ulBufferId != 0)
             VB_ReleaseBuffer(pEntry->ulBufferId);
-        pChn->u32DepthHead = (pChn->u32DepthHead + 1) % VDEC_DEPTH_MAX;
+        pChn->u32DepthHead = (pChn->u32DepthHead + 1) % pChn->u32DepthMax;
         pChn->u32DepthCount--;
     }
     pChn->u32DepthHead = 0;
@@ -614,11 +613,11 @@ static void *vdec_output_task(void *arg) {
             stEosFrame.stVdecFrameInfo.bEndOfStream = MPP_TRUE;
 
             pthread_mutex_lock(&pChn->depthLock);
-            if (pChn->u32DepthCount < VDEC_DEPTH_MAX) {
-                VdecDepthEntry *pNew = &pChn->astDepth[pChn->u32DepthTail];
+            if (pChn->u32DepthCount < pChn->u32DepthMax) {
+                VdecDepthEntry *pNew = &pChn->pstDepth[pChn->u32DepthTail];
                 pNew->ulBufferId = 0;
                 memcpy(&pNew->stFrameInfo, &stEosFrame, sizeof(VideoFrameInfo));
-                pChn->u32DepthTail = (pChn->u32DepthTail + 1) % VDEC_DEPTH_MAX;
+                pChn->u32DepthTail = (pChn->u32DepthTail + 1) % pChn->u32DepthMax;
                 pChn->u32DepthCount++;
                 pthread_cond_signal(&pChn->depthNotEmpty);
             }
@@ -714,19 +713,19 @@ static void *vdec_output_task(void *arg) {
 
             pthread_mutex_lock(&pChn->depthLock);
 
-            if (pChn->u32DepthCount >= VDEC_DEPTH_MAX) {
+            if (pChn->u32DepthCount >= pChn->u32DepthMax) {
                 /* queue full — drop oldest, release its ref */
-                VdecDepthEntry *pOld = &pChn->astDepth[pChn->u32DepthHead];
+                VdecDepthEntry *pOld = &pChn->pstDepth[pChn->u32DepthHead];
                 if (pOld->ulBufferId != 0)
                     VB_ReleaseBuffer(pOld->ulBufferId);
-                pChn->u32DepthHead = (pChn->u32DepthHead + 1) % VDEC_DEPTH_MAX;
+                pChn->u32DepthHead = (pChn->u32DepthHead + 1) % pChn->u32DepthMax;
                 pChn->u32DepthCount--;
             }
 
-            VdecDepthEntry *pNew = &pChn->astDepth[pChn->u32DepthTail];
+            VdecDepthEntry *pNew = &pChn->pstDepth[pChn->u32DepthTail];
             pNew->ulBufferId = ulBuf;
             memcpy(&pNew->stFrameInfo, &stFrame, sizeof(VideoFrameInfo));
-            pChn->u32DepthTail = (pChn->u32DepthTail + 1) % VDEC_DEPTH_MAX;
+            pChn->u32DepthTail = (pChn->u32DepthTail + 1) % pChn->u32DepthMax;
             pChn->u32DepthCount++;
 
             pthread_cond_signal(&pChn->depthNotEmpty);
@@ -922,8 +921,14 @@ S32 VDEC_EnableChn(S32 s32ChnId) {
 
     /* desired capture buffer count; the plugin overwrites stBufReq with the
      * counts the V4L2 driver actually granted */
+    U32 u32BufCnt = pChn->stAttr.u32BufCnt;
+    if (u32BufCnt == 0)
+        u32BufCnt = VDEC_DEFAULT_BUF_CNT;
+    if (u32BufCnt > VDEC_MAX_EXT_BUF)
+        u32BufCnt = VDEC_MAX_EXT_BUF;
+
     pChn->stBufReq.u32InputBufNum = 0; /* plugin default */
-    pChn->stBufReq.u32OutputBufNum = VDEC_DEFAULT_BUF_CNT;
+    pChn->stBufReq.u32OutputBufNum = u32BufCnt;
 
     S32 ret = vdec_plugin_open(pChn);
     if (ret != MPP_OK) {
@@ -941,6 +946,16 @@ S32 VDEC_EnableChn(S32 s32ChnId) {
     }
 
     /* Initialize depth queue */
+    pChn->u32DepthMax = u32BufCnt / 2;
+    if (pChn->u32DepthMax < 2)
+        pChn->u32DepthMax = 2;
+    pChn->pstDepth = (VdecDepthEntry *)calloc(pChn->u32DepthMax, sizeof(VdecDepthEntry));
+    if (!pChn->pstDepth) {
+        error("depth queue alloc failed for chn %d, cnt=%u", s32ChnId, pChn->u32DepthMax);
+        vdec_destroy_ext_pool(pChn);
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_NOMEM;
+    }
     pChn->u32DepthHead = 0;
     pChn->u32DepthTail = 0;
     pChn->u32DepthCount = 0;
@@ -1001,7 +1016,7 @@ S32 VDEC_EnableChn(S32 s32ChnId) {
     }
 
     pthread_mutex_unlock(&pChn->lock);
-    info("VDEC_EnableChn: chn %d enabled", s32ChnId);
+    info("VDEC_EnableChn: chn %d enabled, bufCnt=%u, depthMax=%u", s32ChnId, u32BufCnt, pChn->u32DepthMax);
     return ERR_VDEC_OK;
 
 err_cleanup:
@@ -1009,6 +1024,9 @@ err_cleanup:
     vdec_destroy_ext_pool(pChn);
     pthread_mutex_destroy(&pChn->depthLock);
     pthread_cond_destroy(&pChn->depthNotEmpty);
+    free(pChn->pstDepth);
+    pChn->pstDepth = NULL;
+    pChn->u32DepthMax = 0;
     pthread_mutex_destroy(&pChn->poolLock);
     pthread_cond_destroy(&pChn->poolCond);
     pthread_mutex_unlock(&pChn->lock);
@@ -1049,6 +1067,9 @@ S32 VDEC_DisableChn(S32 s32ChnId) {
     pthread_mutex_unlock(&pChn->depthLock);
     pthread_mutex_destroy(&pChn->depthLock);
     pthread_cond_destroy(&pChn->depthNotEmpty);
+    free(pChn->pstDepth);
+    pChn->pstDepth = NULL;
+    pChn->u32DepthMax = 0;
 
     /* Flush decoder */
     pChn->stOps.flush(pChn->pAlCtx);
@@ -1139,9 +1160,9 @@ S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs) 
         }
     }
 
-    VdecDepthEntry *pEntry = &pChn->astDepth[pChn->u32DepthHead];
+    VdecDepthEntry *pEntry = &pChn->pstDepth[pChn->u32DepthHead];
     memcpy(pstFrameInfo, &pEntry->stFrameInfo, sizeof(VideoFrameInfo));
-    pChn->u32DepthHead = (pChn->u32DepthHead + 1) % VDEC_DEPTH_MAX;
+    pChn->u32DepthHead = (pChn->u32DepthHead + 1) % pChn->u32DepthMax;
     pChn->u32DepthCount--;
 
     pthread_mutex_unlock(&pChn->depthLock);
