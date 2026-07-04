@@ -451,7 +451,7 @@ static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
     }
 
     /* SYS_SendStream for bind mode */
-    if (ret == ERR_DEMUX_OK) {
+    if (ret == ERR_DEMUX_OK && pChn->stAttr.bEnableBindOutput) {
         StreamBufferInfo stStream;
         memset(&stStream, 0, sizeof(stStream));
 
@@ -522,14 +522,16 @@ static S32 demux_deliver_eos(DemuxChn *pChn) {
     stStream.bEndOfStream = MPP_TRUE;
     stStream.eCodecType = MPP_STREAM_CODEC_UNKNOWN;
 
-    while (!pChn->s32Stop && (send_ret = SYS_SendStream(&pChn->stSrcNode, &stStream)) != 0 && retry < 1500) {
-        usleep(20000);
-        retry++;
-    }
+    if (pChn->stAttr.bEnableBindOutput) {
+        while (!pChn->s32Stop && (send_ret = SYS_SendStream(&pChn->stSrcNode, &stStream)) != 0 && retry < 1500) {
+            usleep(20000);
+            retry++;
+        }
 
-    if (send_ret != 0) {
-        DEMUX_LOGE("Channel %d: failed to send EOS after %u retries", pChn->s32ChnId, retry);
-        return send_ret;
+        if (send_ret != 0) {
+            DEMUX_LOGE("Channel %d: failed to send EOS after %u retries", pChn->s32ChnId, retry);
+            return send_ret;
+        }
     }
 
     DEMUX_LOGI("Channel %d: EOS sent", pChn->s32ChnId);
@@ -764,6 +766,8 @@ S32 DEMUX_CreateChn(S32 s32ChnId, const DemuxChnAttr *pstAttr) {
         pChn->stAttr.u32RwTimeoutMs = 5000;
     if (pChn->stAttr.u32ReconnectMs == 0)
         pChn->stAttr.u32ReconnectMs = 2000;
+    if (!pChn->stAttr.bEnableBindOutputSet)
+        pChn->stAttr.bEnableBindOutput = MPP_TRUE;
 
     pChn->s32State = CHN_STATE_CREATED;
     pChn->s32Created = 1;

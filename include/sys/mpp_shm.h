@@ -187,9 +187,20 @@ S32 mpp_shm_init(void);
 
 /**
  * @brief Detach from shared memory. Last process also unlinks it.
+ *
+ * The attach-count decrement, the "am I the last process" decision, the
+ * optional last-process cleanup callback and the shm_unlink() are all
+ * performed while holding the cross-process init lock, so they are atomic
+ * with respect to a concurrent mpp_shm_init(). This closes the race where a
+ * newcomer could attach to a segment that is about to be unlinked.
+ *
+ * @param on_last  Optional callback invoked (with the shared memory still
+ *                 mapped and the init lock held) only when this call detaches
+ *                 the final process, before munmap/unlink. Pass NULL if no
+ *                 last-process cleanup is required.
  * @return 0 on success, negative on failure
  */
-S32 mpp_shm_detach(void);
+S32 mpp_shm_detach(void (*on_last)(MppSharedMem *shm));
 
 /**
  * @brief Get pointer to the shared memory structure.

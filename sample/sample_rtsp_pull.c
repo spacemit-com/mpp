@@ -162,6 +162,8 @@ int main(int argc, char *argv[]) {
     stAttr.u32AnalyzeDurationMs = 1000;
     stAttr.u32ProbeSizeBytes = 512 * 1024;
     stAttr.bInjectPS = MPP_TRUE;
+    stAttr.bEnableBindOutput = MPP_FALSE;
+    stAttr.bEnableBindOutputSet = MPP_TRUE;
     snprintf(stAttr.szUrl, sizeof(stAttr.szUrl), "%s", pszUrl);
 
     ret = DEMUX_Init();

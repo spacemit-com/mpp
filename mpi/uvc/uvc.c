@@ -68,6 +68,11 @@ typedef struct _UvcV4l2Buf {
     U32 u32Len;
 } UvcV4l2Buf;
 
+typedef enum _UvcIoMode {
+    UVC_IO_MODE_DMABUF = 0,
+    UVC_IO_MODE_MMAP = 1,
+} UvcIoMode;
+
 /* Depth queue entry: holds a VB buffer handle + frame metadata */
 typedef struct _UvcDepthEntry {
     UL ulBufferId;              /* VB buffer handle (ref-counted) */
@@ -84,7 +89,9 @@ typedef struct _UvcChnCtx {
     UL ulVbPool;
     UL aulVbBuf[UVC_MAX_V4L2_BUF];      /* VB buffer handle per slot */
     S32 as32DmaBufFd[UVC_MAX_V4L2_BUF]; /* dma-buf fd per slot */
+    BOOL abV4l2Queued[UVC_MAX_V4L2_BUF]; /* TRUE while V4L2 owns the base ref */
     BOOL bVbPoolCreated;
+    UvcIoMode eIoMode;
     /* depth queue (ring buffer, protected by depthLock) */
     UvcDepthEntry astDepth[UVC_DEPTH_MAX];
     U32 u32DepthHead;  /* read index  */
@@ -303,10 +310,7 @@ static S32 uvc_v4l2_set_fmt(UvcDevCtx *pDev, const UvcChnAttr *pAttr, UvcChnAttr
     return UVC_ERR_OK;
 }
 
-static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize) {
-    U32 u32BufCnt = UVC_DEFAULT_BUF_CNT;
-
-    /* --- Create VB pool to manage frame buffers --- */
+static S32 uvc_create_vb_pool(UvcChnCtx *pChn, U32 u32FrameSize, U32 u32BufCnt) {
     VbPoolCfg stPoolCfg;
     memset(&stPoolCfg, 0, sizeof(stPoolCfg));
     stPoolCfg.u32BufSize = u32FrameSize;
@@ -322,6 +326,19 @@ static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize)
     pChn->bVbPoolCreated = MPP_TRUE;
 
     UVC_LOG_INFO("VB pool created: pool=%lu, bufSize=%u, bufCnt=%u", pChn->ulVbPool, u32FrameSize, u32BufCnt);
+    return UVC_ERR_OK;
+}
+
+static S32 uvc_v4l2_req_bufs_dmabuf(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize) {
+    U32 u32BufCnt = UVC_DEFAULT_BUF_CNT;
+
+    pChn->eIoMode = UVC_IO_MODE_DMABUF;
+
+    /* --- Create VB pool to manage frame buffers --- */
+    S32 ret = uvc_create_vb_pool(pChn, u32FrameSize, u32BufCnt);
+    if (ret != UVC_ERR_OK) {
+        return ret;
+    }
 
     /* Get VB buffers and their dma-buf fds for DMABUF mode */
     for (U32 i = 0; i < u32BufCnt; i++) {
@@ -330,10 +347,11 @@ static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize)
             UVC_LOG_ERR("VB_GetBuffer[%u] failed", i);
             goto err_destroy_pool;
         }
+        pChn->abV4l2Queued[i] = MPP_FALSE;
 
         /* get dma-buf fd for V4L2 DMABUF mode */
         S32 s32DmaBufFd = -1;
-        S32 ret = VB_GetDmaBufFd(pChn->aulVbBuf[i], &s32DmaBufFd);
+        ret = VB_GetDmaBufFd(pChn->aulVbBuf[i], &s32DmaBufFd);
         if (ret != 0 || s32DmaBufFd < 0) {
             UVC_LOG_ERR("VB_GetDmaBufFd[%u] failed (ret=%d)", i, ret);
             goto err_destroy_pool;
@@ -375,28 +393,110 @@ static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize)
 
 err_destroy_pool:
     for (U32 i = 0; i < u32BufCnt; i++) {
-        if (pChn->aulVbBuf[i] != 0)
+        if (pChn->aulVbBuf[i] != 0) {
             VB_ReleaseBuffer(pChn->aulVbBuf[i]);
+            pChn->aulVbBuf[i] = 0;
+        }
     }
     VB_DestroyPool(pChn->ulVbPool);
     pChn->bVbPoolCreated = MPP_FALSE;
     return UVC_ERR_NOMEM;
 }
 
-static S32 uvc_v4l2_stream_on(UvcDevCtx *pDev, UvcChnCtx *pChn) {
-    /* queue all DMABUF buffers backed by VB dma-buf fds */
+static S32 uvc_v4l2_req_bufs_mmap(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize) {
+    U32 u32BufCnt = UVC_DEFAULT_BUF_CNT;
+
+    pChn->eIoMode = UVC_IO_MODE_MMAP;
+
+    S32 ret = uvc_create_vb_pool(pChn, u32FrameSize, u32BufCnt);
+    if (ret != UVC_ERR_OK) {
+        return ret;
+    }
+
+    struct v4l2_requestbuffers req;
+    memset(&req, 0, sizeof(req));
+    req.count = u32BufCnt;
+    req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    req.memory = V4L2_MEMORY_MMAP;
+
+    if (uvc_xioctl(pDev->s32Fd, VIDIOC_REQBUFS, &req) < 0) {
+        UVC_LOG_ERR("VIDIOC_REQBUFS(MMAP) failed: %s", strerror(errno));
+        goto err_destroy_pool;
+    }
+    if (req.count < 2) {
+        UVC_LOG_ERR("insufficient MMAP buffer count: %u", req.count);
+        goto err_release_v4l2;
+    }
+
+    pChn->u32BufCnt = (req.count < u32BufCnt) ? req.count : u32BufCnt;
     for (U32 i = 0; i < pChn->u32BufCnt; i++) {
         struct v4l2_buffer buf;
         memset(&buf, 0, sizeof(buf));
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        buf.memory = V4L2_MEMORY_DMABUF;
+        buf.memory = V4L2_MEMORY_MMAP;
         buf.index = i;
-        buf.m.fd = pChn->as32DmaBufFd[i];
-        buf.length = pChn->astBufs[i].u32Len;
+        if (uvc_xioctl(pDev->s32Fd, VIDIOC_QUERYBUF, &buf) < 0) {
+            UVC_LOG_ERR("VIDIOC_QUERYBUF[%u] failed: %s", i, strerror(errno));
+            goto err_unmap;
+        }
+        pChn->astBufs[i].u32Len = buf.length;
+        pChn->astBufs[i].pAddr = mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, pDev->s32Fd, buf.m.offset);
+        if (pChn->astBufs[i].pAddr == MAP_FAILED) {
+            UVC_LOG_ERR("mmap[%u] failed: %s", i, strerror(errno));
+            pChn->astBufs[i].pAddr = NULL;
+            goto err_unmap;
+        }
+    }
+    return UVC_ERR_OK;
+
+err_unmap:
+    for (U32 i = 0; i < pChn->u32BufCnt; i++) {
+        if (pChn->astBufs[i].pAddr != NULL) {
+            munmap(pChn->astBufs[i].pAddr, pChn->astBufs[i].u32Len);
+            pChn->astBufs[i].pAddr = NULL;
+            pChn->astBufs[i].u32Len = 0;
+        }
+    }
+err_release_v4l2:
+    memset(&req, 0, sizeof(req));
+    req.count = 0;
+    req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    req.memory = V4L2_MEMORY_MMAP;
+    uvc_xioctl(pDev->s32Fd, VIDIOC_REQBUFS, &req);
+err_destroy_pool:
+    if (pChn->bVbPoolCreated) {
+        VB_DestroyPool(pChn->ulVbPool);
+        pChn->ulVbPool = 0;
+        pChn->bVbPoolCreated = MPP_FALSE;
+    }
+    pChn->u32BufCnt = 0;
+    return UVC_ERR_NOMEM;
+}
+
+static S32 uvc_v4l2_stream_on(UvcDevCtx *pDev, UvcChnCtx *pChn) {
+    /* queue all capture buffers */
+    for (U32 i = 0; i < pChn->u32BufCnt; i++) {
+        struct v4l2_buffer buf;
+        memset(&buf, 0, sizeof(buf));
+        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        buf.index = i;
+        if (pChn->eIoMode == UVC_IO_MODE_DMABUF) {
+            buf.memory = V4L2_MEMORY_DMABUF;
+            buf.m.fd = pChn->as32DmaBufFd[i];
+            buf.length = pChn->astBufs[i].u32Len;
+        } else {
+            buf.memory = V4L2_MEMORY_MMAP;
+        }
 
         if (uvc_xioctl(pDev->s32Fd, VIDIOC_QBUF, &buf) < 0) {
-            UVC_LOG_ERR("VIDIOC_QBUF[%u] DMABUF failed: %s", i, strerror(errno));
+            UVC_LOG_ERR("VIDIOC_QBUF[%u] %s failed: %s",
+                i,
+                pChn->eIoMode == UVC_IO_MODE_DMABUF ? "DMABUF" : "MMAP",
+                strerror(errno));
             return UVC_ERR_INVAL;
+        }
+        if (pChn->eIoMode == UVC_IO_MODE_DMABUF) {
+            pChn->abV4l2Queued[i] = MPP_TRUE;
         }
     }
 
@@ -423,23 +523,36 @@ static S32 uvc_v4l2_stream_off(UvcDevCtx *pDev) {
     return UVC_ERR_OK;
 }
 
-static VOID uvc_v4l2_release_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn) {
-    /* release V4L2 kernel buffers */
+static VOID uvc_v4l2_release_bufs_ex(UvcDevCtx *pDev, UvcChnCtx *pChn, BOOL bReleaseAllVbRefs) {
+    if (pChn->eIoMode == UVC_IO_MODE_MMAP) {
+        for (U32 i = 0; i < pChn->u32BufCnt; i++) {
+            if (pChn->astBufs[i].pAddr != NULL) {
+                munmap(pChn->astBufs[i].pAddr, pChn->astBufs[i].u32Len);
+                pChn->astBufs[i].pAddr = NULL;
+                pChn->astBufs[i].u32Len = 0;
+            }
+        }
+    }
+
+    /* release V4L2 kernel buffers after MMAP userspace mappings are gone */
     struct v4l2_requestbuffers req;
     memset(&req, 0, sizeof(req));
     req.count = 0;
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    req.memory = V4L2_MEMORY_DMABUF;
+    req.memory = pChn->eIoMode == UVC_IO_MODE_MMAP ? V4L2_MEMORY_MMAP : V4L2_MEMORY_DMABUF;
     uvc_xioctl(pDev->s32Fd, VIDIOC_REQBUFS, &req);
 
     /* release VB buffers and destroy pool */
     if (pChn->bVbPoolCreated) {
         for (U32 i = 0; i < pChn->u32BufCnt; i++) {
             if (pChn->aulVbBuf[i] != 0) {
-                VB_ReleaseBuffer(pChn->aulVbBuf[i]);
+                if (bReleaseAllVbRefs || pChn->abV4l2Queued[i]) {
+                    VB_ReleaseBuffer(pChn->aulVbBuf[i]);
+                }
                 pChn->aulVbBuf[i] = 0;
             }
             pChn->as32DmaBufFd[i] = -1;
+            pChn->abV4l2Queued[i] = MPP_FALSE;
         }
         VB_DestroyPool(pChn->ulVbPool);
         pChn->ulVbPool = 0;
@@ -452,6 +565,11 @@ static VOID uvc_v4l2_release_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn) {
         pChn->astBufs[i].u32Len = 0;
     }
     pChn->u32BufCnt = 0;
+    pChn->eIoMode = UVC_IO_MODE_DMABUF;
+}
+
+static VOID uvc_v4l2_release_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn) {
+    uvc_v4l2_release_bufs_ex(pDev, pChn, MPP_FALSE);
 }
 
 static VOID uvc_v4l2_close(UvcDevCtx *pDev) {
@@ -493,11 +611,15 @@ static VOID uvc_fill_frame_info(
         pOut->ulBufferId = pChn->aulVbBuf[pBuf->index];
 
         VideoFrame *pVF = &pOut->stVFrame;
+        U32 u32ValidSize = pBuf->bytesused;
+        if (u32ValidSize > pChn->astBufs[pBuf->index].u32Len) {
+            u32ValidSize = pChn->astBufs[pBuf->index].u32Len;
+        }
         pVF->u32PlaneNum = 1;
         pVF->ulPlaneVirAddr[0] = (UL)pChn->astBufs[pBuf->index].pAddr;
         pVF->u32PlaneSize[0] = pChn->astBufs[pBuf->index].u32Len;
-        pVF->u32PlaneSizeValid[0] = pBuf->bytesused;
-        pVF->u32TotalSize = pChn->astBufs[pBuf->index].u32Len;
+        pVF->u32PlaneSizeValid[0] = u32ValidSize;
+        pVF->u32TotalSize = u32ValidSize;
         pVF->u32Fd[0] = (UL)pChn->as32DmaBufFd[pBuf->index];
 
         U64 u64PhyAddr = 0;
@@ -530,6 +652,72 @@ static S32 uvc_v4l2_qbuf(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32BufIdx) {
         UVC_LOG_ERR("VIDIOC_QBUF[%u] failed: %s", u32BufIdx, strerror(errno));
         return UVC_ERR_INVAL;
     }
+    pChn->abV4l2Queued[u32BufIdx] = MPP_TRUE;
+    return UVC_ERR_OK;
+}
+
+static S32 uvc_v4l2_qbuf_mmap(UvcDevCtx *pDev, U32 u32BufIdx) {
+    struct v4l2_buffer buf;
+    memset(&buf, 0, sizeof(buf));
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+    buf.index = u32BufIdx;
+    if (uvc_xioctl(pDev->s32Fd, VIDIOC_QBUF, &buf) < 0) {
+        UVC_LOG_ERR("VIDIOC_QBUF[%u] MMAP failed: %s", u32BufIdx, strerror(errno));
+        return UVC_ERR_INVAL;
+    }
+    return UVC_ERR_OK;
+}
+
+static S32 uvc_copy_mmap_to_vb(UvcDevCtx *pDev, UvcChnCtx *pChn, const struct v4l2_buffer *pBuf,
+    VideoFrameInfo *pOut) {
+    if (pBuf->index >= pChn->u32BufCnt || pChn->astBufs[pBuf->index].pAddr == NULL) {
+        return UVC_ERR_INVAL;
+    }
+
+    UL ulBuf = VB_GetBuffer(pChn->ulVbPool, 100);
+    if (ulBuf == 0) {
+        UVC_LOG_WARN("MMAP fallback dropped frame: no free VB buffer");
+        return UVC_ERR_TIMEOUT;
+    }
+
+    VOID *pDst = NULL;
+    S32 ret = VB_GetVirAddr(ulBuf, &pDst);
+    if (ret != 0 || pDst == NULL) {
+        UVC_LOG_ERR("VB_GetVirAddr for MMAP fallback failed ret=%d", ret);
+        VB_ReleaseBuffer(ulBuf);
+        return UVC_ERR_INVAL;
+    }
+
+    U32 u32CopySize = pBuf->bytesused;
+    if (u32CopySize > pChn->astBufs[pBuf->index].u32Len) {
+        u32CopySize = pChn->astBufs[pBuf->index].u32Len;
+    }
+    memcpy(pDst, pChn->astBufs[pBuf->index].pAddr, u32CopySize);
+
+    memset(pOut, 0, sizeof(VideoFrameInfo));
+    pOut->eFrameType = FRAME_TYPE_COMMON;
+    pOut->eModId = MPP_ID_UVC;
+    pOut->u32Idx = pBuf->index;
+    pOut->ulPoolId = pChn->ulVbPool;
+    pOut->ulBufferId = ulBuf;
+    pOut->stVFrame.u32PlaneNum = 1;
+    pOut->stVFrame.ulPlaneVirAddr[0] = (UL)pDst;
+    pOut->stVFrame.u32PlaneSize[0] = pChn->astBufs[pBuf->index].u32Len;
+    pOut->stVFrame.u32PlaneSizeValid[0] = u32CopySize;
+    pOut->stVFrame.u32TotalSize = u32CopySize;
+    pOut->stVFrame.u64PTS = (U64)pBuf->timestamp.tv_sec * 1000000ULL + (U64)pBuf->timestamp.tv_usec;
+    pOut->stVFrame.u32FrameFlag = pBuf->sequence;
+    VB_GetPhyAddr(ulBuf, &pOut->stVFrame.u64PlanePhyAddr[0]);
+    S32 s32Fd = -1;
+    if (VB_GetDmaBufFd(ulBuf, &s32Fd) == 0) {
+        pOut->stVFrame.u32Fd[0] = (UL)s32Fd;
+    }
+    pOut->stCommFrameInfo.u32Width = pChn->stChnAttr.u32Width;
+    pOut->stCommFrameInfo.u32Height = pChn->stChnAttr.u32Height;
+    pOut->stCommFrameInfo.ePixelFormat = pChn->stChnAttr.ePixelFormat;
+    VB_UpdateBufferFrameInfo(ulBuf, pOut);
+    (void)pDev;
     return UVC_ERR_OK;
 }
 
@@ -580,8 +768,11 @@ static void *uvc_recycle_task(void *arg) {
         /* QBUF back to V4L2.  We keep ref=1 (from VB_GetBuffer) to
          * represent "V4L2 driver holds this buffer". */
         pthread_mutex_lock(&g_stUvcCtx.lock);
-        uvc_v4l2_qbuf(pDev, pChn, slot);
+        S32 qret = uvc_v4l2_qbuf(pDev, pChn, slot);
         pthread_mutex_unlock(&g_stUvcCtx.lock);
+        if (qret != UVC_ERR_OK) {
+            VB_ReleaseBuffer(ulBuf);
+        }
     }
 
     UVC_LOG_INFO("recycle task exiting: dev %d chn %d", dev, chn);
@@ -655,8 +846,9 @@ static void *uvc_capture_task(void *arg) {
         /* DQBUF — the buffer currently has ref=1 ("V4L2 base ref") */
         struct v4l2_buffer v4l2buf;
         memset(&v4l2buf, 0, sizeof(v4l2buf));
+        BOOL bMmapMode = (pChn->eIoMode == UVC_IO_MODE_MMAP);
         v4l2buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        v4l2buf.memory = V4L2_MEMORY_DMABUF;
+        v4l2buf.memory = bMmapMode ? V4L2_MEMORY_MMAP : V4L2_MEMORY_DMABUF;
 
         pthread_mutex_lock(&g_stUvcCtx.lock);
         if (uvc_xioctl(fd, VIDIOC_DQBUF, &v4l2buf) < 0) {
@@ -669,10 +861,28 @@ static void *uvc_capture_task(void *arg) {
 
         /* build frame info */
         VideoFrameInfo stFrame;
-        uvc_fill_frame_info(pDev, pChn, &v4l2buf, &stFrame);
+        S32 copyRet = UVC_ERR_OK;
+        if (bMmapMode) {
+            pthread_mutex_unlock(&g_stUvcCtx.lock);
+            copyRet = uvc_copy_mmap_to_vb(pDev, pChn, &v4l2buf, &stFrame);
+            pthread_mutex_lock(&g_stUvcCtx.lock);
+            if (pChn->bTaskRun) {
+                uvc_v4l2_qbuf_mmap(pDev, v4l2buf.index);
+            }
+            pthread_mutex_unlock(&g_stUvcCtx.lock);
+            if (copyRet != UVC_ERR_OK) {
+                continue;
+            }
+        } else {
+            uvc_fill_frame_info(pDev, pChn, &v4l2buf, &stFrame);
+            UL ulBuf = stFrame.ulBufferId;
+            VB_UpdateBufferFrameInfo(ulBuf, &stFrame);
+            if (v4l2buf.index < UVC_MAX_V4L2_BUF) {
+                pChn->abV4l2Queued[v4l2buf.index] = MPP_FALSE;
+            }
+            pthread_mutex_unlock(&g_stUvcCtx.lock);
+        }
         UL ulBuf = stFrame.ulBufferId;
-        VB_UpdateBufferFrameInfo(ulBuf, &stFrame);
-        pthread_mutex_unlock(&g_stUvcCtx.lock);
 
         /*
          * At this point ref=1 (the "V4L2 base ref" from the initial
@@ -1057,16 +1267,25 @@ S32 UVC_EnableChn(UVC_DEV dev, UVC_CHN chn) {
 
     UVC_LOG_INFO("UVC_EnableChn: sizeimage=%u for %ux%u", u32SizeImage, stNegotiated.u32Width, stNegotiated.u32Height);
 
-    ret = uvc_v4l2_req_bufs(pDev, pChn, u32SizeImage);
-    if (ret != UVC_ERR_OK) {
-        UVC_LOG_ERR("dev %d chn %d request buffers failed", dev, chn);
-        goto err_unlock;
+    ret = uvc_v4l2_req_bufs_dmabuf(pDev, pChn, u32SizeImage);
+    if (ret == UVC_ERR_OK) {
+        ret = uvc_v4l2_stream_on(pDev, pChn);
     }
-
-    ret = uvc_v4l2_stream_on(pDev, pChn);
     if (ret != UVC_ERR_OK) {
-        UVC_LOG_ERR("dev %d chn %d stream on failed", dev, chn);
-        goto err_release_bufs;
+        UVC_LOG_WARN("dev %d chn %d DMABUF open failed, fallback to MMAP", dev, chn);
+        uvc_v4l2_stream_off(pDev);
+        uvc_v4l2_release_bufs_ex(pDev, pChn, MPP_TRUE);
+
+        ret = uvc_v4l2_req_bufs_mmap(pDev, pChn, u32SizeImage);
+        if (ret != UVC_ERR_OK) {
+            UVC_LOG_ERR("dev %d chn %d MMAP request buffers failed", dev, chn);
+            goto err_unlock;
+        }
+        ret = uvc_v4l2_stream_on(pDev, pChn);
+        if (ret != UVC_ERR_OK) {
+            UVC_LOG_ERR("dev %d chn %d MMAP stream on failed", dev, chn);
+            goto err_release_bufs_force;
+        }
     }
 
     /* initialize depth queue */
@@ -1078,25 +1297,29 @@ S32 UVC_EnableChn(UVC_DEV dev, UVC_CHN chn) {
 
     pChn->bEnabled = MPP_TRUE;
 
-    /* start recycle thread (per-channel) */
-    pChn->bRecycleRun = MPP_TRUE;
-    UvcTaskArg *pRecycleArg = (UvcTaskArg *)malloc(sizeof(UvcTaskArg));
-    if (!pRecycleArg) {
-        UVC_LOG_ERR("malloc recycle arg failed");
-        pChn->bRecycleRun = MPP_FALSE;
-        ret = UVC_ERR_NOMEM;
-        goto err_disable_chn;
-    }
-    pRecycleArg->dev = dev;
-    pRecycleArg->chn = chn;
+    /* start recycle thread for DMABUF mode only */
+    if (pChn->eIoMode == UVC_IO_MODE_DMABUF) {
+        pChn->bRecycleRun = MPP_TRUE;
+        UvcTaskArg *pRecycleArg = (UvcTaskArg *)malloc(sizeof(UvcTaskArg));
+        if (!pRecycleArg) {
+            UVC_LOG_ERR("malloc recycle arg failed");
+            pChn->bRecycleRun = MPP_FALSE;
+            ret = UVC_ERR_NOMEM;
+            goto err_disable_chn;
+        }
+        pRecycleArg->dev = dev;
+        pRecycleArg->chn = chn;
 
-    ret = pthread_create(&pChn->recycleTid, NULL, uvc_recycle_task, pRecycleArg);
-    if (ret != 0) {
-        UVC_LOG_ERR("recycle thread create failed: %s", strerror(ret));
-        free(pRecycleArg);
+        ret = pthread_create(&pChn->recycleTid, NULL, uvc_recycle_task, pRecycleArg);
+        if (ret != 0) {
+            UVC_LOG_ERR("recycle thread create failed: %s", strerror(ret));
+            free(pRecycleArg);
+            pChn->bRecycleRun = MPP_FALSE;
+            ret = UVC_ERR_NOMEM;
+            goto err_disable_chn;
+        }
+    } else {
         pChn->bRecycleRun = MPP_FALSE;
-        ret = UVC_ERR_NOMEM;
-        goto err_disable_chn;
     }
 
     /* start capture task thread */
@@ -1125,10 +1348,20 @@ S32 UVC_EnableChn(UVC_DEV dev, UVC_CHN chn) {
 
 err_disable_chn:
     pChn->bEnabled = MPP_FALSE;
-err_release_bufs:
+    if (pChn->bRecycleRun) {
+        pChn->bRecycleRun = MPP_FALSE;
+        pthread_mutex_unlock(&g_stUvcCtx.lock);
+        pthread_join(pChn->recycleTid, NULL);
+        pthread_mutex_lock(&g_stUvcCtx.lock);
+    }
     uvc_v4l2_stream_off(pDev);
     uvc_v4l2_release_bufs(pDev, pChn);
 err_unlock:
+    pthread_mutex_unlock(&g_stUvcCtx.lock);
+    return ret;
+err_release_bufs_force:
+    uvc_v4l2_stream_off(pDev);
+    uvc_v4l2_release_bufs_ex(pDev, pChn, MPP_TRUE);
     pthread_mutex_unlock(&g_stUvcCtx.lock);
     return ret;
 }
@@ -1171,10 +1404,13 @@ S32 UVC_DisableChn(UVC_DEV dev, UVC_CHN chn) {
 
     pChn->bEnabled = MPP_FALSE;
 
-    /* stop recycle thread (per-channel) */
+    /* stop recycle thread (per-channel, DMABUF mode only) */
+    BOOL bHadRecycle = pChn->bRecycleRun;
     pChn->bRecycleRun = MPP_FALSE;
     pthread_mutex_unlock(&g_stUvcCtx.lock);
-    pthread_join(pChn->recycleTid, NULL);
+    if (bHadRecycle) {
+        pthread_join(pChn->recycleTid, NULL);
+    }
     pthread_mutex_lock(&g_stUvcCtx.lock);
 
     /* check if any other channel is still enabled on this device */

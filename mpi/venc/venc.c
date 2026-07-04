@@ -87,6 +87,19 @@ typedef struct _VencChnCtx {
     pthread_mutex_t queueLock;
     pthread_cond_t queueNotEmpty;
     pthread_cond_t queueNotFull;
+
+/* The linlonv5v7 encoder consumes input frames zero-copy (USERPTR/DMABUF)
+ * and only releases them asynchronously via al_enc_return_input_frame().
+ * Both the bound path (venc_frame_input_task) and the manual path
+ * (VENC_SendFrame) must keep one VB reference per in-flight input frame
+ * until the encoder returns the matching input buffer, otherwise the VB
+ * buffer can be recycled while the hardware is still reading it (UAF).
+ * The slot index is passed to the plugin as VideoFrameInfo.u32Idx and
+ * comes back from al_enc_return_input_frame(), identifying which ref to
+ * release. */
+#define VENC_INPUT_REF_SLOTS 64
+    UL aulInputRefs[VENC_INPUT_REF_SLOTS];
+    pthread_mutex_t inputRefLock;
 } VencChnCtx;
 
 /* ======================== Global State ======================== */
@@ -99,6 +112,97 @@ static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
 static inline BOOL venc_chn_valid(S32 s32ChnId) {
     return (s32ChnId >= 0 && s32ChnId < VENC_MAX_CHN);
+}
+
+/* ======================== Input Frame Ref Tracking ======================== */
+
+/**
+ * @brief  Reserve a slot for an in-flight input frame and return the slot
+ *         index as the frame id to hand to the encoder plugin.
+ *         Caller must hold pChn->lock.
+ *
+ * @param  ulBuff     VB buffer handle backing the input frame (non-zero).
+ * @param  bAddRef    MPP_TRUE  : take a new VB ref (manual VENC_SendFrame,
+ *                                where the caller keeps ownership of ulBuff).
+ *                    MPP_FALSE : transfer an already-owned ref into the slot
+ *                                (bound path, where SYS_RecvFrame added a ref
+ *                                that the consumer must release).
+ * @param  pFrameId   Output: slot index to store in VideoFrameInfo.u32Idx.
+ * @return ERR_VENC_OK on success; ERR_VENC_BUSY if no free slot.
+ */
+static S32 venc_hold_input_ref_locked(VencChnCtx *pChn, UL ulBuff, BOOL bAddRef, S32 *pFrameId) {
+    if (!pChn || !pFrameId || ulBuff == 0)
+        return ERR_VENC_NULL_PTR;
+
+    S32 slot = -1;
+    for (S32 i = 0; i < VENC_INPUT_REF_SLOTS; ++i) {
+        if (pChn->aulInputRefs[i] == 0) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0)
+        return ERR_VENC_BUSY;
+
+    if (bAddRef) {
+        S32 ret = VB_RefAdd(ulBuff);
+        if (ret != 0)
+            return ret;
+    }
+
+    pChn->aulInputRefs[slot] = ulBuff;
+    *pFrameId = slot;
+    return ERR_VENC_OK;
+}
+
+/**
+ * @brief  Release the VB reference held in the given slot.
+ *         Caller must hold pChn->lock.
+ */
+static void venc_release_input_ref_locked(VencChnCtx *pChn, S32 frameId) {
+    if (!pChn || frameId < 0 || frameId >= VENC_INPUT_REF_SLOTS)
+        return;
+
+    UL ulBuff = pChn->aulInputRefs[frameId];
+    if (ulBuff != 0) {
+        pChn->aulInputRefs[frameId] = 0;
+        VB_ReleaseBuffer(ulBuff);
+    }
+}
+
+/**
+ * @brief  Ask the encoder for one recycled input buffer; if it returns a
+ *         valid slot id, release the VB reference held for that input frame.
+ *         Must be called WITHOUT holding pChn->lock (the plugin call may poll).
+ */
+static void venc_return_one_input_ref(VencChnCtx *pChn) {
+    if (!pChn)
+        return;
+
+    pthread_mutex_lock(&pChn->inputRefLock);
+    S32 frameId = pChn->stOps.return_input_frame(pChn->pAlCtx);
+    if (frameId < 0) {
+        pthread_mutex_unlock(&pChn->inputRefLock);
+        return;
+    }
+
+    pthread_mutex_lock(&pChn->lock);
+    venc_release_input_ref_locked(pChn, frameId);
+    pthread_mutex_unlock(&pChn->lock);
+    pthread_mutex_unlock(&pChn->inputRefLock);
+}
+
+/**
+ * @brief  Release every VB reference still held by the channel.
+ *         Caller must hold pChn->lock.
+ */
+static void venc_release_all_input_refs_locked(VencChnCtx *pChn) {
+    if (!pChn)
+        return;
+
+    for (S32 i = 0; i < VENC_INPUT_REF_SLOTS; ++i) {
+        venc_release_input_ref_locked(pChn, i);
+    }
 }
 
 /* ======================== Plugin Binding ======================== */
@@ -253,8 +357,10 @@ static void *venc_task_thread(void *arg) {
         }
 
         /* Successfully got encoded output; recycle one input buffer so the
-         * encoder can accept more frames when the pool is full. */
-        pChn->stOps.return_input_frame(pChn->pAlCtx);
+         * encoder can accept more frames when the pool is full.  This also
+         * releases the VB reference held for that input frame (the slot id
+         * comes back from al_enc_return_input_frame). */
+        venc_return_one_input_ref(pChn);
 
         if (stStream.pu8Addr && stStream.u32Size > 0) {
             ret = SYS_SendStream(&stSrcNode, &stStream);
@@ -397,17 +503,46 @@ static void *venc_frame_input_task(void *arg) {
             continue;
         }
 
+        venc_return_one_input_ref(pChn);
+
         pthread_mutex_lock(&pChn->lock);
+        BOOL bRefHeld = MPP_FALSE;
         if (pChn->eState == VENC_CHN_STATE_STARTED) {
-            ret = pChn->stOps.send_input_frame(pChn->pAlCtx, &stFrame);
-            if (ret != MPP_OK) {
-                error("frame input task: send_input_frame failed %d, chn %d", ret, s32ChnId);
+            /* The encoder consumes the frame zero-copy and only releases it
+             * later via al_enc_return_input_frame(). Hand the VB ref that
+             * SYS_RecvFrame added over to a slot and tag the frame with the
+             * slot id (u32Idx) so venc_return_one_input_ref() can release it
+             * once the encoder is done. */
+            S32 frameId = -1;
+            ret = venc_hold_input_ref_locked(pChn, ulBuff, MPP_FALSE, &frameId);
+            if (ret == ERR_VENC_BUSY) {
+                pthread_mutex_unlock(&pChn->lock);
+                venc_return_one_input_ref(pChn);
+                pthread_mutex_lock(&pChn->lock);
+                ret = venc_hold_input_ref_locked(pChn, ulBuff, MPP_FALSE, &frameId);
+            }
+            if (ret == ERR_VENC_OK) {
+                bRefHeld = MPP_TRUE;
+                stFrame.u32Idx = (U32)frameId;
+                ret = pChn->stOps.send_input_frame(pChn->pAlCtx, &stFrame);
+                if (ret != MPP_OK) {
+                    error("frame input task: send_input_frame failed %d, chn %d", ret, s32ChnId);
+                    /* Encoder never took the frame; drop the held ref now. */
+                    venc_release_input_ref_locked(pChn, frameId);
+                    bRefHeld = MPP_FALSE;
+                }
+            } else {
+                error("frame input task: no free input ref slot, chn %d", s32ChnId);
             }
         }
         pthread_mutex_unlock(&pChn->lock);
 
-        /* Release the VB buffer ref (SYS_RecvFrame added a ref) */
-        VB_ReleaseBuffer(ulBuff);
+        /* If the ref was handed to a slot, the encoder owns it now and it is
+         * released via al_enc_return_input_frame(); otherwise drop the ref
+         * that SYS_RecvFrame added. */
+        if (!bRefHeld) {
+            VB_ReleaseBuffer(ulBuff);
+        }
     }
 
     info("frame input task exiting: chn %d", s32ChnId);
@@ -427,6 +562,7 @@ S32 VENC_Init(VOID) {
     memset(g_stChn, 0, sizeof(g_stChn));
     for (S32 i = 0; i < VENC_MAX_CHN; i++) {
         pthread_mutex_init(&g_stChn[i].lock, NULL);
+        pthread_mutex_init(&g_stChn[i].inputRefLock, NULL);
     }
 
     g_bVencInited = MPP_TRUE;
@@ -452,6 +588,7 @@ S32 VENC_Exit(VOID) {
     }
 
     for (S32 i = 0; i < VENC_MAX_CHN; i++) {
+        pthread_mutex_destroy(&g_stChn[i].inputRefLock);
         pthread_mutex_destroy(&g_stChn[i].lock);
     }
 
@@ -477,6 +614,7 @@ S32 VENC_CreateChn(S32 s32ChnId, const VencChnAttr *pstAttr) {
 
     pChn->stAttr = *pstAttr;
     pChn->eState = VENC_CHN_STATE_IDLE;
+    memset(pChn->aulInputRefs, 0, sizeof(pChn->aulInputRefs));
     pChn->bUsed = MPP_TRUE;
 
     pthread_mutex_unlock(&pChn->lock);
@@ -540,11 +678,14 @@ S32 VENC_EnableChn(S32 s32ChnId) {
 
     if (pthread_create(&pChn->frameInputTid, NULL, venc_frame_input_task, pChn) != 0) {
         error("failed to create frame input thread for chn %d", s32ChnId);
+        pthread_mutex_lock(&pChn->inputRefLock);
         pthread_mutex_lock(&pChn->lock);
         pChn->bFrameInputRun = MPP_FALSE;
         pChn->stOps.flush(pChn->pAlCtx);
+        venc_release_all_input_refs_locked(pChn);
         pChn->eState = VENC_CHN_STATE_IDLE;
         pthread_mutex_unlock(&pChn->lock);
+        pthread_mutex_unlock(&pChn->inputRefLock);
         return ERR_VENC_NOMEM;
     }
 
@@ -554,10 +695,13 @@ S32 VENC_EnableChn(S32 s32ChnId) {
         error("venc_start_threads failed for chn %d, ret=%d", s32ChnId, ret2);
         pChn->bFrameInputRun = MPP_FALSE;
         pthread_join(pChn->frameInputTid, NULL);
+        pthread_mutex_lock(&pChn->inputRefLock);
         pthread_mutex_lock(&pChn->lock);
         pChn->stOps.flush(pChn->pAlCtx);
+        venc_release_all_input_refs_locked(pChn);
         pChn->eState = VENC_CHN_STATE_IDLE;
         pthread_mutex_unlock(&pChn->lock);
+        pthread_mutex_unlock(&pChn->inputRefLock);
         return ret2;
     }
 
@@ -589,13 +733,19 @@ S32 VENC_DisableChn(S32 s32ChnId) {
     pChn->bFrameInputRun = MPP_FALSE;
     pthread_mutex_unlock(&pChn->lock);
     pthread_join(pChn->frameInputTid, NULL);
-    pthread_mutex_lock(&pChn->lock);
 
+    pthread_mutex_lock(&pChn->inputRefLock);
+    pthread_mutex_lock(&pChn->lock);
     pChn->stOps.flush(pChn->pAlCtx);
+
+    /* Both worker threads are stopped; release any VB refs still held for
+     * input frames the encoder never returned. */
+    venc_release_all_input_refs_locked(pChn);
 
     pChn->bBound = MPP_FALSE;
     pChn->eState = VENC_CHN_STATE_IDLE;
     pthread_mutex_unlock(&pChn->lock);
+    pthread_mutex_unlock(&pChn->inputRefLock);
     return ERR_VENC_OK;
 }
 
@@ -618,17 +768,56 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
         return ERR_VENC_BUSY;
     }
 
-    /* Send frame to encoder (V4L2 QBUF on OUTPUT port).
-     * The linlonv5v7 encoder is fully async: hardware encodes the frame
-     * after QBUF, and the encoded result appears on the CAPTURE port.
-     * venc_task_thread polls the CAPTURE port for output.
-     *
-     * Do NOT call return_input_frame here — it would poll(POLLOUT,0)
-     * and potentially DQBUF the buffer before hardware finishes encoding,
-     * causing the CAPTURE port to never produce output.
-     * Input buffers are recycled by return_input_frame only when the
-     * buffer pool is exhausted (nInputQueuedNum >= ENCODER_INPUT_BUF_NUM). */
-    S32 ret = pChn->stOps.send_input_frame(pChn->pAlCtx, pstFrame);
+    pthread_mutex_unlock(&pChn->lock);
+    venc_return_one_input_ref(pChn);
+    pthread_mutex_lock(&pChn->lock);
+
+    if (!pChn->bUsed || pChn->eState != VENC_CHN_STATE_STARTED) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VENC_NOT_STARTED;
+    }
+
+    if (pChn->bBound) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VENC_BUSY;
+    }
+
+    /* Send frame to encoder (V4L2 QBUF on OUTPUT port). The linlonv5v7
+     * encoder is fully async: hardware encodes the frame after QBUF, and the
+     * encoded result appears on the CAPTURE port. Recycle one completed input
+     * before queuing a new frame so a plugin-side input-buffer reuse cannot
+     * overwrite an old extra_id before its MPI ref slot is released. */
+    /* The encoder consumes the frame zero-copy and releases it later via
+     * al_enc_return_input_frame(). Hold a VB ref until then so the buffer is
+     * not recycled while the hardware is still reading it. u32Idx carries the
+     * slot id back through the plugin. */
+    S32 ret = ERR_VENC_OK;
+    S32 frameId = -1;
+    VideoFrameInfo stLocalFrame = *pstFrame;
+    if (pstFrame->ulBufferId != 0) {
+        ret = venc_hold_input_ref_locked(pChn, pstFrame->ulBufferId, MPP_TRUE, &frameId);
+        if (ret == ERR_VENC_BUSY) {
+            pthread_mutex_unlock(&pChn->lock);
+            venc_return_one_input_ref(pChn);
+            pthread_mutex_lock(&pChn->lock);
+            ret = venc_hold_input_ref_locked(pChn, pstFrame->ulBufferId, MPP_TRUE, &frameId);
+        }
+        if (ret != ERR_VENC_OK) {
+            pthread_mutex_unlock(&pChn->lock);
+            return ret;
+        }
+        stLocalFrame.u32Idx = (U32)frameId;
+    } else {
+        /* No VB ref to track; use an out-of-range slot id so the value
+         * returned by al_enc_return_input_frame() never matches a live slot. */
+        stLocalFrame.u32Idx = VENC_INPUT_REF_SLOTS;
+    }
+
+    ret = pChn->stOps.send_input_frame(pChn->pAlCtx, &stLocalFrame);
+    if (ret != MPP_OK && frameId >= 0) {
+        /* Encoder never took the frame; drop the ref we just held. */
+        venc_release_input_ref_locked(pChn, frameId);
+    }
 
     pthread_mutex_unlock(&pChn->lock);
     return (ret == MPP_OK) ? ERR_VENC_OK : ret;
@@ -785,10 +974,22 @@ S32 VENC_Flush(S32 s32ChnId) {
         pthread_mutex_unlock(&pChn->lock);
         return ERR_VENC_NOT_STARTED;
     }
+    pthread_mutex_unlock(&pChn->lock);
 
+    pthread_mutex_lock(&pChn->inputRefLock);
+    pthread_mutex_lock(&pChn->lock);
+    if (!pChn->bUsed || pChn->eState != VENC_CHN_STATE_STARTED) {
+        pthread_mutex_unlock(&pChn->lock);
+        pthread_mutex_unlock(&pChn->inputRefLock);
+        return ERR_VENC_NOT_STARTED;
+    }
     S32 ret = pChn->stOps.flush(pChn->pAlCtx);
+    if (ret == MPP_OK) {
+        venc_release_all_input_refs_locked(pChn);
+    }
 
     pthread_mutex_unlock(&pChn->lock);
+    pthread_mutex_unlock(&pChn->inputRefLock);
     return (ret == MPP_OK) ? ERR_VENC_OK : ret;
 }
 
