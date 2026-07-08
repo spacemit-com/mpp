@@ -309,9 +309,18 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     context->nEosPts = -1;
     context->bPollThreadCreated = MPP_FALSE;
 
-    /* caller-desired buffer counts; 0 means plugin default */
+    /* caller-desired buffer counts; 0 means plugin default, and the port
+     * layer can track at most MAX_INPUT/OUTPUT_BUF_NUM buffers */
     context->nInputBufferNum = pstReq->u32InputBufNum ? pstReq->u32InputBufNum : DECODER_INPUT_BUF_NUM;
+    if (context->nInputBufferNum > MAX_INPUT_BUF_NUM) {
+        error("input buffer num %d exceeds max %d, clamped", context->nInputBufferNum, MAX_INPUT_BUF_NUM);
+        context->nInputBufferNum = MAX_INPUT_BUF_NUM;
+    }
     context->nOutputBufferNum = pstReq->u32OutputBufNum ? pstReq->u32OutputBufNum : DECODER_OUTPUT_BUF_NUM;
+    if (context->nOutputBufferNum > MAX_OUTPUT_BUF_NUM) {
+        error("output buffer num %d exceeds max %d, clamped", context->nOutputBufferNum, MAX_OUTPUT_BUF_NUM);
+        context->nOutputBufferNum = MAX_OUTPUT_BUF_NUM;
+    }
 
     debug(
         "input para check: foramt:0x%x output format:0x%x input buffer num:%d "
