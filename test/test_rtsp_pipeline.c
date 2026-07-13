@@ -91,6 +91,8 @@ int main(int argc, char *argv[]) {
     stDemuxAttr.u32RwTimeoutMs = 5000;
     stDemuxAttr.u32ReconnectMs = 2000;
     stDemuxAttr.bInjectPS = MPP_TRUE;
+    stDemuxAttr.bEnableBindOutput = MPP_FALSE;
+    stDemuxAttr.bEnableBindOutputSet = MPP_TRUE;
     snprintf(stDemuxAttr.szUrl, sizeof(stDemuxAttr.szUrl), "%s", argv[1]);
 
     memset(&stMuxAttr, 0, sizeof(stMuxAttr));
