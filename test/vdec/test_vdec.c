@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "para.h"
@@ -378,15 +379,22 @@ static int advance_after_parse(
     return 0;
 }
 
+/* Accumulates pure VDEC_GetFrame time so we can report real decode throughput
+ * (frames / pure-decode-time), independent of init/teardown/file IO. */
+static double g_vdec_getframe_total_us = 0.0;
+
 static int drain_available_frames(
     S32 chn, FILE *nv12_out, U32 *decoded_count, U32 max_frames, U32 *last_w, U32 *last_h
 ) {
     VideoFrameInfo frame;
     S32 ret;
+    struct timespec tg0, tg1;
 
     for (;;) {
         memset(&frame, 0, sizeof(frame));
+        clock_gettime(CLOCK_MONOTONIC, &tg0);
         ret = VDEC_GetFrame(chn, &frame, 80);
+        clock_gettime(CLOCK_MONOTONIC, &tg1);
         if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT)
             break;
         if (ret == ERR_VDEC_EOS) {
@@ -395,6 +403,15 @@ static int drain_available_frames(
         if (ret != 0) {
             fprintf(stderr, "VDEC_GetFrame: %d\n", ret);
             return -1;
+        }
+
+        /* Pure decode latency: only the frame that came back successfully. */
+        {
+            double cost_us = (double)(tg1.tv_sec - tg0.tv_sec) * 1000000.0 +
+                (double)(tg1.tv_nsec - tg0.tv_nsec) / 1000.0;
+            g_vdec_getframe_total_us += cost_us;
+            printf("[MPP_PERF] module=VDEC op=GetFrame cost_us=%.0f frame=%u\n",
+                cost_us, *decoded_count);
         }
 
         *last_w = frame.stVdecFrameInfo.stCommFrameInfo.u32Width;
@@ -461,6 +478,7 @@ static int decode_media_with_parse(
     S32 next_left;
     S32 pass;
 
+    g_vdec_getframe_total_us = 0.0;
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = mc->codec;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
@@ -599,6 +617,12 @@ static int decode_media_with_parse(
     if (ret != 0)
         fprintf(stderr, "VDEC_DestroyChn: %d\n", ret);
     printf("[decode] %s decoded_frames=%u last %ux%u\n", mc->path, dec_count, last_w, last_h);
+    printf("[MPP_PERF] metric=frames value=%u unit=frames\n", dec_count);
+    if (g_vdec_getframe_total_us > 0.0 && dec_count > 0) {
+        printf("[MPP_PERF] metric=vdec_decode_total_ms value=%.3f unit=ms\n", g_vdec_getframe_total_us / 1000.0);
+        printf("[MPP_PERF] metric=fps value=%.3f unit=fps\n",
+            (double)dec_count * 1000000.0 / g_vdec_getframe_total_us);
+    }
     return 0;
 
 err:
@@ -643,6 +667,7 @@ static int decode_media_with_parse_ex(
     S32 next_left;
     S32 pass;
 
+    g_vdec_getframe_total_us = 0.0;
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = mc->codec;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
@@ -782,6 +807,11 @@ static int decode_media_with_parse_ex(
     if (ret != 0)
         fprintf(stderr, "VDEC_DestroyChn: %d\n", ret);
     printf("[decode_ex] %s decoded_frames=%u last %ux%u (rot=%u)\n", mc->path, dec_count, last_w, last_h, rotate_deg);
+    if (g_vdec_getframe_total_us > 0.0 && dec_count > 0) {
+        printf("[MPP_PERF] metric=vdec_decode_total_ms value=%.3f unit=ms\n", g_vdec_getframe_total_us / 1000.0);
+        printf("[MPP_PERF] metric=fps value=%.3f unit=fps\n",
+            (double)dec_count * 1000000.0 / g_vdec_getframe_total_us);
+    }
     return 0;
 
 err:
