@@ -190,38 +190,11 @@ S32 SYS_Init(VOID) {
     return SYS_ERR_OK;
 }
 
-S32 SYS_Exit(VOID) {
-    MppSharedMem *shm = mpp_shm_get();
-
-    if (!shm || !shm->sys_inited || g_sys_init_ref <= 0) {
-        SYS_LOG_ERR("SYS not initialized");
-        return SYS_ERR_NOT_INIT;
-    }
-
-    /* Per-process refcount: if not last exit, just decrement */
-    if (--g_sys_init_ref > 0) {
-        return SYS_ERR_OK;
-    }
-
-    /* warn about active binds */
-    pthread_rwlock_wrlock(&shm->bind_lock);
-    for (U32 i = 0; i < MPP_MAX_BIND; i++) {
-        if (shm->binds[i].state == SYS_BIND_ACTIVE) {
-            SYS_LOG_WARN(
-                "bind [mod%d dev%d chn%d]->[mod%d dev%d chn%d] still active at exit",
-                shm->binds[i].src.eModId,
-                shm->binds[i].src.s32DevId,
-                shm->binds[i].src.s32ChnId,
-                shm->binds[i].sink.eModId,
-                shm->binds[i].sink.s32DevId,
-                shm->binds[i].sink.s32ChnId);
-            shm->binds[i].state = SYS_BIND_FREE;
-        }
-    }
-    shm->bind_cnt = 0;
-    pthread_rwlock_unlock(&shm->bind_lock);
-
-    /* warn about leaked map records and free DMA buffers */
+/*
+ * Per-process cleanup: release DMA maps that this process still owns.
+ * Every exiting process runs this, regardless of whether it is the last one.
+ */
+static void sys_release_owned_maps(MppSharedMem *shm) {
     sys_mutex_lock(&shm->map_lock);
     for (U32 i = 0; i < MPP_MAX_MAP; i++) {
         SysMapRecord *r = &shm->maps[i];
@@ -239,11 +212,65 @@ S32 SYS_Exit(VOID) {
         }
     }
     pthread_mutex_unlock(&shm->map_lock);
+}
+
+/*
+ * Last-process global cleanup, invoked by mpp_shm_detach() while it holds the
+ * cross-process init lock and has atomically determined that this is the final
+ * process. Running here (rather than gating on a racy atomic_load of proc_ref
+ * in SYS_Exit) guarantees exactly one process clears the shared bind table.
+ */
+static void sys_last_process_cleanup(MppSharedMem *shm) {
+    /* warn about active binds and clear the shared bind table */
+    pthread_rwlock_wrlock(&shm->bind_lock);
+    for (U32 i = 0; i < MPP_MAX_BIND; i++) {
+        if (shm->binds[i].state == SYS_BIND_ACTIVE) {
+            SYS_LOG_WARN(
+                "bind [mod%d dev%d chn%d]->[mod%d dev%d chn%d] still active at exit",
+                shm->binds[i].src.eModId,
+                shm->binds[i].src.s32DevId,
+                shm->binds[i].src.s32ChnId,
+                shm->binds[i].sink.eModId,
+                shm->binds[i].sink.s32DevId,
+                shm->binds[i].sink.s32ChnId);
+            shm->binds[i].state = SYS_BIND_FREE;
+        }
+    }
+    shm->bind_cnt = 0;
+    pthread_rwlock_unlock(&shm->bind_lock);
 
     shm->sys_inited = 0;
+}
+
+S32 SYS_Exit(VOID) {
+    MppSharedMem *shm = mpp_shm_get();
+
+    if (!shm || !shm->sys_inited || g_sys_init_ref <= 0) {
+        SYS_LOG_ERR("SYS not initialized");
+        return SYS_ERR_NOT_INIT;
+    }
+
+    /* Per-process refcount: if not last exit for this process, just decrement */
+    if (--g_sys_init_ref > 0) {
+        return SYS_ERR_OK;
+    }
+
+    /*
+     * Release maps owned by THIS process first — always safe and required for
+     * every exiting process.
+     */
+    sys_release_owned_maps(shm);
 
     dma_alloc_deinit();
-    mpp_shm_detach();
+
+    /*
+     * Decrement the cross-process attach count and, iff we are the last
+     * process, run the shared bind-table cleanup — all under the init lock
+     * inside mpp_shm_detach(). This removes the previous TOCTOU where an
+     * atomic_load(proc_ref) followed by a separate decrement could let two
+     * concurrently-exiting processes both skip the global cleanup.
+     */
+    mpp_shm_detach(sys_last_process_cleanup);
 
     SYS_LOG_INFO("SYS_Exit done");
     return SYS_ERR_OK;
