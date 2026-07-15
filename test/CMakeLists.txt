@@ -120,6 +120,13 @@ target_compile_definitions(test_vdec_backpressure PRIVATE ${MPP_TEST_COMMON_DEFS
 target_link_libraries(test_vdec_backpressure PRIVATE mpp)
 target_include_directories(test_vdec_backpressure PRIVATE ${MPP_INCLUDE_DIRS})
 
+# Hardware-only regression; intentionally not registered with CTest.
+add_executable(test_vdec_resolution_change vdec/test_vdec_resolution_change.c ${TEST_VDEC_PARSE_SRCS})
+target_compile_definitions(test_vdec_resolution_change PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vdec_resolution_change PRIVATE mpp)
+target_include_directories(test_vdec_resolution_change PRIVATE ${MPP_INCLUDE_DIRS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/vdec/include")
+
 # Demo executables
 add_executable(test_v2d test_v2d.c)
 target_compile_definitions(test_v2d PRIVATE ${MPP_TEST_COMMON_DEFS})
