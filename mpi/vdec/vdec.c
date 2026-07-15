@@ -32,6 +32,7 @@
 #include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "vdec_input_retry.h"
 
 #define MODULE_TAG "mpp_vdec"
 
@@ -81,6 +82,7 @@ typedef struct _VdecChnCtx {
     VdecChnState eState;
     VdecChnAttr stAttr;
     pthread_mutex_t lock;
+    pthread_mutex_t inputLock; /**< serializes packets across backpressure waits */
     S32 s32ChnId; /**< channel ID for SYS_SendFrame */
 
     /* codec plugin binding (valid while pModule != NULL) */
@@ -134,6 +136,55 @@ static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
 static inline BOOL vdec_chn_valid(S32 s32ChnId) {
     return (s32ChnId >= 0 && s32ChnId < VDEC_MAX_CHN);
+}
+
+static U64 vdec_monotonic_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (U64)ts.tv_sec * 1000U + (U64)ts.tv_nsec / 1000000U;
+}
+
+static VOID vdec_sleep_us(U32 delayUs, VOID *opaque) {
+    (void)opaque;
+    usleep(delayUs);
+}
+
+typedef struct _VdecInputSubmitCtx {
+    VdecChnCtx *pChn;
+    const StreamBufferInfo *pstStream;
+    BOOL rejectBound;
+} VdecInputSubmitCtx;
+
+static S32 vdec_try_submit_input(VOID *opaque) {
+    VdecInputSubmitCtx *submit = (VdecInputSubmitCtx *)opaque;
+    VdecChnCtx *pChn = submit->pChn;
+    S32 ret;
+
+    pthread_mutex_lock(&pChn->lock);
+    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED || !pChn->bStreamInputRun) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_NOT_STARTED;
+    }
+    if (submit->rejectBound && pChn->bBound) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_BUSY;
+    }
+    ret = pChn->stOps.decode(pChn->pAlCtx, submit->pstStream);
+    pthread_mutex_unlock(&pChn->lock);
+    return ret;
+}
+
+static U64 vdec_submit_now_ms(VOID *opaque) {
+    (void)opaque;
+    return vdec_monotonic_ms();
+}
+
+static BOOL vdec_stream_input_active(VdecChnCtx *pChn) {
+    BOOL active;
+    pthread_mutex_lock(&pChn->lock);
+    active = pChn->bStreamInputRun;
+    pthread_mutex_unlock(&pChn->lock);
+    return active;
 }
 
 /* ======================== Plugin Binding ======================== */
@@ -757,7 +808,7 @@ static void *vdec_stream_input_task(void *arg) {
 
     info("stream input task started: chn %d", s32ChnId);
 
-    while (pChn->bStreamInputRun) {
+    while (vdec_stream_input_active(pChn)) {
         StreamBufferInfo stStream;
         memset(&stStream, 0, sizeof(stStream));
         stStream.pu8Addr = pRecvBuf;
@@ -767,25 +818,38 @@ static void *vdec_stream_input_task(void *arg) {
         if (ret != 0) {
             /* timeout or no bind — just retry */
             if (SYS_ERR_NOT_FOUND == ret) {
+                pthread_mutex_lock(&pChn->lock);
                 pChn->bBound = MPP_FALSE;
+                pthread_mutex_unlock(&pChn->lock);
                 usleep(20000);  // Sleep 20ms before retrying to avoid busy loop when no stream is bound
             }
             continue;
         }
 
         /* Mark channel as bound on first successful receive */
+        pthread_mutex_lock(&pChn->lock);
         if (!pChn->bBound) {
             pChn->bBound = MPP_TRUE;
             info("stream input task: chn %d bound, stream input active", s32ChnId);
         }
-
-        pthread_mutex_lock(&pChn->lock);
-        if (pChn->eState == VDEC_CHN_STATE_STARTED) {
-            ret = pChn->stOps.decode(pChn->pAlCtx, &stStream);
-            if (ret != MPP_OK && ret != 0 && ret != MPP_CODER_EOS)
-                error("stream input task: decode failed %d, chn %d", ret, s32ChnId);
-        }
         pthread_mutex_unlock(&pChn->lock);
+
+        VdecInputSubmitCtx submit = {
+            .pChn = pChn,
+            .pstStream = &stStream,
+            .rejectBound = MPP_FALSE,
+        };
+        VdecInputRetryOps retry = {
+            .trySubmit = vdec_try_submit_input,
+            .nowMs = vdec_submit_now_ms,
+            .sleepUs = vdec_sleep_us,
+            .opaque = &submit,
+        };
+        pthread_mutex_lock(&pChn->inputLock);
+        ret = vdec_input_submit_with_timeout(&retry, (U32)-1);
+        pthread_mutex_unlock(&pChn->inputLock);
+        if (ret != MPP_OK && ret != 0 && ret != MPP_CODER_EOS && ret != ERR_VDEC_NOT_STARTED)
+            error("stream input task: decode failed %d, chn %d", ret, s32ChnId);
 
         if (stStream.bEndOfStream) {
             info("stream input task: EOS received, chn %d", s32ChnId);
@@ -810,6 +874,7 @@ S32 VDEC_Init(VOID) {
     memset(g_stChn, 0, sizeof(g_stChn));
     for (S32 i = 0; i < VDEC_MAX_CHN; i++) {
         pthread_mutex_init(&g_stChn[i].lock, NULL);
+        pthread_mutex_init(&g_stChn[i].inputLock, NULL);
     }
 
     g_bVdecInited = MPP_TRUE;
@@ -833,6 +898,7 @@ S32 VDEC_Exit(VOID) {
     }
 
     for (S32 i = 0; i < VDEC_MAX_CHN; i++) {
+        pthread_mutex_destroy(&g_stChn[i].inputLock);
         pthread_mutex_destroy(&g_stChn[i].lock);
     }
     memset(g_stChn, 0, sizeof(g_stChn));
@@ -1099,22 +1165,21 @@ S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32Time
         return ERR_VDEC_INVALID_CHN;
 
     VdecChnCtx *pChn = &g_stChn[s32ChnId];
-    pthread_mutex_lock(&pChn->lock);
+    VdecInputSubmitCtx submit = {
+        .pChn = pChn,
+        .pstStream = pstStream,
+        .rejectBound = MPP_TRUE,
+    };
+    VdecInputRetryOps retry = {
+        .trySubmit = vdec_try_submit_input,
+        .nowMs = vdec_submit_now_ms,
+        .sleepUs = vdec_sleep_us,
+        .opaque = &submit,
+    };
 
-    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_NOT_STARTED;
-    }
-
-    if (pChn->bBound) {
-        error("VDEC_SendStream: chn %d has active bind, reject manual send", s32ChnId);
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_BUSY;
-    }
-
-    /* zero-copy: the stream buffer belongs to the caller */
-    S32 ret = pChn->stOps.decode(pChn->pAlCtx, pstStream);
-    pthread_mutex_unlock(&pChn->lock);
+    pthread_mutex_lock(&pChn->inputLock);
+    S32 ret = vdec_input_submit_with_timeout(&retry, u32TimeoutMs);
+    pthread_mutex_unlock(&pChn->inputLock);
 
     if (ret == MPP_CODER_EOS)
         return ERR_VDEC_EOS;

@@ -496,17 +496,27 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         context->nInputQueuedNum++;
         context->nInputQueueLeftNum--;
     } else {
-        ret = runPoll(context->stCodec, &p);
-        if (MPP_OK == ret && p.revents & POLLOUT) {
-            ret = handleInputBuffer(getInputPort(context->stCodec), context->bInputEos, pstStream);
-            if (ret < 0) {
-                error("handleInputBuffer failed, should not failed, please check!");
-                return ret;
-            }
-            context->nInputQueueLeftNum--;
-        } else {
+        do {
+            ret = poll(&p, 1, POLL_TIMEOUT);
+        } while (ret < 0 && errno == EINTR);
+
+        if (ret < 0) {
+            error("input poll failed: %s", strerror(errno));
             return MPP_POLL_FAILED;
         }
+        if (p.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+            error("input poll failed: revents=0x%x", p.revents);
+            return MPP_POLL_FAILED;
+        }
+        if (ret == 0 || !(p.revents & POLLOUT))
+            return MPP_DATAQUEUE_FULL;
+
+        ret = handleInputBuffer(getInputPort(context->stCodec), context->bInputEos, pstStream);
+        if (ret < 0) {
+            error("handleInputBuffer failed, should not failed, please check!");
+            return ret;
+        }
+        context->nInputQueueLeftNum--;
     }
     return MPP_OK;
 }
