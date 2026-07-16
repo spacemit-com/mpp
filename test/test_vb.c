@@ -309,18 +309,23 @@ static void test_destroy_outstanding(void) {
 static void test_packed_yuv422_layout(void) {
     const char *name = "packed_yuv422_layout";
     const MppPixelFormat formats[] = {MPP_PIXEL_FORMAT_YUYV, MPP_PIXEL_FORMAT_UYVY};
+    const U32 width = 641;
+    const U32 height = 479;
+    const U32 align = 16;
+    const U32 expected_stride = ((width * 2 + align - 1) / align) * align;
+    const U32 expected_height = ((height + align - 1) / align) * align;
 
     for (size_t i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i) {
         VideoFrameInfo frame;
         memset(&frame, 0, sizeof(frame));
         frame.stCommFrameInfo.ePixelFormat = formats[i];
-        frame.stCommFrameInfo.u32Width = 641;
-        frame.stCommFrameInfo.u32Height = 479;
-        frame.stCommFrameInfo.u32Align = 16;
+        frame.stCommFrameInfo.u32Width = width;
+        frame.stCommFrameInfo.u32Height = height;
+        frame.stCommFrameInfo.u32Align = align;
 
         S32 size = VB_GetPicBufferSize(&frame);
-        if (size <= 0 || frame.stVFrame.u32PlaneStride[0] != 1296 ||
-            frame.stVFrame.u32PlaneSizeValid[0] != 1296 * 480 ||
+        if (size <= 0 || frame.stVFrame.u32PlaneStride[0] != expected_stride ||
+            frame.stVFrame.u32PlaneSizeValid[0] != expected_stride * expected_height ||
             frame.stVFrame.u32TotalSize != (U32)size) {
             TEST_FAIL(name, "invalid packed YUV422 buffer layout");
         }

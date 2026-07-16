@@ -1673,10 +1673,9 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
                 U32 stride = (i < mp->num_planes) ? mp->plane_fmt[i].bytesperline : 0;
                 if (stride == 0 && mp->width > 0) {
                     S32 al = port->nAlign > 0 ? port->nAlign : 64;
-                    S32 row_bytes = (port->nFormatFourcc == V4L2_PIX_FMT_YUYV ||
-                                     port->nFormatFourcc == V4L2_PIX_FMT_UYVY)
-                        ? (S32)mp->width * 2
-                        : (S32)mp->width;
+                    BOOL is_packed_422 = port->nFormatFourcc == V4L2_PIX_FMT_YUYV ||
+                        port->nFormatFourcc == V4L2_PIX_FMT_UYVY;
+                    S32 row_bytes = is_packed_422 ? (S32)mp->width * 2 : (S32)mp->width;
                     stride = (U32)ST_ALIGN_UP(row_bytes, al);
                 }
                 pstFrame->stVFrame.u32PlaneStride[i] = stride;
