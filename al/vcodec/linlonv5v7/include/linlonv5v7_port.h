@@ -223,7 +223,10 @@ Buffer *dequeueBuffer(Port *port);
  */
 void printBuffer(Port *port, struct v4l2_buffer buf, const char *prefix);
 
-S32 handleInputBuffer(Port *port, BOOL eof, const StreamBufferInfo *pstStream);
+S32 copyInputPayload(Buffer *buffer, const StreamBufferInfo *pstStream, MppStreamCodecType eCodecType);
+S32 handleInputBuffer(
+    Port *port, BOOL eof, const StreamBufferInfo *pstStream, MppStreamCodecType eCodecType
+);
 S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame);
 
 /**

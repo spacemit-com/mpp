@@ -120,6 +120,13 @@ target_compile_definitions(test_vdec_backpressure PRIVATE ${MPP_TEST_COMMON_DEFS
 target_link_libraries(test_vdec_backpressure PRIVATE mpp)
 target_include_directories(test_vdec_backpressure PRIVATE ${MPP_INCLUDE_DIRS})
 
+add_executable(test_mjpeg_zero_dri
+    vdec/test_mjpeg_zero_dri.c
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/linlonv5v7_mjpeg.c)
+target_include_directories(test_mjpeg_zero_dri PRIVATE
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+add_test(NAME test_mjpeg_zero_dri COMMAND $<TARGET_FILE:test_mjpeg_zero_dri>)
+
 # Demo executables
 add_executable(test_v2d test_v2d.c)
 target_compile_definitions(test_v2d PRIVATE ${MPP_TEST_COMMON_DEFS})
