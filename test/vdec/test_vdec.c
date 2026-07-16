@@ -10,7 +10,8 @@
  * Suites (-t): api | format | param | multi | all   (all = api+format+param)
  *
  *   --frames N     max decoded frames to save (0 = entire file). Default 0.
- *   --output PATH  NV12 (Y then UV) append per frame (format / param).
+ *   --output-format nv12 | yuyv | uyvy. Default nv12.
+ *   --output PATH  Tightly packed decoded frames (format / param).
  *
  * Examples:
  *   ./test_vdec --test api
@@ -75,8 +76,9 @@ static void print_usage(const char *prog) {
         "  -c, --codec <name>    mjpeg | h264 | h265\n"
         "  -n, --frames <n>      max decoded frames to write (0 = all)\n"
         "      --cases <str>     codec|path|w|h;...\n"
-        "  -o, --output <path>   NV12: format/param = one file; multi = "
-        "name.ch00.nv12, ...\n"
+        "      --output-format <name>  nv12 | yuyv | uyvy (default nv12)\n"
+        "  -o, --output <path>   Raw frames: format/param = one file; multi = "
+        "name.ch00.raw, ...\n"
         "      --scale-width <n>  --scale-height <n>  (param suite)\n"
         "      --rotate <deg>    0 | 90 | 180 | 270  (param suite)\n"
         "  -h, --help\n"
@@ -131,6 +133,16 @@ static const char *codec_name(MppStreamCodecType c) {
         default:
             return "unknown";
     }
+}
+
+static MppPixelFormat parse_pixel_format(const char *name) {
+    if (strcmp(name, "nv12") == 0)
+        return MPP_PIXEL_FORMAT_NV12;
+    if (strcmp(name, "yuyv") == 0)
+        return MPP_PIXEL_FORMAT_YUYV;
+    if (strcmp(name, "uyvy") == 0)
+        return MPP_PIXEL_FORMAT_UYVY;
+    return MPP_PIXEL_FORMAT_UNKNOWN;
 }
 
 static U32 parse_test_mask(const char *s) {
@@ -303,7 +315,7 @@ static int media_runtime_up(MediaRuntime *rt) {
     return 0;
 }
 
-static int save_nv12_frame(FILE *fp, const VideoFrameInfo *frame) {
+static int save_decoded_frame(FILE *fp, const VideoFrameInfo *frame) {
     const U8 *base;
     U32 width, height, stride;
     U32 y;
@@ -314,10 +326,20 @@ static int save_nv12_frame(FILE *fp, const VideoFrameInfo *frame) {
     width = frame->stVdecFrameInfo.stCommFrameInfo.u32Width;
     height = frame->stVdecFrameInfo.stCommFrameInfo.u32Height;
     stride = frame->stVFrame.u32PlaneStride[0];
+    base = (const U8 *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[0];
+    if (frame->stVdecFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_YUYV ||
+        frame->stVdecFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
+        if (stride == 0)
+            stride = width * 2U;
+        for (y = 0; y < height; ++y) {
+            if (fwrite(base + (size_t)y * stride, 1, width * 2U, fp) != width * 2U)
+                return -1;
+        }
+        return 0;
+    }
     if (stride == 0)
         stride = width;
 
-    base = (const U8 *)(uintptr_t)frame->stVFrame.ulPlaneVirAddr[0];
     for (y = 0; y < height; ++y) {
         if (fwrite(base + (size_t)y * stride, 1, width, fp) != width)
             return -1;
@@ -384,7 +406,7 @@ static int advance_after_parse(
 static double g_vdec_getframe_total_us = 0.0;
 
 static int drain_available_frames(
-    S32 chn, FILE *nv12_out, U32 *decoded_count, U32 max_frames, U32 *last_w, U32 *last_h
+    S32 chn, FILE *raw_out, U32 *decoded_count, U32 max_frames, U32 *last_w, U32 *last_h
 ) {
     VideoFrameInfo frame;
     S32 ret;
@@ -417,8 +439,8 @@ static int drain_available_frames(
         *last_w = frame.stVdecFrameInfo.stCommFrameInfo.u32Width;
         *last_h = frame.stVdecFrameInfo.stCommFrameInfo.u32Height;
 
-        if (nv12_out && save_nv12_frame(nv12_out, &frame) != 0) {
-            fprintf(stderr, "save_nv12_frame failed\n");
+        if (raw_out && save_decoded_frame(raw_out, &frame) != 0) {
+            fprintf(stderr, "save_decoded_frame failed\n");
             (void)VDEC_ReleaseFrame(chn, frame.ulBufferId);
             return -1;
         }
@@ -456,8 +478,9 @@ static int decode_media_with_parse(
     BOOL scale_en,
     U32 sc_w,
     U32 sc_h,
+    MppPixelFormat output_format,
     U32 max_frames,
-    FILE *nv12_out,
+    FILE *raw_out,
     U32 *out_decoded,
     U32 *out_fw,
     U32 *out_fh
@@ -481,7 +504,7 @@ static int decode_media_with_parse(
     g_vdec_getframe_total_us = 0.0;
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = mc->codec;
-    attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
+    attr.eOutputPixelFormat = output_format;
     attr.u32Align = 0;
     attr.u32Width = mc->width;
     attr.u32Height = mc->height;
@@ -577,7 +600,7 @@ static int decode_media_with_parse(
             }
         }
 
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
+        if (drain_available_frames(chn, raw_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
 
@@ -592,7 +615,7 @@ static int decode_media_with_parse(
 
     for (pass = 0; pass < 64; ++pass) {
         U32 before = dec_count;
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
+        if (drain_available_frames(chn, raw_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
         if (max_frames > 0 && dec_count >= max_frames)
@@ -645,8 +668,9 @@ static int decode_media_with_parse_ex(
     U32 sc_w,
     U32 sc_h,
     U32 rotate_deg,
+    MppPixelFormat output_format,
     U32 max_frames,
-    FILE *nv12_out,
+    FILE *raw_out,
     U32 *out_decoded,
     U32 *out_fw,
     U32 *out_fh
@@ -670,7 +694,7 @@ static int decode_media_with_parse_ex(
     g_vdec_getframe_total_us = 0.0;
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = mc->codec;
-    attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
+    attr.eOutputPixelFormat = output_format;
     attr.u32Align = 0;
     attr.u32Width = mc->width;
     attr.u32Height = mc->height;
@@ -767,7 +791,7 @@ static int decode_media_with_parse_ex(
             }
         }
 
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
+        if (drain_available_frames(chn, raw_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
 
@@ -782,7 +806,7 @@ static int decode_media_with_parse_ex(
 
     for (pass = 0; pass < 64; ++pass) {
         U32 before = dec_count;
-        if (drain_available_frames(chn, nv12_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
+        if (drain_available_frames(chn, raw_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
             goto err;
         }
         if (max_frames > 0 && dec_count >= max_frames)
@@ -822,7 +846,7 @@ err:
     return -1;
 }
 
-static int make_chn_nv12_path(const char *base, S32 chn, char *out, size_t outsz) {
+static int make_chn_output_path(const char *base, S32 chn, char *out, size_t outsz) {
     const char *dot = strrchr(base, '.');
 
     if (dot && dot != base) {
@@ -830,12 +854,14 @@ static int make_chn_nv12_path(const char *base, S32 chn, char *out, size_t outsz
             return -1;
         snprintf(out, outsz, "%.*s.ch%02d%s", (int)(dot - base), base, (int)chn, dot);
     } else {
-        snprintf(out, outsz, "%s.ch%02d.nv12", base, (int)chn);
+        snprintf(out, outsz, "%s.ch%02d.raw", base, (int)chn);
     }
     return 0;
 }
 
-static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames, const char *nv12_base) {
+static int run_multichn_suite(
+    const MediaCase *cases, int n_chn, MppPixelFormat output_format, U32 max_frames, const char *output_base
+) {
     MediaRuntime rt;
     typedef struct {
         U8 *file;
@@ -891,9 +917,9 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
         if (!st[i].frame_buf) {
             goto fail_free;
         }
-        if (nv12_base) {
+        if (output_base) {
             char opath[768];
-            if (make_chn_nv12_path(nv12_base, (S32)i, opath, sizeof(opath)) != 0) {
+            if (make_chn_output_path(output_base, (S32)i, opath, sizeof(opath)) != 0) {
                 fprintf(stderr, "output path too long\n");
                 goto fail_free;
             }
@@ -910,7 +936,7 @@ static int run_multichn_suite(const MediaCase *cases, int n_chn, U32 max_frames,
         VdecChnAttr attr;
         memset(&attr, 0, sizeof(attr));
         attr.eCodecType = cases[ch].codec;
-        attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
+        attr.eOutputPixelFormat = output_format;
         attr.u32Width = cases[ch].width;
         attr.u32Height = cases[ch].height;
         attr.bIsFrameReordering = MPP_FALSE;
@@ -1087,7 +1113,9 @@ fail_free:
     return -1;
 }
 
-static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames, const char *nv12_path) {
+static int run_format_suite(
+    const MediaCase *cases, int n_case, MppPixelFormat output_format, U32 max_frames, const char *output_path
+) {
     MediaRuntime rt;
     FILE *out = NULL;
     int i;
@@ -1099,8 +1127,8 @@ static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames, 
     if (media_runtime_up(&rt) != 0)
         return -1;
 
-    if (nv12_path) {
-        out = fopen(nv12_path, "wb");
+    if (output_path) {
+        out = fopen(output_path, "wb");
         if (!out) {
             fprintf(stderr, "fopen output: %s\n", strerror(errno));
             media_runtime_down(&rt);
@@ -1120,7 +1148,8 @@ static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames, 
             return -1;
         }
         printf("[format] %s (%s)\n", cases[i].path, codec_name(cases[i].codec));
-        if (decode_media_with_parse(0, &cases[i], buf, sz, MPP_FALSE, 0, 0, max_frames, out, &dc, &fw, &fh) != 0) {
+        if (decode_media_with_parse(
+                0, &cases[i], buf, sz, MPP_FALSE, 0, 0, output_format, max_frames, out, &dc, &fw, &fh) != 0) {
             free(buf);
             if (out)
                 fclose(out);
@@ -1138,7 +1167,8 @@ static int run_format_suite(const MediaCase *cases, int n_case, U32 max_frames, 
 }
 
 static int run_param_suite(
-    const MediaCase *cases, int n_case, U32 sc_w, U32 sc_h, U32 rotate_deg, U32 max_frames, const char *nv12_path
+    const MediaCase *cases, int n_case, U32 sc_w, U32 sc_h, U32 rotate_deg,
+    MppPixelFormat output_format, U32 max_frames, const char *output_path
 ) {
     MediaRuntime rt;
     FILE *out = NULL;
@@ -1161,8 +1191,8 @@ static int run_param_suite(
     if (media_runtime_up(&rt) != 0)
         return -1;
 
-    if (nv12_path) {
-        out = fopen(nv12_path, "wb");
+    if (output_path) {
+        out = fopen(output_path, "wb");
         if (!out) {
             fprintf(stderr, "fopen output: %s\n", strerror(errno));
             media_runtime_down(&rt);
@@ -1185,7 +1215,7 @@ static int run_param_suite(
             "[param] %s scale=%s(%ux%u) rotate=%u\n", cases[i].path, has_scale ? "on" : "off", sc_w, sc_h, rotate_deg);
         if (decode_media_with_parse_ex(
                 0, &cases[i], buf, sz, has_scale, sc_w, sc_h,
-                rotate_deg, max_frames, out, &dc, &fw, &fh) != 0) {
+                rotate_deg, output_format, max_frames, out, &dc, &fw, &fh) != 0) {
             free(buf);
             if (out)
                 fclose(out);
@@ -1369,7 +1399,8 @@ int main(int argc, char *argv[]) {
     U32 sc_w = 0, sc_h = 0;
     U32 rotate_deg = 0;
     U32 max_frames = 0;
-    const char *nv12_path = NULL;
+    MppPixelFormat output_format = MPP_PIXEL_FORMAT_NV12;
+    const char *output_path = NULL;
     int opt;
     static struct option long_opts[] = {
         {"test", required_argument, NULL, 't'},
@@ -1382,6 +1413,7 @@ int main(int argc, char *argv[]) {
         {"scale-width", required_argument, NULL, 1001},
         {"scale-height", required_argument, NULL, 1002},
         {"rotate", required_argument, NULL, 1003},
+        {"output-format", required_argument, NULL, 1004},
         {"output", required_argument, NULL, 'o'},
         {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0}
@@ -1416,7 +1448,7 @@ int main(int argc, char *argv[]) {
                 max_frames = (U32)strtoul(optarg, NULL, 10);
                 break;
             case 'o':
-                nv12_path = optarg;
+                output_path = optarg;
                 break;
             case 1000:
                 if (parse_cases_arg(cases, &n_case, optarg) != 0)
@@ -1430,6 +1462,13 @@ int main(int argc, char *argv[]) {
                 break;
             case 1003:
                 rotate_deg = (U32)strtoul(optarg, NULL, 10);
+                break;
+            case 1004:
+                output_format = parse_pixel_format(optarg);
+                if (output_format == MPP_PIXEL_FORMAT_UNKNOWN) {
+                    fprintf(stderr, "--output-format must be nv12, yuyv, or uyvy\n");
+                    return 1;
+                }
                 break;
             case 'h':
                 print_usage(argv[0]);
@@ -1460,15 +1499,15 @@ int main(int argc, char *argv[]) {
             return 1;
     }
     if (test_mask & TEST_FMT) {
-        if (run_format_suite(cases, n_case, max_frames, nv12_path) != 0)
+        if (run_format_suite(cases, n_case, output_format, max_frames, output_path) != 0)
             return 1;
     }
     if (test_mask & TEST_PARAM) {
-        if (run_param_suite(cases, n_case, sc_w, sc_h, rotate_deg, max_frames, nv12_path) != 0)
+        if (run_param_suite(cases, n_case, sc_w, sc_h, rotate_deg, output_format, max_frames, output_path) != 0)
             return 1;
     }
     if (test_mask & TEST_MULTI) {
-        if (run_multichn_suite(cases, n_case, max_frames, nv12_path) != 0)
+        if (run_multichn_suite(cases, n_case, output_format, max_frames, output_path) != 0)
             return 1;
     }
 

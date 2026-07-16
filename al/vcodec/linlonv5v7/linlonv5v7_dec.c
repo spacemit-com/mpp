@@ -205,7 +205,8 @@ static S32 checkInputParameters(MppStreamCodecType type, MppPixelFormat format) 
         return MPP_NOT_SUPPORTED_FORMAT;
     }
 
-    if (format != MPP_PIXEL_FORMAT_I420 && format != MPP_PIXEL_FORMAT_NV12 && format != MPP_PIXEL_FORMAT_NV21) {
+    if (format != MPP_PIXEL_FORMAT_I420 && format != MPP_PIXEL_FORMAT_NV12 && format != MPP_PIXEL_FORMAT_NV21 &&
+        format != MPP_PIXEL_FORMAT_YUYV && format != MPP_PIXEL_FORMAT_UYVY) {
         error("not support this format (%d)!", format);
         return MPP_NOT_SUPPORTED_FORMAT;
     }

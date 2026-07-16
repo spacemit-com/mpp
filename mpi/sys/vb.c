@@ -160,6 +160,13 @@ static VideoFrameFmt g_stVideoFrameFmt[] = {
         .u8HeightDepth = {8},
     },
     {
+        .ePixelFormat = MPP_PIXEL_FORMAT_UYVY,
+        .cName = "UYVY",
+        .u8DataPlanes = 1,
+        .u8WidthDepth = {16},
+        .u8HeightDepth = {8},
+    },
+    {
         .ePixelFormat = MPP_PIXEL_FORMAT_YVYU,
         .cName = "YVYU",
         .u8DataPlanes = 1,
