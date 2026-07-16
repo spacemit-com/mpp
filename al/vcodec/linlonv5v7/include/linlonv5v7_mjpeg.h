@@ -10,8 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int linlon_mjpeg_remove_zero_dri(
-    const uint8_t *src, size_t src_size, uint8_t *dst, size_t dst_capacity, size_t *dst_size
-);
+/* dst may equal src; successful in-place normalization is guaranteed. */
+int linlon_mjpeg_remove_zero_dri(const uint8_t *src, size_t src_size, uint8_t *dst,
+    size_t dst_capacity, size_t *dst_size);
 
 #endif

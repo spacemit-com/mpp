@@ -512,9 +512,8 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         if (ret == 0 || !(p.revents & POLLOUT))
             return MPP_DATAQUEUE_FULL;
 
-        ret = handleInputBuffer(
-            getInputPort(context->stCodec), context->bInputEos, pstStream, context->eCodecType
-        );
+        ret = handleInputBuffer(getInputPort(context->stCodec), context->bInputEos, pstStream,
+            context->eCodecType);
         if (ret < 0) {
             error("handleInputBuffer failed, should not failed, please check!");
             return ret;
