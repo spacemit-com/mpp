@@ -559,8 +559,8 @@ static U32 box_build_moof(MuxWriter *pWr, U8 *pu8Buf, U32 u32Cap, U32 *pu32TrunD
     /* trun flags are a 24-bit field (the high byte is the box version, kept 0).
      * Set only the defined presence bits: data-offset(0x000001),
      * sample-duration(0x000100), sample-size(0x000200) and sample-flags
-     * (0x000400). Together: 0x00000F01. */
-    u32TrunFlags = 0x00000F01;
+     * (0x000400). Together: 0x00000701. */
+    u32TrunFlags = 0x00000701;
     u32Trun = box_open(&stBld, MUX_FOURCC('t', 'r', 'u', 'n'));
     box_be32(&stBld, u32TrunFlags);
     box_be32(&stBld, pPriv->u32SampleCount);

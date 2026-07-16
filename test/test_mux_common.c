@@ -7,9 +7,11 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "mux_common.h"
+#include "mux_writer.h"
 
 #define CHECK_TRUE(cond) \
     do { \
@@ -128,11 +130,100 @@ static int test_h265_vcl_conversion_filters_parameter_sets(void) {
     return 0;
 }
 
+static U32 read_be32(const U8 *pData) {
+    return ((U32)pData[0] << 24) | ((U32)pData[1] << 16) |
+        ((U32)pData[2] << 8) | pData[3];
+}
+
+static int find_box(const U8 *pData, U32 u32Start, U32 u32End,
+    U32 u32Type, U32 *pu32Offset, U32 *pu32Size) {
+    U32 u32Pos = u32Start;
+
+    while (u32End - u32Pos >= 8) {
+        U32 u32Size = read_be32(pData + u32Pos);
+        U32 u32BoxType = read_be32(pData + u32Pos + 4);
+        if (u32Size < 8 || u32Size > u32End - u32Pos)
+            return -1;
+        if (u32BoxType == u32Type) {
+            *pu32Offset = u32Pos;
+            *pu32Size = u32Size;
+            return 0;
+        }
+        u32Pos += u32Size;
+    }
+    return -1;
+}
+
+static int test_mp4_trun_flags_match_serialized_fields(void) {
+    static const U8 au8KeyFrame[] = {
+        0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1e,
+        0x00, 0x00, 0x00, 0x01, 0x68, 0xce, 0x06, 0xe2,
+        0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84,
+    };
+    FILE *pFile = tmpfile();
+    MuxWriter *pWriter;
+    U8 *pData;
+    off_t off;
+    U32 u32MoofOff, u32MoofSize;
+    U32 u32TrafOff, u32TrafSize;
+    U32 u32TrunOff, u32TrunSize;
+    U32 u32Flags, u32SampleCount;
+    U32 u32ExpectedSize = 16;
+    U32 u32FieldsPerSample = 0;
+
+    CHECK_TRUE(pFile != NULL);
+    pWriter = MuxWriter_Create(MUX_FILE_FMP4, pFile, MUX_CODEC_H264,
+        640, 480, 30, 0);
+    CHECK_TRUE(pWriter != NULL);
+    CHECK_TRUE(MuxWriter_Start(pWriter) == 0);
+    CHECK_TRUE(MuxWriter_Write(pWriter, au8KeyFrame, sizeof(au8KeyFrame),
+        MPP_TRUE, 0) == 0);
+    CHECK_TRUE(MuxWriter_Finish(pWriter) == 0);
+    CHECK_TRUE(fflush(pFile) == 0);
+    off = ftello(pFile);
+    CHECK_TRUE(off > 0);
+    CHECK_TRUE(fseek(pFile, 0, SEEK_SET) == 0);
+    pData = (U8 *)malloc((size_t)off);
+    CHECK_TRUE(pData != NULL);
+    CHECK_TRUE(fread(pData, 1, (size_t)off, pFile) ==
+        (size_t)off);
+
+    CHECK_TRUE(find_box(pData, 0, (U32)off,
+        MUX_FOURCC('m', 'o', 'o', 'f'), &u32MoofOff, &u32MoofSize) == 0);
+    CHECK_TRUE(find_box(pData, u32MoofOff + 8, u32MoofOff + u32MoofSize,
+        MUX_FOURCC('t', 'r', 'a', 'f'), &u32TrafOff, &u32TrafSize) == 0);
+    CHECK_TRUE(find_box(pData, u32TrafOff + 8, u32TrafOff + u32TrafSize,
+        MUX_FOURCC('t', 'r', 'u', 'n'), &u32TrunOff, &u32TrunSize) == 0);
+
+    u32Flags = read_be32(pData + u32TrunOff + 8) & 0x00ffffff;
+    u32SampleCount = read_be32(pData + u32TrunOff + 12);
+    if (u32Flags & 0x000001)
+        u32ExpectedSize += 4;
+    if (u32Flags & 0x000004)
+        u32ExpectedSize += 4;
+    if (u32Flags & 0x000100)
+        u32FieldsPerSample++;
+    if (u32Flags & 0x000200)
+        u32FieldsPerSample++;
+    if (u32Flags & 0x000400)
+        u32FieldsPerSample++;
+    if (u32Flags & 0x000800)
+        u32FieldsPerSample++;
+    u32ExpectedSize += u32SampleCount * u32FieldsPerSample * 4;
+    CHECK_TRUE(u32TrunSize == u32ExpectedSize);
+
+    free(pData);
+    MuxWriter_Destroy(pWriter);
+    fclose(pFile);
+    return 0;
+}
+
 int main(void) {
     CHECK_TRUE(test_next_nal_skips_leading_zero_and_trims_prefix_padding() == 0);
     CHECK_TRUE(test_find_start_code_4byte_at_offset_zero() == 0);
     CHECK_TRUE(test_next_nal_4byte_start_code_at_buffer_start() == 0);
     CHECK_TRUE(test_h264_vcl_conversion_filters_parameter_sets() == 0);
     CHECK_TRUE(test_h265_vcl_conversion_filters_parameter_sets() == 0);
+    CHECK_TRUE(test_mp4_trun_flags_match_serialized_fields() == 0);
     return 0;
 }
