@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <errno.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -33,9 +34,31 @@
 #define SHM_LOG_ERR(fmt, ...) fprintf(stderr, "[SHM][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
 #define SHM_LOG_WARN(fmt, ...) fprintf(stderr, "[SHM][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
 #define SHM_LOG_INFO(fmt, ...) fprintf(stdout, "[SHM][INFO] " fmt "\n", ##__VA_ARGS__)
+#define MPP_SHM_INIT_LOCK_PATH "/tmp/mpp_shm_init.lock"
 
 static MppSharedMem *g_shm = NULL;
 static int g_shm_fd = -1;
+
+static int mpp_shm_init_lock(void) {
+    int fd = open(MPP_SHM_INIT_LOCK_PATH, O_CREAT | O_RDWR, 0666);
+    if (fd < 0) {
+        SHM_LOG_ERR("open init lock failed: %s", strerror(errno));
+        return -1;
+    }
+    if (flock(fd, LOCK_EX) != 0) {
+        SHM_LOG_ERR("lock init lock failed: %s", strerror(errno));
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+static void mpp_shm_init_unlock(int fd) {
+    if (fd >= 0) {
+        flock(fd, LOCK_UN);
+        close(fd);
+    }
+}
 
 /* ======================== Init helpers ======================== */
 
@@ -230,6 +253,10 @@ S32 mpp_shm_init(void) {
     }
 
     int created = 0;
+    int lock_fd = mpp_shm_init_lock();
+    if (lock_fd < 0) {
+        return -1;
+    }
     int fd = shm_open(MPP_SHM_NAME, O_RDWR, 0666);
     if (fd < 0) {
         /* first process — create */
@@ -239,6 +266,7 @@ S32 mpp_shm_init(void) {
             fd = shm_open(MPP_SHM_NAME, O_RDWR, 0666);
             if (fd < 0) {
                 SHM_LOG_ERR("shm_open failed: %s", strerror(errno));
+                mpp_shm_init_unlock(lock_fd);
                 return -1;
             }
         } else {
@@ -251,6 +279,7 @@ S32 mpp_shm_init(void) {
             SHM_LOG_ERR("ftruncate failed: %s", strerror(errno));
             close(fd);
             shm_unlink(MPP_SHM_NAME);
+            mpp_shm_init_unlock(lock_fd);
             return -1;
         }
     }
@@ -261,6 +290,7 @@ S32 mpp_shm_init(void) {
         close(fd);
         if (created)
             shm_unlink(MPP_SHM_NAME);
+        mpp_shm_init_unlock(lock_fd);
         return -1;
     }
 
@@ -269,6 +299,7 @@ S32 mpp_shm_init(void) {
             munmap(shm, sizeof(MppSharedMem));
             close(fd);
             shm_unlink(MPP_SHM_NAME);
+            mpp_shm_init_unlock(lock_fd);
             return -1;
         }
     } else {
@@ -283,6 +314,7 @@ S32 mpp_shm_init(void) {
                 SHM_LOG_ERR("bad shared memory header and active users present");
                 munmap(shm, sizeof(MppSharedMem));
                 close(fd);
+                mpp_shm_init_unlock(lock_fd);
                 return -1;
             }
         } else if (!mpp_shm_file_in_use()) {
@@ -294,6 +326,7 @@ S32 mpp_shm_init(void) {
             if (shm_init_all(shm) != 0) {
                 munmap(shm, sizeof(MppSharedMem));
                 close(fd);
+                mpp_shm_init_unlock(lock_fd);
                 return -1;
             }
         } else {
@@ -305,19 +338,49 @@ S32 mpp_shm_init(void) {
     g_shm_fd = fd;
 
     SHM_LOG_INFO("process attached, proc_ref=%d", atomic_load(&shm->proc_ref));
+    mpp_shm_init_unlock(lock_fd);
     return 0;
 }
 
-S32 mpp_shm_detach(void) {
+S32 mpp_shm_detach(void (*on_last)(MppSharedMem *shm)) {
     if (!g_shm)
         return -1;
 
+    /*
+     * Serialize detach against init under the same cross-process file lock.
+     * Without this, a concurrent mpp_shm_init() could shm_open() the segment
+     * and atomic_fetch_add(proc_ref) after we read ref==last but before we
+     * shm_unlink(): the newcomer would then hold a mapping to a segment whose
+     * name has just been removed, while the next process shm_open()s and
+     * O_CREATs a brand-new segment — leaving the two processes attached to
+     * different shared memories. Holding the init lock across the
+     * fetch_sub + unlink makes the "am I the last process" decision atomic
+     * with respect to init.
+     */
+    int lock_fd = mpp_shm_init_lock();
+    if (lock_fd < 0) {
+        SHM_LOG_ERR("detach aborted: init lock unavailable");
+        return -1;
+    }
+
     int ref = atomic_fetch_sub(&g_shm->proc_ref, 1);
+    int is_last = (ref <= 1);
+
+    /*
+     * Last-process global cleanup (e.g. clearing shared bind/map tables) must
+     * run while the segment is still mapped AND while we still hold the init
+     * lock, so that no other process can attach in between and observe a
+     * half-torn-down state. Because is_last comes from the atomic decrement
+     * under the lock, exactly one process ever sees is_last==1.
+     */
+    if (is_last && on_last) {
+        on_last(g_shm);
+    }
 
     munmap(g_shm, sizeof(MppSharedMem));
     close(g_shm_fd);
 
-    if (ref <= 1) {
+    if (is_last) {
         /* last process — unlink */
         shm_unlink(MPP_SHM_NAME);
         SHM_LOG_INFO("last process detached, shm unlinked");
@@ -327,6 +390,8 @@ S32 mpp_shm_detach(void) {
 
     g_shm = NULL;
     g_shm_fd = -1;
+
+    mpp_shm_init_unlock(lock_fd);
     return 0;
 }
 
