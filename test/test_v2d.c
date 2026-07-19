@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "sys_api.h"
 #include "vb_api.h"
@@ -718,6 +719,7 @@ err_destroy_pool:
 static int demo_run_resize(const DEMO_CONFIG_S *config, const VideoFrameInfo *src_frame, VideoFrameInfo *dst_frame) {
     V2DHandle handle = 0;
     S32 ret;
+    struct timespec t0, t1;
 
     if (config == NULL || src_frame == NULL || dst_frame == NULL) {
         return -1;
@@ -725,6 +727,7 @@ static int demo_run_resize(const DEMO_CONFIG_S *config, const VideoFrameInfo *sr
 
     demo_reset_frame(dst_frame);
 
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return ret;
@@ -740,6 +743,9 @@ static int demo_run_resize(const DEMO_CONFIG_S *config, const VideoFrameInfo *sr
     if (ret != 0) {
         return ret;
     }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    printf("[MPP_PERF] module=V2D op=resize cost_us=%.0f frame=0\n",
+        (double)(t1.tv_sec - t0.tv_sec) * 1000000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1000.0);
 
     return 0;
 }
@@ -762,6 +768,9 @@ static int demo_run_convert(const DEMO_CONFIG_S *config, const VideoFrameInfo *s
         memset((void *)dst_frame->stVFrame.ulPlaneVirAddr[1], 0x80, dst_frame->stVFrame.u32PlaneSize[1]);
     }
 
+    {
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return ret;
@@ -776,6 +785,10 @@ static int demo_run_convert(const DEMO_CONFIG_S *config, const VideoFrameInfo *s
     ret = V2D_EndJob(handle);
     if (ret != 0) {
         return ret;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    printf("[MPP_PERF] module=V2D op=convert cost_us=%.0f frame=0\n",
+        (double)(t1.tv_sec - t0.tv_sec) * 1000000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1000.0);
     }
 
     return 0;
@@ -796,6 +809,9 @@ static int demo_run_adv2layers(
 
     demo_reset_frame(dst_frame);
 
+    {
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return ret;
@@ -811,6 +827,10 @@ static int demo_run_adv2layers(
     if (ret != 0) {
         return ret;
     }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    printf("[MPP_PERF] module=V2D op=blend cost_us=%.0f frame=0\n",
+        (double)(t1.tv_sec - t0.tv_sec) * 1000000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1000.0);
+    }
 
     return 0;
 }
@@ -825,6 +845,9 @@ static int demo_run_rotate(const DEMO_CONFIG_S *config, const VideoFrameInfo *sr
 
     demo_reset_frame(dst_frame);
 
+    {
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return ret;
@@ -839,6 +862,10 @@ static int demo_run_rotate(const DEMO_CONFIG_S *config, const VideoFrameInfo *sr
     ret = V2D_EndJob(handle);
     if (ret != 0) {
         return ret;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    printf("[MPP_PERF] module=V2D op=rotate cost_us=%.0f frame=0\n",
+        (double)(t1.tv_sec - t0.tv_sec) * 1000000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1000.0);
     }
 
     return 0;

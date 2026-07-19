@@ -866,10 +866,13 @@ static int encode_synth(S32 chn, const VencCaseCfg *cfg, U32 frames, FILE *fout,
         total_drain_ms += dt;
         if (dt > max_drain_ms) max_drain_ms = dt;
 
-        if (i < 5 || (i % 10 == 0)) {
-            printf("  [time] frame %3u: fill=%.2f send=%.2f drain=%.2f ms\n",
-                    i, ts_ms(&t2, &t3), ts_ms(&t3, &t4), ts_ms(&t4, &t5));
-        }
+        /* Emit per-frame structured perf markers for the runner to parse. */
+        printf("[MPP_PERF] module=VENC op=fill_frame cost_us=%.0f frame=%u\n",
+                ts_ms(&t2, &t3) * 1000.0, i);
+        printf("[MPP_PERF] module=VENC op=SendFrame cost_us=%.0f frame=%u\n",
+                ts_ms(&t3, &t4) * 1000.0, i);
+        printf("[MPP_PERF] module=VENC op=GetStream cost_us=%.0f frame=%u\n",
+                ts_ms(&t4, &t5) * 1000.0, i);
     }
 
     /* Drain any frames still in flight. */
@@ -898,6 +901,7 @@ done:
         synth_source_destroy(&src);
 
     clock_gettime(CLOCK_MONOTONIC, &t_end);
+    /* Print human-readable summary (keep for debugging). */
     printf("  [time] === encode_synth summary (chn %d, %u frames) ===\n", chn, frames);
     printf("  [time]   fill_frame : total=%.2f ms, avg=%.2f ms, max=%.2f ms\n",
             total_fill_ms, frames ? total_fill_ms / frames : 0, max_fill_ms);
@@ -907,6 +911,15 @@ done:
             total_drain_ms, frames ? total_drain_ms / frames : 0, max_drain_ms);
     printf("  [time]   flush+drain: %.2f ms\n", flush_ms);
     printf("  [time]   total      : %.2f ms\n", ts_ms(&t_start, &t_end));
+    /* Print structured summary for perf runner. */
+    if (frames > 0) {
+        double total_sec = ts_ms(&t_start, &t_end) / 1000.0;
+        printf("[MPP_PERF] metric=fps value=%.3f unit=fps\n",
+            total_sec > 0.0 ? (double)enc_count / total_sec : 0.0);
+        printf("[MPP_PERF] metric=frames value=%u unit=frames\n", enc_count);
+        printf("[MPP_PERF] metric=venc_encode_total_ms value=%.2f unit=ms\n", total_send_ms);
+        printf("[MPP_PERF] metric=venc_getstream_total_ms value=%.2f unit=ms\n", total_drain_ms);
+    }
 
     if (out_enc)
         *out_enc = enc_count;

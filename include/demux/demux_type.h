@@ -103,6 +103,8 @@ typedef struct _DemuxChnAttr {
     U32 u32AnalyzeDurationMs; /* 流分析时长 ms, 0=默认 */
     U32 u32ProbeSizeBytes;    /* 探测大小, 0=默认 */
     BOOL bInjectPS;           /* IDR 前注入 VPS/SPS/PPS */
+    BOOL bEnableBindOutput;   /* 是否通过 SYS_SendStream 输出到绑定下游 */
+    BOOL bEnableBindOutputSet; /* bEnableBindOutput 是否由调用方显式设置 */
 } DemuxChnAttr;
 
 #ifdef __cplusplus

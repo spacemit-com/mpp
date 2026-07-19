@@ -12,9 +12,11 @@
 #define _GNU_SOURCE
 #endif
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "sys_api.h"
 #include "vb_api.h"
@@ -357,6 +359,8 @@ int main(int argc, char *argv[]) {
 
     ret = V2D_BeginJob(&handle);
     if (ret == 0) {
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
         ret = V2D_AddBlendTask(
             handle,
             &src_frame,
@@ -378,6 +382,11 @@ int main(int argc, char *argv[]) {
             V2D_CancelJob(handle);
         } else {
             ret = V2D_EndJob(handle);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            if (ret == 0) {
+                int64_t cost_us = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000LL + (t1.tv_nsec - t0.tv_nsec) / 1000LL;
+                printf("[MPP_PERF] module=V2D op=blend cost_us=%" PRId64 " frame=0\n", cost_us);
+            }
         }
     }
     if (ret != 0) {

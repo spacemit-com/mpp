@@ -215,11 +215,18 @@ static S32 test_demux_vdec_bind(const char *filename, const char *output_yuv) {
 
     while (!g_bExit && u32FrameCount < MAX_FRAMES) {
         VideoFrameInfo stFrame;
+        U64 u64GetStart, u64GetEnd;
 
         memset(&stFrame, 0, sizeof(stFrame));
+        u64GetStart = get_time_us();
         ret = VDEC_GetFrame(TEST_VDEC_CHN, &stFrame, 1000);
+        u64GetEnd = get_time_us();
 
         if (ret == 0) {
+            /* Pipeline data-path latency: demux->vdec delivers one frame,
+             * excluding the file write below. */
+            printf("[MPP_PERF] pipeline=e2e module=PIPELINE op=demux_vdec latency_us=%" PRIu64 " frame=%u\n",
+                (uint64_t)(u64GetEnd - u64GetStart), u32FrameCount);
             u32FrameCount++;
 
             /* Save frame to file */
@@ -247,6 +254,10 @@ static S32 test_demux_vdec_bind(const char *filename, const char *output_yuv) {
     u64ElapsedUs = get_time_us() - u64StartTime;
     printf("[TEST] Decoded %u frames in %.2f seconds (%.2f fps)\n", u32FrameCount, u64ElapsedUs / 1000000.0,
         u32FrameCount * 1000000.0 / u64ElapsedUs);
+    /* Structured metrics for perf runner. */
+    printf("[MPP_PERF] metric=fps value=%.3f unit=fps\n",
+        u64ElapsedUs > 0 ? u32FrameCount * 1000000.0 / u64ElapsedUs : 0.0);
+    printf("[MPP_PERF] metric=frames value=%u unit=frames\n", u32FrameCount);
 
 cleanup:
     /* Stop channels */

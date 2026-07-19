@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "demux/demux_api.h"
@@ -68,6 +69,9 @@ typedef struct ChnCtx {
     MppNode stDemuxSrc;
     MppNode stVdecSink;
     pthread_t tid;
+    struct timespec tFirst;  /* first decoded frame */
+    struct timespec tLast;   /* last decoded frame */
+    int have_first;
 } ChnCtx;
 
 static volatile int g_running = 1;
@@ -183,6 +187,11 @@ static void *channel_thread(void *arg) {
         if (ret == ERR_VDEC_OK) {
             ctx->decoded++;
             idle = 0;
+            if (!ctx->have_first) {
+                clock_gettime(CLOCK_MONOTONIC, &ctx->tFirst);
+                ctx->have_first = 1;
+            }
+            clock_gettime(CLOCK_MONOTONIC, &ctx->tLast);
             if (ctx->decoded % 60 == 0) {
                 printf("[chn%d] decoded %d frames\n", ctx->index, ctx->decoded);
             }
@@ -307,11 +316,26 @@ int main(int argc, char *argv[]) {
     }
 
     printf("\n=== Summary ===\n");
+    double dAggFps = 0.0;
     for (i = 0; i < nchn; i++) {
-        printf("  chn%d: decoded=%d\n", i, ctx[i].decoded);
+        double dChnFps = 0.0;
+        if (ctx[i].have_first && ctx[i].decoded > 1) {
+            double dWindowUs = (double)(ctx[i].tLast.tv_sec - ctx[i].tFirst.tv_sec) * 1000000.0 +
+                (double)(ctx[i].tLast.tv_nsec - ctx[i].tFirst.tv_nsec) / 1000.0;
+            if (dWindowUs > 0.0) {
+                dChnFps = (double)(ctx[i].decoded - 1) * 1000000.0 / dWindowUs;
+                dAggFps += dChnFps;
+            }
+        }
+        printf("  chn%d: decoded=%d (%.1f fps)\n", i, ctx[i].decoded, dChnFps);
         total_decoded += ctx[i].decoded;
     }
     printf("  total decoded frames: %d\n", total_decoded);
+    /* Real steady-state parallel decode throughput, excluding init/teardown. */
+    if (dAggFps > 0.0) {
+        printf("[MPP_PERF] metric=frames value=%d unit=frames\n", total_decoded);
+        printf("[MPP_PERF] metric=fps value=%.3f unit=fps\n", dAggFps);
+    }
     ret = (total_decoded > 0) ? 0 : 1;
 
     VDEC_Exit();
