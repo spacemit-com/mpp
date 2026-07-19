@@ -62,7 +62,62 @@ static BOOL is_key_frame_nal(U8 u8NalType) {
     return (u8NalType == NAL_TYPE_IDR || u8NalType == NAL_TYPE_SPS || u8NalType == NAL_TYPE_PPS);
 }
 
+/*
+ * Prepend the SDP-carried SPS/PPS (sprop-parameter-sets) in front of a key frame
+ * when the in-band bitstream does not already contain them.
+ *
+ * Rationale: some RTSP servers (e.g. mediamtx) advertise SPS/PPS ONLY in the SDP
+ * fmtp sprop-parameter-sets and never repeat them in-band before each IDR. Without
+ * SPS/PPS the hardware VDEC cannot initialise and produces zero frames. The
+ * parameter sets are stored (RtpDepack_SetSps/SetPps) as raw NAL bytes (no start
+ * code); here we splice [startcode+SPS][startcode+PPS] ahead of the frame NALs.
+ *
+ * Injection is skipped when the frame already begins with an SPS NAL (server sends
+ * parameter sets in-band) to avoid duplicating them.
+ */
+static void inject_parameter_sets(H264Depack *pDepack) {
+    U8 u8FirstNalType;
+    U32 u32Prefix;
+    U32 u32Offset;
+
+    /* Nothing to inject or no room for even a NAL header check. */
+    if (pDepack->u32SpsLen == 0 || pDepack->u32PpsLen == 0 || pDepack->u32FrameLen < 5) {
+        return;
+    }
+
+    /* Frame layout is [START_CODE(4)][NAL header][...]; first NAL header at offset 4. */
+    u8FirstNalType = pDepack->au8Frame[4] & NAL_TYPE_MASK;
+    if (u8FirstNalType == NAL_TYPE_SPS) {
+        /* In-band parameter sets already present; do not duplicate. */
+        return;
+    }
+
+    /* Total bytes we need to splice in: startcode+SPS + startcode+PPS. */
+    u32Prefix = 4 + pDepack->u32SpsLen + 4 + pDepack->u32PpsLen;
+    if (pDepack->u32FrameLen + u32Prefix > sizeof(pDepack->au8Frame)) {
+        return; /* Not enough room; emit frame as-is. */
+    }
+
+    /* Shift the existing frame NALs back to make room for the parameter sets. */
+    memmove(&pDepack->au8Frame[u32Prefix], &pDepack->au8Frame[0], pDepack->u32FrameLen);
+
+    /* Write [startcode][SPS][startcode][PPS] at the front. */
+    u32Offset = 0;
+    memcpy(&pDepack->au8Frame[u32Offset], START_CODE, 4);
+    u32Offset += 4;
+    memcpy(&pDepack->au8Frame[u32Offset], pDepack->au8Sps, pDepack->u32SpsLen);
+    u32Offset += pDepack->u32SpsLen;
+    memcpy(&pDepack->au8Frame[u32Offset], START_CODE, 4);
+    u32Offset += 4;
+    memcpy(&pDepack->au8Frame[u32Offset], pDepack->au8Pps, pDepack->u32PpsLen);
+
+    pDepack->u32FrameLen += u32Prefix;
+}
+
 static void emit_frame(H264Depack *pDepack, U32 u32Timestamp) {
+    if (pDepack->bKeyFrame) {
+        inject_parameter_sets(pDepack);
+    }
     if (pDepack->pfnCallback && pDepack->u32FrameLen > 0) {
         pDepack->pfnCallback(pDepack->pPriv, pDepack->au8Frame, pDepack->u32FrameLen, u32Timestamp, pDepack->bKeyFrame);
     }

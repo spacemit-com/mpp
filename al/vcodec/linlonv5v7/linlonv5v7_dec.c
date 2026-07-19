@@ -258,6 +258,7 @@ ALBaseContext *al_dec_create(void) {
     }
 
     memset(context, 0, sizeof(ALLinlonv5v7DecContext));
+    context->nVideoFd = -1;
 
     debug("init create");
 
@@ -359,6 +360,8 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
         MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
         return MPP_INIT_FAILED;
     }
 
@@ -373,7 +376,21 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     }
 
     // setformat, allocate buffer, stream on
-    stream(context->stCodec);
+    S32 streamRet = stream(context->stCodec);
+    if (streamRet != MPP_OK) {
+        /*
+         * Buffer allocation failed (e.g. CMA exhausted). A decoder with zero
+         * usable buffers can never dequeue frames, so init has effectively
+         * failed. Tear down and report the error instead of returning MPP_OK
+         * and leaving the caller with a dead decoder that stalls the pipeline.
+         */
+        error("al_dec_init: stream() failed (ret=%d), tearing down decoder", streamRet);
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return streamRet;
+    }
 
     // pthread for handle event or something
     ret = pthread_create(&context->pollthread, NULL, runpoll, (void *)context);
@@ -711,7 +728,7 @@ void al_dec_destory(ALBaseContext *ctx) {
     atomic_store(&context->bIsDestoryed, true);
     debug("destory start");
 
-    if (context->nVideoFd && context->stCodec) {
+    if (context->nVideoFd >= 0 && context->stCodec) {
         enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
         enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
         mpp_v4l2_stream_off(context->nVideoFd, &input_type);
@@ -732,10 +749,14 @@ void al_dec_destory(ALBaseContext *ctx) {
         context->bPollThreadCreated = MPP_FALSE;
     }
 
-    if (context->nVideoFd && context->stCodec) {
+    if (context->stCodec) {
         destoryCodec(context->stCodec);
+        context->stCodec = NULL;
         debug("destory codec finish");
+    }
+    if (context->nVideoFd >= 0) {
         close(context->nVideoFd);
+        context->nVideoFd = -1;
     }
     free(context);
     context = NULL;

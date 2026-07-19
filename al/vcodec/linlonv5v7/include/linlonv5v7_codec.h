@@ -123,7 +123,11 @@ void subscribeEvent(Codec *codec, U32 event);
 void unsubscribeEvents(Codec *codec);
 void unsubscribeEvent(Codec *codec, U32 event);
 
-void allocateCodecBuffers(Codec *codec);
+/* Returns MPP_OK only if BOTH input and output ports allocated all requested
+ * buffers. On CMA exhaustion a port may end up with nBufNum < requested (or 0),
+ * in which case this returns an error so callers can fail init instead of
+ * running a codec with zero usable buffers (which drops every frame forever). */
+S32 allocateCodecBuffers(Codec *codec);
 void freeCodecBuffers(Codec *codec);
 void queueCodecBuffers(Codec *codec, BOOL eof);
 

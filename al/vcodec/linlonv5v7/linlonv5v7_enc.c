@@ -359,6 +359,7 @@ ALBaseContext *al_enc_create(void) {
     }
 
     memset(context, 0, sizeof(ALLinlonv5v7EncContext));
+    context->nVideoFd = -1;
 
     return &(context->stAlEncBaseContext.stAlBaseContext);
 }
@@ -440,6 +441,8 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr) {
         eBufferType);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
         return MPP_INIT_FAILED;
     }
 
@@ -452,7 +455,15 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr) {
     setEncoderRotation(context, context->nRotation);
 
     // setformat, allocate buffer, stream on
-    stream(context->stCodec);
+    S32 streamRet = stream(context->stCodec);
+    if (streamRet != MPP_OK) {
+        error("al_enc_init: stream() failed (ret=%d), tearing down encoder", streamRet);
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return streamRet;
+    }
 
     debug("init finish");
 
@@ -647,6 +658,10 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) 
 
     if (unlikely(context->nInputQueuedNum < (U32)getBufNum(getInputPort(context->stCodec)))) {
         Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
+        if (unlikely(!buf)) {
+            error("Input buffer[%u] is NULL; dropping frame", context->nInputQueuedNum);
+            return MPP_NULL_POINTER;
+        }
         struct v4l2_buffer *b = getV4l2Buffer(buf);
 
         setupInputFrame(context, buf, pstFrame);
@@ -661,8 +676,16 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) 
     } else {
         /* Runtime phase: use round-robin buffer index */
         S32 numBufs = getBufNum(getInputPort(context->stCodec));
+        if (unlikely(numBufs <= 0)) {
+            error("No input buffers available (numBufs=%d); dropping frame", numBufs);
+            return MPP_NULL_POINTER;
+        }
         S32 bufIdx = context->nInputQueuedNum % numBufs;
         Buffer *buf = getBuffer(getInputPort(context->stCodec), bufIdx);
+        if (unlikely(!buf)) {
+            error("Input buffer[%d] is NULL; dropping frame", bufIdx);
+            return MPP_NULL_POINTER;
+        }
 
         /* If this buffer is still queued, try to recycle one */
         if (getIsQueued(buf)) {
@@ -888,17 +911,21 @@ void al_enc_destory(ALBaseContext *ctx) {
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
 
     debug("destory start");
-    if (context->nVideoFd && context->stCodec) {
+    if (context->nVideoFd >= 0 && context->stCodec) {
         enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
         enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
         mpp_v4l2_stream_off(context->nVideoFd, &input_type);
         mpp_v4l2_stream_off(context->nVideoFd, &output_type);
         debug("stream off finish");
-
+    }
+    if (context->stCodec) {
         destoryCodec(context->stCodec);
+        context->stCodec = NULL;
         debug("destory codec finish");
-
+    }
+    if (context->nVideoFd >= 0) {
         close(context->nVideoFd);
+        context->nVideoFd = -1;
     }
     if (context->pHeader) {
         free(context->pHeader);
