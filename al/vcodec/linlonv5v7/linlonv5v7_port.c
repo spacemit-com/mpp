@@ -368,6 +368,12 @@ S32 allocateBuffers(Port *port, S32 count) {
     /* Free existing meta buffer. */
     freeBuffers(port);
 
+    /* stBuf can track at most MAX_BUF_NUM buffers */
+    if (count > MAX_BUF_NUM) {
+        error("buffer count %d exceeds MAX_BUF_NUM(%d), clamped", count, MAX_BUF_NUM);
+        count = MAX_BUF_NUM;
+    }
+
     /* Request new buffer to be allocated. */
     reqbuf.count = count;
     reqbuf.type = port->eBufType;
@@ -379,6 +385,13 @@ S32 allocateBuffers(Port *port, S32 count) {
     }
 
     debug("Request buffers. type:%d count:%d(%d) memory:%d", reqbuf.type, reqbuf.count, count, reqbuf.memory);
+
+    /* the driver may grant more buffers than requested; never track more
+     * than stBuf can hold */
+    if (reqbuf.count > MAX_BUF_NUM) {
+        error("driver granted %d buffers, only tracking MAX_BUF_NUM(%d)", reqbuf.count, MAX_BUF_NUM);
+        reqbuf.count = MAX_BUF_NUM;
+    }
 
     port->nBufNum = reqbuf.count;
 
@@ -1773,6 +1786,8 @@ void handleResolutionChange(Port *port, BOOL eof) {
     if (count < port->nNeededBufNum)
         count = port->nNeededBufNum;
     count += DECODER_OUTPUT_BUF_EXTRA;
+    if (count > MAX_BUF_NUM)
+        count = MAX_BUF_NUM;
     allocateBuffers(port, count);
     port->nBufNum = count;
     streamon(port);

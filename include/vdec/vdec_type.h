@@ -72,6 +72,7 @@ typedef struct _VdecChnAttr {
     U32 u32RotateDegree;               /**< 0 / 90 / 180 / 270 */
     BOOL bDispErrorFrame;              /**< display error frames */
     VdecScale stScale;                 /**< scaling parameters */
+    U32 u32BufCnt;                     /**< output buffer count (0 = default 12) */
 } VdecChnAttr;
 
 /**
