@@ -37,6 +37,8 @@ struct _Buffer {
     S32 nExtraId;
     S32 nExtraFd;
     BOOL bIsQueued;
+    UL ulInputBufferId;
+    BOOL bInputBufferValid;
 
     /***
      * only for frame, not used for packet
@@ -653,4 +655,24 @@ BOOL getIsQueued(Buffer *buf) {
 S32 setIsQueued(Buffer *buf, BOOL queued) {
     buf->bIsQueued = queued;
     return MPP_OK;
+}
+
+void setInputBufferId(Buffer *buf, UL ulBufferId) {
+    buf->ulInputBufferId = ulBufferId;
+    buf->bInputBufferValid = MPP_TRUE;
+}
+
+void clearInputBufferId(Buffer *buf) {
+    buf->ulInputBufferId = 0;
+    buf->bInputBufferValid = MPP_FALSE;
+}
+
+BOOL takeInputBufferId(Buffer *buf, UL *pulBufferId) {
+    if (!buf->bInputBufferValid)
+        return MPP_FALSE;
+
+    if (pulBufferId)
+        *pulBufferId = buf->ulInputBufferId;
+    clearInputBufferId(buf);
+    return MPP_TRUE;
 }

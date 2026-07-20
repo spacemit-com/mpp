@@ -223,5 +223,8 @@ S32 getExtraId(Buffer *buf);
 S32 getExtraFd(Buffer *buf);
 BOOL getIsQueued(Buffer *buf);
 S32 setIsQueued(Buffer *buf, BOOL queued);
+void setInputBufferId(Buffer *buf, UL ulBufferId);
+void clearInputBufferId(Buffer *buf);
+BOOL takeInputBufferId(Buffer *buf, UL *pulBufferId);
 
 #endif /*LINLONV5V7_BUFFER_H*/

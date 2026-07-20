@@ -44,10 +44,9 @@ typedef enum _VencChnState {
 /** al_enc_* entry points resolved from the codec plugin, per channel. */
 typedef struct _VencAlOps {
     ALBaseContext *(*create)(void);
-    S32 (*init)(ALBaseContext *ctx, const VencChnAttr *pstAttr);
+    S32 (*init)(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallbacks *pstCallbacks);
     S32 (*set_para)(ALBaseContext *ctx, VencCmd cmd, const void *pParam);
     S32 (*send_input_frame)(ALBaseContext *ctx, const VideoFrameInfo *pstFrame);
-    S32 (*return_input_frame)(ALBaseContext *ctx);
     S32 (*request_output_stream)(ALBaseContext *ctx, StreamBufferInfo *pstStream, U32 u32TimeoutMs);
     S32 (*get_status)(ALBaseContext *ctx, VencChnStatus *pstStatus); /* optional */
     S32 (*flush)(ALBaseContext *ctx);
@@ -59,6 +58,7 @@ typedef struct _VencChnCtx {
     VencChnState eState;
     VencChnAttr stAttr;
     pthread_mutex_t lock;
+    pthread_mutex_t pluginIoLock;
     S32 s32ChnId;
 
     /* codec plugin binding (valid while pModule != NULL) */
@@ -99,6 +99,26 @@ static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
 static inline BOOL venc_chn_valid(S32 s32ChnId) {
     return (s32ChnId >= 0 && s32ChnId < VENC_MAX_CHN);
+}
+
+static VOID venc_input_buffer_done(VOID *pUserData, UL ulBufferId) {
+    VencChnCtx *pChn = (VencChnCtx *)pUserData;
+    S32 ret = VB_ReleaseBuffer(ulBufferId);
+
+    if (ret != 0) {
+        error(
+            "chn %d failed to release completed input buffer 0x%" PRIx64 ": %d",
+            pChn ? pChn->s32ChnId : -1,
+            (U64)ulBufferId,
+            ret);
+    }
+}
+
+static S32 venc_plugin_flush(VencChnCtx *pChn) {
+    pthread_mutex_lock(&pChn->pluginIoLock);
+    S32 ret = pChn->stOps.flush(pChn->pAlCtx);
+    pthread_mutex_unlock(&pChn->pluginIoLock);
+    return ret;
 }
 
 /* ======================== Plugin Binding ======================== */
@@ -147,21 +167,21 @@ static S32 venc_plugin_open(VencChnCtx *pChn) {
     }
 
     ops->create = (ALBaseContext * (*)(void)) dlsym(handle, "al_enc_create");
-    ops->init = (S32 (*)(ALBaseContext *, const VencChnAttr *))dlsym(handle, "al_enc_init");
+    ops->init =
+        (S32 (*)(ALBaseContext *, const VencChnAttr *, const AlEncCallbacks *))dlsym(handle, "al_enc_init");
     ops->set_para = (S32 (*)(ALBaseContext *, VencCmd, const void *))dlsym(handle, "al_enc_set_para");
     ops->send_input_frame = (S32 (*)(ALBaseContext *, const VideoFrameInfo *))dlsym(handle, "al_enc_send_input_frame");
-    ops->return_input_frame = (S32 (*)(ALBaseContext *))dlsym(handle, "al_enc_return_input_frame");
     ops->request_output_stream =
         (S32 (*)(ALBaseContext *, StreamBufferInfo *, U32))dlsym(handle, "al_enc_request_output_stream");
     ops->get_status = (S32 (*)(ALBaseContext *, VencChnStatus *))dlsym(handle, "al_enc_get_status");
     ops->flush = (S32 (*)(ALBaseContext *))dlsym(handle, "al_enc_flush");
     ops->destory = (void (*)(ALBaseContext *))dlsym(handle, "al_enc_destory");
 
-    if (!ops->create || !ops->init || !ops->set_para || !ops->send_input_frame || !ops->return_input_frame ||
-        !ops->request_output_stream || !ops->flush || !ops->destory) {
+    if (!ops->create || !ops->init || !ops->set_para || !ops->send_input_frame || !ops->request_output_stream ||
+        !ops->flush || !ops->destory) {
         error(
             "required encoder symbols missing from plugin (create/init/"
-            "set_para/send/return/request/flush/destory)");
+            "set_para/send/request/flush/destory)");
         module_destory(pChn->pModule);
         pChn->pModule = NULL;
         return MPP_INIT_FAILED;
@@ -175,9 +195,18 @@ static S32 venc_plugin_open(VencChnCtx *pChn) {
         return MPP_INIT_FAILED;
     }
 
-    ret = ops->init(pChn->pAlCtx, &pChn->stAttr);
+    AlEncCallbacks stCallbacks = {
+        .pfnInputBufferDone = venc_input_buffer_done,
+        .pUserData = pChn,
+    };
+    ret = ops->init(pChn->pAlCtx, &pChn->stAttr, &stCallbacks);
     if (ret != MPP_OK) {
         error("al_enc_init failed, ret = %d", ret);
+        ops->destory(pChn->pAlCtx);
+        pChn->pAlCtx = NULL;
+        module_destory(pChn->pModule);
+        pChn->pModule = NULL;
+        memset(ops, 0, sizeof(*ops));
         return ret;
     }
     debug("init VENC Channel success");
@@ -245,16 +274,14 @@ static void *venc_task_thread(void *arg) {
         stStream.pu8Addr = pOutBuf;
         stStream.u32Size = allocSize;
 
+        pthread_mutex_lock(&pChn->pluginIoLock);
         S32 ret = pChn->stOps.request_output_stream(pChn->pAlCtx, &stStream, 100);
+        pthread_mutex_unlock(&pChn->pluginIoLock);
         if (ret != MPP_OK && ret != MPP_CODER_EOS) {
             free(pOutBuf);
             usleep(5000); /* no stream available */
             continue;
         }
-
-        /* Successfully got encoded output; recycle one input buffer so the
-         * encoder can accept more frames when the pool is full. */
-        pChn->stOps.return_input_frame(pChn->pAlCtx);
 
         if (stStream.pu8Addr && stStream.u32Size > 0) {
             ret = SYS_SendStream(&stSrcNode, &stStream);
@@ -397,17 +424,21 @@ static void *venc_frame_input_task(void *arg) {
             continue;
         }
 
+        BOOL bSubmitted = MPP_FALSE;
         pthread_mutex_lock(&pChn->lock);
         if (pChn->eState == VENC_CHN_STATE_STARTED) {
             ret = pChn->stOps.send_input_frame(pChn->pAlCtx, &stFrame);
             if (ret != MPP_OK) {
                 error("frame input task: send_input_frame failed %d, chn %d", ret, s32ChnId);
+            } else {
+                bSubmitted = MPP_TRUE;
             }
         }
         pthread_mutex_unlock(&pChn->lock);
 
-        /* Release the VB buffer ref (SYS_RecvFrame added a ref) */
-        VB_ReleaseBuffer(ulBuff);
+        /* Transfer the SYS_RecvFrame reference to the encoder after QBUF. */
+        if (!bSubmitted)
+            VB_ReleaseBuffer(ulBuff);
     }
 
     info("frame input task exiting: chn %d", s32ChnId);
@@ -427,6 +458,7 @@ S32 VENC_Init(VOID) {
     memset(g_stChn, 0, sizeof(g_stChn));
     for (S32 i = 0; i < VENC_MAX_CHN; i++) {
         pthread_mutex_init(&g_stChn[i].lock, NULL);
+        pthread_mutex_init(&g_stChn[i].pluginIoLock, NULL);
     }
 
     g_bVencInited = MPP_TRUE;
@@ -452,6 +484,7 @@ S32 VENC_Exit(VOID) {
     }
 
     for (S32 i = 0; i < VENC_MAX_CHN; i++) {
+        pthread_mutex_destroy(&g_stChn[i].pluginIoLock);
         pthread_mutex_destroy(&g_stChn[i].lock);
     }
 
@@ -542,7 +575,7 @@ S32 VENC_EnableChn(S32 s32ChnId) {
         error("failed to create frame input thread for chn %d", s32ChnId);
         pthread_mutex_lock(&pChn->lock);
         pChn->bFrameInputRun = MPP_FALSE;
-        pChn->stOps.flush(pChn->pAlCtx);
+        venc_plugin_flush(pChn);
         pChn->eState = VENC_CHN_STATE_IDLE;
         pthread_mutex_unlock(&pChn->lock);
         return ERR_VENC_NOMEM;
@@ -555,7 +588,7 @@ S32 VENC_EnableChn(S32 s32ChnId) {
         pChn->bFrameInputRun = MPP_FALSE;
         pthread_join(pChn->frameInputTid, NULL);
         pthread_mutex_lock(&pChn->lock);
-        pChn->stOps.flush(pChn->pAlCtx);
+        venc_plugin_flush(pChn);
         pChn->eState = VENC_CHN_STATE_IDLE;
         pthread_mutex_unlock(&pChn->lock);
         return ret2;
@@ -591,7 +624,7 @@ S32 VENC_DisableChn(S32 s32ChnId) {
     pthread_join(pChn->frameInputTid, NULL);
     pthread_mutex_lock(&pChn->lock);
 
-    pChn->stOps.flush(pChn->pAlCtx);
+    venc_plugin_flush(pChn);
 
     pChn->bBound = MPP_FALSE;
     pChn->eState = VENC_CHN_STATE_IDLE;
@@ -618,17 +651,20 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
         return ERR_VENC_BUSY;
     }
 
-    /* Send frame to encoder (V4L2 QBUF on OUTPUT port).
-     * The linlonv5v7 encoder is fully async: hardware encodes the frame
-     * after QBUF, and the encoded result appears on the CAPTURE port.
-     * venc_task_thread polls the CAPTURE port for output.
-     *
-     * Do NOT call return_input_frame here — it would poll(POLLOUT,0)
-     * and potentially DQBUF the buffer before hardware finishes encoding,
-     * causing the CAPTURE port to never produce output.
-     * Input buffers are recycled by return_input_frame only when the
-     * buffer pool is exhausted (nInputQueuedNum >= ENCODER_INPUT_BUF_NUM). */
-    S32 ret = pChn->stOps.send_input_frame(pChn->pAlCtx, pstFrame);
+    BOOL bRefHeld = MPP_FALSE;
+    S32 ret = ERR_VENC_OK;
+    if (pstFrame->ulBufferId != 0) {
+        ret = VB_RefAdd(pstFrame->ulBufferId);
+        if (ret != 0) {
+            pthread_mutex_unlock(&pChn->lock);
+            return ret;
+        }
+        bRefHeld = MPP_TRUE;
+    }
+
+    ret = pChn->stOps.send_input_frame(pChn->pAlCtx, pstFrame);
+    if (ret != MPP_OK && bRefHeld)
+        VB_ReleaseBuffer(pstFrame->ulBufferId);
 
     pthread_mutex_unlock(&pChn->lock);
     return (ret == MPP_OK) ? ERR_VENC_OK : ret;
@@ -786,7 +822,7 @@ S32 VENC_Flush(S32 s32ChnId) {
         return ERR_VENC_NOT_STARTED;
     }
 
-    S32 ret = pChn->stOps.flush(pChn->pAlCtx);
+    S32 ret = venc_plugin_flush(pChn);
 
     pthread_mutex_unlock(&pChn->lock);
     return (ret == MPP_OK) ? ERR_VENC_OK : ret;
