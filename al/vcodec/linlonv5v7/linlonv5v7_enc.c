@@ -13,9 +13,11 @@
 #include <errno.h>
 #include <linux/videodev2.h>
 #include <poll.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -132,11 +134,17 @@ struct _ALLinlonv5v7EncContext {
     BOOL bInputEos;
     BOOL bOutputEos;
 
-    /***
-     * num of input buffer in driver
-     * default 0, also 0 after flush
-     */
-    U32 nInputQueuedNum;
+    U32 nInputNextIdx;
+    U32 nInputQueuedCount;
+    U32 nInputCallbacksInFlight;
+
+    AlEncCallbacks stCallbacks;
+    pthread_t inputDoneTid;
+    pthread_mutex_t inputLock;
+    pthread_cond_t inputCond;
+    S32 nInputWakeFd;
+    BOOL bInputDoneRun;
+    BOOL bInputDoneStarted;
 
     /***
      * SPS/PPS/VPS
@@ -351,6 +359,156 @@ static void applyInitialRateControl(ALLinlonv5v7EncContext *context, const VencC
     }
 }
 
+static void notifyInputBufferDone(ALLinlonv5v7EncContext *context, UL ulBufferId) {
+    if (ulBufferId != 0 && context->stCallbacks.pfnInputBufferDone) {
+        context->stCallbacks.pfnInputBufferDone(context->stCallbacks.pUserData, ulBufferId);
+    }
+}
+
+static U32 collectInputBuffersLocked(
+    ALLinlonv5v7EncContext *context,
+    UL *pulBufferIds,
+    U32 u32Capacity) {
+    Port *input = getInputPort(context->stCodec);
+    S32 numBufs = getBufNum(input);
+    U32 count = 0;
+
+    for (S32 i = 0; i < numBufs; ++i) {
+        Buffer *buffer = getBuffer(input, i);
+        UL ulBufferId = 0;
+
+        setIsQueued(buffer, MPP_FALSE);
+        if (takeInputBufferId(buffer, &ulBufferId)) {
+            if (count < u32Capacity) {
+                pulBufferIds[count++] = ulBufferId;
+            } else {
+                error("input token capacity %u is smaller than V4L2 buffer count %d", u32Capacity, numBufs);
+            }
+        }
+    }
+
+    context->nInputNextIdx = 0;
+    context->nInputQueuedCount = 0;
+    return count;
+}
+
+static void *inputBufferDoneTask(void *arg) {
+    ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)arg;
+    struct pollfd pollFds[2] = {
+        {.fd = context->nVideoFd, .events = POLLOUT},
+        {.fd = context->nInputWakeFd, .events = POLLIN},
+    };
+
+    while (MPP_TRUE) {
+        pthread_mutex_lock(&context->inputLock);
+        while (context->bInputDoneRun && context->nInputQueuedCount == 0) {
+            pthread_cond_wait(&context->inputCond, &context->inputLock);
+        }
+        BOOL bRunning = context->bInputDoneRun;
+        pthread_mutex_unlock(&context->inputLock);
+        if (!bRunning)
+            break;
+
+        S32 ret;
+        do {
+            ret = poll(pollFds, 2, -1);
+        } while (ret < 0 && errno == EINTR);
+
+        if (ret < 0) {
+            error("input completion poll failed: %s", strerror(errno));
+            usleep(1000);
+            continue;
+        }
+
+        if (pollFds[1].revents & POLLIN) {
+            U64 value;
+            ssize_t readSize = read(context->nInputWakeFd, &value, sizeof(value));
+            if (readSize < 0 && errno != EAGAIN)
+                error("failed to read input completion eventfd: %s", strerror(errno));
+            pollFds[1].revents = 0;
+        }
+
+        pthread_mutex_lock(&context->inputLock);
+        bRunning = context->bInputDoneRun;
+        if (!bRunning || context->nInputQueuedCount == 0 || !(pollFds[0].revents & POLLOUT)) {
+            BOOL bPollError = (pollFds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) != 0;
+            pthread_mutex_unlock(&context->inputLock);
+            pollFds[0].revents = 0;
+            if (bPollError)
+                usleep(1000);
+            continue;
+        }
+
+        Buffer *buffer = dequeueBuffer(getInputPort(context->stCodec));
+        UL ulBufferId = 0;
+        BOOL bTokenValid = MPP_FALSE;
+        if (buffer) {
+            setIsQueued(buffer, MPP_FALSE);
+            if (context->nInputQueuedCount > 0)
+                context->nInputQueuedCount--;
+            bTokenValid = takeInputBufferId(buffer, &ulBufferId);
+            if (bTokenValid)
+                context->nInputCallbacksInFlight++;
+        }
+        pthread_mutex_unlock(&context->inputLock);
+        pollFds[0].revents = 0;
+
+        if (bTokenValid) {
+            notifyInputBufferDone(context, ulBufferId);
+            pthread_mutex_lock(&context->inputLock);
+            context->nInputCallbacksInFlight--;
+            pthread_cond_broadcast(&context->inputCond);
+            pthread_mutex_unlock(&context->inputLock);
+        }
+    }
+
+    return NULL;
+}
+
+static S32 startInputBufferDoneTask(ALLinlonv5v7EncContext *context) {
+    context->nInputWakeFd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    if (context->nInputWakeFd < 0) {
+        error("failed to create input completion eventfd: %s", strerror(errno));
+        return MPP_INIT_FAILED;
+    }
+
+    pthread_mutex_lock(&context->inputLock);
+    context->bInputDoneRun = MPP_TRUE;
+    pthread_mutex_unlock(&context->inputLock);
+
+    if (pthread_create(&context->inputDoneTid, NULL, inputBufferDoneTask, context) != 0) {
+        error("failed to create input completion thread");
+        pthread_mutex_lock(&context->inputLock);
+        context->bInputDoneRun = MPP_FALSE;
+        pthread_mutex_unlock(&context->inputLock);
+        close(context->nInputWakeFd);
+        context->nInputWakeFd = -1;
+        return MPP_INIT_FAILED;
+    }
+
+    context->bInputDoneStarted = MPP_TRUE;
+    return MPP_OK;
+}
+
+static void stopInputBufferDoneTask(ALLinlonv5v7EncContext *context) {
+    if (!context->bInputDoneStarted)
+        return;
+
+    pthread_mutex_lock(&context->inputLock);
+    context->bInputDoneRun = MPP_FALSE;
+    pthread_cond_broadcast(&context->inputCond);
+    pthread_mutex_unlock(&context->inputLock);
+
+    U64 value = 1;
+    ssize_t writeSize = write(context->nInputWakeFd, &value, sizeof(value));
+    if (writeSize < 0 && errno != EAGAIN)
+        error("failed to wake input completion thread: %s", strerror(errno));
+    pthread_join(context->inputDoneTid, NULL);
+    close(context->nInputWakeFd);
+    context->nInputWakeFd = -1;
+    context->bInputDoneStarted = MPP_FALSE;
+}
+
 ALBaseContext *al_enc_create(void) {
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)malloc(sizeof(ALLinlonv5v7EncContext));
     if (!context) {
@@ -359,11 +517,22 @@ ALBaseContext *al_enc_create(void) {
     }
 
     memset(context, 0, sizeof(ALLinlonv5v7EncContext));
+    context->nVideoFd = -1;
+    context->nInputWakeFd = -1;
+    if (pthread_mutex_init(&context->inputLock, NULL) != 0) {
+        free(context);
+        return NULL;
+    }
+    if (pthread_cond_init(&context->inputCond, NULL) != 0) {
+        pthread_mutex_destroy(&context->inputLock);
+        free(context);
+        return NULL;
+    }
 
     return &(context->stAlEncBaseContext.stAlBaseContext);
 }
 
-S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr) {
+S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallbacks *pstCallbacks) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
         return MPP_NULL_POINTER;
@@ -373,9 +542,14 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr) {
         error("input para VencChnAttr is NULL, please check!");
         return MPP_NULL_POINTER;
     }
+    if (!pstCallbacks || !pstCallbacks->pfnInputBufferDone) {
+        error("input completion callback is NULL");
+        return MPP_NULL_POINTER;
+    }
 
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
 
+    context->stCallbacks = *pstCallbacks;
     context->stAttr = *pstAttr;
     context->ePixelFormat = pstAttr->eInputPixelFormat;
     context->eCodecType = pstAttr->eCodecType;
@@ -392,7 +566,9 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr) {
     context->nOutputType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     context->bInputEos = MPP_FALSE;
     context->bOutputEos = MPP_FALSE;
-    context->nInputQueuedNum = 0;
+    context->nInputNextIdx = 0;
+    context->nInputQueuedCount = 0;
+    context->nInputCallbacksInFlight = 0;
 
     MppFrameBufferType eBufferType;
     switch (pstAttr->eFrameBufMode) {
@@ -453,6 +629,10 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr) {
 
     // setformat, allocate buffer, stream on
     stream(context->stCodec);
+
+    S32 ret = startInputBufferDoneTask(context);
+    if (ret != MPP_OK)
+        return ret;
 
     debug("init finish");
 
@@ -645,97 +825,45 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) 
         return MPP_OK;
     }
 
-    if (unlikely(context->nInputQueuedNum < (U32)getBufNum(getInputPort(context->stCodec)))) {
-        Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
-        struct v4l2_buffer *b = getV4l2Buffer(buf);
-
-        setupInputFrame(context, buf, pstFrame);
-
-        ret = queueBuffer(getInputPort(context->stCodec), buf);
-        if (ret) {
-            error("Failed to queue buffer. type = %d (%s)", b->type, strerror(errno));
-            return MPP_IOCTL_FAILED;
-        }
-
-        context->nInputQueuedNum++;
-    } else {
-        /* Runtime phase: use round-robin buffer index */
-        S32 numBufs = getBufNum(getInputPort(context->stCodec));
-        S32 bufIdx = context->nInputQueuedNum % numBufs;
-        Buffer *buf = getBuffer(getInputPort(context->stCodec), bufIdx);
-
-        /* If this buffer is still queued, try to recycle one */
-        if (getIsQueued(buf)) {
-            struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
-            ret = runPoll(context->stCodec, &p);
-            if (ret != MPP_OK || !(p.revents & POLLOUT)) {
-                /* No buffer available yet - encoder is busy */
-                return MPP_POLL_FAILED;
-            }
-
-            Buffer *dqBuf = dequeueBuffer(getInputPort(context->stCodec));
-            if (!dqBuf) {
-                error("dequeueBuffer failed after POLLOUT ready");
-                return MPP_POLL_FAILED;
-            }
-            setIsQueued(dqBuf, MPP_FALSE);
-
-            /*
-             * dequeueBuffer() already returns the exact Buffer slot the driver
-             * handed back (port->stBuf[buf.index]), so reuse it directly. Do
-             * NOT re-locate via getExtraId(): nExtraId stores the input frame
-             * ID (consumed by al_enc_return_input_frame), not a buffer index,
-             * so treating it as an index would index the buffer array with a
-             * frame ID.
-             */
-            buf = dqBuf;
-        }
-
-        /*
-         * extra_id must carry the input frame ID (u32Idx) so that
-         * al_enc_return_input_frame() (which returns getExtraId() of the
-         * dequeued buffer) reports the correct frame back to the caller.
-         * bufIdx only selects which Buffer slot to reuse and must NOT be
-         * stored as the frame ID.
-         */
-        setupInputFrame(context, buf, pstFrame);
-        setEndOfStream(buf, context->bInputEos);
-        ret = queueBuffer(getInputPort(context->stCodec), buf);
-        if (ret) {
-            error("should not queue fail, please check!");
-            return MPP_POLL_FAILED;
-        }
-        setIsQueued(buf, MPP_TRUE);
-        context->nInputQueuedNum++;
+    pthread_mutex_lock(&context->inputLock);
+    Port *input = getInputPort(context->stCodec);
+    S32 numBufs = getBufNum(input);
+    if (numBufs <= 0) {
+        pthread_mutex_unlock(&context->inputLock);
+        return MPP_CODER_NO_DATA;
     }
 
+    Buffer *buffer = NULL;
+    for (S32 i = 0; i < numBufs; ++i) {
+        S32 bufIdx = (S32)((context->nInputNextIdx + (U32)i) % (U32)numBufs);
+        Buffer *candidate = getBuffer(input, bufIdx);
+        if (!getIsQueued(candidate)) {
+            buffer = candidate;
+            context->nInputNextIdx = ((U32)bufIdx + 1U) % (U32)numBufs;
+            break;
+        }
+    }
+
+    if (!buffer) {
+        pthread_mutex_unlock(&context->inputLock);
+        return MPP_CODER_NO_DATA;
+    }
+
+    setupInputFrame(context, buffer, pstFrame);
+    setEndOfStream(buffer, context->bInputEos);
+    setInputBufferId(buffer, pstFrame->ulBufferId);
+    ret = queueBuffer(input, buffer);
+    if (ret != MPP_OK) {
+        clearInputBufferId(buffer);
+        pthread_mutex_unlock(&context->inputLock);
+        return ret;
+    }
+
+    setIsQueued(buffer, MPP_TRUE);
+    context->nInputQueuedCount++;
+    pthread_cond_signal(&context->inputCond);
+    pthread_mutex_unlock(&context->inputLock);
     return MPP_OK;
-}
-
-S32 al_enc_return_input_frame(ALBaseContext *ctx) {
-    if (!ctx) {
-        error("input para ALBaseContext is NULL, please check!");
-        return -1;
-    }
-
-    ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
-    S32 ret = 0;
-    struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
-
-    ret = runPoll(context->stCodec, &p);
-    if (MPP_OK == ret && p.revents & POLLOUT) {
-        Buffer *buffer = dequeueBuffer(getInputPort(context->stCodec));
-        if (!buffer) {
-            error(
-                "dequeueBuffer failed, this dequeueBuffer must successed, because it "
-                "is after Poll, please check!");
-            return -1;
-        }
-        setIsQueued(buffer, MPP_FALSE);
-        return getExtraId(buffer);
-    }
-
-    return -1;
 }
 
 S32 al_enc_request_output_stream(ALBaseContext *ctx, StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
@@ -873,10 +1001,21 @@ S32 al_enc_flush(ALBaseContext *ctx) {
     if (!ctx)
         return MPP_NULL_POINTER;
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+    UL aulBufferIds[ENCODER_INPUT_BUF_NUM];
+    U32 u32BufferCount;
 
     debug("Flush start ========================================");
+    pthread_mutex_lock(&context->inputLock);
     handleFlush(context->stCodec, MPP_FALSE);
-    context->nInputQueuedNum = 0;
+    u32BufferCount = collectInputBuffersLocked(context, aulBufferIds, NUM_OF(aulBufferIds));
+    while (context->nInputCallbacksInFlight > 0) {
+        pthread_cond_wait(&context->inputCond, &context->inputLock);
+    }
+    pthread_mutex_unlock(&context->inputLock);
+
+    for (U32 i = 0; i < u32BufferCount; ++i) {
+        notifyInputBufferDone(context, aulBufferIds[i]);
+    }
     debug("Flush finish ========================================");
 
     return MPP_OK;
@@ -886,24 +1025,40 @@ void al_enc_destory(ALBaseContext *ctx) {
     if (!ctx)
         return;
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
+    UL aulBufferIds[ENCODER_INPUT_BUF_NUM];
+    U32 u32BufferCount = 0;
 
     debug("destory start");
-    if (context->nVideoFd && context->stCodec) {
+    stopInputBufferDoneTask(context);
+    if (context->stCodec) {
         enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
         enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
+
+        pthread_mutex_lock(&context->inputLock);
         mpp_v4l2_stream_off(context->nVideoFd, &input_type);
         mpp_v4l2_stream_off(context->nVideoFd, &output_type);
+        u32BufferCount = collectInputBuffersLocked(context, aulBufferIds, NUM_OF(aulBufferIds));
+        pthread_mutex_unlock(&context->inputLock);
         debug("stream off finish");
 
-        destoryCodec(context->stCodec);
-        debug("destory codec finish");
+        for (U32 i = 0; i < u32BufferCount; ++i) {
+            notifyInputBufferDone(context, aulBufferIds[i]);
+        }
 
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        debug("destory codec finish");
+    }
+    if (context->nVideoFd >= 0) {
         close(context->nVideoFd);
+        context->nVideoFd = -1;
     }
     if (context->pHeader) {
         free(context->pHeader);
         context->pHeader = NULL;
     }
+    pthread_cond_destroy(&context->inputCond);
+    pthread_mutex_destroy(&context->inputLock);
     free(context);
     context = NULL;
 }

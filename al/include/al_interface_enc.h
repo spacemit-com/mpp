@@ -18,6 +18,13 @@
 extern "C" {
 #endif
 
+typedef VOID (*AlEncInputBufferDoneCb)(VOID *pUserData, UL ulBufferId);
+
+typedef struct _AlEncCallbacks {
+    AlEncInputBufferDoneCb pfnInputBufferDone;
+    VOID *pUserData;
+} AlEncCallbacks;
+
 /**
  * @description: create a context for video encoder
  * @return {*}: the base context of video encoder, NULL on failure
@@ -30,9 +37,11 @@ ALBaseContext *al_enc_create(void);
  *               initial rate-control state (eRcMode, u32Bitrate, QPs, GOP,
  *               frame rate). With eRcMode == VENC_RC_MODE_FIXQP and all QP
  *               fields zero, plugin defaults are used.
+ * @param {AlEncCallbacks} *pstCallbacks: callbacks copied by the plugin and
+ *               kept valid until al_enc_destory returns
  * @return {*}: MPP_OK on success, else error code
  */
-S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr);
+S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallbacks *pstCallbacks);
 
 /**
  * @description: set a dynamic encode parameter.
@@ -46,19 +55,15 @@ S32 al_enc_set_para(ALBaseContext *ctx, VencCmd cmd, const void *pParam);
 /**
  * @description: queue one input frame for encoding.
  *               Uses stVFrame plane fds/pointers per the channel's
- *               eFrameBufMode; u32Idx identifies the frame slot.
+ *               eFrameBufMode. A non-zero ulBufferId is copied as an opaque
+ *               input ownership token and returned through
+ *               pfnInputBufferDone after INPUT DQBUF or flush.
  *               EOS: stVFrame.u32FrameFlag & MPP_FRAME_FLAG_EOS — with planes
  *               present this is EOS-with-data; with u32PlaneNum == 0 it is an
  *               empty EOS (encoder stop only).
  * @return {*}: MPP_OK on success, MPP_CODER_NO_DATA if no input slot free
  */
 S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame);
-
-/**
- * @description: reclaim one completed input frame slot.
- * @return {*}: frame id (u32Idx) of the reclaimed slot, or -1 if none
- */
-S32 al_enc_return_input_frame(ALBaseContext *ctx);
 
 /**
  * @description: dequeue one encoded stream packet, blocking up to
