@@ -376,10 +376,11 @@ static void vdec_destroy_ext_pool(VdecChnCtx *pChn) {
         return;
 
     for (U32 i = 0; i < pChn->u32ExtBufCnt; i++) {
-        if (pChn->stExtBuf[i].ulVbBuff) {
+        if (pChn->stExtBuf[i].ulVbBuff && pChn->stExtBuf[i].bInDecoder) {
             VB_ReleaseBuffer(pChn->stExtBuf[i].ulVbBuff);
-            pChn->stExtBuf[i].ulVbBuff = 0;
         }
+        pChn->stExtBuf[i].ulVbBuff = 0;
+        pChn->stExtBuf[i].bInDecoder = MPP_FALSE;
     }
 
     VB_DestroyPool(pChn->ulPoolId);
@@ -470,10 +471,6 @@ static S32 vdec_handle_resolution_change(VdecChnCtx *pChn) {
     pthread_mutex_lock(&pChn->depthLock);
     vdec_drain_depth_queue_locked(pChn);
     pthread_mutex_unlock(&pChn->depthLock);
-
-    for (U32 i = 0; i < pChn->u32ExtBufCnt; i++) {
-        pChn->stExtBuf[i].bInDecoder = MPP_FALSE;
-    }
 
     vdec_destroy_ext_pool(pChn);
 
