@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "sys_api.h"
 #include "vb_api.h"
@@ -358,6 +359,9 @@ static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config) {
     color.u32ColorValue = config->yuv_color;
     color.enFormat = V2D_COLOR_FORMAT_NV12;
 
+    {
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     ret = V2D_BeginJob(&handle);
     if (ret != 0) {
         return -1;
@@ -372,6 +376,10 @@ static int demo_draw_rect(VideoFrameInfo *frame, const DEMO_CONFIG_S *config) {
     ret = V2D_EndJob(handle);
     if (ret != 0) {
         return -1;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    printf("[MPP_PERF] module=V2D op=draw cost_us=%.0f frame=0\n",
+        (double)(t1.tv_sec - t0.tv_sec) * 1000000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1000.0);
     }
 
     return 0;

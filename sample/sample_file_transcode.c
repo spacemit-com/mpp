@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "demux/demux_api.h"
@@ -365,6 +366,8 @@ static S32 run_transcode(const TranscodeCfg *pstCfg) {
         }
     } else {
         U32 u32Idle = 0;
+        struct timespec tFirst, tLast;
+        int bHaveFirst = 0;
         while (g_running) {
             StreamBufferInfo stStream;
             memset(&stStream, 0, sizeof(stStream));
@@ -372,6 +375,11 @@ static S32 run_transcode(const TranscodeCfg *pstCfg) {
             if (ret == ERR_VENC_OK) {
                 u32Idle = 0;
                 if (stStream.pu8Addr && stStream.u32Size > 0) {
+                    if (!bHaveFirst) {
+                        clock_gettime(CLOCK_MONOTONIC, &tFirst);
+                        bHaveFirst = 1;
+                    }
+                    clock_gettime(CLOCK_MONOTONIC, &tLast);
                     fwrite(stStream.pu8Addr, 1, stStream.u32Size, fpOut);
                     u32Frames++;
                     if (u32Frames % 30 == 0) {
@@ -392,6 +400,17 @@ static S32 run_transcode(const TranscodeCfg *pstCfg) {
             }
         }
         printf("  [DONE] transcoded %u frames\n", u32Frames);
+        /* Steady-state pipeline throughput: from first to last output frame,
+         * excluding init / v4l2 probe / teardown / trailing idle drain. */
+        if (bHaveFirst && u32Frames > 1) {
+            double dWindowUs = (double)(tLast.tv_sec - tFirst.tv_sec) * 1000000.0 +
+                (double)(tLast.tv_nsec - tFirst.tv_nsec) / 1000.0;
+            if (dWindowUs > 0.0) {
+                printf("[MPP_PERF] metric=frames value=%u unit=frames\n", u32Frames);
+                printf("[MPP_PERF] metric=fps value=%.3f unit=fps\n",
+                    (double)(u32Frames - 1) * 1000000.0 / dWindowUs);
+            }
+        }
     }
 
     DEMUX_StopChn(TRANSCODE_DEMUX_CHN);
