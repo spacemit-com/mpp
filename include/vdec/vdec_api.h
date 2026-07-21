@@ -80,7 +80,10 @@ S32 VDEC_DisableChn(S32 s32ChnId);
  *         Caller must keep the buffer valid until this call returns.
  * @param  s32ChnId   Channel ID
  * @param  pstStream  Stream packet (pu8Addr, u32Size, u64PTS, bKeyFrame, etc.)
- * @return 0 on success, error code on failure
+ * @param  u32TimeoutMs  0 = non-blocking, finite value = wait up to that many
+ *                       milliseconds, (U32)-1 = wait until accepted or stopped
+ * @return 0 on success, ERR_VDEC_BUSY for non-blocking backpressure,
+ *         ERR_VDEC_TIMEOUT when a finite wait expires, or another error code
  */
 S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32TimeoutMs);
 
