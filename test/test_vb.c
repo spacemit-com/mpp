@@ -305,6 +305,35 @@ static void test_destroy_outstanding(void) {
     TEST_PASS(name);
 }
 
+/* ======================== Test 6: Packed YUV422 Layout ======================== */
+static void test_packed_yuv422_layout(void) {
+    const char *name = "packed_yuv422_layout";
+    const MppPixelFormat formats[] = {MPP_PIXEL_FORMAT_YUYV, MPP_PIXEL_FORMAT_UYVY};
+    const U32 width = 641;
+    const U32 height = 479;
+    const U32 align = 16;
+    const U32 expected_stride = ((width * 2 + align - 1) / align) * align;
+    const U32 expected_height = ((height + align - 1) / align) * align;
+
+    for (size_t i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i) {
+        VideoFrameInfo frame;
+        memset(&frame, 0, sizeof(frame));
+        frame.stCommFrameInfo.ePixelFormat = formats[i];
+        frame.stCommFrameInfo.u32Width = width;
+        frame.stCommFrameInfo.u32Height = height;
+        frame.stCommFrameInfo.u32Align = align;
+
+        S32 size = VB_GetPicBufferSize(&frame);
+        if (size <= 0 || frame.stVFrame.u32PlaneStride[0] != expected_stride ||
+            frame.stVFrame.u32PlaneSizeValid[0] != expected_stride * expected_height ||
+            frame.stVFrame.u32TotalSize != (U32)size) {
+            TEST_FAIL(name, "invalid packed YUV422 buffer layout");
+        }
+    }
+
+    TEST_PASS(name);
+}
+
 /* ======================== Main ======================== */
 int main(void) {
     printf("=== VB Module Tests ===\n\n");
@@ -314,6 +343,7 @@ int main(void) {
     test_refcount();
     test_multithread();
     test_destroy_outstanding();
+    test_packed_yuv422_layout();
 
     printf("\n=== All tests passed ===\n");
     return 0;

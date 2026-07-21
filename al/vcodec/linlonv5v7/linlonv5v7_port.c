@@ -241,6 +241,16 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format, BOOL i
                 f->plane_fmt[2].sizeimage = f->plane_fmt[2].bytesperline * height / 2;
                 f->num_planes = 3;
                 break;
+            case V4L2_PIX_FMT_YUYV:
+            case V4L2_PIX_FMT_UYVY:
+                f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width * 2, port->nAlign);
+                f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
+                f->plane_fmt[1].bytesperline = 0;
+                f->plane_fmt[1].sizeimage = 0;
+                f->plane_fmt[2].bytesperline = 0;
+                f->plane_fmt[2].sizeimage = 0;
+                f->num_planes = 1;
+                break;
             default:
                 for (S32 i = 0; i < 3; ++i) {
                     f->plane_fmt[i].bytesperline = 0;
@@ -1663,7 +1673,10 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
                 U32 stride = (i < mp->num_planes) ? mp->plane_fmt[i].bytesperline : 0;
                 if (stride == 0 && mp->width > 0) {
                     S32 al = port->nAlign > 0 ? port->nAlign : 64;
-                    stride = (U32)ST_ALIGN_UP((S32)mp->width, al);
+                    BOOL is_packed_422 = port->nFormatFourcc == V4L2_PIX_FMT_YUYV ||
+                        port->nFormatFourcc == V4L2_PIX_FMT_UYVY;
+                    S32 row_bytes = is_packed_422 ? (S32)mp->width * 2 : (S32)mp->width;
+                    stride = (U32)ST_ALIGN_UP(row_bytes, al);
                 }
                 pstFrame->stVFrame.u32PlaneStride[i] = stride;
                 pstFrame->stVFrame.u32PlaneSize[i] = (i < mp->num_planes) ? mp->plane_fmt[i].sizeimage : 0;
