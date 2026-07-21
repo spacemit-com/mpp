@@ -334,6 +334,77 @@ static void test_packed_yuv422_layout(void) {
     TEST_PASS(name);
 }
 
+/* ======================== Test 7: Reject Stale Export Token ======================== */
+static void test_stale_export_token(void) {
+    const char *name = "stale_export_token";
+    S32 ret;
+    U64 token_a = 0;
+    U64 token_b = 0;
+    UL imported = 0;
+
+    ret = SYS_Init();
+    if (ret != 0)
+        TEST_FAIL(name, "SYS_Init failed");
+    ret = VB_Init();
+    if (ret != 0)
+        TEST_FAIL(name, "VB_Init failed");
+
+    VbPoolCfg cfg = {
+        .u32BufSize = 1024,
+        .u32BufCnt = 1,
+        .eModId = MPP_ID_SYS,
+        .eRemapMode = VB_REMAP_MODE_NONE,
+    };
+    UL pool_id = VB_CreatePool(&cfg);
+    if (pool_id == 0)
+        TEST_FAIL(name, "VB_CreatePool failed");
+
+    UL frame_a = VB_GetBuffer(pool_id, 0);
+    if (frame_a == 0)
+        TEST_FAIL(name, "VB_GetBuffer for frame A failed");
+    if (VB_Export(frame_a, &token_a) != 0)
+        TEST_FAIL(name, "VB_Export for frame A failed");
+    /* Match an asynchronous producer: publish the token, then release its
+     * acquisition reference while the export reference keeps A alive. */
+    if (VB_ReleaseBuffer(frame_a) != 0)
+        TEST_FAIL(name, "VB_ReleaseBuffer for frame A failed");
+    if (VB_Unexport(frame_a) != 0)
+        TEST_FAIL(name, "VB_Unexport for frame A failed");
+
+    if (VB_Import(token_a, &imported) != VB_ERR_STALE_TOKEN)
+        TEST_FAIL(name, "revoked token did not report stale before slot reuse");
+
+    UL frame_b = VB_GetBuffer(pool_id, 0);
+    if (frame_b != frame_a)
+        TEST_FAIL(name, "single-block pool did not reuse frame A handle");
+    if (VB_Export(frame_b, &token_b) != 0)
+        TEST_FAIL(name, "VB_Export for frame B failed");
+    /* refcount is now acquisition + export; retain only the export while the
+     * descriptor is in flight. */
+    if (VB_ReleaseBuffer(frame_b) != 0)
+        TEST_FAIL(name, "VB_ReleaseBuffer for frame B failed");
+
+    if (token_b == token_a)
+        TEST_FAIL(name, "reused slot returned the same token");
+    if (VB_Import(token_a, &imported) != VB_ERR_STALE_TOKEN)
+        TEST_FAIL(name, "stale token did not report stale after slot reuse");
+    if (VB_Import(token_b, &imported) != 0)
+        TEST_FAIL(name, "current token failed to import");
+
+    /* Drop the import reference first, then the final export reference. */
+    if (VB_ReleaseBuffer(imported) != 0)
+        TEST_FAIL(name, "VB_ReleaseBuffer for imported frame B failed");
+    if (VB_Unexport(frame_b) != 0)
+        TEST_FAIL(name, "VB_Unexport for frame B failed");
+    if (VB_DestroyPool(pool_id) != 0)
+        TEST_FAIL(name, "VB_DestroyPool failed");
+    if (VB_Exit() != 0)
+        TEST_FAIL(name, "VB_Exit failed");
+    if (SYS_Exit() != 0)
+        TEST_FAIL(name, "SYS_Exit failed");
+    TEST_PASS(name);
+}
+
 /* ======================== Main ======================== */
 int main(void) {
     printf("=== VB Module Tests ===\n\n");
@@ -344,6 +415,7 @@ int main(void) {
     test_multithread();
     test_destroy_outstanding();
     test_packed_yuv422_layout();
+    test_stale_export_token();
 
     printf("\n=== All tests passed ===\n");
     return 0;

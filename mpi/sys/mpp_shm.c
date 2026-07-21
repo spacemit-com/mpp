@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/random.h>
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <errno.h>
@@ -184,11 +185,23 @@ static S32 shm_init_stream_queue(MppStreamQueue *q) {
 }
 
 static S32 shm_init_all(MppSharedMem *shm) {
+    unsigned long long export_generation = 0;
+    ssize_t random_size;
+
     memset(shm, 0, sizeof(*shm));
 
     shm->magic = MPP_SHM_MAGIC;
     shm->version = MPP_SHM_VERSION;
     atomic_store(&shm->proc_ref, 1);
+    do {
+        random_size = getrandom(&export_generation, sizeof(export_generation), 0);
+    } while (random_size < 0 && errno == EINTR);
+    if (random_size != (ssize_t)sizeof(export_generation)) {
+        SHM_LOG_ERR("getrandom export generation failed: %s", strerror(errno));
+        return -1;
+    }
+    if (export_generation == 0)
+        export_generation = 1;
 
     /* PTS lock */
     if (shm_init_mutex(&shm->pts_lock) != 0) {
@@ -221,6 +234,7 @@ static S32 shm_init_all(MppSharedMem *shm) {
             return -1;
         }
         shm->pools[i].state = VB_POOL_FREE;
+        shm->pools[i].next_export_generation = export_generation;
     }
 
     /* Channel queues */
@@ -305,7 +319,8 @@ S32 mpp_shm_init(void) {
     } else {
         bool stale = false;
 
-        /* attach — verify magic/version and bump ref or recover stale shm */
+        /* Reject layout mismatches while any process still uses the segment;
+         * only an orphaned segment may be reinitialized to this version. */
         if (shm->magic != MPP_SHM_MAGIC || shm->version != MPP_SHM_VERSION) {
             SHM_LOG_WARN("bad shm header detected, checking if orphaned");
             if (!mpp_shm_file_in_use()) {

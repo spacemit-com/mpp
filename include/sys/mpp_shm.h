@@ -32,7 +32,7 @@ extern "C" {
 
 #define MPP_SHM_NAME "/mpp_ctrl"
 #define MPP_SHM_MAGIC 0x4D505053 /* "MPPS" */
-#define MPP_SHM_VERSION 2
+#define MPP_SHM_VERSION 3
 
 #define MPP_MAX_POOL 16
 #define MPP_MAX_BLK 256 /* per pool */
@@ -56,7 +56,8 @@ typedef struct _VbBlockShm {
     U32 size;
     U64 pts;
     U32 next_free;             /* free-list linkage, 0xFFFFFFFF = end */
-    U32 exported;              /* export flag */
+    atomic_uint exported;      /* export flag */
+    atomic_ullong export_token; /* generation-safe opaque token, valid while exported */
     pid_t owner_pid;           /* PID of allocating process */
     int owner_fd;              /* dma-buf fd in owner's fd table */
     U32 frame_info_set;        /* per-buffer metadata snapshot valid */
@@ -78,6 +79,7 @@ typedef struct _VbPoolShm {
     U32 free_cnt;
     U32 used_cnt;
     U32 min_free;
+    U64 next_export_generation; /* protected by lock; preserved across pool reuse */
     U32 frame_info_set;
     VideoFrameInfo frame_info;
     VbBlockShm blocks[MPP_MAX_BLK];
