@@ -46,6 +46,17 @@ extern "C" {
 
 /* ======================== Enums ======================== */
 
+/**
+ * @brief VDEC decoded-frame output mode.
+ *
+ * The mode is selected per channel at VDEC_CreateChn time and remains fixed
+ * for the lifetime of that channel.
+ */
+typedef enum _VdecOutputMode {
+    VDEC_OUTPUT_MODE_GET_FRAME = 0, /**< pull frames with VDEC_GetFrame */
+    VDEC_OUTPUT_MODE_SYS_BIND,     /**< push frames through SYS_Bind */
+} VdecOutputMode;
+
 /* ======================== Structures ======================== */
 
 /**
@@ -73,6 +84,7 @@ typedef struct _VdecChnAttr {
     BOOL bDispErrorFrame;              /**< display error frames */
     VdecScale stScale;                 /**< scaling parameters */
     U32 u32BufCnt;                     /**< output buffer count (0 = default 12) */
+    VdecOutputMode eOutputMode;         /**< decoded-frame output mode */
 } VdecChnAttr;
 
 /**

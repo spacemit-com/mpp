@@ -174,6 +174,7 @@ int main(int argc, char **argv) {
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     attr.u32Width = width;
     attr.u32Height = height;
+    attr.eOutputMode = VDEC_OUTPUT_MODE_GET_FRAME;
     if (VDEC_CreateChn(0, &attr) != 0 || VDEC_EnableChn(0) != 0) {
         fprintf(stderr, "VDEC channel initialization failed\n");
         goto runtime_down;
