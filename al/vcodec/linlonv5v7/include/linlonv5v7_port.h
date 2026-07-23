@@ -197,7 +197,7 @@ U32 getBufferCount(Port *port);
  * @param {BOOL} eof: end of file
  * @return {*}
  */
-void queueBuffers(Port *port, BOOL eof);
+S32 queueBuffers(Port *port, BOOL eof);
 
 /**
  * @description: queue one buffer of the port to driver
@@ -234,8 +234,8 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame);
  */
 void handleResolutionChange(Port *port, BOOL eof);
 
-void streamon(Port *port);
-void streamoff(Port *port);
+S32 streamon(Port *port);
+S32 streamoff(Port *port);
 
 void sendEncStopCommand(Port *port);
 void sendDecStopCommand(Port *port);
