@@ -107,6 +107,7 @@ typedef struct _VdecChnCtx {
     U32 u32DepthCount; /**< current entries */
     pthread_mutex_t depthLock;
     pthread_cond_t depthNotEmpty;
+    pthread_cond_t depthNotFull;
 
     /* output task thread: request decoded frames, SYS_SendFrame + depth queue */
     pthread_t taskTid;
@@ -521,6 +522,7 @@ static S32 vdec_handle_resolution_change(VdecChnCtx *pChn) {
 
     pthread_mutex_lock(&pChn->depthLock);
     vdec_drain_depth_queue_locked(pChn);
+    pthread_cond_broadcast(&pChn->depthNotFull);
     pthread_mutex_unlock(&pChn->depthLock);
 
     vdec_destroy_ext_pool(pChn);
@@ -651,6 +653,16 @@ static void *vdec_output_task(void *arg) {
 
     while (pChn->bTaskRun) {
         VideoFrameInfo stFrame;
+        /* Reserve depth capacity before dequeuing the next frame. */
+        pthread_mutex_lock(&pChn->depthLock);
+        while (pChn->u32DepthCount >= pChn->u32DepthMax &&
+                pChn->bTaskRun)
+            pthread_cond_wait(&pChn->depthNotFull, &pChn->depthLock);
+        BOOL taskRunning = pChn->bTaskRun;
+        pthread_mutex_unlock(&pChn->depthLock);
+        if (!taskRunning)
+            break;
+
         S32 ret = pChn->stOps.request_output_frame(pChn->pAlCtx, &stFrame, 100);
         if (ret == MPP_CODER_EOS) {
             /* Push an EOS entry into depth queue */
@@ -761,23 +773,20 @@ static void *vdec_output_task(void *arg) {
 
             pthread_mutex_lock(&pChn->depthLock);
 
-            if (pChn->u32DepthCount >= pChn->u32DepthMax) {
-                /* queue full — drop oldest, release its ref */
-                VdecDepthEntry *pOld = &pChn->pstDepth[pChn->u32DepthHead];
-                if (pOld->ulBufferId != 0)
-                    VB_ReleaseBuffer(pOld->ulBufferId);
-                pChn->u32DepthHead = (pChn->u32DepthHead + 1) % pChn->u32DepthMax;
-                pChn->u32DepthCount--;
+            if (pChn->u32DepthCount >= pChn->u32DepthMax ||
+                !pChn->bTaskRun) {
+                pthread_mutex_unlock(&pChn->depthLock);
+                VB_ReleaseBuffer(ulBuf);
+            } else {
+                VdecDepthEntry *pNew = &pChn->pstDepth[pChn->u32DepthTail];
+                pNew->ulBufferId = ulBuf;
+                memcpy(&pNew->stFrameInfo, &stFrame, sizeof(VideoFrameInfo));
+                pChn->u32DepthTail =
+                    (pChn->u32DepthTail + 1) % pChn->u32DepthMax;
+                pChn->u32DepthCount++;
+                pthread_cond_signal(&pChn->depthNotEmpty);
+                pthread_mutex_unlock(&pChn->depthLock);
             }
-
-            VdecDepthEntry *pNew = &pChn->pstDepth[pChn->u32DepthTail];
-            pNew->ulBufferId = ulBuf;
-            memcpy(&pNew->stFrameInfo, &stFrame, sizeof(VideoFrameInfo));
-            pChn->u32DepthTail = (pChn->u32DepthTail + 1) % pChn->u32DepthMax;
-            pChn->u32DepthCount++;
-
-            pthread_cond_signal(&pChn->depthNotEmpty);
-            pthread_mutex_unlock(&pChn->depthLock);
         }
 
         /* --- 3. Release the decoder base ref --- */
@@ -1024,6 +1033,7 @@ S32 VDEC_EnableChn(S32 s32ChnId) {
     pChn->u32DepthCount = 0;
     pthread_mutex_init(&pChn->depthLock, NULL);
     pthread_cond_init(&pChn->depthNotEmpty, NULL);
+    pthread_cond_init(&pChn->depthNotFull, NULL);
 
     pChn->bPoolReconfig = MPP_FALSE;
     pChn->bRecycleIdle = MPP_FALSE;
@@ -1067,6 +1077,9 @@ S32 VDEC_EnableChn(S32 s32ChnId) {
         pChn->bStreamInputRun = MPP_FALSE;
         /* stop output + recycle threads */
         pChn->bTaskRun = MPP_FALSE;
+        pthread_mutex_lock(&pChn->depthLock);
+        pthread_cond_broadcast(&pChn->depthNotFull);
+        pthread_mutex_unlock(&pChn->depthLock);
         pthread_mutex_lock(&pChn->poolLock);
         pChn->bRecycleRun = MPP_FALSE;
         pthread_cond_broadcast(&pChn->poolCond);
@@ -1087,6 +1100,7 @@ err_cleanup:
     vdec_destroy_ext_pool(pChn);
     pthread_mutex_destroy(&pChn->depthLock);
     pthread_cond_destroy(&pChn->depthNotEmpty);
+    pthread_cond_destroy(&pChn->depthNotFull);
     free(pChn->pstDepth);
     pChn->pstDepth = NULL;
     pChn->u32DepthMax = 0;
@@ -1120,6 +1134,10 @@ S32 VDEC_DisableChn(S32 s32ChnId) {
 
     /* Signal output task thread to stop */
     pChn->bTaskRun = MPP_FALSE;
+    pthread_mutex_lock(&pChn->depthLock);
+    pthread_cond_broadcast(&pChn->depthNotFull);
+    pthread_cond_broadcast(&pChn->depthNotEmpty);
+    pthread_mutex_unlock(&pChn->depthLock);
     pthread_mutex_unlock(&pChn->lock);
     pthread_join(pChn->taskTid, NULL);
     pthread_mutex_lock(&pChn->lock);
@@ -1127,9 +1145,11 @@ S32 VDEC_DisableChn(S32 s32ChnId) {
     /* Flush depth queue — release VB refs */
     pthread_mutex_lock(&pChn->depthLock);
     vdec_drain_depth_queue_locked(pChn);
+    pthread_cond_broadcast(&pChn->depthNotFull);
     pthread_mutex_unlock(&pChn->depthLock);
     pthread_mutex_destroy(&pChn->depthLock);
     pthread_cond_destroy(&pChn->depthNotEmpty);
+    pthread_cond_destroy(&pChn->depthNotFull);
     free(pChn->pstDepth);
     pChn->pstDepth = NULL;
     pChn->u32DepthMax = 0;
@@ -1227,6 +1247,7 @@ S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs) 
     pChn->u32DepthHead = (pChn->u32DepthHead + 1) % pChn->u32DepthMax;
     pChn->u32DepthCount--;
 
+    pthread_cond_signal(&pChn->depthNotFull);
     pthread_mutex_unlock(&pChn->depthLock);
 
     /* Check for EOS marker */
