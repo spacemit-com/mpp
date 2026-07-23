@@ -111,6 +111,15 @@ S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs);
 S32 VDEC_ReleaseFrame(S32 s32ChnId, UL ulVbBuff);
 
 /**
+ * @brief  Get the dma-buf fd for an enabled channel's output buffer.
+ * @note   The fd remains owned by MPP. Callers that retain it must dup it.
+ */
+S32 VDEC_GetOutputBufferFd(S32 s32ChnId, U32 u32Idx, S32 *ps32Fd);
+
+/** @brief Get the number of output buffers allocated for an enabled channel. */
+S32 VDEC_GetOutputBufferCount(S32 s32ChnId, U32 *pu32Cnt);
+
+/**
  * @brief  Query channel status.
  * @param  s32ChnId   Channel ID
  * @param  pstStatus  Output: channel status

@@ -1252,6 +1252,48 @@ S32 VDEC_ReleaseFrame(S32 s32ChnId, UL ulVbBuff) {
     return ERR_VDEC_OK;
 }
 
+S32 VDEC_GetOutputBufferFd(S32 s32ChnId, U32 u32Idx, S32 *ps32Fd) {
+    if (!ps32Fd)
+        return ERR_VDEC_NULL_PTR;
+    if (!vdec_chn_valid(s32ChnId))
+        return ERR_VDEC_INVALID_CHN;
+
+    VdecChnCtx *pChn = &g_stChn[s32ChnId];
+    pthread_mutex_lock(&pChn->lock);
+
+    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_NOT_STARTED;
+    }
+    if (u32Idx >= pChn->u32ExtBufCnt || pChn->stExtBuf[u32Idx].ulVbBuff == 0) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_NO_FRAME;
+    }
+
+    *ps32Fd = pChn->stExtBuf[u32Idx].s32DmaBufFd;
+    pthread_mutex_unlock(&pChn->lock);
+    return (*ps32Fd >= 0) ? ERR_VDEC_OK : ERR_VDEC_NO_FRAME;
+}
+
+S32 VDEC_GetOutputBufferCount(S32 s32ChnId, U32 *pu32Cnt) {
+    if (!pu32Cnt)
+        return ERR_VDEC_NULL_PTR;
+    if (!vdec_chn_valid(s32ChnId))
+        return ERR_VDEC_INVALID_CHN;
+
+    VdecChnCtx *pChn = &g_stChn[s32ChnId];
+    pthread_mutex_lock(&pChn->lock);
+
+    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_NOT_STARTED;
+    }
+
+    *pu32Cnt = pChn->u32ExtBufCnt;
+    pthread_mutex_unlock(&pChn->lock);
+    return ERR_VDEC_OK;
+}
+
 S32 VDEC_QueryStatus(S32 s32ChnId, VdecChnStatus *pstStatus) {
     if (!pstStatus)
         return ERR_VDEC_NULL_PTR;
