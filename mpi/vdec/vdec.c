@@ -686,6 +686,8 @@ static void *vdec_output_task(void *arg) {
                 break;
             continue;
         }
+        if (ret == MPP_ERROR_FRAME && pChn->stAttr.bDispErrorFrame)
+            ret = MPP_OK;
         if (ret == MPP_ERROR_FRAME || ret == MPP_CODER_NULL_DATA) {
             /*
              * The buffer has been dequeued from V4L2 but carries an error
