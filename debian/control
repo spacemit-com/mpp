@@ -1,7 +1,7 @@
 Source: mpp
 Section: unknown
 Priority: optional
-Maintainer: 付强 <>
+Maintainer: mengbinghan <binghan.meng@spacemit.com>
 Build-Depends: cmake, debhelper (>=11~), libsdl2-dev
 Standards-Version: 4.1.4
 Homepage: <insert the upstream URL, if relevant>
