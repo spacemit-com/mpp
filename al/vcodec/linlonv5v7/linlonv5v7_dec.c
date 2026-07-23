@@ -687,7 +687,9 @@ S32 al_dec_reset(ALBaseContext *ctx) {
 
     debug("Reset start ========================================");
 
-    handleFlush(context->stCodec, MPP_FALSE);
+    S32 ret = handleFlush(context->stCodec, MPP_FALSE);
+    if (ret != MPP_OK)
+        return ret;
     context->nInputQueuedNum = 0;
     context->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
     context->bInputEos = MPP_FALSE;
@@ -705,7 +707,9 @@ S32 al_dec_flush(ALBaseContext *ctx) {
 
     debug("Flush start ========================================");
 
-    handleFlush(context->stCodec, MPP_FALSE);
+    S32 ret = handleFlush(context->stCodec, MPP_FALSE);
+    if (ret != MPP_OK)
+        return ret;
     context->nInputQueuedNum = 0;
     context->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
     context->bInputEos = MPP_FALSE;
