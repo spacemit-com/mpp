@@ -487,12 +487,16 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         struct v4l2_buffer *b = getV4l2Buffer(buf);
         b->bytesused = pstStream->u32Size;
         setEndOfFrame(buf, MPP_TRUE);
-        setEndOfStream(buf, MPP_FALSE);
+        setEndOfStream(buf, context->bInputEos);
         setTimeStamp(buf, (S64)pstStream->u64PTS);
         ret = queueBuffer(getInputPort(context->stCodec), buf);
         if (ret) {
             error("queueBuffer failed, should not failed, please check!");
             return ret;
+        }
+        if (context->bInputEos) {
+            debug("EOS during input-fill phase, sendEncStopCommand");
+            sendEncStopCommand(getInputPort(context->stCodec));
         }
         context->nInputQueuedNum++;
         context->nInputQueueLeftNum--;
