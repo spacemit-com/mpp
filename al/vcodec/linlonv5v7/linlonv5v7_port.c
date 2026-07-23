@@ -453,7 +453,7 @@ U32 getBufferCount(Port *port) {
     return control.value;
 }
 
-void queueBuffers(Port *port, BOOL eof) {
+S32 queueBuffers(Port *port, BOOL eof) {
     for (S32 i = 0; i < port->nBufNum; i++) {
         if (!eof) {
             // DMABUF_EXTERNAL output buffers should not be queued here,
@@ -467,9 +467,12 @@ void queueBuffers(Port *port, BOOL eof) {
             resetVendorFlags(port->stBuf[i]);
 
             setEndOfStream(port->stBuf[i], eof);
-            queueBuffer(port, port->stBuf[i]);
+            S32 ret = queueBuffer(port, port->stBuf[i]);
+            if (ret != MPP_OK)
+                return ret;
         }
     }
+    return MPP_OK;
 }
 
 S32 queueBuffer(Port *port, Buffer *buf) {
@@ -636,7 +639,7 @@ void printBuffer(Port *port, struct v4l2_buffer buf, const char *prefix) {
     }
 }
 
-void streamon(Port *port) {
+S32 streamon(Port *port) {
     struct timeval time;
     gettimeofday(&time, NULL);
     debug("Stream on %ld", time.tv_sec * 1000 + time.tv_usec / 1000);
@@ -644,10 +647,12 @@ void streamon(Port *port) {
     S32 ret = ioctl(port->nVideoFd, VIDIOC_STREAMON, &(port->eBufType));
     if (ret) {
         error("Failed to stream on.  nVideoFd = %d, (%s)", port->nVideoFd, strerror(errno));
+        return MPP_IOCTL_FAILED;
     }
+    return MPP_OK;
 }
 
-void streamoff(Port *port) {
+S32 streamoff(Port *port) {
     struct timeval time;
     gettimeofday(&time, NULL);
 
@@ -656,7 +661,9 @@ void streamoff(Port *port) {
     S32 ret = ioctl(port->nVideoFd, VIDIOC_STREAMOFF, &(port->eBufType));
     if (ret) {
         error("Failed to stream off.");
+        return MPP_IOCTL_FAILED;
     }
+    return MPP_OK;
 }
 
 void sendEncStopCommand(Port *port) {

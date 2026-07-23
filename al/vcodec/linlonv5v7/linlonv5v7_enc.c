@@ -1006,7 +1006,11 @@ S32 al_enc_flush(ALBaseContext *ctx) {
 
     debug("Flush start ========================================");
     pthread_mutex_lock(&context->inputLock);
-    handleFlush(context->stCodec, MPP_FALSE);
+    S32 ret = handleFlush(context->stCodec, MPP_FALSE);
+    if (ret != MPP_OK) {
+        pthread_mutex_unlock(&context->inputLock);
+        return ret;
+    }
     u32BufferCount = collectInputBuffersLocked(context, aulBufferIds, NUM_OF(aulBufferIds));
     while (context->nInputCallbacksInFlight > 0) {
         pthread_cond_wait(&context->inputCond, &context->inputLock);

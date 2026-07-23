@@ -553,26 +553,42 @@ S32 handleEvent(Codec *codec) {
     return MPP_OK;
 }
 
-void handleFlush(Codec *codec, BOOL eof) {
-    streamoff(codec->stInputPort);
-    streamoff(codec->stOutputPort);
+S32 handleFlush(Codec *codec, BOOL eof) {
+    S32 ret = streamoff(codec->stInputPort);
+    if (ret != MPP_OK)
+        return ret;
+    ret = streamoff(codec->stOutputPort);
+    if (ret != MPP_OK)
+        return ret;
 
-    /* For DMABUF_EXTERNAL mode: DO NOT reallocate buffers here!
-     * The buffers are owned by MPI layer (VB pool), and reallocation
-     * would cause MPI's stExtBuf[] to become out of sync with V4L2.
-     * Just do streamoff/streamon, and let MPI layer re-queue buffers. */
-
-    streamon(codec->stInputPort);
+    ret = streamon(codec->stInputPort);
+    if (ret != MPP_OK)
+        return ret;
     // this sleep is used to fix a bug, ffplay on linux sometimes get a streamon
     // failed(Operation now in progress) error
     usleep(5000);
-    streamon(codec->stOutputPort);
 
-    /* Only queue internal buffers; external buffers queued by MPI layer */
-    if (getPortBufferType(codec->stOutputPort) != MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL) {
-    queueBuffers(codec->stOutputPort, MPP_FALSE);
+    if (getPortBufferType(codec->stOutputPort) == MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL) {
+        S32 n = getBufNum(codec->stOutputPort);
+        ret = allocateBuffers(codec->stOutputPort, 0);
+        if (ret != MPP_OK)
+            return ret;
+        ret = allocateBuffers(codec->stOutputPort, n);
+        if (ret != MPP_OK)
+            return ret;
+        ret = streamon(codec->stOutputPort);
+        if (ret != MPP_OK)
+            return ret;
+    } else {
+        ret = streamon(codec->stOutputPort);
+        if (ret != MPP_OK)
+            return ret;
+        ret = queueBuffers(codec->stOutputPort, MPP_FALSE);
+        if (ret != MPP_OK)
+            return ret;
     }
     // port->nFramesProcessed = 0;
+    return MPP_OK;
 }
 
 S32 runPoll(Codec *codec, struct pollfd *p) {
