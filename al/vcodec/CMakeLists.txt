@@ -21,9 +21,9 @@ set(LINLONV5V7_SRCS
 add_library(v4l2_linlonv5v7_codec2 SHARED ${LINLONV5V7_SRCS})
 
 # Link mpp shared library if available, otherwise just rely on include paths
-if(TARGET mpp)
-    target_link_libraries(v4l2_linlonv5v7_codec2 PRIVATE mpp)
-endif()
+# Keep libmpp in DT_NEEDED when codec2 is loaded with RTLD_LOCAL.
+target_link_libraries(v4l2_linlonv5v7_codec2 PRIVATE
+    -Wl,--no-as-needed mpp -Wl,--as-needed)
 
 # Post-build: try copying to /usr/lib first; if no permission, fall back to $HOME/.mpp/plugins
 add_custom_command(TARGET v4l2_linlonv5v7_codec2 POST_BUILD
