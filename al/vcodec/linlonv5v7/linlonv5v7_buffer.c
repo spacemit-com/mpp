@@ -30,6 +30,8 @@ struct _Buffer {
     S32 nTotalLength;                    // for V4L2_MEMORY_DMABUF
     S32 nPlaneOffset[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
     S32 nPlaneLength[VIDEO_MAX_PLANES];  // for V4L2_MEMORY_DMABUF
+    U8 *pInternalDmaMap;
+    size_t nInternalDmaMapLength;
 
     /***
      * used for encoder, save extra dmabuf id
@@ -72,12 +74,20 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format, 
 
     if (V4L2_MEMORY_DMABUF == buffer_tmp->nMemType) {
         buffer_tmp->pDmaBufWrapper = createDmaBufWrapper(DMA_HEAP_CMA);
+        if (!buffer_tmp->pDmaBufWrapper) {
+            error("createDmaBufWrapper failed");
+            free(buffer_tmp);
+            return NULL;
+        }
     }
 
     if (memoryMap(buffer_tmp, fd) != MPP_OK) {
         error("memoryMap failed, destroy buffer");
-        if (buffer_tmp->pDmaBufWrapper)
+        memoryUnmap(buffer_tmp);
+        if (buffer_tmp->pDmaBufWrapper) {
             destoryDmaBufWrapper(buffer_tmp->pDmaBufWrapper);
+            buffer_tmp->pDmaBufWrapper = NULL;
+        }
         free(buffer_tmp);
         return NULL;
     }
@@ -86,9 +96,13 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format, 
 }
 
 void destoryBuffer(Buffer *buf) {
+    if (!buf)
+        return;
     memoryUnmap(buf);
-    if (buf->pDmaBufWrapper)
+    if (buf->pDmaBufWrapper) {
         destoryDmaBufWrapper(buf->pDmaBufWrapper);
+        buf->pDmaBufWrapper = NULL;
+    }
     debug("free buffer");
     free(buf);
 }
@@ -449,12 +463,18 @@ S32 memoryMap(Buffer *buf, S32 fd) {
 
         if (V4L2_MEMORY_DMABUF == buf->nMemType && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
             buf->stBufArr.m.planes[0].m.fd = allocDmaBuf(buf->pDmaBufWrapper, buf->nTotalLength);
+            if (buf->stBufArr.m.planes[0].m.fd < 0) {
+                error("Failed to allocate multi plane dma buf");
+                return buf->stBufArr.m.planes[0].m.fd;
+            }
             buf->pUserPtr[0] =
                 mmap(NULL, buf->nTotalLength, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.planes[0].m.fd, 0);
             if (buf->pUserPtr[0] == MAP_FAILED) {
                 error("Failed to mmap multi plane memory (%s)", strerror(errno));
                 return MPP_MMAP_FAILED;
             }
+            buf->pInternalDmaMap = buf->pUserPtr[0];
+            buf->nInternalDmaMapLength = buf->nTotalLength;
             buf->nPlaneOffset[0] = 0;
 
             for (U32 j = 1; j < buf->stBufArr.length; j++) {
@@ -489,6 +509,10 @@ S32 memoryMap(Buffer *buf, S32 fd) {
                 && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
                 buf->nTotalLength = buf->stBufArr.length;
                 buf->stBufArr.m.fd = allocDmaBuf(buf->pDmaBufWrapper, buf->stBufArr.length);
+                if (buf->stBufArr.m.fd < 0) {
+                    error("Failed to allocate single plane dma buf");
+                    return buf->stBufArr.m.fd;
+                }
                 buf->pUserPtr[0] =
                     mmap(NULL, buf->stBufArr.length, PROT_READ | PROT_WRITE, MAP_SHARED, buf->stBufArr.m.fd, 0);
 
@@ -496,6 +520,8 @@ S32 memoryMap(Buffer *buf, S32 fd) {
                     error("Failed to mmap single plane memory (%s)", strerror(errno));
                     return MPP_MMAP_FAILED;
                 }
+                buf->pInternalDmaMap = buf->pUserPtr[0];
+                buf->nInternalDmaMapLength = buf->nTotalLength;
             } else if (V4L2_MEMORY_DMABUF == buf->nMemType
                 && MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL == buf->eBufferType) {
                 debug("dmabuf external, not alloc dmabuf here, always used for video encode!");
@@ -512,19 +538,32 @@ S32 memoryMap(Buffer *buf, S32 fd) {
 }
 
 S32 memoryUnmap(Buffer *buf) {
+    S32 ret = MPP_OK;
+
+    if (!buf)
+        return MPP_NULL_POINTER;
+
     if (V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type)) {
         if (buf->nMemType == V4L2_MEMORY_DMABUF) {
-            if (buf->pUserPtr[0] && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
-                if (munmap(buf->pUserPtr[0], buf->nTotalLength)) {
-                    error(
-                        "dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)",
-                        buf->nTotalLength,
-                        buf->pUserPtr[0],
-                        strerror(errno));
-                    return MPP_MUNMAP_FAILED;
+            if (MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
+                if (buf->pInternalDmaMap && buf->pInternalDmaMap != MAP_FAILED) {
+                    if (munmap(buf->pInternalDmaMap, buf->nInternalDmaMapLength)) {
+                        error(
+                            "dmabuf munmap dma buf fail, please check!! len:%zu ptr:%p (%s)",
+                            buf->nInternalDmaMapLength,
+                            buf->pInternalDmaMap,
+                            strerror(errno));
+                        ret = MPP_MUNMAP_FAILED;
+                    }
                 }
-                freeDmaBuf(buf->pDmaBufWrapper);
-                close(buf->stBufArr.m.planes[0].m.fd);
+                buf->pInternalDmaMap = NULL;
+                buf->nInternalDmaMapLength = 0;
+                buf->pUserPtr[0] = NULL;
+                for (U32 i = 1; i < buf->stBufArr.length; ++i)
+                    buf->pUserPtr[i] = NULL;
+                if (buf->pDmaBufWrapper)
+                    freeDmaBuf(buf->pDmaBufWrapper);
+                buf->stBufArr.m.planes[0].m.fd = -1;
             } else {
                 debug(
                     "maybe dmabuf external, not free dmabuf here, always used for "
@@ -532,44 +571,53 @@ S32 memoryUnmap(Buffer *buf) {
             }
         } else if (buf->nMemType == V4L2_MEMORY_MMAP) {
             for (U32 i = 0; i < buf->stBufArr.length; i++) {
-                if (buf->pUserPtr[i] != 0) {
-                    munmap(buf->pUserPtr[i], buf->stBufArr.m.planes[i].length);
+                if (buf->pUserPtr[i] && buf->pUserPtr[i] != MAP_FAILED) {
+                    if (munmap(buf->pUserPtr[i], buf->stBufArr.m.planes[i].length))
+                        ret = MPP_MUNMAP_FAILED;
                 }
+                buf->pUserPtr[i] = NULL;
             }
         } else if (buf->nMemType == V4L2_MEMORY_USERPTR) {
             debug("USERPTR mode, not allocate here, so not unmap here!");
         }
     } else {
         if (buf->nMemType == V4L2_MEMORY_DMABUF) {
-            if (buf->pUserPtr[0] && MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
-                if (munmap(buf->pUserPtr[0], buf->nTotalLength)) {
-                    error(
-                        "dmabuf munmap dma buf fail, please check!! len:%d ptr:%p (%s)",
-                        buf->nTotalLength,
-                        buf->pUserPtr[0],
-                        strerror(errno));
-                    return MPP_MUNMAP_FAILED;
+            if (MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL == buf->eBufferType) {
+                if (buf->pInternalDmaMap && buf->pInternalDmaMap != MAP_FAILED) {
+                    if (munmap(buf->pInternalDmaMap, buf->nInternalDmaMapLength)) {
+                        error(
+                            "dmabuf munmap dma buf fail, please check!! len:%zu ptr:%p (%s)",
+                            buf->nInternalDmaMapLength,
+                            buf->pInternalDmaMap,
+                            strerror(errno));
+                        ret = MPP_MUNMAP_FAILED;
+                    }
                 }
-                freeDmaBuf(buf->pDmaBufWrapper);
-                close(buf->stBufArr.m.fd);
+                buf->pInternalDmaMap = NULL;
+                buf->nInternalDmaMapLength = 0;
+                buf->pUserPtr[0] = NULL;
+                if (buf->pDmaBufWrapper)
+                    freeDmaBuf(buf->pDmaBufWrapper);
+                buf->stBufArr.m.fd = -1;
             } else {
                 debug(
                     "maybe dmabuf external, not free dmabuf here, always used for "
                     "video encode!");
             }
         } else if (buf->nMemType == V4L2_MEMORY_MMAP) {
-            if (buf->pUserPtr[0]) {
+            if (buf->pUserPtr[0] && buf->pUserPtr[0] != MAP_FAILED) {
                 if (munmap(buf->pUserPtr[0], buf->stBufArr.length)) {
                     error("munmap dma buf fail, please check!! (%s)", strerror(errno));
-                    return MPP_MUNMAP_FAILED;
+                    ret = MPP_MUNMAP_FAILED;
                 }
             }
+            buf->pUserPtr[0] = NULL;
         } else if (buf->nMemType == V4L2_MEMORY_USERPTR) {
             debug("USERPTR mode, not allocate here, so not unmap here!");
         }
     }
 
-    return MPP_OK;
+    return ret;
 }
 
 S32 getLength(Buffer *buf, U32 plane) {

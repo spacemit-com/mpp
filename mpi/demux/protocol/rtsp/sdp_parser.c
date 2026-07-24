@@ -205,6 +205,20 @@ S32 Sdp_Parse(const CHAR *pszSdp, SdpInfo *pstInfo) {
                 parse_h265_fmtp(pLine, pstInfo);
             }
         } else if (strncmp(pLine, "a=control:", 10) == 0) {
+            /* Capture the raw control string verbatim so SETUP can build the
+             * exact URI the server advertised (mediamtx uses "trackID=0",
+             * many IP cams use "trackID=N" or an absolute rtsp:// URL). */
+            const CHAR *pCtrl = pLine + 10;
+            size_t ctrl_len = (size_t)(pEnd - pCtrl);
+            CHAR *pDst = bInVideo ? pstInfo->szVideoControl : (bInAudio ? pstInfo->szAudioControl : NULL);
+            size_t dst_cap = sizeof(pstInfo->szVideoControl);
+            if (pDst) {
+                if (ctrl_len >= dst_cap) {
+                    ctrl_len = dst_cap - 1;
+                }
+                memcpy(pDst, pCtrl, ctrl_len);
+                pDst[ctrl_len] = '\0';
+            }
             const CHAR *pTrack = strstr(pLine + 10, "trackID=");
             if (pTrack) {
                 int track_id = atoi(pTrack + 8);

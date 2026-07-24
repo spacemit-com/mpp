@@ -130,6 +130,9 @@ Port *createPort(
 }
 
 void destoryPort(Port *port) {
+    if (!port)
+        return;
+
     allocateBuffers(port, 0);
     if (port->bEnableOutputBufferSave && OUTPUT == port->ePortDirection && port->pOutputFile) {
         fflush(port->pOutputFile);
@@ -141,6 +144,11 @@ void destoryPort(Port *port) {
 }
 
 Buffer *getBuffer(Port *port, S32 index) {
+    /* Bounds check: index may exceed the number of buffers actually allocated
+     * (nBufNum now reflects only successfully created buffers). Returning NULL
+     * lets callers fail gracefully instead of reading out of range / NULL. */
+    if (!port || index < 0 || index >= port->nBufNum)
+        return NULL;
     return port->stBuf[index];
 }
 
@@ -375,6 +383,28 @@ S32 allocateBuffers(Port *port, S32 count) {
     U32 i;
     S32 ret;
 
+    if (!port || count < 0) {
+        return MPP_INIT_FAILED;
+    }
+
+    /* Release imported DMA-BUF references in the driver before closing the
+     * userspace fds. Some vendor drivers defer the CMA attachment cleanup if
+     * the fd disappears while it is still registered in the V4L2 queue. */
+    if (count == 0) {
+        memset(&reqbuf, 0, sizeof(reqbuf));
+        reqbuf.type = port->eBufType;
+        reqbuf.memory = port->nMemType;
+        ret = ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
+        if (ret) {
+            error("Failed to release buffers. type:%d memory:%d (%s)",
+                reqbuf.type, reqbuf.memory, strerror(errno));
+        } else {
+            debug("Request buffers. type:%d count:0(0) memory:%d", reqbuf.type, reqbuf.memory);
+        }
+        freeBuffers(port);
+        return ret ? MPP_IOCTL_FAILED : MPP_OK;
+    }
+
     /* Free existing meta buffer. */
     freeBuffers(port);
 
@@ -385,25 +415,34 @@ S32 allocateBuffers(Port *port, S32 count) {
     }
 
     /* Request new buffer to be allocated. */
+    memset(&reqbuf, 0, sizeof(reqbuf));
     reqbuf.count = count;
     reqbuf.type = port->eBufType;
     reqbuf.memory = port->nMemType;
     ret = ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
     if (ret) {
-        error("Failed to request buffers.");
+        error("Failed to request buffers. type:%d count:%d memory:%d (%s)",
+            reqbuf.type, count, reqbuf.memory, strerror(errno));
         return MPP_IOCTL_FAILED;
     }
 
     debug("Request buffers. type:%d count:%d(%d) memory:%d", reqbuf.type, reqbuf.count, count, reqbuf.memory);
 
-    /* the driver may grant more buffers than requested; never track more
-     * than stBuf can hold */
-    if (reqbuf.count > MAX_BUF_NUM) {
-        error("driver granted %d buffers, only tracking MAX_BUF_NUM(%d)", reqbuf.count, MAX_BUF_NUM);
-        reqbuf.count = MAX_BUF_NUM;
+    if (reqbuf.count != (U32)count) {
+        error("Driver granted partial buffers. type:%d requested:%d granted:%u",
+            reqbuf.type, count, reqbuf.count);
+        reqbuf.count = 0;
+        ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
+        return MPP_INIT_FAILED;
     }
 
-    port->nBufNum = reqbuf.count;
+    /* Start at zero and only advance nBufNum for buffers that are actually
+     * created.  If a createBuffer() fails partway (e.g. CMA exhausted when many
+     * codec channels run concurrently), leaving nBufNum at reqbuf.count would
+     * later hand a NULL port->stBuf[index] to getBuffer(), and the input path
+     * would dereference it (crash).  Keeping nBufNum == number of valid slots
+     * lets callers fail gracefully instead. */
+    port->nBufNum = 0;
 
     /* Query each buffer and create a new meta buffer. */
     for (i = 0; i < reqbuf.count; ++i) {
@@ -419,6 +458,9 @@ S32 allocateBuffers(Port *port, S32 count) {
         ret = ioctl(port->nVideoFd, VIDIOC_QUERYBUF, &buf);
         if (ret) {
             error("Failed to query buffer.");
+            freeBuffers(port);
+            reqbuf.count = 0;
+            ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
             return MPP_IOCTL_FAILED;
         }
 
@@ -427,18 +469,33 @@ S32 allocateBuffers(Port *port, S32 count) {
         port->stBuf[buf.index] = createBuffer(buf, port->nVideoFd, port->stFormat, port->eBufferType);
         if (!port->stBuf[buf.index]) {
             error("create buffer(index=%d) failed, please check!", buf.index);
-            // to do: some buffer not released
+            freeBuffers(port);
+            reqbuf.count = 0;
+            ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
             return MPP_INIT_FAILED;
         }
+
+        port->nBufNum = buf.index + 1;
     }
 
     return MPP_OK;
 }
 
 void freeBuffers(Port *port) {
+    if (!port)
+        return;
+
     for (S32 i = 0; i < port->nBufNum; i++) {
-        destoryBuffer(port->stBuf[i]);
+        if (port->stBuf[i]) {
+            destoryBuffer(port->stBuf[i]);
+            port->stBuf[i] = NULL;
+        }
     }
+    /* Make cleanup idempotent. Error paths can call freeCodecBuffers() before
+     * destoryCodec(), which frees the ports again. Keeping the old count and
+     * dangling pointers caused a deterministic double-free after a partial
+     * CMA allocation failure. */
+    port->nBufNum = 0;
 }
 
 U32 getBufferCount(Port *port) {
