@@ -12,6 +12,7 @@ include_directories(BEFORE
 
 set(LINLONV5V7_SRCS
     linlonv5v7/linlonv5v7_dec.c
+    linlonv5v7/linlonv5v7_mjpeg.c
     linlonv5v7/linlonv5v7_enc.c
     linlonv5v7/linlonv5v7_codec.c
     linlonv5v7/linlonv5v7_buffer.c

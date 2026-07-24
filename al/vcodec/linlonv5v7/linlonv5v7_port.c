@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "env.h"
+#include "linlonv5v7_mjpeg.h"
 
 #define MODULE_TAG "linlonv5v7_port"
 
@@ -1539,7 +1540,38 @@ S32 getBufHeight(Port *port) {
     return port->stFormat.fmt.pix_mp.height;
 }
 
-S32 handleInputBuffer(Port *port, BOOL eof, const StreamBufferInfo *pstStream) {
+S32 copyInputPayload(Buffer *buffer, const StreamBufferInfo *pstStream, MppStreamCodecType eCodecType) {
+    struct v4l2_buffer *b = getV4l2Buffer(buffer);
+    S32 capacity = getLength(buffer, 0);
+    size_t payload_size = pstStream->u32Size;
+
+    if (pstStream->u32Size == 0) {
+        b->bytesused = 0;
+        return MPP_OK;
+    }
+    if (capacity < 0 || (U32)capacity < pstStream->u32Size) {
+        error("input buffer too small: capacity=%d payload=%u", capacity, pstStream->u32Size);
+        return MPP_CHECK_FAILED;
+    }
+
+    if (eCodecType == MPP_STREAM_CODEC_MJPEG || eCodecType == MPP_STREAM_CODEC_JPEG) {
+        /* T.81 defines DRI with Ri=0 as disabling restart intervals. Linlon
+         * rejects the explicit marker, so omit that semantically empty segment. */
+        if (linlon_mjpeg_remove_zero_dri(
+                pstStream->pu8Addr, pstStream->u32Size, getUserPtr(buffer, 0), (size_t)capacity, &payload_size) != 0) {
+            error("failed to copy MJPEG input payload");
+            return MPP_CHECK_FAILED;
+        }
+    } else {
+        memcpy(getUserPtr(buffer, 0), pstStream->pu8Addr, pstStream->u32Size);
+    }
+    b->bytesused = payload_size;
+    return MPP_OK;
+}
+
+S32 handleInputBuffer(
+    Port *port, BOOL eof, const StreamBufferInfo *pstStream, MppStreamCodecType eCodecType
+) {
     S32 index;
     S32 ret;
     Buffer *buffer = dequeueBuffer(port);
@@ -1562,8 +1594,9 @@ S32 handleInputBuffer(Port *port, BOOL eof, const StreamBufferInfo *pstStream) {
 
     if (V4L2_BUF_TYPE_VIDEO_OUTPUT == port->eBufType && V4L2_MEMORY_MMAP == port->nMemType) {
         // decode input
-        memcpy(getUserPtr(buffer, 0), pstStream->pu8Addr, pstStream->u32Size);
-        b->bytesused = pstStream->u32Size;
+        ret = copyInputPayload(buffer, pstStream, eCodecType);
+        if (ret != MPP_OK)
+            return ret;
         setTimeStamp(port->stBuf[b->index], (S64)pstStream->u64PTS);
         setEndOfFrame(buffer, MPP_TRUE);
     }
