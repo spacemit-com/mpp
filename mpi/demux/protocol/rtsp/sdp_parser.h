@@ -23,6 +23,11 @@ typedef struct _SdpInfo {
     SdpCodecType eCodec;
     S32 s32VideoTrackId;
     S32 s32AudioTrackId;
+    /* Raw "a=control:" value per media section (RFC 2326). May be a bare
+     * token ("trackID=0", "streamid=0"), a relative path, or an absolute
+     * "rtsp://" URL. Empty string means the SDP had no control attribute. */
+    CHAR szVideoControl[256];
+    CHAR szAudioControl[256];
     U32 u32Width;
     U32 u32Height;
     U32 u32Fps;
