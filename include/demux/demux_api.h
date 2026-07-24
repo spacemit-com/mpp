@@ -76,6 +76,18 @@ S32 DEMUX_StopChn(S32 s32ChnId);
 S32 DEMUX_GetStreamInfo(S32 s32ChnId, DemuxStreamInfo *pstInfo);
 
 /**
+ * @brief  同步探测流信息（在 DEMUX_StartChn 之前调用）
+ *         主动连接源并解析编码类型/分辨率（RTSP 取自 SDP，MP4/TS/FLV 取自容器头），
+ *         使调用方能在创建解码器、建立 DEMUX->VDEC 绑定之前获知真实编码类型。
+ *         已建立的连接会保留并交给内部工作线程复用，不会二次连接。
+ *         若通道已 StartChn 运行，则退化为返回当前已发布的流信息。
+ * @param  s32ChnId  通道号
+ * @param  pstInfo   输出流信息
+ * @return 0 成功，错误码失败
+ */
+S32 DEMUX_ProbeStreamInfo(S32 s32ChnId, DemuxStreamInfo *pstInfo);
+
+/**
  * @brief  设置编码包回调（手动模式）
  *         绑定模式下无需调用，数据通过 SYS_SendStream 自动流转。
  * @param  s32ChnId  通道号
