@@ -483,9 +483,9 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
 
     if (unlikely(context->nInputQueuedNum < (U32)getBufNum(getInputPort(context->stCodec)))) {
         Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
-        memcpy(getUserPtr(buf, 0), pstStream->pu8Addr, pstStream->u32Size);
-        struct v4l2_buffer *b = getV4l2Buffer(buf);
-        b->bytesused = pstStream->u32Size;
+        ret = copyInputPayload(buf, pstStream, context->eCodecType);
+        if (ret != MPP_OK)
+            return ret;
         setEndOfFrame(buf, MPP_TRUE);
         setEndOfStream(buf, MPP_FALSE);
         setTimeStamp(buf, (S64)pstStream->u64PTS);
@@ -512,7 +512,8 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         if (ret == 0 || !(p.revents & POLLOUT))
             return MPP_DATAQUEUE_FULL;
 
-        ret = handleInputBuffer(getInputPort(context->stCodec), context->bInputEos, pstStream);
+        ret = handleInputBuffer(getInputPort(context->stCodec), context->bInputEos, pstStream,
+            context->eCodecType);
         if (ret < 0) {
             error("handleInputBuffer failed, should not failed, please check!");
             return ret;
