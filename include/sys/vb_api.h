@@ -23,6 +23,9 @@ extern "C" {
 #endif
 #endif /* __cplusplus */
 
+/* VB_Import result for a token that has been revoked or superseded by slot reuse. */
+#define VB_ERR_STALE_TOKEN (-10)
+
 /**
  * @description: Initialize the Video Buffer (VB) module, allocate system resources.
  *               Must be called before any other VB module interfaces, and only once.
@@ -129,8 +132,8 @@ S32 VB_UpdateBufferFrameInfo(UL ulBuff, const VideoFrameInfo *pstFrameInfo);
  *               Marks the buffer as exported and returns a share token that can be
  *               passed to another process for import. Adds a reference to prevent
  *               premature release.
- *               NOTE: In user-space simulation, the token is the buffer handle itself.
- *               Real cross-process sharing requires kernel dma-buf support.
+ *               The token is opaque and identifies this specific export generation;
+ *               it must not be interpreted as a buffer handle.
  * @param {UL} ulBuff Buffer ID to export
  * @param {U64 *} pu64Token Output parameter to receive the share token
  * @return {S32} Returns 0 on success, error code on failure
@@ -141,11 +144,12 @@ S32 VB_Export(UL ulBuff, U64 *pu64Token);
  * @description: Import a buffer from a share token obtained via VB_Export.
  *               Adds a reference and returns the buffer handle for local use.
  *               Caller must call VB_ReleaseBuffer when done with the imported buffer.
- *               NOTE: In user-space simulation within the same process only.
- *               Real cross-process import requires kernel dma-buf support.
+ *               A revoked or stale token is rejected, including after its buffer slot
+ *               has been reused for a newer frame.
  * @param {U64} u64Token Share token from VB_Export
  * @param {UL *} pulBuff Output parameter to receive the buffer handle
- * @return {S32} Returns 0 on success, error code on failure
+ * @return {S32} Returns 0 on success, VB_ERR_STALE_TOKEN for an expired export,
+ *               or another negative error code on failure
  */
 S32 VB_Import(U64 u64Token, UL *pulBuff);
 
