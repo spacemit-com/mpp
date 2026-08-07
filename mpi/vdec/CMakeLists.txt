@@ -4,6 +4,7 @@
 
 set(VDEC_SRCS
     vdec.c
+    vdec_capture_state.c
     vdec_input_retry.c
 )
 

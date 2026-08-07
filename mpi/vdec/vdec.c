@@ -32,6 +32,7 @@
 #include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "vdec_capture_state.h"
 #include "vdec_input_retry.h"
 
 #define MODULE_TAG "mpp_vdec"
@@ -440,7 +441,9 @@ static S32 vdec_requeue_ext_buffers(VdecChnCtx *pChn) {
     S32 queued = 0;
 
     for (U32 i = 0; i < pChn->u32ExtBufCnt; i++) {
-        if (pChn->stExtBuf[i].ulVbBuff == 0)
+        if (!vdec_capture_should_requeue(
+                MPP_TRUE, pChn->stExtBuf[i].bHasDecoderRef,
+                pChn->stExtBuf[i].ulVbBuff))
             continue;
         if (!pChn->stExtBuf[i].bHasDecoderRef) {
             debug("requeue: buf %u is consumer-owned, defer to recycle task", i);
@@ -457,8 +460,8 @@ static S32 vdec_requeue_ext_buffers(VdecChnCtx *pChn) {
         stQueueFrame.stVFrame.ulPlaneVirAddr[0] = (UL)pChn->stExtBuf[i].pVirAddr;
 
         S32 ret = pChn->stOps.queue_output_buffer(pChn->pAlCtx, &stQueueFrame);
+        vdec_capture_apply_queue_result(&pChn->stExtBuf[i].bInDecoder, ret);
         if (ret == MPP_OK) {
-            pChn->stExtBuf[i].bInDecoder = MPP_TRUE;
             queued++;
         } else {
             pChn->stExtBuf[i].bInDecoder = MPP_FALSE;
@@ -700,11 +703,10 @@ static void *vdec_recycle_task(void *arg) {
         }
         if (idx < 0) {
             error("recycle: unknown VB handle %lu", ulBuf);
-            VB_ReleaseBuffer(ulBuf);
             pthread_mutex_unlock(&pChn->poolLock);
+            VB_ReleaseBuffer(ulBuf);
             continue;
         }
-        pChn->stExtBuf[idx].bHasDecoderRef = MPP_TRUE;
 
         /*
          * If the buffer is already queued in the decoder (e.g. the
@@ -715,6 +717,16 @@ static void *vdec_recycle_task(void *arg) {
         if (pChn->stExtBuf[idx].bInDecoder) {
             debug("recycle: buf %d already in decoder, skip re-queue", idx);
             pthread_mutex_unlock(&pChn->poolLock);
+            VB_ReleaseBuffer(ulBuf);
+            continue;
+        }
+
+        if (!vdec_capture_claim_recycled_ref(
+                &pChn->stExtBuf[idx].bHasDecoderRef,
+                pChn->bRecycleRun, pChn->bPoolReconfig,
+                ulPool == pChn->ulPoolId)) {
+            pthread_mutex_unlock(&pChn->poolLock);
+            VB_ReleaseBuffer(ulBuf);
             continue;
         }
 
@@ -726,14 +738,14 @@ static void *vdec_recycle_task(void *arg) {
         stQueueFrame.stVFrame.ulPlaneVirAddr[0] = (UL)pChn->stExtBuf[idx].pVirAddr;
 
         S32 ret = pChn->stOps.queue_output_buffer(pChn->pAlCtx, &stQueueFrame);
-        if (ret == MPP_OK) {
-            pChn->stExtBuf[idx].bInDecoder = MPP_TRUE;
-        } else {
-            error("recycle: re-queue buf %d failed, ret=%d", idx, ret);
+        vdec_capture_apply_queue_result(&pChn->stExtBuf[idx].bInDecoder, ret);
+        if (ret != MPP_OK)
             pChn->stExtBuf[idx].bHasDecoderRef = MPP_FALSE;
+        pthread_mutex_unlock(&pChn->poolLock);
+        if (ret != MPP_OK) {
+            error("recycle: re-queue buf %d failed, ret=%d", idx, ret);
             VB_ReleaseBuffer(ulBuf);
         }
-        pthread_mutex_unlock(&pChn->poolLock);
     }
 
     info("vdec recycle task exiting: chn %d", pChn->s32ChnId);
