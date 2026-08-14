@@ -96,9 +96,7 @@ S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32Time
  *                        the VB buffer handle to pass to VDEC_ReleaseFrame.
  * @param  u32TimeoutMs   Timeout in ms (0 = non-blocking, -1 = infinite)
  * @return 0 on success, ERR_VDEC_NO_FRAME if no frame available,
- *         ERR_VDEC_EOS on end-of-stream, ERR_VDEC_NOT_SUPPORT when the
- *         channel is configured for VDEC_OUTPUT_MODE_SYS_BIND, or another
- *         error code on failure
+ *         ERR_VDEC_EOS on end-of-stream, error code on failure
  */
 S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs);
 

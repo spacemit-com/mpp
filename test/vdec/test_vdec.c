@@ -1303,15 +1303,6 @@ static int run_api_suite(void) {
         return -1;
     }
 
-    attr.eOutputMode = (VdecOutputMode)99;
-    r = VDEC_CreateChn(0, &attr);
-    if (r != ERR_VDEC_NOT_SUPPORT) {
-        fprintf(stderr, "CreateChn invalid output mode: %d\n", r);
-        (void)VDEC_Exit();
-        return -1;
-    }
-    attr.eOutputMode = VDEC_OUTPUT_MODE_GET_FRAME;
-
     r = VDEC_DestroyChn(0);
     if (r != ERR_VDEC_INVALID_CHN) {
         fprintf(stderr, "DestroyChn no channel: %d\n", r);
@@ -1380,15 +1371,6 @@ static int run_api_suite(void) {
         (void)VDEC_Exit();
         return -1;
     }
-    attr.eOutputMode = VDEC_OUTPUT_MODE_SYS_BIND;
-    r = VDEC_CreateChn(1, &attr);
-    if (r != 0) {
-        fprintf(stderr, "CreateChn SYS_BIND mode: %d\n", r);
-        (void)VDEC_DestroyChn(0);
-        (void)VDEC_Exit();
-        return -1;
-    }
-    (void)VDEC_DestroyChn(1);
     r = VDEC_DestroyChn(0);
     if (r != 0) {
         fprintf(stderr, "DestroyChn after create: %d\n", r);

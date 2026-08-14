@@ -159,7 +159,6 @@ static S32 build_vdec(MppStreamCodecType eInCodec, U32 u32Width, U32 u32Height) 
     stAttr.u32Align = 16;
     stAttr.u32Width = (u32Width > 0) ? u32Width : DEFAULT_WIDTH;
     stAttr.u32Height = (u32Height > 0) ? u32Height : DEFAULT_HEIGHT;
-    stAttr.eOutputMode = VDEC_OUTPUT_MODE_SYS_BIND;
 
     ret = VDEC_CreateChn(TRANSCODE_VDEC_CHN, &stAttr);
     if (ret != 0) {

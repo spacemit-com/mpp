@@ -148,7 +148,6 @@ static S32 run_manual(void) {
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     vdecAttr.u32Width = SAMPLE_WIDTH;
     vdecAttr.u32Height = SAMPLE_HEIGHT;
-    vdecAttr.eOutputMode = VDEC_OUTPUT_MODE_GET_FRAME;
 
     ret = VDEC_CreateChn(vdecChn, &vdecAttr);
     assert(ret == 0);
@@ -376,7 +375,6 @@ static S32 run_bind(void) {
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     vdecAttr.u32Width = SAMPLE_WIDTH;
     vdecAttr.u32Height = SAMPLE_HEIGHT;
-    vdecAttr.eOutputMode = VDEC_OUTPUT_MODE_SYS_BIND;
 
     ret = VDEC_CreateChn(vdecChn, &vdecAttr);
     assert(ret == 0);
