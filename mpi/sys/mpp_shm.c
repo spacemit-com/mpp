@@ -41,7 +41,22 @@ static MppSharedMem *g_shm = NULL;
 static int g_shm_fd = -1;
 
 static int mpp_shm_init_lock(void) {
-    int fd = open(MPP_SHM_INIT_LOCK_PATH, O_CREAT | O_RDWR, 0666);
+    int fd = open(MPP_SHM_INIT_LOCK_PATH, O_RDWR | O_CLOEXEC);
+    if (fd < 0 && errno == ENOENT) {
+        fd = open(MPP_SHM_INIT_LOCK_PATH,
+                O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0666);
+        if (fd >= 0) {
+            /* open(2) applies the caller's umask.  This lock coordinates a
+             * machine-wide MPP session, so keep it writable across users. */
+            if (fchmod(fd, 0666) != 0)
+                SHM_LOG_WARN("chmod init lock failed: %s", strerror(errno));
+        } else if (errno == EEXIST) {
+            /* Another process won the create race.  Opening without O_CREAT
+             * also avoids fs.protected_regular rejecting a file owned by a
+             * different user in sticky /tmp. */
+            fd = open(MPP_SHM_INIT_LOCK_PATH, O_RDWR | O_CLOEXEC);
+        }
+    }
     if (fd < 0) {
         SHM_LOG_ERR("open init lock failed: %s", strerror(errno));
         return -1;
@@ -116,11 +131,19 @@ static S32 shm_init_queue(MppChanQueue *q) {
     return 0;
 }
 
-static bool mpp_shm_file_in_use(void) {
+typedef enum {
+    MPP_SHM_UNUSED = 0,
+    MPP_SHM_IN_USE,
+    MPP_SHM_USE_UNKNOWN,
+} MppShmUseState;
+
+static MppShmUseState mpp_shm_file_use_state(void) {
     pid_t self_pid = getpid();
     DIR *proc_dir = opendir("/proc");
     if (!proc_dir)
-        return false;
+        return MPP_SHM_USE_UNKNOWN;
+
+    bool scan_incomplete = false;
 
     struct dirent *proc_ent;
     while ((proc_ent = readdir(proc_dir)) != NULL) {
@@ -134,8 +157,11 @@ static bool mpp_shm_file_in_use(void) {
         char fd_dir_path[PATH_MAX];
         snprintf(fd_dir_path, sizeof(fd_dir_path), "/proc/%s/fd", proc_ent->d_name);
         DIR *fd_dir = opendir(fd_dir_path);
-        if (!fd_dir)
+        if (!fd_dir) {
+            if (errno == EACCES || errno == EPERM)
+                scan_incomplete = true;
             continue;
+        }
 
         struct dirent *fd_ent;
         while ((fd_ent = readdir(fd_dir)) != NULL) {
@@ -160,14 +186,14 @@ static bool mpp_shm_file_in_use(void) {
             if (strcmp(target, "/dev/shm/mpp_ctrl") == 0 || strcmp(target, "/dev/shm/mpp_ctrl (deleted)") == 0) {
                 closedir(fd_dir);
                 closedir(proc_dir);
-                return true;
+                return MPP_SHM_IN_USE;
             }
         }
         closedir(fd_dir);
     }
 
     closedir(proc_dir);
-    return false;
+    return scan_incomplete ? MPP_SHM_USE_UNKNOWN : MPP_SHM_UNUSED;
 }
 
 static S32 shm_init_stream_queue(MppStreamQueue *q) {
@@ -289,6 +315,14 @@ S32 mpp_shm_init(void) {
     }
 
     if (created) {
+        /* shm_open() creation mode is filtered by umask as well. */
+        if (fchmod(fd, 0666) != 0) {
+            SHM_LOG_ERR("chmod shared memory failed: %s", strerror(errno));
+            close(fd);
+            shm_unlink(MPP_SHM_NAME);
+            mpp_shm_init_unlock(lock_fd);
+            return -1;
+        }
         if (ftruncate(fd, sizeof(MppSharedMem)) != 0) {
             SHM_LOG_ERR("ftruncate failed: %s", strerror(errno));
             close(fd);
@@ -318,22 +352,28 @@ S32 mpp_shm_init(void) {
         }
     } else {
         bool stale = false;
+        MppShmUseState use_state = mpp_shm_file_use_state();
 
         /* Reject layout mismatches while any process still uses the segment;
          * only an orphaned segment may be reinitialized to this version. */
         if (shm->magic != MPP_SHM_MAGIC || shm->version != MPP_SHM_VERSION) {
             SHM_LOG_WARN("bad shm header detected, checking if orphaned");
-            if (!mpp_shm_file_in_use()) {
+            if (use_state == MPP_SHM_UNUSED) {
                 stale = true;
             } else {
-                SHM_LOG_ERR("bad shared memory header and active users present");
+                SHM_LOG_ERR("bad shared memory header and active users may be present");
                 munmap(shm, sizeof(MppSharedMem));
                 close(fd);
                 mpp_shm_init_unlock(lock_fd);
                 return -1;
             }
-        } else if (!mpp_shm_file_in_use()) {
+        } else if (use_state == MPP_SHM_UNUSED) {
             stale = true;
+        } else if (use_state == MPP_SHM_USE_UNKNOWN) {
+            /* A process owned by another user may deny access to
+             * /proc/<pid>/fd.  Treat an otherwise valid segment as active;
+             * reinitializing it here would corrupt that process's state. */
+            SHM_LOG_INFO("shared memory usage scan incomplete; attaching to valid segment");
         }
 
         if (stale) {
