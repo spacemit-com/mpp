@@ -743,13 +743,14 @@ static void *vdec_recycle_task(void *arg) {
 /**
  * @brief Output task thread.
  *
- * Continuously requests decoded frames from the decoder, then:
- *   1. SYS_SendFrame to all bound sinks (internally VB_RefAdd per sink).
- *   2. If depth > 0, VB_RefAdd and push into the depth queue.
- *   3. Release the "decoder base ref" via VB_ReleaseBuffer.
+ * Continuously requests decoded frames and selects one output path per frame:
+ *   - If the VDEC source has bound sinks, SYS_SendFrame owns delivery.
+ *   - Otherwise retain one VB ref in the depth queue for VDEC_GetFrame.
+ * Finally release the decoder base ref via VB_ReleaseBuffer.
  *
- * The buffer is NOT directly re-queued to the decoder here.  When ALL
- * consumers (SYS sinks + depth queue user) have called VB_ReleaseBuffer,
+ * Binding takes precedence, so the same frame is never exposed by both paths.
+ * The buffer is NOT directly re-queued to the decoder here.  When
+ * the selected consumer has called VB_ReleaseBuffer,
  * the VB refcount drops to 0, the buffer returns to the pool, and the
  * recycle thread picks it up and re-queues it to the decoder.
  */
@@ -768,7 +769,7 @@ static void *vdec_output_task(void *arg) {
         VideoFrameInfo stFrame;
         S32 ret = pChn->stOps.request_output_frame(pChn->pAlCtx, &stFrame, 100);
         if (ret == MPP_CODER_EOS) {
-            /* Push an EOS entry into depth queue */
+            /* Push an EOS entry into the GetFrame depth queue */
             VideoFrameInfo stEosFrame;
             memset(&stEosFrame, 0, sizeof(stEosFrame));
             stEosFrame.eFrameType = FRAME_TYPE_VDEC;
@@ -858,21 +859,17 @@ static void *vdec_output_task(void *arg) {
          * At this point ref=1 (the "decoder base ref" from the initial
          * VB_GetBuffer or the recycle thread's VB_GetBuffer).
          *
-         * SYS_SendFrame internally does VB_RefAdd for each bound sink,
-         * and each sink will eventually VB_ReleaseBuffer.
-         *
-         * We VB_RefAdd once for the depth queue consumer.
+         * SYS_SendFrame adds a ref for each bound sink.  A successful return
+         * means binding owns this frame, so it must not also enter the depth
+         * queue.  If there is no usable binding, retain one ref for GetFrame.
          *
          * Finally we VB_ReleaseBuffer to drop the base ref.  When all
          * consumers are done, refcount reaches 0, buffer goes back to
          * the pool, and the recycle thread re-queues it to the decoder.
          */
 
-        /* --- 1. SYS_SendFrame: internally VB_RefAdd per bound sink --- */
-        SYS_SendFrame(&stSrcNode, ulBuf);
-
-        /* --- 2. Push into depth queue --- */
-        if (ulBuf != 0) {
+        S32 bindRet = SYS_SendFrame(&stSrcNode, ulBuf);
+        if (bindRet != SYS_ERR_OK && ulBuf != 0) {
             /* add a ref for the depth queue consumer */
             VB_RefAdd(ulBuf);
 
@@ -1144,9 +1141,7 @@ S32 VDEC_EnableChn(S32 s32ChnId) {
     }
 
     /* Initialize depth queue */
-    pChn->u32DepthMax = u32BufCnt / 2;
-    if (pChn->u32DepthMax < 2)
-        pChn->u32DepthMax = 2;
+    pChn->u32DepthMax = pChn->u32ExtBufCnt;
     pChn->pstDepth = (VdecDepthEntry *)calloc(pChn->u32DepthMax, sizeof(VdecDepthEntry));
     if (!pChn->pstDepth) {
         error("depth queue alloc failed for chn %d, cnt=%u", s32ChnId, pChn->u32DepthMax);
