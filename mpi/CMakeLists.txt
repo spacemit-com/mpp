@@ -3,7 +3,6 @@
 # ============================================================
 
 add_subdirectory(sys)
-add_subdirectory(al_module)
 add_subdirectory(vi)
 add_subdirectory(vo)
 add_subdirectory(venc)
