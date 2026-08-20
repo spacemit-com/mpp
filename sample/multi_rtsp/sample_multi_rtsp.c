@@ -36,7 +36,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "stream/mpp_stream_manager.h"
+#include "mpp_stream_manager.h"
 
 #define MAX_INPUT_URLS 16
 

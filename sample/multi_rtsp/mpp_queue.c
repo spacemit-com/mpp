@@ -7,7 +7,7 @@
  *------------------------------------------------------------------------------
  */
 
-#include "stream/mpp_queue.h"
+#include "mpp_queue.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
