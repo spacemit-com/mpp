@@ -13,6 +13,16 @@ include_directories(BEFORE
     ${CMAKE_CURRENT_SOURCE_DIR}/vi/include
 )
 
+# ============================================================
+# Shared AL plugin loader (single copy for vdec + venc + others)
+# ============================================================
+add_library(mpp_al_module OBJECT module.c)
+
+target_include_directories(mpp_al_module
+    PUBLIC
+        ${MPP_INCLUDE_DIRS}
+)
+
 add_subdirectory(vi/k1)
 add_subdirectory(vi/k3)
 add_subdirectory(vcodec)
