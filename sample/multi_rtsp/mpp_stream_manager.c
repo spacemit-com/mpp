@@ -20,8 +20,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "stream/mpp_stream_manager.h"
-#include "stream/mpp_queue.h"
+#include "mpp_stream_manager.h"
+#include "mpp_queue.h"
 #include "demux/demux_api.h"
 #include "mux/mux_api.h"
 #include "sys/sys_api.h"

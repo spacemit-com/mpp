@@ -40,12 +40,14 @@ target_include_directories(sample_vi_k3_4venc_bind PRIVATE ${MPP_INCLUDE_DIRS})
 
 # Multi-Stream RTSP Transcoder (Core Application)
 add_executable(sample_multi_rtsp
-    sample_multi_rtsp.c
-    ${CMAKE_SOURCE_DIR}/mpi/stream/mpp_stream_manager.c
-    ${CMAKE_SOURCE_DIR}/mpi/stream/mpp_queue.c
+    multi_rtsp/sample_multi_rtsp.c
+    multi_rtsp/mpp_stream_manager.c
+    multi_rtsp/mpp_queue.c
 )
 target_compile_definitions(sample_multi_rtsp PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
-target_include_directories(sample_multi_rtsp PRIVATE ${MPP_INCLUDE_DIRS})
+target_include_directories(sample_multi_rtsp PRIVATE
+    ${MPP_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/multi_rtsp)
 target_link_libraries(sample_multi_rtsp PRIVATE mpp)
 
 # File/RTSP transcode: DEMUX -> VDEC -> VENC -> MUX (manual + bind)
