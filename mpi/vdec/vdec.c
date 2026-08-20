@@ -276,6 +276,15 @@ static S32 vdec_plugin_open(VdecChnCtx *pChn) {
     ret = ops->init(pChn->pAlCtx, &pChn->stAttr, &pChn->stBufReq);
     debug("init VDEC Channel, ret = %d", ret);
 
+    if (ret != MPP_OK) {
+        error("al_dec_init failed, ret = %d", ret);
+        ops->destory(pChn->pAlCtx);
+        pChn->pAlCtx = NULL;
+        module_destory(pChn->pModule);
+        pChn->pModule = NULL;
+        memset(&pChn->stOps, 0, sizeof(pChn->stOps));
+    }
+
     return ret;
 }
 

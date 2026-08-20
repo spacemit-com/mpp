@@ -414,6 +414,12 @@ typedef struct _DemuxChn {
 
     /* Reconnect state: wait for keyframe after reconnect */
     BOOL bWaitKeyFrame;
+
+    /* Set by DEMUX_ProbeStreamInfo: the channel was connected synchronously
+     * before StartChn (so the caller could learn the real codec/resolution and
+     * build a matching decoder). The worker thread reuses this live connection
+     * instead of connecting a second time. */
+    BOOL bPreConnected;
 } DemuxChn;
 
 typedef struct _DemuxGlobal {
@@ -550,6 +556,15 @@ static void *demux_thread_proc(void *arg) {
     DEMUX_LOGI("Channel %d thread started", pChn->s32ChnId);
 
     while (!pChn->s32Stop) {
+        /* If DEMUX_ProbeStreamInfo already connected this channel synchronously,
+         * reuse that live connection (and its already-parsed stream info) on the
+         * first pass instead of connecting a second time. Cleared so a later
+         * reconnect (after a drop) takes the normal create+connect path. */
+        if (pChn->bPreConnected && pChn->pCtx) {
+            pChn->bPreConnected = MPP_FALSE;
+            goto connected;
+        }
+
         /* Create/reconnect */
         if (!pChn->pCtx) {
             pChn->pCtx = Demux_Create(pChn->stAttr.szUrl);
@@ -572,6 +587,7 @@ static void *demux_thread_proc(void *arg) {
             continue;
         }
 
+    connected:
         /* Get stream info */
         Demux_GetStreamInfoCtx(pChn->pCtx, &pChn->stStreamInfo);
 
@@ -887,6 +903,73 @@ S32 DEMUX_StopChn(S32 s32ChnId) {
     pthread_mutex_unlock(&pChn->lock);
 
     DEMUX_LOGI("Channel %d stopped", s32ChnId);
+    return ERR_DEMUX_OK;
+}
+
+S32 DEMUX_ProbeStreamInfo(S32 s32ChnId, DemuxStreamInfo *pstInfo) {
+    DemuxChn *pChn;
+    S32 ret;
+
+    if (!pstInfo)
+        return ERR_DEMUX_NULL_PTR;
+    if (!g_stDemuxCtx.s32Init)
+        return ERR_DEMUX_NOT_INIT;
+
+    ret = demux_check_chn(s32ChnId);
+    if (ret != ERR_DEMUX_OK)
+        return ret;
+
+    pChn = &g_stDemuxCtx.astChn[s32ChnId];
+
+    pthread_mutex_lock(&pChn->lock);
+
+    if (!pChn->s32Created) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_DEMUX_INVALID_CHN;
+    }
+    if (pChn->s32State == CHN_STATE_RUNNING) {
+        /* Already started: the worker thread owns pCtx. Just hand back whatever
+         * stream info it has published so far (may still be zero if it hasn't
+         * connected yet). Callers that need the codec BEFORE start must probe
+         * before StartChn. */
+        memcpy(pstInfo, &pChn->stStreamInfo, sizeof(*pstInfo));
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_DEMUX_OK;
+    }
+
+    /* Synchronous connect so the caller can learn the real codec/resolution
+     * (RTSP: from the SDP; MP4/TS/FLV: from the container header) BEFORE
+     * creating a decoder and binding DEMUX->VDEC. The live connection is kept
+     * and handed to the worker thread (bPreConnected) so we never connect
+     * twice. */
+    if (!pChn->pCtx) {
+        pChn->pCtx = Demux_Create(pChn->stAttr.szUrl);
+        if (!pChn->pCtx) {
+            pthread_mutex_unlock(&pChn->lock);
+            DEMUX_LOGE("Channel %d: probe Demux_Create failed", s32ChnId);
+            return ERR_DEMUX_OPEN_FAIL;
+        }
+    }
+
+    if (!pChn->bPreConnected) {
+        ret = Demux_Open(pChn->pCtx, pChn->stAttr.bPreferTcp, pChn->stAttr.u32OpenTimeoutMs);
+        if (ret != 0) {
+            Demux_Destroy(pChn->pCtx);
+            pChn->pCtx = NULL;
+            pthread_mutex_unlock(&pChn->lock);
+            DEMUX_LOGE("Channel %d: probe connect failed (ret=%d)", s32ChnId, ret);
+            return ERR_DEMUX_OPEN_FAIL;
+        }
+        pChn->bPreConnected = MPP_TRUE;
+    }
+
+    Demux_GetStreamInfoCtx(pChn->pCtx, &pChn->stStreamInfo);
+    memcpy(pstInfo, &pChn->stStreamInfo, sizeof(*pstInfo));
+
+    pthread_mutex_unlock(&pChn->lock);
+
+    DEMUX_LOGI("Channel %d probed (sync): %ux%u fps=%u codec=%d", s32ChnId, pstInfo->u32Width, pstInfo->u32Height,
+        pstInfo->u32Fps, pstInfo->eCodecType);
     return ERR_DEMUX_OK;
 }
 

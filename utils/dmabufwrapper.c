@@ -18,6 +18,8 @@ DmaBufWrapper *createDmaBufWrapper(DMAHEAP heap) {
         return NULL;
     }
     memset(wrapper_tmp, 0, sizeof(DmaBufWrapper));
+    wrapper_tmp->nDmaHeapFd = -1;
+    wrapper_tmp->sDmaBuf.nFd = -1;
 
     char *dma_heap_path[64] = {"/dev/dma_heap/linux,cma", "/dev/dma_heap/system"};
 
@@ -49,7 +51,7 @@ S32 allocDmaBuf(DmaBufWrapper *context, S32 size) {
         return MPP_CHECK_FAILED;
     }
 
-    if (context->sDmaBuf.nFd > 0) {
+    if (context->sDmaBuf.nFd >= 0) {
         error("fd exists, sure to alloc again?");
         return MPP_CHECK_FAILED;
     }
@@ -85,8 +87,8 @@ void *mmapDmaBuf(DmaBufWrapper *context) {
         return NULL;
     }
 
-    if (!context->sDmaBuf.nFd || !context->sDmaBuf.nSize) {
-        error("fd = 0 or size = 0, not alloc yet, should not mmap, please check!");
+    if (context->sDmaBuf.nFd < 0 || !context->sDmaBuf.nSize) {
+        error("fd < 0 or size = 0, not alloc yet, should not mmap, please check!");
         return NULL;
     }
 
@@ -108,26 +110,24 @@ RETURN freeDmaBuf(DmaBufWrapper *context) {
         return MPP_NULL_POINTER;
     }
 
-    if (context->sDmaBuf.pVaddr) {
+    if (context->sDmaBuf.pVaddr && context->sDmaBuf.pVaddr != MAP_FAILED) {
         if (munmap(context->sDmaBuf.pVaddr, context->sDmaBuf.nSize)) {
             error("munmap dma buf fail, please check!! (%s)", strerror(errno));
-            return MPP_MUNMAP_FAILED;
         }
     }
 
-    if (context->sDmaBuf.nFd > 0) {
+    if (context->sDmaBuf.nFd >= 0) {
         if (close(context->sDmaBuf.nFd)) {
             error("close dma buf fd fail, please check!!(%s)", strerror(errno));
-            return MPP_CLOSE_FAILED;
+        }
+
+        if (context->bEnableUnfreeDmaBufDebug) {
+            num_of_unfree_dmabuf--;
+            info("---------- debug dmabufwrapper memory: num of unfree dmabuf: %d", num_of_unfree_dmabuf);
         }
     }
 
-    if (context->bEnableUnfreeDmaBufDebug) {
-        num_of_unfree_dmabuf--;
-        info("---------- debug dmabufwrapper memory: num of unfree dmabuf: %d", num_of_unfree_dmabuf);
-    }
-
-    context->sDmaBuf.nFd = 0;
+    context->sDmaBuf.nFd = -1;
     context->sDmaBuf.nSize = 0;
     context->sDmaBuf.pVaddr = NULL;
 
@@ -140,7 +140,9 @@ S32 getDmaHeapFd(DmaBufWrapper *context) {
 
 void destoryDmaBufWrapper(DmaBufWrapper *context) {
     if (context) {
-        close(context->nDmaHeapFd);
+        freeDmaBuf(context);
+        if (context->nDmaHeapFd >= 0)
+            close(context->nDmaHeapFd);
         if (context->bEnableUnfreeDmaBufDebug) {
             num_of_unfree_dmabufwrapper--;
             info("---------- debug dmabufwrapper memory: num of unfree wrapper: %d", num_of_unfree_dmabufwrapper);

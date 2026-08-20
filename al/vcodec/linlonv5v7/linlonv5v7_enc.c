@@ -616,6 +616,8 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
         eBufferType);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
         return MPP_INIT_FAILED;
     }
 
@@ -628,7 +630,15 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
     setEncoderRotation(context, context->nRotation);
 
     // setformat, allocate buffer, stream on
-    stream(context->stCodec);
+    S32 streamRet = stream(context->stCodec);
+    if (streamRet != MPP_OK) {
+        error("al_enc_init: stream() failed (ret=%d), tearing down encoder", streamRet);
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return streamRet;
+    }
 
     S32 ret = startInputBufferDoneTask(context);
     if (ret != MPP_OK)

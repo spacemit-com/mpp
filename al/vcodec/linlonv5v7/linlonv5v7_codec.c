@@ -156,7 +156,8 @@ Codec *createCodec(
         createPort(fd, outputType, output_format_fourcc, align, output_memtype, output_buffer_num, buffer_type);
     if (!codec_tmp->stOutputPort) {
         error("create output port failed, please check!");
-        free(codec_tmp->stInputPort);
+        destoryPort(codec_tmp->stInputPort);
+        codec_tmp->stInputPort = NULL;
         free(codec_tmp);
         return NULL;
     }
@@ -176,6 +177,9 @@ Codec *createCodec(
 }
 
 void destoryCodec(Codec *codec) {
+    if (!codec)
+        return;
+
     debug("destory input port");
     destoryPort(codec->stInputPort);
     debug("destory output port");
@@ -307,7 +311,17 @@ S32 stream(Codec *codec) {
     enumerateFramesizes(codec, getFormatFourcc(codec->stOutputPort));
     setFormats(codec);
     subscribeEvents(codec);
-    allocateCodecBuffers(codec);
+
+    /* Propagate buffer-allocation failure (e.g. CMA exhausted) instead of
+     * swallowing it. Without this, a codec would come up with zero buffers and
+     * drop every frame forever, and init would still report success. */
+    S32 ret = allocateCodecBuffers(codec);
+    if (ret != MPP_OK) {
+        error("stream: buffer allocation failed, ret=%d", ret);
+        freeCodecBuffers(codec);
+        return ret;
+    }
+
     queueCodecBuffers(codec, MPP_FALSE);
     streamonCodec(codec);
 
@@ -452,9 +466,34 @@ void unsubscribeEvent(Codec *codec, U32 event) {
     }
 }
 
-void allocateCodecBuffers(Codec *codec) {
-    allocateBuffers(codec->stInputPort, codec->nInputBufferNum);
-    allocateBuffers(codec->stOutputPort, codec->nOutputBufferNum);
+S32 allocateCodecBuffers(Codec *codec) {
+    S32 retIn = allocateBuffers(codec->stInputPort, codec->nInputBufferNum);
+    if (retIn != MPP_OK) {
+        error("allocateCodecBuffers: input allocation failed (ret=%d nBuf=%d requested=%u)",
+            retIn, getBufNum(codec->stInputPort), codec->nInputBufferNum);
+        return retIn;
+    }
+
+    S32 retOut = allocateBuffers(codec->stOutputPort, codec->nOutputBufferNum);
+
+    /* A partial allocation (CMA exhausted) leaves nBufNum below the request, or
+     * even 0. Treat that as failure: a codec with too few input/output buffers
+     * either drops every frame (numBufs==0) or badly under-pipelines. Callers
+     * must be able to fail init and retry/clean up rather than silently run a
+     * zombie channel. */
+    S32 inBufNum = getBufNum(codec->stInputPort);
+    S32 outBufNum = getBufNum(codec->stOutputPort);
+    if (retOut != MPP_OK) {
+        error("allocateCodecBuffers failed (in ret=%d nBuf=%d, out ret=%d nBuf=%d)",
+            retIn, inBufNum, retOut, outBufNum);
+        return retOut;
+    }
+    if (inBufNum != (S32)codec->nInputBufferNum || outBufNum != (S32)codec->nOutputBufferNum) {
+        error("allocateCodecBuffers: incomplete buffers (in %d/%u, out %d/%u)",
+            inBufNum, codec->nInputBufferNum, outBufNum, codec->nOutputBufferNum);
+        return MPP_INIT_FAILED;
+    }
+    return MPP_OK;
 }
 
 void freeCodecBuffers(Codec *codec) {

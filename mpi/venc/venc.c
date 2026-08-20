@@ -350,13 +350,35 @@ static S32 venc_start_threads(VencChnCtx *pChn) {
     pChn->u32QueueHead = 0;
     pChn->u32QueueTail = 0;
     pChn->u32QueueCount = 0;
-    pthread_mutex_init(&pChn->queueLock, NULL);
-    pthread_cond_init(&pChn->queueNotEmpty, NULL);
-    pthread_cond_init(&pChn->queueNotFull, NULL);
+    S32 ret = pthread_mutex_init(&pChn->queueLock, NULL);
+    if (ret != 0) {
+        error("failed to init venc queue lock for chn %d: %s", pChn->s32ChnId, strerror(ret));
+        return ERR_VENC_NOMEM;
+    }
+
+    ret = pthread_cond_init(&pChn->queueNotEmpty, NULL);
+    if (ret != 0) {
+        error("failed to init venc queue-not-empty condition for chn %d: %s", pChn->s32ChnId, strerror(ret));
+        pthread_mutex_destroy(&pChn->queueLock);
+        return ERR_VENC_NOMEM;
+    }
+
+    ret = pthread_cond_init(&pChn->queueNotFull, NULL);
+    if (ret != 0) {
+        error("failed to init venc queue-not-full condition for chn %d: %s", pChn->s32ChnId, strerror(ret));
+        pthread_cond_destroy(&pChn->queueNotEmpty);
+        pthread_mutex_destroy(&pChn->queueLock);
+        return ERR_VENC_NOMEM;
+    }
 
     pChn->bTaskRun = MPP_TRUE;
-    if (pthread_create(&pChn->taskTid, NULL, venc_task_thread, pChn) != 0) {
-        error("failed to create venc task thread for chn %d", pChn->s32ChnId);
+    ret = pthread_create(&pChn->taskTid, NULL, venc_task_thread, pChn);
+    if (ret != 0) {
+        error("failed to create venc task thread for chn %d: %s", pChn->s32ChnId, strerror(ret));
+        pChn->bTaskRun = MPP_FALSE;
+        pthread_cond_destroy(&pChn->queueNotFull);
+        pthread_cond_destroy(&pChn->queueNotEmpty);
+        pthread_mutex_destroy(&pChn->queueLock);
         return ERR_VENC_NOMEM;
     }
 
@@ -577,6 +599,7 @@ S32 VENC_EnableChn(S32 s32ChnId) {
         pChn->bFrameInputRun = MPP_FALSE;
         venc_plugin_flush(pChn);
         pChn->eState = VENC_CHN_STATE_IDLE;
+        venc_plugin_close(pChn);
         pthread_mutex_unlock(&pChn->lock);
         return ERR_VENC_NOMEM;
     }
@@ -590,6 +613,7 @@ S32 VENC_EnableChn(S32 s32ChnId) {
         pthread_mutex_lock(&pChn->lock);
         venc_plugin_flush(pChn);
         pChn->eState = VENC_CHN_STATE_IDLE;
+        venc_plugin_close(pChn);
         pthread_mutex_unlock(&pChn->lock);
         return ret2;
     }
