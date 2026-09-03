@@ -274,7 +274,7 @@ S32 MPI_VI_CreateOutBufPool(
         U32 j = 0;
 
         memset(&pastFrameInfo[i], 0, sizeof(pastFrameInfo[i]));
-        paulBufferId[i] = VB_GetBuffer(*pulPoolId, 0);
+        paulBufferId[i] = VB_ModGetBuffer(*pulPoolId, MPP_ID_VI, 0);
         if (paulBufferId[i] == 0 || paulBufferId[i] == (UL)-1) {
             MPI_VI_DestroyOutBufPool(*pulPoolId, u32BufCnt, paulBufferId);
             *pulPoolId = 0;
@@ -320,7 +320,7 @@ VOID MPI_VI_DestroyOutBufPool(UL ulPoolId, U32 u32BufCnt, UL *paulBufferId) {
     if (paulBufferId != NULL) {
         for (i = 0; i < u32BufCnt; i++) {
             if (paulBufferId[i] != 0 && paulBufferId[i] != (UL)-1)
-                (void)VB_ReleaseBuffer(paulBufferId[i]);
+                (void)VB_ModReleaseBuffer(paulBufferId[i], MPP_ID_VI);
             paulBufferId[i] = 0;
         }
     }

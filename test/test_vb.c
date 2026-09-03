@@ -195,7 +195,51 @@ static void test_refcount(void) {
     TEST_PASS(name);
 }
 
-/* ======================== Test 4: Multi-Thread ======================== */
+/* ======================== Test 4: Module Ownership ======================== */
+static void test_module_ownership(void) {
+    const char *name = "module_ownership";
+    S32 ret;
+
+    ret = SYS_Init();
+    assert(ret == 0);
+    ret = VB_Init();
+    assert(ret == 0);
+
+    VbPoolCfg cfg = {
+        .u32BufSize = 1024,
+        .u32BufCnt = 1,
+        .eModId = MPP_ID_VDEC,
+        .eRemapMode = VB_REMAP_MODE_NONE,
+    };
+    UL pool_id = VB_CreatePool(&cfg);
+    assert(pool_id != 0);
+
+    UL buf = VB_ModGetBuffer(pool_id, MPP_ID_VDEC, 0);
+    assert(buf != 0);
+
+    /* Public release and another module cannot consume VDEC's reference. */
+    if (VB_ReleaseBuffer(buf) == 0)
+        TEST_FAIL(name, "SYS released a VDEC-owned reference");
+    if (VB_ModRefSub(buf, MPP_ID_VI) == 0)
+        TEST_FAIL(name, "VI released a VDEC-owned reference");
+    if (VB_GetBuffer(pool_id, 0) != 0)
+        TEST_FAIL(name, "module-owned buffer returned to pool too early");
+
+    ret = VB_ModReleaseBuffer(buf, MPP_ID_VDEC);
+    assert(ret == 0);
+
+    UL recycled = VB_GetBuffer(pool_id, 0);
+    if (recycled != buf)
+        TEST_FAIL(name, "buffer was not recycled after owner release");
+    assert(VB_ReleaseBuffer(recycled) == 0);
+    assert(VB_DestroyPool(pool_id) == 0);
+
+    VB_Exit();
+    SYS_Exit();
+    TEST_PASS(name);
+}
+
+/* ======================== Test 5: Multi-Thread ======================== */
 
 typedef struct {
     UL pool_id;
@@ -412,6 +456,7 @@ int main(void) {
     test_basic_lifecycle();
     test_exhaustion_timeout();
     test_refcount();
+    test_module_ownership();
     test_multithread();
     test_destroy_outstanding();
     test_packed_yuv422_layout();

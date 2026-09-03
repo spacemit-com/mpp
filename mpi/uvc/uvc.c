@@ -305,6 +305,7 @@ static S32 uvc_v4l2_set_fmt(UvcDevCtx *pDev, const UvcChnAttr *pAttr, UvcChnAttr
 
 static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize) {
     U32 u32BufCnt = UVC_DEFAULT_BUF_CNT;
+    S32 ret = UVC_ERR_OK;
 
     /* --- Create VB pool to manage frame buffers --- */
     VbPoolCfg stPoolCfg;
@@ -325,15 +326,15 @@ static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize)
 
     /* Get VB buffers and their dma-buf fds for DMABUF mode */
     for (U32 i = 0; i < u32BufCnt; i++) {
-        pChn->aulVbBuf[i] = VB_GetBuffer(pChn->ulVbPool, 0);
+        pChn->aulVbBuf[i] = VB_ModGetBuffer(pChn->ulVbPool, MPP_ID_UVC, 0);
         if (pChn->aulVbBuf[i] == 0) {
-            UVC_LOG_ERR("VB_GetBuffer[%u] failed", i);
+            UVC_LOG_ERR("VB_ModGetBuffer[%u] failed", i);
             goto err_destroy_pool;
         }
 
         /* get dma-buf fd for V4L2 DMABUF mode */
         S32 s32DmaBufFd = -1;
-        S32 ret = VB_GetDmaBufFd(pChn->aulVbBuf[i], &s32DmaBufFd);
+        ret = VB_GetDmaBufFd(pChn->aulVbBuf[i], &s32DmaBufFd);
         if (ret != 0 || s32DmaBufFd < 0) {
             UVC_LOG_ERR("VB_GetDmaBufFd[%u] failed (ret=%d)", i, ret);
             goto err_destroy_pool;
@@ -375,8 +376,9 @@ static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize)
 
 err_destroy_pool:
     for (U32 i = 0; i < u32BufCnt; i++) {
-        if (pChn->aulVbBuf[i] != 0)
-            VB_ReleaseBuffer(pChn->aulVbBuf[i]);
+        if (pChn->aulVbBuf[i] != 0) {
+            VB_ModReleaseBuffer(pChn->aulVbBuf[i], MPP_ID_UVC);
+        }
     }
     VB_DestroyPool(pChn->ulVbPool);
     pChn->bVbPoolCreated = MPP_FALSE;
@@ -434,9 +436,9 @@ static VOID uvc_v4l2_release_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn) {
 
     /* release VB buffers and destroy pool */
     if (pChn->bVbPoolCreated) {
-        for (U32 i = 0; i < pChn->u32BufCnt; i++) {
+        for (U32 i = 0; i < UVC_DEFAULT_BUF_CNT; i++) {
             if (pChn->aulVbBuf[i] != 0) {
-                VB_ReleaseBuffer(pChn->aulVbBuf[i]);
+                VB_ModReleaseBuffer(pChn->aulVbBuf[i], MPP_ID_UVC);
                 pChn->aulVbBuf[i] = 0;
             }
             pChn->as32DmaBufFd[i] = -1;
@@ -539,10 +541,9 @@ static S32 uvc_v4l2_qbuf(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32BufIdx) {
  * @brief Recycle thread.
  *
  * Waits for VB buffers whose refcount has dropped to 0 (returned to
- * the pool by all consumers).  When VB_GetBuffer succeeds, the buffer
+ * the pool by all consumers).  When VB_ModGetBuffer succeeds, the buffer
  * is free — we QBUF it back to V4L2 so the driver can fill it again.
- * The VB_GetBuffer call gives us ref=1, which represents "V4L2 owns
- * this buffer".
+ * The initial UVC reference represents "V4L2 owns this buffer".
  */
 static void *uvc_recycle_task(void *arg) {
     UvcTaskArg *pArg = (UvcTaskArg *)arg;
@@ -557,9 +558,9 @@ static void *uvc_recycle_task(void *arg) {
 
     while (pChn->bRecycleRun) {
         /* Block up to 100ms waiting for a free buffer in the pool.
-         * VB_GetBuffer returns when some consumer's VB_ReleaseBuffer
+         * VB_ModGetBuffer returns when some consumer's VB_ReleaseBuffer
          * drops refcount to 0, putting the buffer back on the free list. */
-        UL ulBuf = VB_GetBuffer(pChn->ulVbPool, 100);
+        UL ulBuf = VB_ModGetBuffer(pChn->ulVbPool, MPP_ID_UVC, 100);
         if (ulBuf == 0)
             continue; /* timeout or shutting down */
 
@@ -573,12 +574,12 @@ static void *uvc_recycle_task(void *arg) {
         }
         if (slot == (U32)-1) {
             UVC_LOG_ERR("recycle: unknown VB handle %lu", ulBuf);
-            VB_ReleaseBuffer(ulBuf);
+            VB_ModReleaseBuffer(ulBuf, MPP_ID_UVC);
             continue;
         }
 
-        /* QBUF back to V4L2.  We keep ref=1 (from VB_GetBuffer) to
-         * represent "V4L2 driver holds this buffer". */
+        /* QBUF back to V4L2. The UVC reference represents that the V4L2
+         * driver holds this buffer. */
         pthread_mutex_lock(&g_stUvcCtx.lock);
         uvc_v4l2_qbuf(pDev, pChn, slot);
         pthread_mutex_unlock(&g_stUvcCtx.lock);
@@ -611,7 +612,7 @@ static MppStreamCodecType uvc_pixfmt_to_codec(MppPixelFormat eFmt) {
  *   1. For compressed formats (MJPEG/H264): SYS_SendStream.
  *      For raw formats (NV12/YUYV/...):     SYS_SendFrame.
  *   2. If depth > 0, VB_RefAdd and push into the depth queue.
- *   3. Release the "V4L2 base ref" via VB_ReleaseBuffer.
+ *   3. Release the "V4L2 base ref" via VB_ModReleaseBuffer.
  *
  * The buffer is NOT directly re-queued to V4L2 here.  When ALL
  * consumers (SYS sinks + depth queue user) have called
@@ -676,14 +677,14 @@ static void *uvc_capture_task(void *arg) {
 
         /*
          * At this point ref=1 (the "V4L2 base ref" from the initial
-         * VB_GetBuffer or the recycle thread's VB_GetBuffer).
+         * VB_ModGetBuffer or the recycle thread's VB_ModGetBuffer).
          *
          * SYS_SendFrame internally does VB_RefAdd for each bound sink,
          * and each sink will eventually VB_ReleaseBuffer.
          *
          * If depth > 0, we VB_RefAdd once for the depth queue consumer.
          *
-         * Finally we VB_ReleaseBuffer to drop the base ref.  When all
+         * Finally we VB_ModReleaseBuffer to drop the base ref.  When all
          * consumers are done, refcount reaches 0, buffer goes back to
          * the pool, and the recycle thread QBUFs it to V4L2.
          */
@@ -711,7 +712,7 @@ static void *uvc_capture_task(void *arg) {
         /* --- 2. Push into depth queue if depth > 0 --- */
         if (u32Depth > 0 && ulBuf != 0) {
             /* add a ref for the depth queue consumer */
-            VB_RefAdd(ulBuf);
+            VB_ModRefAdd(ulBuf, MPP_ID_UVC);
 
             pthread_mutex_lock(&pChn->depthLock);
 
@@ -720,7 +721,7 @@ static void *uvc_capture_task(void *arg) {
                  * Do NOT QBUF here; the recycle thread handles that
                  * when the VB refcount reaches 0. */
                 UvcDepthEntry *pOld = &pChn->astDepth[pChn->u32DepthHead];
-                VB_ReleaseBuffer(pOld->ulBufferId);
+                VB_ModRefSub(pOld->ulBufferId, MPP_ID_UVC);
                 pChn->u32DepthHead = (pChn->u32DepthHead + 1) % UVC_DEPTH_MAX;
                 pChn->u32DepthCount--;
             }
@@ -736,7 +737,7 @@ static void *uvc_capture_task(void *arg) {
         }
 
         /* --- 3. Release the V4L2 base ref --- */
-        VB_ReleaseBuffer(ulBuf);
+        VB_ModReleaseBuffer(ulBuf, MPP_ID_UVC);
     }
 
     UVC_LOG_INFO("capture task exiting: dev %d chn %d", dev, chn);
@@ -1161,7 +1162,7 @@ S32 UVC_DisableChn(UVC_DEV dev, UVC_CHN chn) {
     pthread_mutex_lock(&pChn->depthLock);
     while (pChn->u32DepthCount > 0) {
         UvcDepthEntry *pEntry = &pChn->astDepth[pChn->u32DepthHead];
-        VB_ReleaseBuffer(pEntry->ulBufferId);
+        VB_ModRefSub(pEntry->ulBufferId, MPP_ID_UVC);
         pChn->u32DepthHead = (pChn->u32DepthHead + 1) % UVC_DEPTH_MAX;
         pChn->u32DepthCount--;
     }
@@ -1263,6 +1264,19 @@ S32 UVC_GetFrame(UVC_DEV dev, UVC_CHN chn, VideoFrameInfo *pstFrameInfo, S32 s32
 
     /* dequeue the oldest entry — caller inherits the VB ref */
     UvcDepthEntry *pEntry = &pChn->astDepth[pChn->u32DepthHead];
+    if (pEntry->ulBufferId != 0) {
+        S32 ret = VB_RefAdd(pEntry->ulBufferId);
+        if (ret != UVC_ERR_OK) {
+            pthread_mutex_unlock(&pChn->depthLock);
+            return ret;
+        }
+        ret = VB_ModRefSub(pEntry->ulBufferId, MPP_ID_UVC);
+        if (ret != UVC_ERR_OK) {
+            VB_ReleaseBuffer(pEntry->ulBufferId);
+            pthread_mutex_unlock(&pChn->depthLock);
+            return ret;
+        }
+    }
     memcpy(pstFrameInfo, &pEntry->stFrameInfo, sizeof(VideoFrameInfo));
     pChn->u32DepthHead = (pChn->u32DepthHead + 1) % UVC_DEPTH_MAX;
     pChn->u32DepthCount--;

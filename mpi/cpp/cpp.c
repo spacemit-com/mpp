@@ -378,7 +378,10 @@ static VOID cpp_flush_grp_records(CppGrpCtxS *pstGrpCtx) {
     pthread_mutex_lock(&pstGrpCtx->stPendingLock);
     for (i = 0; i < CPP_PENDING_MAX_PER_GRP; ++i) {
         if (pstGrpCtx->astPending[i].bUsed && pstGrpCtx->astPending[i].ulOutBufferId != 0U) {
-            (void)VB_ReleaseBuffer(pstGrpCtx->astPending[i].ulOutBufferId);
+            if (pstGrpCtx->astPending[i].eState == CPP_FRAME_STATE_BORROWED)
+                (void)VB_ReleaseBuffer(pstGrpCtx->astPending[i].ulOutBufferId);
+            else
+                (void)VB_ModReleaseBuffer(pstGrpCtx->astPending[i].ulOutBufferId, MPP_ID_CPP);
         }
     }
     memset(pstGrpCtx->astPending, 0, sizeof(pstGrpCtx->astPending));
@@ -808,7 +811,7 @@ static int32_t cpp_internal_callback(MPP_CHN_S mppCpp, const IMAGE_BUFFER_S *cpp
     if (s32Ret != CPP_SUCCESS) {
         pthread_mutex_lock(&pstGrpCtx->stPendingLock);
         if (pstPending->ulOutBufferId != 0U) {
-            (void)VB_ReleaseBuffer(pstPending->ulOutBufferId);
+            (void)VB_ModReleaseBuffer(pstPending->ulOutBufferId, MPP_ID_CPP);
         }
         memset(pstPending, 0, sizeof(*pstPending));
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
@@ -1162,7 +1165,7 @@ S32 CPP_SendFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstInFrame, U32 u32Frame
         }
     }
 
-    ulOutBuffer = VB_GetBuffer(pstGrpCtx->ulOutPool, 0);
+    ulOutBuffer = VB_ModGetBuffer(pstGrpCtx->ulOutPool, MPP_ID_CPP, 0);
     if (ulOutBuffer == 0U) {
         return CPP_ERR_NO_BUF;
     }
@@ -1170,7 +1173,7 @@ S32 CPP_SendFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstInFrame, U32 u32Frame
     memset(&stOutFrame, 0, sizeof(stOutFrame));
     s32Ret = VB_GetFrameInfo(ulOutBuffer, &stOutFrame);
     if (s32Ret != 0) {
-        (void)VB_ReleaseBuffer(ulOutBuffer);
+        (void)VB_ModReleaseBuffer(ulOutBuffer, MPP_ID_CPP);
         return s32Ret;
     }
 
@@ -1183,13 +1186,13 @@ S32 CPP_SendFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstInFrame, U32 u32Frame
 
     s32Ret = VB_GetDmaBufFd(ulOutBuffer, &s32OutFd);
     if (s32Ret != 0) {
-        (void)VB_ReleaseBuffer(ulOutBuffer);
+        (void)VB_ModReleaseBuffer(ulOutBuffer, MPP_ID_CPP);
         return s32Ret;
     }
 
     s32Ret = VB_GetVirAddr(ulOutBuffer, &pOutVirAddr);
     if (s32Ret != 0) {
-        (void)VB_ReleaseBuffer(ulOutBuffer);
+        (void)VB_ModReleaseBuffer(ulOutBuffer, MPP_ID_CPP);
         return s32Ret;
     }
 
@@ -1211,7 +1214,7 @@ S32 CPP_SendFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstInFrame, U32 u32Frame
     s32Ret = cpp_pending_alloc(pstGrpCtx, &u32PendingIdx);
     if (s32Ret != CPP_SUCCESS) {
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
-        (void)VB_ReleaseBuffer(ulOutBuffer);
+        (void)VB_ModReleaseBuffer(ulOutBuffer, MPP_ID_CPP);
         return s32Ret;
     }
 
@@ -1230,7 +1233,7 @@ S32 CPP_SendFrame(CPP_GRP CppGrp, const VideoFrameInfo *pstInFrame, U32 u32Frame
     if (s32Ret != 0) {
         pthread_mutex_lock(&pstGrpCtx->stPendingLock);
         if (pstGrpCtx->astPending[u32PendingIdx].ulOutBufferId != 0U) {
-            (void)VB_ReleaseBuffer(pstGrpCtx->astPending[u32PendingIdx].ulOutBufferId);
+            (void)VB_ModReleaseBuffer(pstGrpCtx->astPending[u32PendingIdx].ulOutBufferId, MPP_ID_CPP);
         }
         memset(&pstGrpCtx->astPending[u32PendingIdx], 0, sizeof(pstGrpCtx->astPending[u32PendingIdx]));
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
@@ -1268,6 +1271,23 @@ S32 CPP_GetFrame(CPP_GRP CppGrp, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec)
         (pstGrpCtx->astPending[u32PendingIdx].eState != CPP_FRAME_STATE_DONE)) {
         pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
         return CPP_ERR_BAD_STATE;
+    }
+
+    UL ulOutBuffer = pstGrpCtx->astPending[u32PendingIdx].ulOutBufferId;
+    if (ulOutBuffer != 0U) {
+        s32Ret = VB_RefAdd(ulOutBuffer);
+        if (s32Ret != CPP_SUCCESS) {
+            pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
+            (void)cpp_done_queue_push(&pstGrpCtx->stDoneQueue, u32PendingIdx);
+            return s32Ret;
+        }
+        s32Ret = VB_ModReleaseBuffer(ulOutBuffer, MPP_ID_CPP);
+        if (s32Ret != CPP_SUCCESS) {
+            (void)VB_ReleaseBuffer(ulOutBuffer);
+            pthread_mutex_unlock(&pstGrpCtx->stPendingLock);
+            (void)cpp_done_queue_push(&pstGrpCtx->stDoneQueue, u32PendingIdx);
+            return s32Ret;
+        }
     }
 
     *pstVideoFrame = pstGrpCtx->astPending[u32PendingIdx].stOutFrame;

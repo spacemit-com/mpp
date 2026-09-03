@@ -103,7 +103,7 @@ static inline BOOL venc_chn_valid(S32 s32ChnId) {
 
 static VOID venc_input_buffer_done(VOID *pUserData, UL ulBufferId) {
     VencChnCtx *pChn = (VencChnCtx *)pUserData;
-    S32 ret = VB_ReleaseBuffer(ulBufferId);
+    S32 ret = VB_ModRefSub(ulBufferId, MPP_ID_VENC);
 
     if (ret != 0) {
         error(
@@ -420,7 +420,7 @@ static void *venc_frame_input_task(void *arg) {
         ret = VB_GetFrameInfo(ulBuff, &stFrame);
         if (ret != 0) {
             error("frame input task: VB_GetFrameInfo failed %d, chn %d", ret, s32ChnId);
-            VB_ReleaseBuffer(ulBuff);
+            VB_ModRefSub(ulBuff, MPP_ID_VENC);
             continue;
         }
 
@@ -438,7 +438,7 @@ static void *venc_frame_input_task(void *arg) {
 
         /* Transfer the SYS_RecvFrame reference to the encoder after QBUF. */
         if (!bSubmitted)
-            VB_ReleaseBuffer(ulBuff);
+            VB_ModRefSub(ulBuff, MPP_ID_VENC);
     }
 
     info("frame input task exiting: chn %d", s32ChnId);
@@ -654,7 +654,7 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
     BOOL bRefHeld = MPP_FALSE;
     S32 ret = ERR_VENC_OK;
     if (pstFrame->ulBufferId != 0) {
-        ret = VB_RefAdd(pstFrame->ulBufferId);
+        ret = VB_ModRefAdd(pstFrame->ulBufferId, MPP_ID_VENC);
         if (ret != 0) {
             pthread_mutex_unlock(&pChn->lock);
             return ret;
@@ -664,7 +664,7 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
 
     ret = pChn->stOps.send_input_frame(pChn->pAlCtx, pstFrame);
     if (ret != MPP_OK && bRefHeld)
-        VB_ReleaseBuffer(pstFrame->ulBufferId);
+        VB_ModRefSub(pstFrame->ulBufferId, MPP_ID_VENC);
 
     pthread_mutex_unlock(&pChn->lock);
     return (ret == MPP_OK) ? ERR_VENC_OK : ret;

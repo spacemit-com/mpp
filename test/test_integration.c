@@ -206,8 +206,8 @@ static void test_sys_vb_combined(void) {
     ret = SYS_Bind(&src, &sink);
     assert(ret == 0);
 
-    /* simulate zero-copy: ref add for VENC */
-    ret = VB_RefAdd(buf);
+    /* simulate zero-copy: ref add owned by VENC */
+    ret = VB_ModRefAdd(buf, MPP_ID_VENC);
     assert(ret == 0);
 
     /* VENC reads frame info */
@@ -224,7 +224,7 @@ static void test_sys_vb_combined(void) {
     assert(ret == 0);
 
     /* VENC releases its ref -> buffer returns to pool */
-    ret = VB_RefSub(buf);
+    ret = VB_ModRefSub(buf, MPP_ID_VENC);
     assert(ret == 0);
 
     /* unbind */

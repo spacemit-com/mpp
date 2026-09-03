@@ -66,28 +66,70 @@ S32 VB_DestroyPool(UL ulPool);
 UL VB_GetBuffer(UL ulPool, U32 u32TimeoutMs);
 
 /**
- * @description: Release a buffer back to its pool for reuse.
- *               Decrements reference count; buffer is returned to pool when count reaches 0.
+ * @description: Get a buffer whose initial reference belongs to enModId.
+ *               Pair the returned reference with VB_ModReleaseBuffer.
+ * @param {UL} ulPool Pool ID from which to get the buffer
+ * @param {ModId} enModId Module that owns the initial reference
+ * @param {U32} u32TimeoutMs Timeout in milliseconds (0 = non-blocking, -1 = infinite)
+ * @return {UL} Returns buffer ID on success, 0 on failure or timeout
+ */
+UL VB_ModGetBuffer(UL ulPool, ModId enModId, U32 u32TimeoutMs);
+
+/**
+ * @description: Release one application/SYS reference.
+ *               Cannot consume a reference owned by another MPP module.
+ *               The buffer is returned to the pool when all owners reach 0.
  * @param {UL} ulBuff Buffer ID to release
  * @return {S32} Returns 0 on success, error code on failure
  */
 S32 VB_ReleaseBuffer(UL ulBuff);
 
 /**
- * @description: Increment the reference count of a buffer.
- *               Used when multiple modules need to access the same buffer simultaneously.
+ * @description: Release one reference owned by enModId, paired with
+ *               VB_ModGetBuffer. The buffer is returned to its pool when all
+ *               module references reach 0.
+ * @param {UL} ulBuff Buffer ID to release
+ * @param {ModId} enModId Module releasing its initial reference
+ * @return {S32} Returns 0 on success, error code on failure
+ */
+S32 VB_ModReleaseBuffer(UL ulBuff, ModId enModId);
+
+/**
+ * @description: Increment the application/SYS reference count of a buffer.
+ *               Modules must use VB_ModRefAdd for module-owned references.
  * @param {UL} ulBuff Buffer ID whose reference count to increment
  * @return {S32} Returns 0 on success, error code on failure
  */
 S32 VB_RefAdd(UL ulBuff);
 
 /**
- * @description: Decrement the reference count of a buffer.
- *               Buffer is returned to pool when reference count reaches 0, paired with VB_RefAdd.
+ * @description: Decrement one application/SYS reference, paired with VB_RefAdd.
+ *               Cannot consume a reference owned by another MPP module.
  * @param {UL} ulBuff Buffer ID whose reference count to decrement
  * @return {S32} Returns 0 on success, error code on failure
  */
 S32 VB_RefSub(UL ulBuff);
+
+/**
+ * @description: Add one reference owned by the specified MPP module.
+ *               The module becomes responsible for releasing this reference
+ *               with VB_ModRefSub. Public/application references use
+ *               MPP_ID_SYS through VB_RefAdd/VB_ReleaseBuffer.
+ * @param {UL} ulBuff Buffer ID whose module reference to increment
+ * @param {ModId} enModId Module responsible for releasing the reference
+ * @return {S32} Returns 0 on success, error code on failure
+ */
+S32 VB_ModRefAdd(UL ulBuff, ModId enModId);
+
+/**
+ * @description: Release one reference owned by the specified MPP module.
+ *               Fails without changing the total count when that module does
+ *               not own a reference.
+ * @param {UL} ulBuff Buffer ID whose module reference to decrement
+ * @param {ModId} enModId Module releasing its own reference
+ * @return {S32} Returns 0 on success, error code on failure
+ */
+S32 VB_ModRefSub(UL ulBuff, ModId enModId);
 
 /**
  * @description: Set the PTS (Presentation Time Stamp) for a buffer.

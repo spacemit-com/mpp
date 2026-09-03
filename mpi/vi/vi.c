@@ -186,7 +186,7 @@ static void *mpi_vi_push_task(void *arg) {
 
         /* Frame rate control: drop frames not scheduled for output */
         if (mpi_vi_should_keep_frame(pstBufCtx) != MPP_TRUE) {
-            VB_ReleaseBuffer(ulBuf);
+            VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
             continue;
         }
 
@@ -208,10 +208,10 @@ static void *mpi_vi_push_task(void *arg) {
 
         /* V2D transform path: raw capture buffer → V2D output buffer */
         if (pstBufCtx->bNeedV2dTransform) {
-            UL ulV2dBuf = VB_GetBuffer(pstBufCtx->ulV2dOutPoolId, 200);
+            UL ulV2dBuf = VB_ModGetBuffer(pstBufCtx->ulV2dOutPoolId, MPP_ID_VI, 200);
             if (ulV2dBuf == 0 || ulV2dBuf == (UL)-1) {
                 error("vi push: v2d out pool exhausted, drop frame dev=%d chn=%d", ViDev, ViChn);
-                VB_ReleaseBuffer(ulBuf);
+                VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
                 continue;
             }
 
@@ -224,8 +224,8 @@ static void *mpi_vi_push_task(void *arg) {
             }
             if (v2dSlot == (U32)-1) {
                 error("vi push: v2d buf %lu not found in slot table", ulV2dBuf);
-                VB_ReleaseBuffer(ulV2dBuf);
-                VB_ReleaseBuffer(ulBuf);
+                VB_ModReleaseBuffer(ulV2dBuf, MPP_ID_VI);
+                VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
                 continue;
             }
 
@@ -243,14 +243,14 @@ static void *mpi_vi_push_task(void *arg) {
                 else
                     (void)V2D_CancelJob(hV2d);
             } else {
-                VB_ReleaseBuffer(ulV2dBuf);
-                VB_ReleaseBuffer(ulBuf);
+                VB_ModReleaseBuffer(ulV2dBuf, MPP_ID_VI);
+                VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
                 continue;
             }
             if (v2dRet != MPP_OK) {
                 error("vi push: V2D_RotateFrame failed ret=%d dev=%d chn=%d", v2dRet, ViDev, ViChn);
-                VB_ReleaseBuffer(ulV2dBuf);
-                VB_ReleaseBuffer(ulBuf);
+                VB_ModReleaseBuffer(ulV2dBuf, MPP_ID_VI);
+                VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
                 continue;
             }
 
@@ -259,7 +259,7 @@ static void *mpi_vi_push_task(void *arg) {
                 stV2dFrame.stVFrame.u32PlaneSizeValid[1] = stV2dFrame.stVFrame.u32PlaneSize[1];
 
             /* Release raw capture buffer — recycle thread re-queues it to V4L2 */
-            VB_ReleaseBuffer(ulBuf);
+            VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
 
             CommonFrameInfo stV2dCommInfo = stV2dFrame.stViFrameInfo.stCommFrameInfo;
             stV2dFrame.eFrameType = FRAME_TYPE_VENC;
@@ -271,11 +271,11 @@ static void *mpi_vi_push_task(void *arg) {
 
             U32 u32Depth = pstBufCtx->stChnAttr.u32Depth;
             if (u32Depth > 0) {
-                VB_RefAdd(ulV2dBuf);
+                VB_ModRefAdd(ulV2dBuf, MPP_ID_VI);
                 pthread_mutex_lock(&pstBufCtx->depthLock);
                 if (pstBufCtx->u32DepthCount >= u32Depth) {
                     MpiViDepthEntry *pOld = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthHead];
-                    VB_ReleaseBuffer(pOld->ulBufferId);
+                    VB_ModRefSub(pOld->ulBufferId, MPP_ID_VI);
                     pstBufCtx->u32DepthHead = (pstBufCtx->u32DepthHead + 1) % VI_MPI_MAX_DEPTH;
                     pstBufCtx->u32DepthCount--;
                 }
@@ -288,7 +288,7 @@ static void *mpi_vi_push_task(void *arg) {
                 pthread_mutex_unlock(&pstBufCtx->depthLock);
             }
 
-            VB_ReleaseBuffer(ulV2dBuf);
+            VB_ModReleaseBuffer(ulV2dBuf, MPP_ID_VI);
 
             continue;
         }
@@ -310,14 +310,14 @@ static void *mpi_vi_push_task(void *arg) {
         /* 2. If depth > 0, also push into the depth queue for VI_GetChnFrame */
         U32 u32Depth = pstBufCtx->stChnAttr.u32Depth;
         if (u32Depth > 0) {
-            VB_RefAdd(ulBuf);
+            VB_ModRefAdd(ulBuf, MPP_ID_VI);
 
             pthread_mutex_lock(&pstBufCtx->depthLock);
 
             if (pstBufCtx->u32DepthCount >= u32Depth) {
                 /* Queue full — evict oldest entry */
                 MpiViDepthEntry *pOld = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthHead];
-                VB_ReleaseBuffer(pOld->ulBufferId);
+                VB_ModRefSub(pOld->ulBufferId, MPP_ID_VI);
                 pstBufCtx->u32DepthHead = (pstBufCtx->u32DepthHead + 1) % VI_MPI_MAX_DEPTH;
                 pstBufCtx->u32DepthCount--;
             }
@@ -333,7 +333,7 @@ static void *mpi_vi_push_task(void *arg) {
         }
 
         /* 3. Release the V4L2 base ref — recycle thread will QBUF when all refs drop */
-        VB_ReleaseBuffer(ulBuf);
+        VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
     }
 
     info("vi push task exiting: dev=%d chn=%d", ViDev, ViChn);
@@ -341,7 +341,7 @@ static void *mpi_vi_push_task(void *arg) {
 }
 
 /* ============================================================
- * Recycle thread: VB_GetBuffer → QBUF back to V4L2
+ * Recycle thread: VB_ModGetBuffer → QBUF back to V4L2
  * Mirrors uvc_recycle_task (mpi/uvc/uvc.c:547-588).
  * ============================================================ */
 
@@ -357,12 +357,12 @@ static void *mpi_vi_recycle_task(void *arg) {
 
     while (pstBufCtx->bTaskRun) {
         /* Block until some consumer releases a buffer back to the pool */
-        UL ulBuf = VB_GetBuffer(pstBufCtx->ulPoolId, 100);
+        UL ulBuf = VB_ModGetBuffer(pstBufCtx->ulPoolId, MPP_ID_VI, 100);
         if (ulBuf == 0 || ulBuf == (UL)-1)
             continue;
 
         /* Re-check after the potentially long wait: shutdown may have started.
-         * Do NOT call VB_ReleaseBuffer here — keep ref=1 so that
+         * Keep the VI reference so that
          * MPI_VI_DestroyOutBufPool can release every acquired buffer in one
          * consistent pass during channel teardown. */
         if (!pstBufCtx->bTaskRun)
@@ -379,19 +379,19 @@ static void *mpi_vi_recycle_task(void *arg) {
 
         if (slot == (U32)-1) {
             error("vi recycle task: unknown VB handle %lu", ulBuf);
-            VB_ReleaseBuffer(ulBuf);
+            VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
             continue;
         }
 
         /* If this slot previously failed QBUF, skip re-queuing it to V4L2.
-         * Keep ref=1 (acquired via VB_GetBuffer above) — MPI_VI_DestroyOutBufPool
+         * Keep ref=1 (acquired via VB_ModGetBuffer above) — MPI_VI_DestroyOutBufPool
          * will release it during channel teardown.  Do not release here, as that
          * would return the slot to the free pool and cause it to be re-acquired
-         * in the next VB_GetBuffer call, creating a tight loop. */
+         * in the next VB_ModGetBuffer call, creating a tight loop. */
         if (pstBufCtx->u32BadSlotMask & (1u << slot))
             continue;
 
-        /* QBUF back to V4L2; ref=1 from VB_GetBuffer represents "V4L2 owns it". */
+        /* QBUF back to V4L2; the VI reference represents "V4L2 owns it". */
         pstBufCtx->aulBufferId[slot] = ulBuf;
         if (g_pViOps->queue_buffer(ViDev, ViChn, slot) != MPP_OK) {
             /* Log only on the first failure per slot so a systematic driver
@@ -498,9 +498,9 @@ static S32 mpi_vi_prepare_rawdump_ctx(VI_DEV ViDev, VI_CHN ViChn) {
         return s32Ret;
     }
 
-    pstRawCtx->ulBufferId = VB_GetBuffer(pstRawCtx->ulPoolId, 0);
+    pstRawCtx->ulBufferId = VB_ModGetBuffer(pstRawCtx->ulPoolId, MPP_ID_VI, 0);
     if (pstRawCtx->ulBufferId == 0 || pstRawCtx->ulBufferId == (UL)-1) {
-        error("rawdump VB_GetBuffer failed, dev=%d chn=%d pool=%lu", ViDev, ViChn, pstRawCtx->ulPoolId);
+        error("rawdump VB_ModGetBuffer failed, dev=%d chn=%d pool=%lu", ViDev, ViChn, pstRawCtx->ulPoolId);
         mpi_vi_destroy_rawdump_ctx(ViDev, ViChn);
         return MPI_VI_ERR_BUSY;
     }
@@ -670,9 +670,9 @@ static S32 mpi_vi_rebuild_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAtt
             ViDev, ViChn, (int)enRot, pstBufCtx->ulV2dOutPoolId, pstBufCtx->u32V2dOutBufCnt);
 
         /* MPI_VI_CreateOutBufPool acquires every buffer (ref=1). Release them
-         * all so VB_GetBuffer in push_task can acquire them one by one. */
+         * all so VB_ModGetBuffer in push_task can acquire them one by one. */
         for (U32 j = 0; j < pstBufCtx->u32V2dOutBufCnt; j++)
-            VB_ReleaseBuffer(pstBufCtx->aulV2dOutBufferId[j]);
+            VB_ModReleaseBuffer(pstBufCtx->aulV2dOutBufferId[j], MPP_ID_VI);
     }
 
     return MPP_OK;
@@ -1019,6 +1019,19 @@ S32 VI_GetChnFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S3
     }
 
     MpiViDepthEntry *pEntry = &pstBufCtx->astDepthQueue[pstBufCtx->u32DepthHead];
+    if (pEntry->ulBufferId != 0) {
+        S32 s32Ret = VB_RefAdd(pEntry->ulBufferId);
+        if (s32Ret != MPP_OK) {
+            pthread_mutex_unlock(&pstBufCtx->depthLock);
+            return s32Ret;
+        }
+        s32Ret = VB_ModRefSub(pEntry->ulBufferId, MPP_ID_VI);
+        if (s32Ret != MPP_OK) {
+            VB_ReleaseBuffer(pEntry->ulBufferId);
+            pthread_mutex_unlock(&pstBufCtx->depthLock);
+            return s32Ret;
+        }
+    }
     *pstVideoFrame = pEntry->stFrameInfo;
     pstBufCtx->u32DepthHead = (pstBufCtx->u32DepthHead + 1) % VI_MPI_MAX_DEPTH;
     pstBufCtx->u32DepthCount--;

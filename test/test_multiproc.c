@@ -195,7 +195,7 @@ static void test_cross_process_pool(void) {
 /* ======================== Test 2: Zero-Copy SendFrame/RecvFrame ======================== */
 /*
  * Parent: bind VI->VENC, create pool, get buffer, SendFrame.
- * Child:  SYS_Init (attach), RecvFrame, verify handle and phy addr, ReleaseBuffer.
+ * Child:  SYS_Init (attach), RecvFrame, verify handle and phy addr, release VENC ref.
  */
 static void test_sendrecv_frame(void) {
     const char *name = "sendrecv_frame";
@@ -308,8 +308,8 @@ static void test_sendrecv_frame(void) {
             _exit(7);
         }
 
-        /* Release received buffer */
-        ret = VB_ReleaseBuffer(recv_buf);
+        /* SYS bind assigns this queue reference to the sink module. */
+        ret = VB_ModRefSub(recv_buf, MPP_ID_VENC);
         assert(ret == 0);
 
         VB_Exit();

@@ -32,7 +32,7 @@ extern "C" {
 
 #define MPP_SHM_NAME "/mpp_ctrl"
 #define MPP_SHM_MAGIC 0x4D505053 /* "MPPS" */
-#define MPP_SHM_VERSION 3
+#define MPP_SHM_VERSION 4
 
 #define MPP_MAX_POOL 16
 #define MPP_MAX_BLK 256 /* per pool */
@@ -51,6 +51,7 @@ typedef struct _VbBlockShm {
     U32 pool_id;
     U32 blk_idx;
     atomic_int ref_cnt;
+    atomic_int usr_ref_cnt[MPP_ID_MAX]; /* references grouped by release-responsible module */
     U32 state;    /* VbBlkState */
     U64 phy_addr; /* real CMA physical address */
     U32 size;

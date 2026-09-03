@@ -730,12 +730,11 @@ S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff) {
         found = MPP_TRUE;
         MppChanQueue *q = &shm->queues[i];
 
-        /* Add a reference for the sink — zero-copy semantics:
-         * sender keeps its ref, each sink gets an additional ref. */
-        extern S32 VB_RefAdd(UL ulBufHandle);
-        S32 ref_ret = VB_RefAdd(ulBuff);
+        /* Sender keeps its reference; the sink module owns the additional
+         * reference from enqueue until its internal processing completes. */
+        S32 ref_ret = VB_ModRefAdd(ulBuff, e->sink.eModId);
         if (ref_ret != 0) {
-            SYS_LOG_ERR("SendFrame: VB_RefAdd failed for queue[%u]", i);
+            SYS_LOG_ERR("SendFrame: VB_ModRefAdd failed for queue[%u]", i);
             continue;
         }
 
@@ -743,8 +742,7 @@ S32 SYS_SendFrame(const MppNode *pstSrc, UL ulBuff) {
         if (q->count >= MPP_CHAN_DEPTH) {
             SYS_LOG_WARN("SendFrame: queue[%u] full, dropping frame", i);
             pthread_mutex_unlock(&q->lock);
-            extern S32 VB_RefSub(UL ulBufHandle);
-            VB_RefSub(ulBuff); /* undo the ref we just added */
+            VB_ModRefSub(ulBuff, e->sink.eModId); /* undo the ref we just added */
             continue;
         }
 
