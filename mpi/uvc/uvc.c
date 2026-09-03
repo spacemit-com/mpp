@@ -581,8 +581,18 @@ static void *uvc_recycle_task(void *arg) {
         /* QBUF back to V4L2. The UVC reference represents that the V4L2
          * driver holds this buffer. */
         pthread_mutex_lock(&g_stUvcCtx.lock);
-        uvc_v4l2_qbuf(pDev, pChn, slot);
+        if (!pChn->bRecycleRun) {
+            pthread_mutex_unlock(&g_stUvcCtx.lock);
+            VB_ModReleaseBuffer(ulBuf, MPP_ID_UVC);
+            break;
+        }
+        S32 ret = uvc_v4l2_qbuf(pDev, pChn, slot);
         pthread_mutex_unlock(&g_stUvcCtx.lock);
+
+        /* QBUF failed, so V4L2 did not take ownership. */
+        if (ret != UVC_ERR_OK) {
+            VB_ModReleaseBuffer(ulBuf, MPP_ID_UVC);
+        }
     }
 
     UVC_LOG_INFO("recycle task exiting: dev %d chn %d", dev, chn);
@@ -1187,13 +1197,13 @@ S32 UVC_DisableChn(UVC_DEV dev, UVC_CHN chn) {
         }
     }
 
-    /* release per-channel VB buffers */
-    uvc_v4l2_release_bufs(pDev, pChn);
-
     if (!bAnyChnEnabled) {
-        /* stop V4L2 streaming */
+        /* Return all queued buffers before dropping their UVC references. */
         uvc_v4l2_stream_off(pDev);
     }
+
+    /* release per-channel VB buffers */
+    uvc_v4l2_release_bufs(pDev, pChn);
 
     pthread_mutex_unlock(&g_stUvcCtx.lock);
 
