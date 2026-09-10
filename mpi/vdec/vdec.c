@@ -9,7 +9,7 @@
  *                 Loads the codec plugin via the AL module loader, binds the
  *                 al_dec_* symbols per channel, and manages channel state,
  *                 the DMABUF_EXTERNAL VB pool and the worker threads.
- *                 Thread-safe via per-channel mutex.
+ *                 Per-channel locks coordinate input, control and output.
  *------------------------------------------------------------------------------
  */
 
@@ -34,11 +34,11 @@
 #include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "vdec_bufpool.h"
 #include "vdec_input_retry.h"
 
 #define MODULE_TAG "mpp_vdec"
 
-#define VDEC_MAX_EXT_BUF 64
 #define VDEC_DEFAULT_BUF_CNT 12
 
 /* ======================== Internal Channel Context ======================== */
@@ -54,37 +54,14 @@ typedef struct _VdecAlOps {
     ALBaseContext *(*create)(void);
     S32 (*init)(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequirement *pstReq);
     S32 (*get_status)(ALBaseContext *ctx, VdecChnStatus *pstStatus);
+    S32 (*get_output_requirement)(ALBaseContext *ctx, AlDecOutputRequirement *pstReq);
     S32 (*decode)(ALBaseContext *ctx, const StreamBufferInfo *pstStream);
     S32 (*request_output_frame)(ALBaseContext *ctx, VideoFrameInfo *pstFrame, U32 u32TimeoutMs);
-    S32 (*return_output_frame)(ALBaseContext *ctx, const VideoFrameInfo *pstFrame);
     S32 (*queue_output_buffer)(ALBaseContext *ctx, const VideoFrameInfo *pstFrame);
     S32 (*flush)(ALBaseContext *ctx);
     S32 (*reset)(ALBaseContext *ctx);
     void (*destory)(ALBaseContext *ctx);
 } VdecAlOps;
-
-/**
- * @brief Per-buffer tracking for DMABUF_EXTERNAL mode.
- *        Maps VB buffer handle ↔ dma-buf fd ↔ decoder slot.
- */
-typedef struct _VdecExtBuf {
-    UL ulVbBuff;       /**< VB buffer handle from VB_ModGetBuffer */
-    S32 s32DmaBufFd;   /**< dma-buf fd from VB_GetDmaBufFd */
-    VOID *pVirAddr;    /**< virtual address from VB_GetVirAddr */
-    BOOL bInDecoder;   /**< buffer currently queued in decoder */
-    BOOL bHasDecoderRef; /**< decoder owns the base VB reference */
-} VdecExtBuf;
-
-/* Depth queue entry: holds a VB buffer handle + frame metadata */
-typedef struct _VdecDepthEntry {
-    UL ulBufferId;              /**< VB buffer handle (ref-counted) */
-    VideoFrameInfo stFrameInfo; /**< snapshot of frame info at decode time */
-} VdecDepthEntry;
-
-typedef struct _VdecRetiredPool {
-    UL ulPoolId;
-    U32 u32BufCnt;
-} VdecRetiredPool;
 
 typedef struct _VdecChnCtx {
     atomic_bool bUsed;
@@ -92,7 +69,8 @@ typedef struct _VdecChnCtx {
     VdecChnAttr stAttr;
     pthread_mutex_t lock;
     pthread_mutex_t inputLock; /**< serializes packets across backpressure waits */
-    S32 s32ChnId; /**< channel ID for SYS_SendFrame */
+    pthread_mutex_t outputLock; /**< serializes all CAPTURE operations and base refs */
+    S32 s32ChnId;               /**< channel ID for SYS_SendFrame */
 
     /* codec plugin binding (valid while pModule != NULL) */
     MppModule *pModule;
@@ -100,41 +78,14 @@ typedef struct _VdecChnCtx {
     VdecAlOps stOps;
     AlDecBufferRequirement stBufReq;
 
-    /* VB pool for DMABUF_EXTERNAL mode */
-    UL ulPoolId;       /**< VB pool handle, 0 = not created */
-    U32 u32ExtBufCnt;  /**< number of external buffers */
-    U32 u32PoolBufSize; /**< per-buffer size of the current pool (bytes) */
-    U32 u32PoolWidth;  /**< width the current pool was allocated for */
-    U32 u32PoolHeight; /**< height the current pool was allocated for */
-    VdecExtBuf stExtBuf[VDEC_MAX_EXT_BUF];
-    VdecRetiredPool astRetiredPools[MPP_MAX_POOL];
-    U32 u32RetiredPoolCnt;
-
-    /* depth queue (ring buffer, protected by depthLock) */
-    VdecDepthEntry *pstDepth;   /**< dynamically allocated depth ring buffer */
-    U32 u32DepthMax;   /**< capacity of the depth ring buffer */
-    U32 u32DepthHead;  /**< read index  */
-    U32 u32DepthTail;  /**< write index */
-    U32 u32DepthCount; /**< current entries */
-    pthread_mutex_t depthLock;
-    pthread_cond_t depthNotEmpty;
-
-    /* output task thread: request decoded frames, SYS_SendFrame + depth queue */
-    pthread_t taskTid;
-    atomic_bool bTaskRun;
-
-    /* recycle thread: picks up free VB buffers and re-queues to decoder */
-    pthread_t recycleTid;
-    atomic_bool bRecycleRun;
-    pthread_mutex_t poolLock;
-    pthread_cond_t poolCond;
-    BOOL bPoolReconfig;
-    BOOL bRecycleIdle;
+    VdecBufPool stPool;
+    S32 s32OutputResult; /**< latched EOS/error; cleared by Flush/Reset */
+    pthread_t taskTid;   /**< only VDEC_OUTPUT_BIND creates an output worker */
 
     /* stream input thread: receives bound stream via SYS_RecvStream */
     pthread_t streamInputTid;
     atomic_bool bStreamInputRun;
-    BOOL bBound; /**< TRUE if SYS_RecvStream got data */
+    BOOL bInputBound; /**< TRUE if SYS_RecvStream got data */
 } VdecChnCtx;
 
 typedef struct _VdecInputSubmitCtx {
@@ -151,9 +102,7 @@ static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
 /* ======================== Helpers ======================== */
 
-static inline BOOL vdec_chn_valid(S32 s32ChnId) {
-    return (s32ChnId >= 0 && s32ChnId < VDEC_MAX_CHN);
-}
+static inline BOOL vdec_chn_valid(S32 s32ChnId) { return (s32ChnId >= 0 && s32ChnId < VDEC_MAX_CHN); }
 
 static U64 vdec_monotonic_ms(void) {
     struct timespec ts;
@@ -177,7 +126,7 @@ static S32 vdec_try_submit_input(VOID *opaque) {
         pthread_mutex_unlock(&pChn->lock);
         return ERR_VDEC_NOT_STARTED;
     }
-    if (submit->rejectBound && pChn->bBound) {
+    if (submit->rejectBound && pChn->bInputBound) {
         pthread_mutex_unlock(&pChn->lock);
         return ERR_VDEC_BUSY;
     }
@@ -245,22 +194,22 @@ static S32 vdec_plugin_open(VdecChnCtx *pChn) {
     ops->create = (ALBaseContext * (*)(void)) dlsym(handle, "al_dec_create");
     ops->init = (S32 (*)(ALBaseContext *, const VdecChnAttr *, AlDecBufferRequirement *))dlsym(handle, "al_dec_init");
     ops->get_status = (S32 (*)(ALBaseContext *, VdecChnStatus *))dlsym(handle, "al_dec_get_status");
+    ops->get_output_requirement =
+        (S32 (*)(ALBaseContext *, AlDecOutputRequirement *))dlsym(handle, "al_dec_get_output_requirement");
     ops->decode = (S32 (*)(ALBaseContext *, const StreamBufferInfo *))dlsym(handle, "al_dec_decode");
     ops->request_output_frame =
         (S32 (*)(ALBaseContext *, VideoFrameInfo *, U32))dlsym(handle, "al_dec_request_output_frame");
-    ops->return_output_frame =
-        (S32 (*)(ALBaseContext *, const VideoFrameInfo *))dlsym(handle, "al_dec_return_output_frame");
     ops->queue_output_buffer =
         (S32 (*)(ALBaseContext *, const VideoFrameInfo *))dlsym(handle, "al_dec_queue_output_buffer");
     ops->flush = (S32 (*)(ALBaseContext *))dlsym(handle, "al_dec_flush");
     ops->reset = (S32 (*)(ALBaseContext *))dlsym(handle, "al_dec_reset");
     ops->destory = (void (*)(ALBaseContext *))dlsym(handle, "al_dec_destory");
 
-    if (!ops->create || !ops->init || !ops->get_status || !ops->decode || !ops->request_output_frame ||
-        !ops->return_output_frame || !ops->queue_output_buffer || !ops->flush || !ops->reset || !ops->destory) {
-        error(
-            "required decoder symbols missing from plugin (create/init/"
-            "get_status/decode/request/return/queue/flush/reset/destory)");
+    if (!ops->create || !ops->init || !ops->get_status || !ops->get_output_requirement || !ops->decode ||
+        !ops->request_output_frame || !ops->queue_output_buffer || !ops->flush || !ops->reset || !ops->destory) {
+        error("required decoder symbols missing from plugin (create/init/"
+                "get_status/get_output_requirement/decode/request/queue/flush/reset/"
+                "destory)");
         goto fail;
     }
 
@@ -298,579 +247,129 @@ static void vdec_plugin_close(VdecChnCtx *pChn) {
     memset(&pChn->stOps, 0, sizeof(pChn->stOps));
 }
 
-/* ======================== VB Pool Helpers (DMABUF_EXTERNAL) ======================== */
+/* ======================== Shared output path ======================== */
 
-/**
- * @brief  Calculate buffer size.
- */
-static U32 vdec_calc_default_buf_size(U32 u32Width, U32 u32Height, MppPixelFormat ePixelFormat, U32 u32Align) {
-    VideoFrameInfo stTmp = {0};
-
-    stTmp.stVdecFrameInfo.stCommFrameInfo.u32Width = u32Width;
-    stTmp.stVdecFrameInfo.stCommFrameInfo.u32Height = u32Height;
-    stTmp.stVdecFrameInfo.stCommFrameInfo.ePixelFormat = ePixelFormat;
-    stTmp.stVdecFrameInfo.stCommFrameInfo.u32Align = u32Align;
-    return VB_GetPicBufferSize(&stTmp);
-}
-
-/* Caller serializes decoder access; VB reference ownership stays with the caller. */
-static S32 vdec_queue_ext_buffer(VdecChnCtx *pChn, U32 u32Idx) {
-    VdecExtBuf *pBuf = &pChn->stExtBuf[u32Idx];
-    VideoFrameInfo stQueueFrame = {0};
-    stQueueFrame.u32Idx = u32Idx;
-    stQueueFrame.stVFrame.u32Fd[0] = (UL)pBuf->s32DmaBufFd;
-    stQueueFrame.stVFrame.ulPlaneVirAddr[0] = (UL)pBuf->pVirAddr;
-
-    S32 ret = pChn->stOps.queue_output_buffer(pChn->pAlCtx, &stQueueFrame);
-    if (ret == MPP_OK)
-        pBuf->bInDecoder = MPP_TRUE;
+/* Lock order: outputLock -> lock. Input retries release lock before
+ * sleeping, so Flush/Reset can pause submission without deadlock. */
+static S32 vdec_create_ext_pool(VdecChnCtx *pChn) {
+    AlDecOutputRequirement req = {0};
+    S32 ret = pChn->stOps.get_output_requirement(pChn->pAlCtx, &req);
+    if (ret != MPP_OK)
+        return ret;
+    ret = vdec_bufpool_create(&pChn->stPool, &req);
+    if (ret == ERR_VDEC_OK)
+        ret = vdec_bufpool_queue_available_buffers(&pChn->stPool, pChn->pAlCtx, pChn->stOps.queue_output_buffer, 0);
     return ret;
 }
 
-/**
- * @brief  Create VB pool and queue all external dma-buf fds to decoder.
- *         Called from VDEC_EnableChn and resolution-change rebuild.
- */
-static S32 vdec_create_ext_pool_size(VdecChnCtx *pChn, U32 u32Width, U32 u32Height) {
-    U32 bufCnt = pChn->stBufReq.u32OutputBufNum;
-    U32 bufSize = 0;
-
-    /* the plugin returned the capture buffer count actually allocated by the
-     * V4L2 driver — we must supply exactly that many external buffers */
-    if (bufCnt == 0)
-        bufCnt = VDEC_DEFAULT_BUF_CNT;
-    if (bufCnt > VDEC_MAX_EXT_BUF)
-        bufCnt = VDEC_MAX_EXT_BUF;
-
-    bufSize = vdec_calc_default_buf_size(u32Width, u32Height, pChn->stAttr.eOutputPixelFormat, pChn->stAttr.u32Align);
-    if (bufSize == 0) {
-        error("cannot determine buffer size for DMABUF_EXTERNAL");
-        return ERR_VDEC_NOMEM;
-    }
-
-    /* Create VB pool */
-    VbPoolCfg stPoolCfg;
-    memset(&stPoolCfg, 0, sizeof(stPoolCfg));
-    stPoolCfg.u32BufSize = bufSize;
-    stPoolCfg.u32BufCnt = bufCnt;
-    stPoolCfg.eModId = MPP_ID_VDEC;
-    stPoolCfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
-
-    UL ulPool = VB_CreatePool(&stPoolCfg);
-    if (ulPool == 0) {
-        error("VB_CreatePool failed (size=%u cnt=%u)", bufSize, bufCnt);
-        return ERR_VDEC_NOMEM;
-    }
-
-    pChn->ulPoolId = ulPool;
-    pChn->u32ExtBufCnt = bufCnt;
-    pChn->u32PoolBufSize = bufSize;
-    pChn->u32PoolWidth = u32Width;
-    pChn->u32PoolHeight = u32Height;
-    memset(pChn->stExtBuf, 0, sizeof(pChn->stExtBuf));
-
-    /* Get each buffer, extract dma-buf fd, queue to decoder */
-    for (U32 i = 0; i < bufCnt; i++) {
-        UL ulBuff = VB_ModGetBuffer(ulPool, MPP_ID_VDEC, 0);
-        if (ulBuff == 0) {
-            error("VB_ModGetBuffer failed for buf %u", i);
-            goto fail;
-        }
-
-        /* From here on the buffer is tracked in stExtBuf[i] and released by
-         * the fail loop — do not release it inline (double release). */
-        pChn->stExtBuf[i].ulVbBuff = ulBuff;
-        pChn->stExtBuf[i].bHasDecoderRef = MPP_TRUE;
-
-        S32 fd = -1;
-        if (VB_GetDmaBufFd(ulBuff, &fd) != 0 || fd < 0) {
-            error("VB_GetDmaBufFd failed for buf %u", i);
-            goto fail;
-        }
-
-        VOID *pVirAddr = NULL;
-        VB_GetVirAddr(ulBuff, &pVirAddr);
-
-        pChn->stExtBuf[i].s32DmaBufFd = fd;
-        pChn->stExtBuf[i].pVirAddr = pVirAddr;
-        pChn->stExtBuf[i].bInDecoder = MPP_FALSE;
-
-        S32 ret = vdec_queue_ext_buffer(pChn, i);
-        if (ret != MPP_OK) {
-            error("al_dec_queue_output_buffer failed for buf %u, ret=%d", i, ret);
-            goto fail;
-        }
-    }
-
-    info("DMABUF_EXTERNAL pool created: pool=%lu, cnt=%u, size=%u (%ux%u)", ulPool, bufCnt, bufSize, u32Width,
-        u32Height);
-    return ERR_VDEC_OK;
-
-fail:
-    /* Release already-allocated buffers */
-    for (U32 j = 0; j < bufCnt; j++) {
-        if (pChn->stExtBuf[j].ulVbBuff) {
-            VB_ModReleaseBuffer(pChn->stExtBuf[j].ulVbBuff, MPP_ID_VDEC);
-            pChn->stExtBuf[j].ulVbBuff = 0;
-        }
-    }
-    VB_DestroyPool(ulPool);
-    pChn->ulPoolId = 0;
-    pChn->u32ExtBufCnt = 0;
-    pChn->u32PoolBufSize = 0;
-    pChn->u32PoolWidth = 0;
-    pChn->u32PoolHeight = 0;
-    return ERR_VDEC_NOMEM;
-}
-
-static S32 vdec_create_ext_pool(VdecChnCtx *pChn) {
-    return vdec_create_ext_pool_size(pChn, pChn->stAttr.u32Width, pChn->stAttr.u32Height);
-}
-
-/**
- * @brief  Re-queue all external dma-buf buffers to the decoder.
- *         Called after a resolution change event causes the V4L2 output port
- *         to be reallocated.  The old QBUF entries are lost after
- *         streamoff/streamon.  Re-queue only buffers still owned by the
- *         decoder; buffers held by a consumer must remain untouched until
- *         their references are released and the recycle task queues them.
- */
-static S32 vdec_requeue_ext_buffers(VdecChnCtx *pChn) {
-    S32 queued = 0;
-
-    for (U32 i = 0; i < pChn->u32ExtBufCnt; i++) {
-        if (pChn->stExtBuf[i].ulVbBuff == 0)
-            continue;
-        if (!pChn->stExtBuf[i].bHasDecoderRef) {
-            debug("requeue: buf %u is consumer-owned, defer to recycle task", i);
-            continue;
-        }
-
-        /* STREAMOFF invalidated the decoder's old queue entry. */
-        pChn->stExtBuf[i].bInDecoder = MPP_FALSE;
-
-        S32 ret = vdec_queue_ext_buffer(pChn, i);
-        if (ret == MPP_OK) {
-            queued++;
-        } else {
-            pChn->stExtBuf[i].bInDecoder = MPP_FALSE;
-            error("requeue: queue buf %u failed, ret=%d", i, ret);
-        }
-    }
-
-    info("re-queued %d/%u ext buffers after resolution change", queued, pChn->u32ExtBufCnt);
-    return (queued > 0) ? ERR_VDEC_OK : ERR_VDEC_NOMEM;
-}
-
-/* Requires depthLock and a non-empty queue. */
-static void vdec_depth_drop_oldest_locked(VdecChnCtx *pChn) {
-    VdecDepthEntry *pEntry = &pChn->pstDepth[pChn->u32DepthHead];
-    if (pEntry->ulBufferId != 0)
-        VB_ModRefSub(pEntry->ulBufferId, MPP_ID_VDEC);
-    pChn->u32DepthHead = (pChn->u32DepthHead + 1) % pChn->u32DepthMax;
-    pChn->u32DepthCount--;
-}
-
-/* Requires depthLock and a free slot; caller has already retained any VB ref. */
-static void vdec_depth_push_locked(VdecChnCtx *pChn, const VideoFrameInfo *pstFrame) {
-    VdecDepthEntry *pEntry = &pChn->pstDepth[pChn->u32DepthTail];
-    pEntry->ulBufferId = pstFrame->ulBufferId;
-    memcpy(&pEntry->stFrameInfo, pstFrame, sizeof(*pstFrame));
-    pChn->u32DepthTail = (pChn->u32DepthTail + 1) % pChn->u32DepthMax;
-    pChn->u32DepthCount++;
-    pthread_cond_signal(&pChn->depthNotEmpty);
-}
-
-static void vdec_drain_depth_queue_locked(VdecChnCtx *pChn) {
-    while (pChn->u32DepthCount > 0)
-        vdec_depth_drop_oldest_locked(pChn);
-    pChn->u32DepthHead = 0;
-    pChn->u32DepthTail = 0;
-    pChn->u32DepthCount = 0;
-}
-
-/* A retired pool is private to this channel, so acquiring every block proves
- * that no downstream consumer still owns a reference. */
-static void vdec_cleanup_retired_pools(VdecChnCtx *pChn) {
-    U32 pool_idx = 0;
-
-    while (pool_idx < pChn->u32RetiredPoolCnt) {
-        VdecRetiredPool *retired = &pChn->astRetiredPools[pool_idx];
-        UL acquired[VDEC_MAX_EXT_BUF];
-        U32 acquired_cnt = 0;
-
-        while (acquired_cnt < retired->u32BufCnt) {
-            UL buffer = VB_GetBuffer(retired->ulPoolId, 0);
-            if (buffer == 0)
-                break;
-            acquired[acquired_cnt++] = buffer;
-        }
-        for (U32 i = 0; i < acquired_cnt; ++i)
-            VB_ReleaseBuffer(acquired[i]);
-
-        if (acquired_cnt != retired->u32BufCnt || VB_DestroyPool(retired->ulPoolId) != 0) {
-            pool_idx++;
-            continue;
-        }
-
-        info("retired pool %lu released", retired->ulPoolId);
-        pChn->astRetiredPools[pool_idx] = pChn->astRetiredPools[pChn->u32RetiredPoolCnt - 1];
-        memset(&pChn->astRetiredPools[pChn->u32RetiredPoolCnt - 1], 0, sizeof(VdecRetiredPool));
-        pChn->u32RetiredPoolCnt--;
-    }
-}
-
-static S32 vdec_retire_current_pool(VdecChnCtx *pChn) {
-    U32 decoder_owned = 0;
-    if (pChn->ulPoolId == 0)
-        return ERR_VDEC_OK;
-    if (pChn->u32RetiredPoolCnt >= MPP_MAX_POOL) {
-        error("too many retired VDEC pools");
-        return ERR_VDEC_NOMEM;
-    }
-
-    VdecRetiredPool *retired = &pChn->astRetiredPools[pChn->u32RetiredPoolCnt++];
-    retired->ulPoolId = pChn->ulPoolId;
-    retired->u32BufCnt = pChn->u32ExtBufCnt;
-
-    for (U32 i = 0; i < pChn->u32ExtBufCnt; ++i) {
-        if (pChn->stExtBuf[i].ulVbBuff != 0 && pChn->stExtBuf[i].bHasDecoderRef) {
-            decoder_owned++;
-            pChn->stExtBuf[i].bInDecoder = MPP_FALSE;
-            pChn->stExtBuf[i].bHasDecoderRef = MPP_FALSE;
-            VB_ModReleaseBuffer(pChn->stExtBuf[i].ulVbBuff, MPP_ID_VDEC);
-        }
-    }
-
-    info("retired pool %lu with %u buffers (%u decoder-owned)", retired->ulPoolId,
-            retired->u32BufCnt, decoder_owned);
-    pChn->ulPoolId = 0;
-    pChn->u32ExtBufCnt = 0;
-    pChn->u32PoolBufSize = 0;
-    pChn->u32PoolWidth = 0;
-    pChn->u32PoolHeight = 0;
-    memset(pChn->stExtBuf, 0, sizeof(pChn->stExtBuf));
-    return ERR_VDEC_OK;
-}
-
-/**
- * @brief Release current pool ownership and destroy pools with no consumers.
- */
 static S32 vdec_destroy_ext_pool(VdecChnCtx *pChn) {
-    S32 ret = vdec_retire_current_pool(pChn);
+    S32 ret = vdec_bufpool_retire_active_pool(&pChn->stPool);
     if (ret != ERR_VDEC_OK)
         return ret;
-
-    vdec_cleanup_retired_pools(pChn);
-    return pChn->u32RetiredPoolCnt == 0 ? ERR_VDEC_OK : ERR_VDEC_BUSY;
+    vdec_bufpool_try_destroy_retired_pools(&pChn->stPool);
+    return pChn->stPool.u32RetiredCount ? ERR_VDEC_BUSY : ERR_VDEC_OK;
 }
 
-static S32 vdec_handle_resolution_change(VdecChnCtx *pChn) {
-    VdecChnStatus stStatus;
-    U32 u32NewW = 0;
-    U32 u32NewH = 0;
-    U32 u32NeedSize = 0;
+static U32 vdec_remaining_ms(U64 start, U32 budget) {
+    U64 elapsed = vdec_monotonic_ms() - start;
+    return elapsed >= budget ? 0 : budget - (U32)elapsed;
+}
+
+/* Caller must hold outputLock; this function does not lock internally.
+ * Requeue available buffers, request one decoder output and handle pool
+ * changes. NO_FRAME also covers skipped output or a completed pool replacement.
+ * On success, the frame has a VDEC reference but no application reference.
+ * Hand off or release that reference before reading again or unlocking. */
+static S32 vdec_read_decoded_frame_locked(VdecChnCtx *pChn, VideoFrameInfo *frame, U32 waitMs) {
+    U64 start = vdec_monotonic_ms();
     S32 ret;
+    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED)
+        return ERR_VDEC_NOT_STARTED;
+    if (pChn->s32OutputResult)
+        return pChn->s32OutputResult;
 
-    memset(&stStatus, 0, sizeof(stStatus));
-    if (pChn->stOps.get_status(pChn->pAlCtx, &stStatus) == MPP_OK) {
-        u32NewW = stStatus.u32Width;
-        u32NewH = stStatus.u32Height;
+    vdec_bufpool_try_destroy_retired_pools(&pChn->stPool);
+    ret = vdec_bufpool_queue_available_buffers(&pChn->stPool, pChn->pAlCtx, pChn->stOps.queue_output_buffer,
+                                                vdec_bufpool_get_queued_count(&pChn->stPool) ? 0 : waitMs);
+    if (ret != MPP_OK)
+        goto failed;
+    memset(frame, 0, sizeof(*frame));
+    ret = pChn->stOps.request_output_frame(pChn->pAlCtx, frame, vdec_remaining_ms(start, waitMs));
+    if (ret == MPP_RESOLUTION_CHANGED) {
+        /* AL has stopped/reallocated CAPTURE. Consumers retain the old VB pool;
+         * no concurrent QBUF can still use the old plugin slot metadata. */
+        ret = vdec_bufpool_retire_active_pool(&pChn->stPool);
+        if (ret == MPP_OK)
+            ret = vdec_create_ext_pool(pChn);
+        if (ret != MPP_OK)
+            goto failed;
+        return ERR_VDEC_NO_FRAME;
     }
-
-    pthread_mutex_lock(&pChn->poolLock);
-    pChn->bPoolReconfig = MPP_TRUE;
-    while (!pChn->bRecycleIdle && atomic_load_explicit(&pChn->bRecycleRun, memory_order_acquire)) {
-        pthread_cond_wait(&pChn->poolCond, &pChn->poolLock);
+    if (ret == MPP_CODER_EOS) {
+        pChn->s32OutputResult = ERR_VDEC_EOS;
+        return ERR_VDEC_EOS;
     }
-
-    if (u32NewW == 0 || u32NewH == 0) {
-        ret = vdec_requeue_ext_buffers(pChn);
-        goto done;
+    if (ret == MPP_CODER_NO_DATA) {
+        /* POLLERR/EPIPE can be immediately ready despite a positive timeout. */
+        U32 remaining = vdec_remaining_ms(start, waitMs);
+        if (remaining)
+            usleep(remaining * 1000U);
+        return ERR_VDEC_NO_FRAME;
     }
-
-    u32NeedSize = vdec_calc_default_buf_size(u32NewW, u32NewH, pChn->stAttr.eOutputPixelFormat, pChn->stAttr.u32Align);
-    if (u32NeedSize > 0 && u32NeedSize <= pChn->u32PoolBufSize) {
-        info("resolution change %ux%u fits current pool (need=%u have=%u), re-queue", u32NewW, u32NewH, u32NeedSize,
-            pChn->u32PoolBufSize);
-        ret = vdec_requeue_ext_buffers(pChn);
-        goto done;
-    }
-
-    info("resolution change %ux%u needs larger buffers (need=%u have=%u), rebuilding ext pool", u32NewW, u32NewH,
-        u32NeedSize, pChn->u32PoolBufSize);
-
-    pthread_mutex_lock(&pChn->depthLock);
-    vdec_drain_depth_queue_locked(pChn);
-    pthread_mutex_unlock(&pChn->depthLock);
-
-    ret = vdec_retire_current_pool(pChn);
-    if (ret != ERR_VDEC_OK)
-        goto done;
-    vdec_cleanup_retired_pools(pChn);
-
-    ret = vdec_create_ext_pool_size(pChn, u32NewW, u32NewH);
-    if (ret != ERR_VDEC_OK) {
-        error("failed to rebuild ext pool at %ux%u, ret=%d - stopping channel", u32NewW, u32NewH, ret);
-        atomic_store_explicit(&pChn->bRecycleRun, MPP_FALSE, memory_order_release);
-    }
-
-done:
-    pChn->bPoolReconfig = MPP_FALSE;
-    pthread_cond_broadcast(&pChn->poolCond);
-    pthread_mutex_unlock(&pChn->poolLock);
+    BOOL discard = ret == MPP_CODER_NULL_DATA || (ret == MPP_ERROR_FRAME && !pChn->stAttr.bDispErrorFrame);
+    if (ret != MPP_OK && ret != MPP_ERROR_FRAME && ret != MPP_CODER_NULL_DATA)
+        goto failed;
+    ret = vdec_bufpool_on_buffer_dequeued(&pChn->stPool, frame);
+    if (ret != MPP_OK)
+        goto failed;
+    if (discard)
+        return ERR_VDEC_NO_FRAME; /* OWNED: next bounded pass queues it once. */
+    ret = VB_UpdateBufferFrameInfo(frame->ulBufferId, frame);
+    if (ret != MPP_OK)
+        goto failed;
+    if (frame->stVdecFrameInfo.bEndOfStream)
+        pChn->s32OutputResult = ERR_VDEC_EOS;
+    return ERR_VDEC_OK;
+failed:
+    pChn->s32OutputResult = ret;
+    error("output failed: chn=%d ret=%d", pChn->s32ChnId, ret);
     return ret;
 }
 
-/* ======================== Recycle / Output Task Threads ======================== */
-
-/* Requires poolLock. */
-static BOOL vdec_recycle_ready_locked(VdecChnCtx *pChn) {
-    if (pChn->bPoolReconfig) {
-        pChn->bRecycleIdle = MPP_TRUE;
-        pthread_cond_broadcast(&pChn->poolCond);
-        while (pChn->bPoolReconfig &&
-            atomic_load_explicit(&pChn->bRecycleRun, memory_order_acquire)) {
-            pthread_cond_wait(&pChn->poolCond, &pChn->poolLock);
-        }
-        pChn->bRecycleIdle = MPP_FALSE;
+/* Caller must hold outputLock and supply a frame whose VDEC reference is OWNED.
+ * Add an application reference before releasing VDEC's reference. No pixels are
+ * copied and no frame is sent. On success, the caller must release the frame
+ * with VDEC_ReleaseFrame (or VB_ReleaseBuffer) when it is no longer needed. */
+static S32 vdec_transfer_frame_to_caller_locked(VdecChnCtx *pChn, VideoFrameInfo *frame) {
+    S32 ret = VB_RefAdd(frame->ulBufferId);
+    if (ret != MPP_OK) {
+        vdec_bufpool_release_vdec_ref(&pChn->stPool, frame->u32Idx);
+        return ret;
     }
-    return atomic_load_explicit(&pChn->bRecycleRun, memory_order_acquire);
+    ret = vdec_bufpool_release_vdec_ref(&pChn->stPool, frame->u32Idx);
+    if (ret != MPP_OK)
+        VB_ReleaseBuffer(frame->ulBufferId);
+    return ret;
 }
 
-/**
- * @brief Recycle thread.
- *
- * Waits for VB buffers whose refcount has dropped to 0 (returned to
- * the pool by all consumers).  When VB_ModGetBuffer succeeds, the buffer
- * is free — we re-queue it to the decoder so it can be filled again.
- * The initial VDEC reference represents "decoder owns this buffer".
- */
-static void *vdec_recycle_task(void *arg) {
-    VdecChnCtx *pChn = (VdecChnCtx *)arg;
-
-    info("vdec recycle task started: chn %d pool=%lu", pChn->s32ChnId, pChn->ulPoolId);
-
-    for (;;) {
-        UL ulPool;
-
-        pthread_mutex_lock(&pChn->poolLock);
-        if (!vdec_recycle_ready_locked(pChn)) {
-            pthread_mutex_unlock(&pChn->poolLock);
-            break;
-        }
-        vdec_cleanup_retired_pools(pChn);
-        ulPool = pChn->ulPoolId;
-        pthread_mutex_unlock(&pChn->poolLock);
-
-        /* Block up to 100ms waiting for a free buffer in the pool. */
-        UL ulBuf = VB_ModGetBuffer(ulPool, MPP_ID_VDEC, 100);
-        if (ulBuf == 0)
-            continue; /* timeout or shutting down */
-
-        pthread_mutex_lock(&pChn->poolLock);
-        if (!atomic_load_explicit(&pChn->bRecycleRun, memory_order_acquire) || pChn->bPoolReconfig ||
-            ulPool != pChn->ulPoolId) {
-            VB_ModReleaseBuffer(ulBuf, MPP_ID_VDEC);
-            BOOL bRecycleRun = atomic_load_explicit(&pChn->bRecycleRun, memory_order_acquire);
-            pthread_mutex_unlock(&pChn->poolLock);
-            if (!bRecycleRun)
-                break;
-            continue;
-        }
-
-        /* Find which ext buf slot this VB handle belongs to */
-        S32 idx = -1;
-        for (U32 i = 0; i < pChn->u32ExtBufCnt; i++) {
-            if (pChn->stExtBuf[i].ulVbBuff == ulBuf) {
-                idx = (S32)i;
-                break;
-            }
-        }
-        if (idx < 0) {
-            error("recycle: unknown VB handle %lu", ulBuf);
-            VB_ModReleaseBuffer(ulBuf, MPP_ID_VDEC);
-            pthread_mutex_unlock(&pChn->poolLock);
-            continue;
-        }
-        pChn->stExtBuf[idx].bHasDecoderRef = MPP_TRUE;
-
-        /*
-         * If the buffer is already queued in the decoder (e.g. the
-         * error-frame path in the output task already did VIDIOC_QBUF
-         * internally), we must NOT queue it again — the V4L2 driver
-         * rejects a duplicate QBUF with EINVAL.  Just skip re-queuing.
-         */
-        if (pChn->stExtBuf[idx].bInDecoder) {
-            debug("recycle: buf %d already in decoder, skip re-queue", idx);
-            pthread_mutex_unlock(&pChn->poolLock);
-            continue;
-        }
-
-        /* Re-queue the external dma-buf to the decoder */
-        S32 ret = vdec_queue_ext_buffer(pChn, (U32)idx);
-        if (ret != MPP_OK) {
-            error("recycle: re-queue buf %d failed, ret=%d", idx, ret);
-            pChn->stExtBuf[idx].bHasDecoderRef = MPP_FALSE;
-            VB_ModReleaseBuffer(ulBuf, MPP_ID_VDEC);
-        }
-        pthread_mutex_unlock(&pChn->poolLock);
-    }
-
-    info("vdec recycle task exiting: chn %d", pChn->s32ChnId);
-    return NULL;
-}
-
-static VOID vdec_stop_recycle_task(VdecChnCtx *pChn) {
-    pthread_mutex_lock(&pChn->poolLock);
-    atomic_store_explicit(&pChn->bRecycleRun, MPP_FALSE, memory_order_release);
-    pthread_cond_broadcast(&pChn->poolCond);
-    pthread_mutex_unlock(&pChn->poolLock);
-    pthread_join(pChn->recycleTid, NULL);
-}
-
-/**
- * @brief Output task thread.
- *
- * Continuously requests decoded frames and selects one output path per frame:
- *   - If the VDEC source has bound sinks, SYS_SendFrame owns delivery.
- *   - Otherwise retain one VB ref in the depth queue for VDEC_GetFrame.
- * Finally release the decoder base ref via VB_ModReleaseBuffer.
- *
- * Binding takes precedence, so the same frame is never exposed by both paths.
- * The buffer is NOT directly re-queued to the decoder here.  When
- * the selected consumer has called VB_ReleaseBuffer,
- * the VB refcount drops to 0, the buffer returns to the pool, and the
- * recycle thread picks it up and re-queues it to the decoder.
- */
 static void *vdec_output_task(void *arg) {
     VdecChnCtx *pChn = (VdecChnCtx *)arg;
-    S32 s32ChnId = pChn->s32ChnId;
-
-    MppNode stSrcNode;
-    stSrcNode.eModId = MPP_ID_VDEC;
-    stSrcNode.s32DevId = 0;
-    stSrcNode.s32ChnId = s32ChnId;
-
-    info("vdec output task started: chn %d", s32ChnId);
-
-    while (atomic_load_explicit(&pChn->bTaskRun, memory_order_acquire)) {
-        VideoFrameInfo stFrame;
-        S32 ret = pChn->stOps.request_output_frame(pChn->pAlCtx, &stFrame, 100);
-        if (ret == MPP_CODER_EOS) {
-            /* Push an EOS entry into the GetFrame depth queue */
-            VideoFrameInfo stEosFrame;
-            memset(&stEosFrame, 0, sizeof(stEosFrame));
-            stEosFrame.eFrameType = FRAME_TYPE_VDEC;
-            stEosFrame.eModId = MPP_ID_VDEC;
-            stEosFrame.stVdecFrameInfo.bEndOfStream = MPP_TRUE;
-
-            pthread_mutex_lock(&pChn->depthLock);
-            if (pChn->u32DepthCount < pChn->u32DepthMax)
-                vdec_depth_push_locked(pChn, &stEosFrame);
-            pthread_mutex_unlock(&pChn->depthLock);
-            continue;
+    MppNode src = {.eModId = MPP_ID_VDEC, .s32DevId = 0, .s32ChnId = pChn->s32ChnId};
+    while (pChn->eState == VDEC_CHN_STATE_STARTED) {
+        VideoFrameInfo frame;
+        pthread_mutex_lock(&pChn->outputLock);
+        S32 ret = vdec_read_decoded_frame_locked(pChn, &frame, 10);
+        if (ret == ERR_VDEC_OK) {
+            S32 sendRet = SYS_SendFrame(&src, frame.ulBufferId);
+            if (sendRet != SYS_ERR_OK && sendRet != SYS_ERR_NOT_FOUND)
+                error("bound frame delivery failed: chn=%d ret=%d", pChn->s32ChnId, sendRet);
+            ret = vdec_bufpool_release_vdec_ref(&pChn->stPool, frame.u32Idx);
         }
-        if (ret == MPP_RESOLUTION_CHANGED) {
-            /*
-             * V4L2 driver triggered a source-change event (common on the
-             * first frame for MJPEG / H.264 etc.).  handleResolutionChange
-             * inside the plugin did streamoff → realloc → streamon on the
-             * capture port, which invalidated all previously queued
-             * DMABUF_EXTERNAL buffers.  Re-queue them now so the decoder
-             * can continue producing output.
-             */
-            info("output task: resolution changed on chn %d, re-queuing ext buffers", s32ChnId);
-            if (vdec_handle_resolution_change(pChn) != ERR_VDEC_OK)
-                break;
-            continue;
-        }
-        if (ret == MPP_ERROR_FRAME && pChn->stAttr.bDispErrorFrame)
-            ret = MPP_OK;
-        if (ret == MPP_ERROR_FRAME || ret == MPP_CODER_NULL_DATA) {
-            /*
-             * The buffer has been dequeued from V4L2 but carries an error
-             * flag or zero payload.  We must return it to the decoder and
-             * re-queue it, otherwise the buffer is leaked and the decoder
-             * eventually runs out of output buffers.
-             *
-             * al_dec_return_output_frame internally does clearBytesUsed +
-             * setExternalDmaBuf + queueBuffer, so we must NOT call
-             * queue_output_buffer again — that would attempt a second
-             * VIDIOC_QBUF on the same buffer index, which the V4L2 driver
-             * rejects with EINVAL.
-             */
-            U32 errIdx = stFrame.u32Idx;
-            if (errIdx < pChn->u32ExtBufCnt) {
-                pChn->stExtBuf[errIdx].bInDecoder = MPP_FALSE;
-                pChn->stOps.return_output_frame(pChn->pAlCtx, &stFrame);
-                pChn->stExtBuf[errIdx].bInDecoder = MPP_TRUE;
-            } else {
-                error("output task: error frame idx=%u out of range", errIdx);
-            }
-            continue;
-        }
-        /*
-         * After capture EOS, poll may still report POLLIN while DQBUF fails;
-         * plugin returns MPP_CODER_NO_DATA — not an error, avoid log spam.
-         */
-        if (ret == MPP_CODER_NO_DATA)
-            continue;
-        if (ret != MPP_OK) {
-            error("output task: unexpected ret=%d", ret);
-            continue; /* timeout or transient error */
-        }
-
-        /* The plugin filled stFrame (planes/fds/strides/sizes/PTS/geometry)
-         * and set u32Idx to the V4L2 buffer index == our ext buf slot. */
-        U32 idx = stFrame.u32Idx;
-        if (idx >= pChn->u32ExtBufCnt) {
-            error("output task: decoded frame idx=%u out of range", idx);
-            continue;
-        }
-
-        pChn->stExtBuf[idx].bInDecoder = MPP_FALSE;
-
-        UL ulBuf = pChn->stExtBuf[idx].ulVbBuff;
-
-        /* Attach VB ownership info (the plugin never touches these) */
-        stFrame.ulPoolId = pChn->ulPoolId;
-        stFrame.ulBufferId = ulBuf;
-        VB_SetBufferPTS(ulBuf, stFrame.stVFrame.u64PTS);
-
-        /*
-         * At this point ref=1 (the "decoder base ref" from the initial
-         * VB_ModGetBuffer or the recycle thread's VB_ModGetBuffer).
-         *
-         * SYS_SendFrame adds a ref for each bound sink.  A successful return
-         * means binding owns this frame, so it must not also enter the depth
-         * queue.  If there is no usable binding, retain one ref for GetFrame.
-         *
-         * Finally we VB_ModReleaseBuffer to drop the base ref.  When all
-         * consumers are done, refcount reaches 0, buffer goes back to
-         * the pool, and the recycle thread re-queues it to the decoder.
-         */
-
-        S32 bindRet = SYS_SendFrame(&stSrcNode, ulBuf);
-        if (bindRet != SYS_ERR_OK && ulBuf != 0) {
-            /* add a ref for the depth queue consumer */
-            VB_ModRefAdd(ulBuf, MPP_ID_VDEC);
-
-            pthread_mutex_lock(&pChn->depthLock);
-
-            /* Queue full: release the oldest entry before inserting this frame. */
-            if (pChn->u32DepthCount >= pChn->u32DepthMax)
-                vdec_depth_drop_oldest_locked(pChn);
-            vdec_depth_push_locked(pChn, &stFrame);
-            pthread_mutex_unlock(&pChn->depthLock);
-        }
-
-        /* --- 3. Release the decoder base ref --- */
-        pChn->stExtBuf[idx].bHasDecoderRef = MPP_FALSE;
-        VB_ModReleaseBuffer(ulBuf, MPP_ID_VDEC);
+        pthread_mutex_unlock(&pChn->outputLock);
+        /* Keep the worker available for explicit Flush/Reset recovery. */
+        if (ret != ERR_VDEC_OK && ret != ERR_VDEC_NO_FRAME)
+            usleep(10000);
     }
-
-    info("vdec output task exiting: chn %d", s32ChnId);
     return NULL;
 }
 
@@ -897,17 +396,18 @@ static void *vdec_stream_input_task(void *arg) {
             /* timeout or no bind — just retry */
             if (SYS_ERR_NOT_FOUND == ret) {
                 pthread_mutex_lock(&pChn->lock);
-                pChn->bBound = MPP_FALSE;
+                pChn->bInputBound = MPP_FALSE;
                 pthread_mutex_unlock(&pChn->lock);
-                usleep(20000);  // Sleep 20ms before retrying to avoid busy loop when no stream is bound
+                usleep(20000); // Sleep 20ms before retrying to avoid busy loop when no
+                               // stream is bound
             }
             continue;
         }
 
         /* Mark channel as bound on first successful receive */
         pthread_mutex_lock(&pChn->lock);
-        if (!pChn->bBound) {
-            pChn->bBound = MPP_TRUE;
+        if (!pChn->bInputBound) {
+            pChn->bInputBound = MPP_TRUE;
             info("stream input task: chn %d bound, stream input active", s32ChnId);
         }
         pthread_mutex_unlock(&pChn->lock);
@@ -943,78 +443,71 @@ static void *vdec_stream_input_task(void *arg) {
     return NULL;
 }
 
-static S32 vdec_wait_for_depth_entry_locked(VdecChnCtx *pChn, U32 u32TimeoutMs) {
-    if (pChn->u32DepthCount > 0)
-        return ERR_VDEC_OK;
-    if (u32TimeoutMs == 0)
-        return ERR_VDEC_NO_FRAME;
-
-    if (u32TimeoutMs == (U32)-1) {
-        while (pChn->u32DepthCount == 0) {
-            if (pthread_cond_wait(&pChn->depthNotEmpty, &pChn->depthLock) != 0)
-                return ERR_VDEC_TIMEOUT;
-        }
-        return ERR_VDEC_OK;
-    }
-
-    struct timespec deadline;
-    clock_gettime(CLOCK_REALTIME, &deadline);
-    deadline.tv_sec += u32TimeoutMs / 1000;
-    deadline.tv_nsec += (u32TimeoutMs % 1000) * 1000000L;
-    if (deadline.tv_nsec >= 1000000000L) {
-        deadline.tv_sec++;
-        deadline.tv_nsec -= 1000000000L;
-    }
-
-    while (pChn->u32DepthCount == 0) {
-        if (pthread_cond_timedwait(&pChn->depthNotEmpty, &pChn->depthLock, &deadline) != 0)
-            return ERR_VDEC_TIMEOUT;
-    }
-    return ERR_VDEC_OK;
-}
-
-static S32 vdec_get_frame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs, BOOL bLatest) {
-    if (!pstFrameInfo)
+static S32 vdec_get_frame(S32 chn, VideoFrameInfo *frame, U32 timeoutMs, BOOL latest) {
+    if (!frame)
         return ERR_VDEC_NULL_PTR;
-    if (!vdec_chn_valid(s32ChnId))
+    if (!vdec_chn_valid(chn))
         return ERR_VDEC_INVALID_CHN;
-
-    VdecChnCtx *pChn = &g_stChn[s32ChnId];
-
+    VdecChnCtx *pChn = &g_stChn[chn];
     if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED)
         return ERR_VDEC_NOT_STARTED;
-
-    /* Pop from depth queue with optional timeout */
-    pthread_mutex_lock(&pChn->depthLock);
-
-    S32 ret = vdec_wait_for_depth_entry_locked(pChn, u32TimeoutMs);
-    if (ret != ERR_VDEC_OK)
-        goto unlock;
-
-    if (bLatest) {
-        while (pChn->u32DepthCount > 1)
-            vdec_depth_drop_oldest_locked(pChn);
-    }
-
-    VdecDepthEntry *pEntry = &pChn->pstDepth[pChn->u32DepthHead];
-    if (pEntry->ulBufferId != 0) {
-        ret = VB_RefAdd(pEntry->ulBufferId);
-        if (ret != MPP_OK)
-            goto unlock;
-        ret = VB_ModRefSub(pEntry->ulBufferId, MPP_ID_VDEC);
-        if (ret != MPP_OK) {
-            VB_ReleaseBuffer(pEntry->ulBufferId);
-            goto unlock;
+    U64 start = vdec_monotonic_ms();
+    for (;;) {
+        pthread_mutex_lock(&pChn->outputLock);
+        U32 waitMs = timeoutMs == (U32)-1 ? 10 : vdec_remaining_ms(start, timeoutMs);
+        if (waitMs > 10)
+            waitMs = 10;
+        S32 ret;
+        if (pChn->stAttr.eOutputMode != VDEC_OUTPUT_PULL) {
+            ret = ERR_VDEC_NOT_SUPPORT;
+        } else {
+            ret = vdec_read_decoded_frame_locked(pChn, frame, waitMs);
+            if (ret == ERR_VDEC_OK)
+                ret = vdec_transfer_frame_to_caller_locked(pChn, frame);
+            if (ret == ERR_VDEC_OK && latest) {
+                /* The candidate has an application reference: a subsequent
+                 * resolution change may safely retire its whole pool. */
+                for (U32 i = 1; i < VDEC_MAX_EXT_BUF; ++i) {
+                    VideoFrameInfo next;
+                    S32 nextRet = vdec_read_decoded_frame_locked(pChn, &next, 0);
+                    if (nextRet == ERR_VDEC_NO_FRAME || nextRet == ERR_VDEC_EOS)
+                        break;
+                    if (nextRet == ERR_VDEC_OK)
+                        nextRet = vdec_transfer_frame_to_caller_locked(pChn, &next);
+                    VB_ReleaseBuffer(frame->ulBufferId);
+                    if (nextRet != ERR_VDEC_OK) {
+                        ret = nextRet;
+                        break;
+                    }
+                    *frame = next;
+                }
+            }
         }
+        pthread_mutex_unlock(&pChn->outputLock);
+        if (ret != ERR_VDEC_NO_FRAME || timeoutMs == 0)
+            return ret;
+        if (timeoutMs != (U32)-1 && !vdec_remaining_ms(start, timeoutMs))
+            return ERR_VDEC_TIMEOUT;
     }
-    memcpy(pstFrameInfo, &pEntry->stFrameInfo, sizeof(VideoFrameInfo));
-    pChn->u32DepthHead = (pChn->u32DepthHead + 1) % pChn->u32DepthMax;
-    pChn->u32DepthCount--;
+}
 
-    ret = pstFrameInfo->ulBufferId == 0 && pstFrameInfo->stVdecFrameInfo.bEndOfStream ? ERR_VDEC_EOS : ERR_VDEC_OK;
-
-unlock:
-    pthread_mutex_unlock(&pChn->depthLock);
+static S32 vdec_control(S32 chn, BOOL reset) {
+    if (!vdec_chn_valid(chn))
+        return ERR_VDEC_INVALID_CHN;
+    VdecChnCtx *pChn = &g_stChn[chn];
+    pthread_mutex_lock(&pChn->outputLock);
+    pthread_mutex_lock(&pChn->lock);
+    S32 ret = ERR_VDEC_NOT_STARTED;
+    if (pChn->bUsed && pChn->eState == VDEC_CHN_STATE_STARTED) {
+        ret = reset ? pChn->stOps.reset(pChn->pAlCtx) : pChn->stOps.flush(pChn->pAlCtx);
+        if (ret == MPP_OK) {
+            vdec_bufpool_on_stream_stopped(&pChn->stPool);
+            ret = vdec_bufpool_queue_available_buffers(&pChn->stPool, pChn->pAlCtx, pChn->stOps.queue_output_buffer, 0);
+        }
+        pChn->s32OutputResult = ret;
+    }
+    pthread_mutex_unlock(&pChn->lock);
+    pthread_mutex_unlock(&pChn->outputLock);
     return ret;
 }
 
@@ -1031,8 +524,7 @@ S32 VDEC_Init(VOID) {
     for (S32 i = 0; i < VDEC_MAX_CHN; i++) {
         pthread_mutex_init(&g_stChn[i].lock, NULL);
         pthread_mutex_init(&g_stChn[i].inputLock, NULL);
-        atomic_init(&g_stChn[i].bTaskRun, MPP_FALSE);
-        atomic_init(&g_stChn[i].bRecycleRun, MPP_FALSE);
+        pthread_mutex_init(&g_stChn[i].outputLock, NULL);
         atomic_init(&g_stChn[i].bStreamInputRun, MPP_FALSE);
         atomic_init(&g_stChn[i].bUsed, MPP_FALSE);
         atomic_init(&g_stChn[i].eState, VDEC_CHN_STATE_IDLE);
@@ -1059,6 +551,7 @@ S32 VDEC_Exit(VOID) {
     }
 
     for (S32 i = 0; i < VDEC_MAX_CHN; i++) {
+        pthread_mutex_destroy(&g_stChn[i].outputLock);
         pthread_mutex_destroy(&g_stChn[i].inputLock);
         pthread_mutex_destroy(&g_stChn[i].lock);
     }
@@ -1091,6 +584,10 @@ S32 VDEC_CreateChn(S32 s32ChnId, const VdecChnAttr *pstAttr) {
         return ERR_VDEC_BUSY;
     }
 
+    if (pstAttr->eOutputMode != VDEC_OUTPUT_PULL && pstAttr->eOutputMode != VDEC_OUTPUT_BIND) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_NOT_SUPPORT;
+    }
     pChn->stAttr = *pstAttr;
     pChn->s32ChnId = s32ChnId;
     pChn->eState = VDEC_CHN_STATE_IDLE;
@@ -1105,225 +602,126 @@ S32 VDEC_DestroyChn(S32 s32ChnId) {
         return ERR_VDEC_INVALID_CHN;
 
     VdecChnCtx *pChn = &g_stChn[s32ChnId];
+    S32 ret = ERR_VDEC_OK;
+    pthread_mutex_lock(&pChn->outputLock);
     pthread_mutex_lock(&pChn->lock);
 
     if (!pChn->bUsed) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_INVALID_CHN;
+        ret = ERR_VDEC_INVALID_CHN;
+        goto unlock;
     }
     if (pChn->eState != VDEC_CHN_STATE_IDLE) {
         error("channel %d still started, stop it first", s32ChnId);
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_BUSY;
-    }
-
-    vdec_cleanup_retired_pools(pChn);
-    if (pChn->u32RetiredPoolCnt != 0) {
-        error("channel %d still has %u pools referenced by consumers", s32ChnId, pChn->u32RetiredPoolCnt);
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_BUSY;
+        ret = ERR_VDEC_BUSY;
+        goto unlock;
     }
 
     vdec_plugin_close(pChn);
 
     /* Safety: destroy VB pool if still alive */
     if (vdec_destroy_ext_pool(pChn) != ERR_VDEC_OK) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_BUSY;
+        ret = ERR_VDEC_BUSY;
+        goto unlock;
     }
 
     pChn->bUsed = MPP_FALSE;
+unlock:
     pthread_mutex_unlock(&pChn->lock);
-    return ERR_VDEC_OK;
-}
-
-S32 VDEC_EnableChn(S32 s32ChnId) {
-    if (!vdec_chn_valid(s32ChnId))
-        return ERR_VDEC_INVALID_CHN;
-
-    VdecChnCtx *pChn = &g_stChn[s32ChnId];
-    pthread_mutex_lock(&pChn->lock);
-
-    if (!pChn->bUsed) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_INVALID_CHN;
-    }
-    if (pChn->eState != VDEC_CHN_STATE_IDLE) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_ALREADY_INIT;
-    }
-
-    vdec_cleanup_retired_pools(pChn);
-    if (pChn->u32RetiredPoolCnt != 0 || pChn->ulPoolId != 0) {
-        error("channel %d still has consumer-referenced pools", s32ChnId);
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_BUSY;
-    }
-
-    /* desired capture buffer count; the plugin overwrites stBufReq with the
-     * counts the V4L2 driver actually granted */
-    U32 u32BufCnt = pChn->stAttr.u32BufCnt;
-    if (u32BufCnt == 0)
-        u32BufCnt = VDEC_DEFAULT_BUF_CNT;
-    if (u32BufCnt > VDEC_MAX_EXT_BUF)
-        u32BufCnt = VDEC_MAX_EXT_BUF;
-
-    pChn->stBufReq.u32InputBufNum = 0; /* plugin default */
-    pChn->stBufReq.u32OutputBufNum = u32BufCnt;
-
-    S32 ret = vdec_plugin_open(pChn);
-    if (ret != MPP_OK) {
-        error("vdec_plugin_open failed for chn %d, ret=%d", s32ChnId, ret);
-        goto fail;
-    }
-
-    /* Create VB pool and queue buffers to decoder */
-    ret = vdec_create_ext_pool(pChn);
-    if (ret != ERR_VDEC_OK) {
-        error("vdec_create_ext_pool failed for chn %d, ret=%d", s32ChnId, ret);
-        goto fail;
-    }
-
-    /* Initialize depth queue */
-    pChn->u32DepthMax = pChn->u32ExtBufCnt;
-    pChn->pstDepth = (VdecDepthEntry *)calloc(pChn->u32DepthMax, sizeof(VdecDepthEntry));
-    if (!pChn->pstDepth) {
-        error("depth queue alloc failed for chn %d, cnt=%u", s32ChnId, pChn->u32DepthMax);
-        ret = ERR_VDEC_NOMEM;
-        goto fail;
-    }
-    pChn->u32DepthHead = 0;
-    pChn->u32DepthTail = 0;
-    pChn->u32DepthCount = 0;
-    pthread_mutex_init(&pChn->depthLock, NULL);
-    pthread_cond_init(&pChn->depthNotEmpty, NULL);
-
-    pChn->bPoolReconfig = MPP_FALSE;
-    pChn->bRecycleIdle = MPP_FALSE;
-    pthread_mutex_init(&pChn->poolLock, NULL);
-    pthread_cond_init(&pChn->poolCond, NULL);
-
-    pChn->eState = VDEC_CHN_STATE_STARTED;
-
-    /* Start recycle thread */
-    atomic_store_explicit(&pChn->bRecycleRun, MPP_TRUE, memory_order_release);
-    ret = pthread_create(&pChn->recycleTid, NULL, vdec_recycle_task, pChn);
-    if (ret != 0) {
-        error("recycle thread create failed for chn %d: %s", s32ChnId, strerror(ret));
-        atomic_store_explicit(&pChn->bRecycleRun, MPP_FALSE, memory_order_release);
-        ret = ERR_VDEC_NOMEM;
-        goto fail;
-    }
-
-    /* Start output task thread */
-    atomic_store_explicit(&pChn->bTaskRun, MPP_TRUE, memory_order_release);
-    ret = pthread_create(&pChn->taskTid, NULL, vdec_output_task, pChn);
-    if (ret != 0) {
-        error("output task thread create failed for chn %d: %s", s32ChnId, strerror(ret));
-        atomic_store_explicit(&pChn->bTaskRun, MPP_FALSE, memory_order_release);
-        vdec_stop_recycle_task(pChn);
-        ret = ERR_VDEC_NOMEM;
-        goto fail;
-    }
-
-    /* Start stream input thread (receives bound stream via SYS_RecvStream) */
-    pChn->bBound = MPP_FALSE;
-    atomic_store_explicit(&pChn->bStreamInputRun, MPP_TRUE, memory_order_release);
-    ret = pthread_create(&pChn->streamInputTid, NULL, vdec_stream_input_task, pChn);
-    if (ret != 0) {
-        error("stream input thread create failed for chn %d: %s", s32ChnId, strerror(ret));
-        atomic_store_explicit(&pChn->bStreamInputRun, MPP_FALSE, memory_order_release);
-        atomic_store_explicit(&pChn->bTaskRun, MPP_FALSE, memory_order_release);
-        pthread_join(pChn->taskTid, NULL);
-        vdec_stop_recycle_task(pChn);
-        ret = ERR_VDEC_NOMEM;
-        goto fail;
-    }
-
-    pthread_mutex_unlock(&pChn->lock);
-    info("VDEC_EnableChn: chn %d enabled, bufCnt=%u, depthMax=%u", s32ChnId, u32BufCnt, pChn->u32DepthMax);
-    return ERR_VDEC_OK;
-
-fail:
-    pChn->eState = VDEC_CHN_STATE_IDLE;
-    if (pChn->pstDepth) {
-        pthread_mutex_lock(&pChn->depthLock);
-        vdec_drain_depth_queue_locked(pChn);
-        pthread_mutex_unlock(&pChn->depthLock);
-        pthread_mutex_destroy(&pChn->depthLock);
-        pthread_cond_destroy(&pChn->depthNotEmpty);
-        free(pChn->pstDepth);
-        pChn->pstDepth = NULL;
-        pChn->u32DepthMax = 0;
-        pthread_mutex_destroy(&pChn->poolLock);
-        pthread_cond_destroy(&pChn->poolCond);
-    }
-    vdec_destroy_ext_pool(pChn);
-    vdec_plugin_close(pChn);
-    pthread_mutex_unlock(&pChn->lock);
+    pthread_mutex_unlock(&pChn->outputLock);
     return ret;
 }
 
-S32 VDEC_DisableChn(S32 s32ChnId) {
-    if (!vdec_chn_valid(s32ChnId))
+S32 VDEC_EnableChn(S32 chn) {
+    if (!vdec_chn_valid(chn))
         return ERR_VDEC_INVALID_CHN;
-
-    VdecChnCtx *pChn = &g_stChn[s32ChnId];
+    VdecChnCtx *pChn = &g_stChn[chn];
+    S32 ret;
+    BOOL taskCreated = MPP_FALSE;
+    pthread_mutex_lock(&pChn->outputLock);
     pthread_mutex_lock(&pChn->lock);
-
     if (!pChn->bUsed) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_INVALID_CHN;
+        ret = ERR_VDEC_INVALID_CHN;
+        goto unlock;
     }
-    if (pChn->eState != VDEC_CHN_STATE_STARTED) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_NOT_STARTED;
+    if (pChn->eState != VDEC_CHN_STATE_IDLE) {
+        ret = ERR_VDEC_ALREADY_INIT;
+        goto unlock;
     }
+    ret = vdec_destroy_ext_pool(pChn);
+    if (ret != ERR_VDEC_OK)
+        goto unlock;
+    pChn->stBufReq.u32InputBufNum = 0;
+    pChn->stBufReq.u32OutputBufNum = pChn->stAttr.u32BufCnt ? pChn->stAttr.u32BufCnt : VDEC_DEFAULT_BUF_CNT;
+    if (pChn->stBufReq.u32OutputBufNum > VDEC_MAX_EXT_BUF)
+        pChn->stBufReq.u32OutputBufNum = VDEC_MAX_EXT_BUF;
+    ret = vdec_plugin_open(pChn);
+    if (ret != MPP_OK)
+        goto fail;
+    ret = vdec_create_ext_pool(pChn);
+    if (ret != ERR_VDEC_OK)
+        goto fail;
+    pChn->s32OutputResult = 0;
+    pChn->bInputBound = MPP_FALSE;
+    pChn->eState = VDEC_CHN_STATE_STARTED;
+    if (pChn->stAttr.eOutputMode == VDEC_OUTPUT_BIND) {
+        ret = pthread_create(&pChn->taskTid, NULL, vdec_output_task, pChn);
+        if (ret != 0) {
+            ret = ERR_VDEC_NOMEM;
+            goto fail;
+        }
+        taskCreated = MPP_TRUE;
+    }
+    atomic_store_explicit(&pChn->bStreamInputRun, MPP_TRUE, memory_order_release);
+    ret = pthread_create(&pChn->streamInputTid, NULL, vdec_stream_input_task, pChn);
+    if (ret != 0) {
+        atomic_store_explicit(&pChn->bStreamInputRun, MPP_FALSE, memory_order_release);
+        pChn->eState = VDEC_CHN_STATE_STOPPING;
+        pthread_mutex_unlock(&pChn->lock);
+        pthread_mutex_unlock(&pChn->outputLock);
+        if (taskCreated)
+            pthread_join(pChn->taskTid, NULL);
+        pthread_mutex_lock(&pChn->outputLock);
+        pthread_mutex_lock(&pChn->lock);
+        ret = ERR_VDEC_NOMEM;
+        goto fail;
+    }
+    ret = ERR_VDEC_OK;
+    goto unlock;
+fail:
+    pChn->eState = VDEC_CHN_STATE_IDLE;
+    /* Stop CAPTURE before releasing references in a partially queued pool. */
+    vdec_plugin_close(pChn);
+    vdec_destroy_ext_pool(pChn);
+unlock:
+    pthread_mutex_unlock(&pChn->lock);
+    pthread_mutex_unlock(&pChn->outputLock);
+    return ret;
+}
 
+S32 VDEC_DisableChn(S32 chn) {
+    if (!vdec_chn_valid(chn))
+        return ERR_VDEC_INVALID_CHN;
+    VdecChnCtx *pChn = &g_stChn[chn];
+    pthread_mutex_lock(&pChn->lock);
+    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED) {
+        S32 ret = pChn->bUsed ? ERR_VDEC_NOT_STARTED : ERR_VDEC_INVALID_CHN;
+        pthread_mutex_unlock(&pChn->lock);
+        return ret;
+    }
     pChn->eState = VDEC_CHN_STATE_STOPPING;
     atomic_store_explicit(&pChn->bStreamInputRun, MPP_FALSE, memory_order_release);
-    atomic_store_explicit(&pChn->bTaskRun, MPP_FALSE, memory_order_release);
     pthread_mutex_unlock(&pChn->lock);
-
     pthread_join(pChn->streamInputTid, NULL);
-    pthread_join(pChn->taskTid, NULL);
-
-    /*
-     * Stop recycling before releasing queued frames or closing the decoder.
-     * Otherwise a buffer returned by the depth queue can be queued back to
-     * the decoder while it is being stopped.
-     */
-    vdec_stop_recycle_task(pChn);
-
-    /* Flush depth queue — release VB refs */
-    pthread_mutex_lock(&pChn->depthLock);
-    vdec_drain_depth_queue_locked(pChn);
-    pthread_mutex_unlock(&pChn->depthLock);
-    pthread_mutex_destroy(&pChn->depthLock);
-    pthread_cond_destroy(&pChn->depthNotEmpty);
-    free(pChn->pstDepth);
-    pChn->pstDepth = NULL;
-    pChn->u32DepthMax = 0;
-
-    /* Stop streaming, join the plugin poll thread and release the decoder. */
-    vdec_plugin_close(pChn);
-
+    if (pChn->stAttr.eOutputMode == VDEC_OUTPUT_BIND)
+        pthread_join(pChn->taskTid, NULL);
+    pthread_mutex_lock(&pChn->outputLock);
     pthread_mutex_lock(&pChn->lock);
-
-    pthread_mutex_destroy(&pChn->poolLock);
-    pthread_cond_destroy(&pChn->poolCond);
-
-    /* Release decoder-owned refs. Consumer-held frames keep the pool alive. */
-    if (vdec_retire_current_pool(pChn) != ERR_VDEC_OK)
-        error("channel %d failed to retire current pool", s32ChnId);
-    vdec_cleanup_retired_pools(pChn);
-    if (pChn->u32RetiredPoolCnt != 0)
-        info("channel %d disabled with %u pools still referenced by consumers", s32ChnId, pChn->u32RetiredPoolCnt);
-
+    vdec_plugin_close(pChn);
+    S32 ret = vdec_bufpool_retire_active_pool(&pChn->stPool);
     pChn->eState = VDEC_CHN_STATE_IDLE;
     pthread_mutex_unlock(&pChn->lock);
-    info("VDEC_DisableChn: chn %d disabled", s32ChnId);
-    return ERR_VDEC_OK;
+    pthread_mutex_unlock(&pChn->outputLock);
+    return ret;
 }
 
 S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
@@ -1335,11 +733,7 @@ S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32Time
     VdecChnCtx *pChn = &g_stChn[s32ChnId];
     S32 ret = vdec_submit_stream(pChn, pstStream, u32TimeoutMs, MPP_TRUE);
 
-    if (ret == MPP_CODER_EOS)
-        return ERR_VDEC_EOS;
-    if (ret != MPP_OK && ret != 0)
-        return ret;
-    return ERR_VDEC_OK;
+    return ret == MPP_CODER_EOS ? ERR_VDEC_EOS : ret;
 }
 
 S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs) {
@@ -1350,12 +744,8 @@ S32 VDEC_GetLatestFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32Timeo
     return vdec_get_frame(s32ChnId, pstFrameInfo, u32TimeoutMs, MPP_TRUE);
 }
 
-/**
- * @brief  Release a decoded frame back.
- *         Simply drops the VB ref. When refcount reaches 0, the buffer
- *         returns to the pool and the recycle thread re-queues it to
- *         the decoder.
- */
+/* Drop the application reference. PULL recycles on the next read; BIND uses
+ * its worker. Outstanding frames remain releasable after Disable. */
 S32 VDEC_ReleaseFrame(S32 s32ChnId, UL ulVbBuff) {
     if (!vdec_chn_valid(s32ChnId))
         return ERR_VDEC_INVALID_CHN;
@@ -1366,60 +756,25 @@ S32 VDEC_ReleaseFrame(S32 s32ChnId, UL ulVbBuff) {
     return ret == 0 ? ERR_VDEC_OK : ret;
 }
 
-S32 VDEC_QueryStatus(S32 s32ChnId, VdecChnStatus *pstStatus) {
-    if (!pstStatus)
+S32 VDEC_QueryStatus(S32 chn, VdecChnStatus *status) {
+    if (!status)
         return ERR_VDEC_NULL_PTR;
-    if (!vdec_chn_valid(s32ChnId))
+    if (!vdec_chn_valid(chn))
         return ERR_VDEC_INVALID_CHN;
-
-    VdecChnCtx *pChn = &g_stChn[s32ChnId];
+    VdecChnCtx *pChn = &g_stChn[chn];
+    pthread_mutex_lock(&pChn->outputLock);
     pthread_mutex_lock(&pChn->lock);
-
-    if (!pChn->bUsed) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_INVALID_CHN;
-    }
-
-    memset(pstStatus, 0, sizeof(*pstStatus));
-
-    if (pChn->eState == VDEC_CHN_STATE_STARTED && pChn->pAlCtx) {
-        pChn->stOps.get_status(pChn->pAlCtx, pstStatus);
-    }
-
+    S32 ret = ERR_VDEC_OK;
+    memset(status, 0, sizeof(*status));
+    if (!pChn->bUsed)
+        ret = ERR_VDEC_INVALID_CHN;
+    else if (pChn->eState == VDEC_CHN_STATE_STARTED && pChn->pAlCtx)
+        ret = pChn->stOps.get_status(pChn->pAlCtx, status);
     pthread_mutex_unlock(&pChn->lock);
-    return ERR_VDEC_OK;
+    pthread_mutex_unlock(&pChn->outputLock);
+    return ret;
 }
 
-S32 VDEC_Flush(S32 s32ChnId) {
-    if (!vdec_chn_valid(s32ChnId))
-        return ERR_VDEC_INVALID_CHN;
+S32 VDEC_Flush(S32 chn) { return vdec_control(chn, MPP_FALSE); }
 
-    VdecChnCtx *pChn = &g_stChn[s32ChnId];
-    pthread_mutex_lock(&pChn->lock);
-
-    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_NOT_STARTED;
-    }
-
-    S32 ret = pChn->stOps.flush(pChn->pAlCtx);
-    pthread_mutex_unlock(&pChn->lock);
-    return (ret == MPP_OK) ? ERR_VDEC_OK : ret;
-}
-
-S32 VDEC_Reset(S32 s32ChnId) {
-    if (!vdec_chn_valid(s32ChnId))
-        return ERR_VDEC_INVALID_CHN;
-
-    VdecChnCtx *pChn = &g_stChn[s32ChnId];
-    pthread_mutex_lock(&pChn->lock);
-
-    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_NOT_STARTED;
-    }
-
-    S32 ret = pChn->stOps.reset(pChn->pAlCtx);
-    pthread_mutex_unlock(&pChn->lock);
-    return (ret == MPP_OK) ? ERR_VDEC_OK : ret;
-}
+S32 VDEC_Reset(S32 chn) { return vdec_control(chn, MPP_TRUE); }

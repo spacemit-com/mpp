@@ -60,6 +60,9 @@ S32 VDEC_DestroyChn(S32 s32ChnId);
 /**
  * @brief  Enable decoding on the channel.
  *         AL decoder is initialized and ready to accept streams.
+ *         eOutputMode is fixed for this channel configuration. PULL starts no
+ *         output worker; BIND starts one worker delivering only to SYS sinks.
+ *         Input bindings (DEMUX/UVC -> VDEC) are independent of output mode.
  * @param  s32ChnId  Channel ID
  * @return 0 on success, error code on failure
  */
@@ -67,8 +70,8 @@ S32 VDEC_EnableChn(S32 s32ChnId);
 
 /**
  * @brief  Disable decoding on the channel.
- *         Stops the channel immediately and discards decoded frames still
- *         waiting in the internal output queue; it does not drain to EOS.
+ *         Stops the channel and discards pending decoder output; it does not
+ *         drain to EOS. There is no MPI output/depth queue.
  *         Frames already returned to the caller remain valid and must still
  *         be released with VDEC_ReleaseFrame.
  *
@@ -97,6 +100,9 @@ S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32Time
 
 /**
  * @brief  Receive a decoded video frame (zero-copy).
+ *         PULL mode only (BIND returns ERR_VDEC_NOT_SUPPORT). This call drives
+ *         buffer recycling and decoder output directly. Without GetFrame calls
+ *         the decoder may backpressure input; no output is drained in background.
  *         The returned VB buffer handle wraps the decoder's dma-buf fd directly.
  *         Caller MUST call VDEC_ReleaseFrame (or VB_ReleaseBuffer) after use.
  *         This function must not run concurrently with VDEC_DisableChn.
@@ -106,17 +112,19 @@ S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32Time
  * @param  pstFrameInfo   Output: frame metadata; pstFrameInfo->ulBufferId is
  *                        the VB buffer handle to pass to VDEC_ReleaseFrame.
  * @param  u32TimeoutMs   Timeout in ms (0 = non-blocking, -1 = infinite)
- * @return 0 on success, ERR_VDEC_NO_FRAME if no frame available,
+ * @return 0 on success, ERR_VDEC_NO_FRAME for an empty nonblocking call,
+ *         ERR_VDEC_TIMEOUT when a finite wait expires,
  *         ERR_VDEC_EOS on end-of-stream, error code on failure
  */
 S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs);
 
 /**
- * @brief  Receive the newest decoded frame and discard older queued frames.
- *         This is intended for real-time consumers that prefer minimum
- *         latency over receiving every decoded frame. Queue draining is
- *         atomic with respect to the decoder output thread, and references
- *         held by discarded entries are released internally.
+ * @brief  PULL mode: wait for one frame, then drain a bounded batch of currently
+ *         ready decoder output and return the newest frame observed. Reads are
+ *         serialized with other GetFrame/GetLatestFrame calls while draining.
+ *         Discarded frames are released internally. No background latest-frame
+ *         queue is maintained; a continuously ready decoder cannot make this
+ *         call drain forever.
  *         Caller MUST release the returned frame with VDEC_ReleaseFrame.
  *         This function must not run concurrently with VDEC_DisableChn.
  *         Worker threads should use a finite timeout so they can be stopped
@@ -150,7 +158,9 @@ S32 VDEC_ReleaseFrame(S32 s32ChnId, UL ulVbBuff);
 S32 VDEC_QueryStatus(S32 s32ChnId, VdecChnStatus *pstStatus);
 
 /**
- * @brief  Flush the decoder: drain all pending frames.
+ * @brief  Flush the decoder: discard pending input and output.
+ *         Serializes with readout and input submission, then requeues only
+ *         producer-owned buffers. Already returned frames remain valid.
  *         After flush, the decoder is ready for new stream input.
  * @param  s32ChnId  Channel ID
  * @return 0 on success, error code on failure

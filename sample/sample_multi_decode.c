@@ -104,6 +104,7 @@ static S32 build_vdec(ChnCtx *ctx, const DemuxStreamInfo *pstInfo) {
 
     memset(&stAttr, 0, sizeof(stAttr));
     stAttr.eCodecType = demux_to_stream_codec(pstInfo->eCodecType);
+    stAttr.eOutputMode = VDEC_OUTPUT_PULL;
     stAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     stAttr.u32Align = 16;
     stAttr.u32Width = (pstInfo->u32Width > 0) ? pstInfo->u32Width : MAX_DECODE_W;

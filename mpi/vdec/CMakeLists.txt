@@ -4,6 +4,7 @@
 
 set(VDEC_SRCS
     vdec.c
+    vdec_bufpool.c
     vdec_input_retry.c
 )
 

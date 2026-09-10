@@ -142,6 +142,18 @@ target_include_directories(test_vdec_input_retry PRIVATE
     ${CMAKE_SOURCE_DIR}/mpi/vdec)
 add_test(NAME test_vdec_input_retry COMMAND $<TARGET_FILE:test_vdec_input_retry>)
 
+find_package(Threads REQUIRED)
+add_executable(test_vdec_output
+    vdec/test_vdec_output.c
+    ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_input_retry.c
+    ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_bufpool.c)
+target_compile_definitions(test_vdec_output PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_vdec_output PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/mpi/vdec)
+target_link_libraries(test_vdec_output PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+add_test(NAME test_vdec_output COMMAND $<TARGET_FILE:test_vdec_output>)
+set_tests_properties(test_vdec_output PROPERTIES TIMEOUT 15)
+
 add_executable(test_vdec_output_requirement vdec/test_vdec_output_requirement.c)
 target_compile_definitions(test_vdec_output_requirement PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_vdec_output_requirement PRIVATE ${MPP_INCLUDE_DIRS}

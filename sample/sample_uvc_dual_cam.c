@@ -147,6 +147,7 @@ static S32 cam_open(CamCtx *pstCam) {
     /* ---- VDEC: MJPEG -> NV12 ---- */
     memset(&stVdecAttr, 0, sizeof(stVdecAttr));
     stVdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    stVdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     stVdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     stVdecAttr.u32Width = g_width;
     stVdecAttr.u32Height = g_height;

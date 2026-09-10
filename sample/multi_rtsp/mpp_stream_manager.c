@@ -731,6 +731,7 @@ static S32 pipeline_start(StreamPipeline *p) {
     /* Create VDEC channel */
     VdecChnAttr vdecAttr = {0};
     vdecAttr.eCodecType = p->inputCodec;
+    vdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     vdecAttr.u32Width = width;
     vdecAttr.u32Height = height;
