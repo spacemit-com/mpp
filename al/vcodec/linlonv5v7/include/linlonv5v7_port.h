@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "linlonv5v7_buffer.h"
+#include "al_interface_dec.h"
 #include "linlonv5v7_constant.h"
 #include "log.h"
 #include "mvx-v4l2-controls.h"
@@ -190,6 +191,7 @@ void freeBuffers(Port *port);
  * @return {*}: num of buffer num
  */
 U32 getBufferCount(Port *port);
+S32 getOutputRequirement(Port *port, AlDecOutputRequirement *req);
 
 /**
  * @description: queue all buffers to driver
@@ -235,7 +237,7 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame);
  * @param {BOOL} eof: end of file
  * @return {*}
  */
-void handleResolutionChange(Port *port, BOOL eof);
+S32 handleResolutionChange(Port *port, BOOL eof);
 
 void streamon(Port *port);
 void streamoff(Port *port);
