@@ -185,7 +185,7 @@ static S32 fake_status(ALBaseContext *ctx, VdecChnStatus *status) {
     memset(status, 0, sizeof(*status));
     return MPP_OK;
 }
-static S32 fake_decode(ALBaseContext *ctx, const StreamBufferInfo *stream) {
+static S32 fake_decode(ALBaseContext *ctx, const StreamBufferInfo *stream, U32 timeoutMs) {
     (void)ctx;
     (void)stream;
     return MPP_OK;

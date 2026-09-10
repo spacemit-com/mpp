@@ -143,20 +143,22 @@ target_include_directories(test_vdec PRIVATE ${MPP_INCLUDE_DIRS}
     "${CMAKE_CURRENT_SOURCE_DIR}/vdec/include")
 add_test(NAME test_vdec COMMAND $<TARGET_FILE:test_vdec> --test api)
 
-add_executable(test_vdec_input_retry
-    test_vdec_input_retry.c
-    ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_input_retry.c)
-target_compile_definitions(test_vdec_input_retry PRIVATE ${MPP_TEST_COMMON_DEFS})
-target_include_directories(test_vdec_input_retry PRIVATE
-    ${MPP_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/utils/include
-    ${CMAKE_SOURCE_DIR}/mpi/vdec)
-add_test(NAME test_vdec_input_retry COMMAND $<TARGET_FILE:test_vdec_input_retry>)
-
+# Hardware-independent tests of the real shared PULL/BIND readout path.
 find_package(Threads REQUIRED)
+foreach(input_test test_vdec_input test_vdec_input_poll test_vdec_input_port)
+    add_executable(${input_test} vdec/${input_test}.c)
+    target_compile_definitions(${input_test} PRIVATE ${MPP_TEST_COMMON_DEFS})
+    target_include_directories(${input_test} PRIVATE ${MPP_INCLUDE_DIRS}
+        ${CMAKE_SOURCE_DIR}/mpi/vdec ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+    target_link_libraries(${input_test} PRIVATE Threads::Threads)
+    target_link_options(${input_test} PRIVATE -Wl,--gc-sections)
+    add_test(NAME ${input_test} COMMAND $<TARGET_FILE:${input_test}>)
+    set_tests_properties(${input_test} PROPERTIES TIMEOUT 10)
+endforeach()
+target_sources(test_vdec_input_port PRIVATE ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/linlonv5v7_mjpeg.c)
+
 add_executable(test_vdec_output
     vdec/test_vdec_output.c
-    ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_input_retry.c
     ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_bufpool.c)
 target_compile_definitions(test_vdec_output PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_vdec_output PRIVATE ${MPP_INCLUDE_DIRS}
@@ -286,7 +288,6 @@ foreach(name test_sys_stream_ref test_vdec_stream_ref)
     target_link_options(${name} PRIVATE -Wl,--gc-sections)
     add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
 endforeach()
-target_sources(test_vdec_stream_ref PRIVATE ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_input_retry.c)
 
 # Hardware-only: run explicitly on K3, not through CTest.
 add_executable(test_stream_vb_pipeline test_stream_vb_pipeline.c)

@@ -11,6 +11,8 @@
 #define ENABLE_DEBUG 1
 
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <linux/videodev2.h>
 #include <poll.h>
 #include <pthread.h>
@@ -21,6 +23,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "al_interface_dec.h"
@@ -339,6 +342,15 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
         error("can not find and open the v4l2 codec device, please check!");
         return MPP_OPEN_FAILED;
     }
+    /* poll owns the wait budget; DQBUF must never block after readiness. */
+    int flags = fcntl(context->nVideoFd, F_GETFL);
+    if (flags < 0 || fcntl(context->nVideoFd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        error("failed to make decoder fd nonblocking: %s", strerror(errno));
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return MPP_OPEN_FAILED;
+    }
+
     debug("video fd = %d, device path = '%s'", context->nVideoFd, context->sDevicePath);
 
     context->stCodec = createCodec(
@@ -466,7 +478,33 @@ S32 al_dec_get_status(ALBaseContext *ctx, VdecChnStatus *pstStatus) {
     return MPP_OK;
 }
 
-S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
+static U64 inputNowMs(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (U64)ts.tv_sec * 1000U + (U64)ts.tv_nsec / 1000000U;
+}
+
+/* One finite wait; MPI owns packet retries and infinite user timeouts. */
+static S32 waitInputReady(ALLinlonv5v7DecContext *context, U32 waitMs) {
+    const U64 deadline = inputNowMs() + waitMs;
+    struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
+    for (;;) {
+        int ret = poll(&p, 1, (int)waitMs);
+        if (ret >= 0) {
+            if (p.revents & (POLLERR | POLLHUP | POLLNVAL))
+                return MPP_POLL_FAILED;
+            return (p.revents & POLLOUT) ? MPP_OK : MPP_DATAQUEUE_FULL;
+        }
+        if (errno != EINTR)
+            return MPP_POLL_FAILED;
+        U64 now = inputNowMs();
+        if (now >= deadline)
+            return MPP_DATAQUEUE_FULL;
+        waitMs = (U32)(deadline - now);
+    }
+}
+
+S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream, U32 timeoutMs) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
         return MPP_NULL_POINTER;
@@ -476,22 +514,12 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         error("input para StreamBufferInfo is NULL, please check!");
         return MPP_NULL_POINTER;
     }
+    if (timeoutMs > INT_MAX)
+        return MPP_CHECK_FAILED;
 
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
     S32 ret = 0;
-    struct pollfd p = {.fd = context->nVideoFd, .events = POLLOUT};
-
-    if (!pstStream->u32Size) {
-        debug("length of input packet is 0, EOS is coming, pts(%ld)", (S64)pstStream->u64PTS);
-        context->bInputEos = MPP_TRUE;
-        context->nEosPts = (S64)pstStream->u64PTS;
-    }
-
-    if (pstStream->bEndOfStream) {
-        debug("eos flag of input packet is set, EOS is coming(%ld)", (S64)pstStream->u64PTS);
-        context->bInputEos = MPP_TRUE;
-        context->nEosPts = (S64)pstStream->u64PTS;
-    }
+    const BOOL eos = !pstStream->u32Size || pstStream->bEndOfStream;
 
     if (unlikely(context->nInputQueuedNum < (U32)getBufNum(getInputPort(context->stCodec)))) {
         Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
@@ -509,28 +537,20 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         context->nInputQueuedNum++;
         context->nInputQueueLeftNum--;
     } else {
-        do {
-            ret = poll(&p, 1, POLL_TIMEOUT);
-        } while (ret < 0 && errno == EINTR);
-
-        if (ret < 0) {
-            error("input poll failed: %s", strerror(errno));
-            return MPP_POLL_FAILED;
-        }
-        if (p.revents & (POLLERR | POLLHUP | POLLNVAL)) {
-            error("input poll failed: revents=0x%x", p.revents);
-            return MPP_POLL_FAILED;
-        }
-        if (ret == 0 || !(p.revents & POLLOUT))
-            return MPP_DATAQUEUE_FULL;
-
-        ret = handleInputBuffer(getInputPort(context->stCodec), context->bInputEos, pstStream,
-            context->eCodecType);
-        if (ret < 0) {
-            error("handleInputBuffer failed, should not failed, please check!");
+        ret = waitInputReady(context, timeoutMs);
+        if (ret != MPP_OK)
             return ret;
-        }
+
+        ret = handleInputBuffer(getInputPort(context->stCodec), context->bInputEos || eos, pstStream,
+            context->eCodecType);
+        if (ret < 0)
+            return ret;
         context->nInputQueueLeftNum--;
+    }
+    /* A timed-out or failed attempt must not publish an unsubmitted EOS. */
+    if (eos) {
+        context->bInputEos = MPP_TRUE;
+        context->nEosPts = (S64)pstStream->u64PTS;
     }
     return MPP_OK;
 }

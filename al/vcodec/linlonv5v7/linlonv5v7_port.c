@@ -583,6 +583,7 @@ Buffer *dequeueBuffer(Port *port) {
          */
         if (e != EAGAIN && e != EPIPE)
             error("Failed to dequeue buffer. type=%u, memory=%u errno=%d (%s)", buf.type, buf.memory, e, strerror(e));
+        errno = e;
         return NULL;
     }
 
@@ -1592,11 +1593,8 @@ S32 handleInputBuffer(
     S32 index;
     S32 ret;
     Buffer *buffer = dequeueBuffer(port);
-    if (!buffer) {
-        error(
-            "dequeueBuffer failed, this dequeueBuffer must successed, because it "
-            "is after Poll, please check!");
-    }
+    if (!buffer)
+        return errno == EAGAIN ? MPP_DATAQUEUE_FULL : MPP_IOCTL_FAILED;
     index = getExtraId(buffer);
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
     if (eof) {
@@ -1624,6 +1622,7 @@ S32 handleInputBuffer(
         error(
             "queueBuffer failed, this queueBuffer must successed, because it is "
             "after Poll and dequeueBuffer, please check!");
+        return ret;
     }
 
     if (eof) {

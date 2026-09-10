@@ -9,10 +9,13 @@
  *                 Loads the codec plugin via the AL module loader, binds the
  *                 al_dec_* symbols per channel, and manages channel state,
  *                 the DMABUF_EXTERNAL VB pool and the worker threads.
- *                 Per-channel locks coordinate input, control and output.
+ *                 One sender per channel; locks coordinate control and output.
  *------------------------------------------------------------------------------
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define ENABLE_DEBUG 0
 
 #include "vdec/vdec_api.h"
@@ -35,11 +38,11 @@
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
 #include "vdec_bufpool.h"
-#include "vdec_input_retry.h"
 
 #define MODULE_TAG "mpp_vdec"
 
 #define VDEC_DEFAULT_BUF_CNT 12
+#define VDEC_INPUT_WAIT_SLICE_MS 10U
 
 /* ======================== Internal Channel Context ======================== */
 
@@ -55,7 +58,7 @@ typedef struct _VdecAlOps {
     S32 (*init)(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequirement *pstReq);
     S32 (*get_status)(ALBaseContext *ctx, VdecChnStatus *pstStatus);
     S32 (*get_output_requirement)(ALBaseContext *ctx, AlDecOutputRequirement *pstReq);
-    S32 (*decode)(ALBaseContext *ctx, const StreamBufferInfo *pstStream);
+    S32 (*decode)(ALBaseContext *ctx, const StreamBufferInfo *pstStream, U32 timeoutMs);
     S32 (*request_output_frame)(ALBaseContext *ctx, VideoFrameInfo *pstFrame, U32 u32TimeoutMs);
     S32 (*queue_output_buffer)(ALBaseContext *ctx, const VideoFrameInfo *pstFrame);
     S32 (*flush)(ALBaseContext *ctx);
@@ -68,7 +71,6 @@ typedef struct _VdecChnCtx {
     atomic_int eState;
     VdecChnAttr stAttr;
     pthread_mutex_t lock;
-    pthread_mutex_t inputLock; /**< serializes packets across backpressure waits */
     pthread_mutex_t outputLock; /**< serializes all CAPTURE operations and base refs */
     S32 s32ChnId;               /**< channel ID for SYS_SendFrame */
 
@@ -88,12 +90,6 @@ typedef struct _VdecChnCtx {
     BOOL bInputBound; /**< TRUE if SYS_RecvStream got data */
 } VdecChnCtx;
 
-typedef struct _VdecInputSubmitCtx {
-    VdecChnCtx *pChn;
-    const StreamBufferInfo *pstStream;
-    BOOL rejectBound;
-} VdecInputSubmitCtx;
-
 /* ======================== Global State ======================== */
 
 static BOOL g_bVdecInited = MPP_FALSE;
@@ -110,54 +106,66 @@ static U64 vdec_monotonic_ms(void) {
     return (U64)ts.tv_sec * 1000U + (U64)ts.tv_nsec / 1000000U;
 }
 
-static VOID vdec_sleep_us(U32 delayUs, VOID *opaque) {
-    (void)opaque;
-    usleep(delayUs);
+/* Shared monotonic deadline: 0 = nonblocking, UINT64_MAX = no deadline. */
+static S32 vdec_lock_channel(VdecChnCtx *pChn, U64 deadlineMs) {
+    int ret;
+    if (deadlineMs == 0) {
+        ret = pthread_mutex_trylock(&pChn->lock);
+    } else if (deadlineMs == UINT64_MAX) {
+        ret = pthread_mutex_lock(&pChn->lock);
+    } else {
+        struct timespec deadline = {
+            .tv_sec = (time_t)(deadlineMs / 1000U),
+            .tv_nsec = (long)(deadlineMs % 1000U) * 1000000L,
+        };
+        ret = pthread_mutex_clocklock(&pChn->lock, CLOCK_MONOTONIC, &deadline);
+    }
+    if (ret == EBUSY)
+        return ERR_VDEC_BUSY;
+    if (ret == ETIMEDOUT)
+        return ERR_VDEC_TIMEOUT;
+    return ret ? MPP_ERROR_UNKNOWN : ERR_VDEC_OK;
 }
 
-static S32 vdec_try_submit_input(VOID *opaque) {
-    VdecInputSubmitCtx *submit = (VdecInputSubmitCtx *)opaque;
-    VdecChnCtx *pChn = submit->pChn;
-    S32 ret;
-
-    pthread_mutex_lock(&pChn->lock);
+/* Keep channel validation, one bounded AL call and unlock in one place. */
+static S32 vdec_submit_once(VdecChnCtx *pChn, const StreamBufferInfo *stream, U64 deadline, BOOL rejectBound) {
+    S32 ret = vdec_lock_channel(pChn, deadline);
+    if (ret != ERR_VDEC_OK)
+        return ret;
+    U64 now = vdec_monotonic_ms();
+    U64 remaining = deadline > now ? deadline - now : 0;
+    U32 waitMs = remaining > VDEC_INPUT_WAIT_SLICE_MS ? VDEC_INPUT_WAIT_SLICE_MS : (U32)remaining;
     if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED ||
-        !atomic_load_explicit(&pChn->bStreamInputRun, memory_order_acquire)) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_NOT_STARTED;
-    }
-    if (submit->rejectBound && pChn->bInputBound) {
-        pthread_mutex_unlock(&pChn->lock);
-        return ERR_VDEC_BUSY;
-    }
-    ret = pChn->stOps.decode(pChn->pAlCtx, submit->pstStream);
+        !atomic_load_explicit(&pChn->bStreamInputRun, memory_order_acquire))
+        ret = ERR_VDEC_NOT_STARTED;
+    else if (rejectBound && pChn->bInputBound)
+        ret = ERR_VDEC_BUSY;
+    else if (deadline && !remaining)
+        ret = ERR_VDEC_TIMEOUT;
+    else
+        ret = pChn->stOps.decode(pChn->pAlCtx, stream, waitMs);
     pthread_mutex_unlock(&pChn->lock);
     return ret;
 }
 
-static U64 vdec_submit_now_ms(VOID *opaque) {
-    (void)opaque;
-    return vdec_monotonic_ms();
-}
-
-static S32 vdec_submit_stream(VdecChnCtx *pChn, const StreamBufferInfo *pstStream,
-    U32 u32TimeoutMs, BOOL bRejectBound) {
-    VdecInputSubmitCtx submit = {
-        .pChn = pChn,
-        .pstStream = pstStream,
-        .rejectBound = bRejectBound,
-    };
-    VdecInputRetryOps retry = {
-        .trySubmit = vdec_try_submit_input,
-        .nowMs = vdec_submit_now_ms,
-        .sleepUs = vdec_sleep_us,
-        .opaque = &submit,
-    };
-
-    pthread_mutex_lock(&pChn->inputLock);
-    S32 ret = vdec_input_submit_with_timeout(&retry, u32TimeoutMs);
-    pthread_mutex_unlock(&pChn->inputLock);
-
+/* One sender per channel; the caller owns packet ordering across retries. */
+static S32 vdec_submit_stream(VdecChnCtx *pChn, const StreamBufferInfo *stream, U32 timeoutMs, BOOL rejectBound) {
+    U64 deadline = timeoutMs;
+    if (timeoutMs == (U32)-1)
+        deadline = UINT64_MAX;
+    else if (timeoutMs)
+        deadline += vdec_monotonic_ms();
+    S32 ret;
+    while ((ret = vdec_submit_once(pChn, stream, deadline, rejectBound)) == MPP_DATAQUEUE_FULL) {
+        if (!deadline)
+            return ERR_VDEC_BUSY;
+        if (vdec_monotonic_ms() >= deadline)
+            return ERR_VDEC_TIMEOUT;
+        /* Give a woken control thread a scheduling point before reacquiring
+         * lock. sched_yield alone can immediately run this sender again. */
+        const struct timespec yield = {0};
+        nanosleep(&yield, NULL);
+    }
     return ret;
 }
 
@@ -196,7 +204,7 @@ static S32 vdec_plugin_open(VdecChnCtx *pChn) {
     ops->get_status = (S32 (*)(ALBaseContext *, VdecChnStatus *))dlsym(handle, "al_dec_get_status");
     ops->get_output_requirement =
         (S32 (*)(ALBaseContext *, AlDecOutputRequirement *))dlsym(handle, "al_dec_get_output_requirement");
-    ops->decode = (S32 (*)(ALBaseContext *, const StreamBufferInfo *))dlsym(handle, "al_dec_decode");
+    ops->decode = (S32 (*)(ALBaseContext *, const StreamBufferInfo *, U32))dlsym(handle, "al_dec_decode");
     ops->request_output_frame =
         (S32 (*)(ALBaseContext *, VideoFrameInfo *, U32))dlsym(handle, "al_dec_request_output_frame");
     ops->queue_output_buffer =
@@ -249,8 +257,8 @@ static void vdec_plugin_close(VdecChnCtx *pChn) {
 
 /* ======================== Shared output path ======================== */
 
-/* Lock order: outputLock -> lock. Input retries release lock before
- * sleeping, so Flush/Reset can pause submission without deadlock. */
+/* Lock order: outputLock -> lock. The single sender drops lock between
+ * bounded AL waits, so Flush/Reset can pause submission without deadlock. */
 static S32 vdec_create_ext_pool(VdecChnCtx *pChn) {
     AlDecOutputRequirement req = {0};
     S32 ret = pChn->stOps.get_output_requirement(pChn->pAlCtx, &req);
@@ -523,7 +531,6 @@ S32 VDEC_Init(VOID) {
     memset(g_stChn, 0, sizeof(g_stChn));
     for (S32 i = 0; i < VDEC_MAX_CHN; i++) {
         pthread_mutex_init(&g_stChn[i].lock, NULL);
-        pthread_mutex_init(&g_stChn[i].inputLock, NULL);
         pthread_mutex_init(&g_stChn[i].outputLock, NULL);
         atomic_init(&g_stChn[i].bStreamInputRun, MPP_FALSE);
         atomic_init(&g_stChn[i].bUsed, MPP_FALSE);
@@ -552,7 +559,6 @@ S32 VDEC_Exit(VOID) {
 
     for (S32 i = 0; i < VDEC_MAX_CHN; i++) {
         pthread_mutex_destroy(&g_stChn[i].outputLock);
-        pthread_mutex_destroy(&g_stChn[i].inputLock);
         pthread_mutex_destroy(&g_stChn[i].lock);
     }
     memset(g_stChn, 0, sizeof(g_stChn));

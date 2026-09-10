@@ -89,10 +89,15 @@ S32 VDEC_DisableChn(S32 s32ChnId);
  *         The caller's buffer pointer in pstStream is passed directly to the
  *         AL layer without memcpy at the MPI level.
  *         Caller must keep the buffer valid until this call returns.
+ *         Calls on the same channel must not overlap; the caller is responsible
+ *         for serializing packets. Do not send directly while bound input is active.
  * @param  s32ChnId   Channel ID
  * @param  pstStream  Stream packet (pu8Addr, u32Size, u64PTS, bKeyFrame, etc.)
  * @param  u32TimeoutMs  0 = non-blocking, finite value = wait up to that many
  *                       milliseconds, (U32)-1 = wait until accepted or stopped
+ *                       The budget includes channel lock waits and device waits.
+ *                       Device waits are split into bounded slices
+ *                       so control operations can run between attempts.
  * @return 0 on success, ERR_VDEC_BUSY for non-blocking backpressure,
  *         ERR_VDEC_TIMEOUT when a finite wait expires, or another error code
  */

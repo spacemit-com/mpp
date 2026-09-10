@@ -52,9 +52,19 @@ before releasing tracked references, including partial initialization failures.
 
 `outputLock` serializes CAPTURE operations, base references, and pool replacement.
 Control/status operations acquire `outputLock` before the channel `lock`.
-Input submission serializes packets with `inputLock`. A submission attempt holds
-the channel `lock` only while checking state and calling AL; queue-full retries
-release that lock and sleep 2 ms. Flush/Reset can acquire it between attempts.
+Each channel has one sender: SendStream calls must not overlap, and direct input
+must not run while bound input is active. The caller owns packet serialization.
+Input submission holds only `lock` for an AL wait of at most 10 ms, releasing it
+between attempts. AL waits with `poll(POLLOUT)` rather than a fixed MPI sleep.
+Channel lock waits and device waits share the SendStream
+deadline; a zero timeout also makes lock acquisition nonblocking.
+`vdec_submit_stream` owns that deadline and the packet retry loop;
+`vdec_submit_once` owns channel validation, one AL call, and unlocking. AL accepts
+only a finite wait per attempt; its wait loop only retries interrupted polls.
+Infinite SendStream waits are managed entirely by MPI.
+After a full slice, a zero-duration `nanosleep` provides a scheduling point for
+control threads before the sender reacquires `lock`; there is no fixed retry
+delay. A continuously backpressured sender otherwise can starve a mutex waiter.
 Flush/Reset pauses submission under `lock`, stops CAPTURE, and requeues producer
 buffers. It does not overwrite consumer-held frames. Locks live from Init to Exit.
 Applications must still stop/join SendStream and GetFrame callers before Disable.
@@ -68,7 +78,7 @@ references to be released. No asynchronous VB destruction is introduced.
 
 Rebuild applications and the codec plugin with these headers: `VdecChnAttr` has
 an added mode field, the decoder plugin must export the new requirement query,
-while the input submission interface remains unchanged.
+and `al_dec_decode` now takes an input-wait timeout argument.
 
 ## Validation
 
@@ -77,10 +87,13 @@ bounded Latest readout, deadlines, EOS, resolution changes, held frames during
 shutdown, QBUF failure recovery, actual REQBUFS counts, and plane padding.
 `test_vdec_buffer_payload` also reproduces a real empty CAPTURE marker whose
 `bytesused` equals `data_offset`; it must not count as a decoded frame.
+The input tests cover nonblocking/finite channel lock contention, packet preservation,
+bounded AL waits, stop checks between slices, control-thread lock acquisition,
+EINTR deadlines, large timeout values, and DQBUF/QBUF error propagation.
 
 ```sh
-cmake --build build-vdec-pull --target test_vdec test_vdec_input_retry test_vdec_output test_vdec_output_requirement test_vdec_buffer_payload
-ctest --test-dir build-vdec-pull -R '^test_vdec($|_input_retry$|_output$|_output_requirement$|_buffer_payload$)' --output-on-failure
+cmake --build build-vdec-pull --target test_vdec test_vdec_input test_vdec_input_poll test_vdec_input_port test_vdec_output test_vdec_output_requirement test_vdec_buffer_payload
+ctest --test-dir build-vdec-pull -R '^test_vdec($|_input$|_input_poll$|_input_port$|_output$|_output_requirement$|_buffer_payload$)' --output-on-failure
 ```
 
 Validated on K3 / Linlon hardware with a privately mounted test plugin:
@@ -95,3 +108,9 @@ Validated on K3 / Linlon hardware with a privately mounted test plugin:
   and leak detection.
 
 The UVC examples were rebuilt; camera/RTSP end-to-end runs were not performed.
+
+The sliced input implementation was validated on K3 / Linlon with a privately
+mounted plugin: all seven VDEC CTest cases passed, the input concurrency test
+passed ten consecutive runs, and H.264/H.265/MJPEG PULL readout passed. MJPEG
+backpressure submitted and decoded 648 frames in each of manual and bound input
+modes, with zero PTS errors. The installed codec plugin was not replaced.
