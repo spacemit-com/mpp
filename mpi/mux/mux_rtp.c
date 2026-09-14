@@ -12,6 +12,7 @@
  */
 
 #include "mux_rtsp_server.h"
+#include "mux_socket.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -41,7 +42,7 @@ static S32 mux_rtsp_send_all(S32 s32Fd, const U8 *pu8Data, U32 u32Len) {
     U32 totalWaitMs = 0;
 
     while (sent < u32Len) {
-        ssize_t ret = send(s32Fd, pu8Data + sent, u32Len - sent, MSG_DONTWAIT);
+        ssize_t ret = mux_socket_send_no_signal(s32Fd, pu8Data + sent, u32Len - sent, MSG_DONTWAIT);
         if (ret < 0) {
             if (errno == EINTR) {
                 continue;

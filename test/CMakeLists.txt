@@ -62,6 +62,15 @@ target_include_directories(test_mux_common PRIVATE ${MPP_INCLUDE_DIRS}
 target_link_libraries(test_mux_common PRIVATE mpp)
 add_test(NAME test_mux_common COMMAND $<TARGET_FILE:test_mux_common>)
 
+add_executable(test_mux_socket_disconnect
+    test_mux_socket_disconnect.c
+    ${CMAKE_SOURCE_DIR}/mpi/mux/mux_socket.c)
+target_compile_definitions(test_mux_socket_disconnect PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_mux_socket_disconnect PRIVATE
+    ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/mpi/mux)
+add_test(NAME test_mux_socket_disconnect COMMAND $<TARGET_FILE:test_mux_socket_disconnect>)
+
 add_executable(test_uvc test_uvc.c)
 target_compile_definitions(test_uvc PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_uvc PRIVATE mpp)

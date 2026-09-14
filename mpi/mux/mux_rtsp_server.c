@@ -18,6 +18,7 @@
  */
 
 #include "mux_rtsp_server.h"
+#include "mux_socket.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -182,7 +183,7 @@ static S32 mux_rtsp_send_response(MuxRtspClient *pstClient, const CHAR *pszBody,
         snprintf(szMsg, sizeof(szMsg), "%s\r\n", szHdr);
     }
 
-    return send(pstClient->s32RtspFd, szMsg, strlen(szMsg), 0) < 0 ? -1 : 0;
+    return mux_socket_send_no_signal(pstClient->s32RtspFd, szMsg, strlen(szMsg), 0) < 0 ? -1 : 0;
 }
 
 static S32 mux_rtsp_base64_encode(const U8 *pu8Src, U32 u32SrcLen, CHAR *pszDst, U32 u32DstLen) {
