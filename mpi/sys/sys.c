@@ -1183,6 +1183,9 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
                 return SYS_ERR_BUSY;
             }
         }
+        /* The queue mutex excludes send/reuse throughout memcpy and cache
+         * synchronization. Only now make the slot reusable: dst belongs to
+         * the caller, not to this pool, so no DMA lease escapes this API. */
         slot->queued = MPP_FALSE;
     } else if (entry->info.u32Size > 0) {
         /* Map the DMA buffer into this process to read the payload */
@@ -1298,15 +1301,12 @@ S32 SYS_ReleaseStreamDmaBuf(U64 u64Token) {
     if (!shm || !shm->sys_inited) {
         return SYS_ERR_NOT_INIT;
     }
-    if (u64Token > INT32_MAX || bind_plus_one == 0 || slot_plus_one == 0) {
+    if ((u64Token >> 32) != 0 || bind_plus_one == 0 || bind_plus_one > MPP_MAX_BIND ||
+        slot_plus_one == 0 || slot_plus_one > MPP_STREAM_CHAN_DEPTH) {
         return SYS_ERR_INVAL;
     }
     bind_idx = bind_plus_one - 1;
     slot_idx = slot_plus_one - 1;
-    if (bind_idx >= MPP_MAX_BIND || slot_idx >= MPP_STREAM_CHAN_DEPTH) {
-        return SYS_ERR_INVAL;
-    }
-
     q = &shm->stream_queues[bind_idx];
     sys_mutex_lock(&q->lock);
     if (!q->dma_pool_enabled || q->dma_pool_owner_pid != getpid() || slot_idx >= q->dma_pool_slot_count ||

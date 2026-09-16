@@ -10,6 +10,7 @@
 #include <stdlib.h>
 
 #include "sys/sys_api.h"
+#include "sys/mpp_shm.h"
 
 #define TEST_SLOT_SIZE (64 * 1024U)
 #define TEST_SLOT_COUNT 2U
@@ -106,12 +107,28 @@ static int test_unbind_race(const MppNode *source, const MppNode *sink) {
                 check(SYS_UnBind(source, sink), "race unbind after release"))
                 return -1;
         } else if (unbound != SYS_ERR_OK ||
-                   (race.ret != SYS_ERR_NOT_FOUND && race.ret != SYS_ERR_BUSY && race.ret != SYS_ERR_TIMEOUT)) {
+            (race.ret != SYS_ERR_NOT_FOUND && race.ret != SYS_ERR_BUSY && race.ret != SYS_ERR_TIMEOUT)) {
             fprintf(stderr, "unexpected unbind race result: recv=%d unbind=%d\n", race.ret, unbound);
             return -1;
         }
     }
     printf("[PASS] 200 concurrent receive/unbind iterations preserve leases\n");
+    return 0;
+}
+
+static int test_invalid_tokens(U64 token) {
+    U64 bind_bits = token & 0xffff0000ULL;
+    U64 slot_bits = token & 0xffffULL;
+    const U64 invalid[] = {
+        0, bind_bits, slot_bits, token | (1ULL << 40), token | (1ULL << 32), token | (1ULL << 31),
+        ((U64)(MPP_MAX_BIND + 1) << 16) | slot_bits, bind_bits | (MPP_STREAM_CHAN_DEPTH + 1)};
+    for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+        if (SYS_ReleaseStreamDmaBuf(invalid[i]) != SYS_ERR_INVAL) {
+            fprintf(stderr, "release accepted malformed token at case %zu\n", i);
+            return -1;
+        }
+    }
+    printf("[PASS] rejected all 8 malformed tokens without releasing a valid lease\n");
     return 0;
 }
 
@@ -145,8 +162,7 @@ int main(void) {
         return 1;
     }
     fd_a = lease_a.s32DmaBufFd;
-    if (SYS_ReleaseStreamDmaBuf(lease_a.u64DmaBufToken | (1ULL << 40)) != SYS_ERR_INVAL) {
-        fprintf(stderr, "release accepted a token with unencoded high bits\n");
+    if (test_invalid_tokens(lease_a.u64DmaBufToken) != 0) {
         return 1;
     }
 
@@ -183,7 +199,18 @@ int main(void) {
     if (check(send_packet(&source, packet_a, sizeof(packet_a), 4), "send for copy") != 0 ||
         check(SYS_RecvStream(&sink, &received, 0), "receive copy") != 0 || received.u32Size != sizeof(packet_a) ||
         received.u64PTS != 4 || received.u64DmaBufToken != 0 || received.s32DmaBufFd != -1 ||
-        memcmp(copied, packet_a, sizeof(packet_a)) != 0 || check(SYS_UnBind(&source, &sink), "SYS_UnBind") != 0 ||
+        memcmp(copied, packet_a, sizeof(packet_a)) != 0) {
+        return 1;
+    }
+    if (check(send_packet(&source, packet_b, sizeof(packet_b), 5), "reuse copied slot") != 0 ||
+        check(SYS_RecvStreamDmaBuf(&sink, &lease_b, 0), "receive reused slot") != 0 ||
+        lease_b.s32DmaBufFd != fd_a || memcmp(copied, packet_a, sizeof(packet_a)) != 0 ||
+        memcmp(lease_b.pu8Addr, packet_b, sizeof(packet_b)) != 0 ||
+        check(SYS_ReleaseStreamDmaBuf(lease_b.u64DmaBufToken), "release reused slot") != 0) {
+        return 1;
+    }
+    printf("[PASS] caller-owned copy survives immediate reuse of the same DMA slot\n");
+    if (check(SYS_UnBind(&source, &sink), "SYS_UnBind") != 0 ||
         test_unbind_race(&source, &sink) != 0 || check(SYS_Exit(), "SYS_Exit") != 0) {
         return 1;
     }

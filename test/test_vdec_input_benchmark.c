@@ -68,7 +68,7 @@ static double cpu_seconds(void) {
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
     return usage.ru_utime.tv_sec + usage.ru_stime.tv_sec +
-           (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6;
+        (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6;
 }
 
 static void wait_changed(Consumer *c) {
@@ -220,11 +220,12 @@ int main(int argc, char **argv) {
         bytes += packets[i].size;
     }
     printf("FIXTURE packets=%u mean_bytes=%.0f max_bytes=%u dimensions=%ux%u\n", count, (double)bytes / count,
-           max_size, width, height);
-    Consumer c = {.lock = PTHREAD_MUTEX_INITIALIZER,
-                  .total = measured + warmup,
-                  .verify = argc > 8 && atoi(argv[8]),
-                  .checksum = 1469598103934665603ULL};
+        max_size, width, height);
+    Consumer c = {
+        .lock = PTHREAD_MUTEX_INITIALIZER,
+        .total = measured + warmup,
+        .verify = argc > 8 && atoi(argv[8]),
+        .checksum = 1469598103934665603ULL};
     pthread_condattr_t cond_attr;
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
@@ -281,7 +282,7 @@ int main(int argc, char **argv) {
     for (U32 i = 0; i < c.total; ++i) {
         pthread_mutex_lock(&c.lock);
         while ((i - c.received >= window || (i == warmup && c.received != warmup)) && !c.error &&
-               now_ns() < deadline)
+            now_ns() < deadline)
             wait_changed(&c);
         if (c.error || now_ns() >= deadline) {
             pthread_mutex_unlock(&c.lock);
@@ -304,13 +305,14 @@ int main(int argc, char **argv) {
             }
         }
         Packet p = packets[i % count];
-        StreamBufferInfo stream = {.pu8Addr = p.data,
-                                   .u32Size = p.size,
-                                   .eCodecType = MPP_STREAM_CODEC_MJPEG,
-                                   .u64PTS = i + 1,
-                                   .u32Width = width,
-                                   .u32Height = height,
-                                   .s32DmaBufFd = -1};
+        StreamBufferInfo stream = {
+            .pu8Addr = p.data,
+            .u32Size = p.size,
+            .eCodecType = MPP_STREAM_CODEC_MJPEG,
+            .u64PTS = i + 1,
+            .u32Width = width,
+            .u32Height = height,
+            .s32DmaBufFd = -1};
         U64 send_begin = now_ns();
         pthread_mutex_lock(&c.lock);
         c.sent_ns[i] = send_begin;
@@ -345,15 +347,15 @@ int main(int argc, char **argv) {
         qsort(c.latency_ms + warmup, measured, sizeof(double), compare_double);
         double seconds = (end - begin) / 1e9;
         printf("RESULT mode=%s measured=%u fps=%.3f cpu_pct=%.3f cpu_ms_frame=%.4f submit_ms_frame=%.4f "
-               "latency_p50_ms=%.3f latency_p95_ms=%.3f hot_allocs=%lu total_allocs=%lu "
-               "pts_errors=%u checksum=%016llx verify=%d rate=%.1f slots=%u alloc_ms_frame=%.4f "
-               "sync_ms_frame=%.4f\n",
-               argv[4], measured, measured / seconds, cpu_used / seconds * 100, cpu_used * 1000 / measured,
-               submit_ms / measured, c.latency_ms[warmup + measured / 2],
-               c.latency_ms[warmup + measured * 95 / 100], atomic_load(&alloc_count) - alloc_begin,
-               atomic_load(&alloc_count), c.pts_errors, (unsigned long long)c.checksum, c.verify, rate, slots,
-               (atomic_load(&alloc_ns) - alloc_time_begin) / 1e6 / measured,
-               (atomic_load(&sync_ns) - sync_time_begin) / 1e6 / measured);
+            "latency_p50_ms=%.3f latency_p95_ms=%.3f hot_allocs=%lu total_allocs=%lu "
+            "pts_errors=%u checksum=%016llx verify=%d rate=%.1f slots=%u alloc_ms_frame=%.4f "
+            "sync_ms_frame=%.4f\n",
+            argv[4], measured, measured / seconds, cpu_used / seconds * 100, cpu_used * 1000 / measured,
+            submit_ms / measured, c.latency_ms[warmup + measured / 2],
+            c.latency_ms[warmup + measured * 95 / 100], atomic_load(&alloc_count) - alloc_begin,
+            atomic_load(&alloc_count), c.pts_errors, (unsigned long long)c.checksum, c.verify, rate, slots,
+            (atomic_load(&alloc_ns) - alloc_time_begin) / 1e6 / measured,
+            (atomic_load(&sync_ns) - sync_time_begin) / 1e6 / measured);
     } else {
         fprintf(stderr, "FAILED mode=%s submitted=%u decoded=%u pts_errors=%u error=%d slots=%u\n", argv[4],
                 submitted, c.received, c.pts_errors, c.error, slots);

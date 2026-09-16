@@ -392,6 +392,17 @@ ALBaseContext *al_dec_create(void) {
     return &(context->stAlDecBaseContext.stAlBaseContext);
 }
 
+static void closeDecoderFds(ALLinlonv5v7DecContext *context) {
+    if (context->nVideoFd >= 0) {
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+    }
+    if (context->inputWakeFd >= 0) {
+        close(context->inputWakeFd);
+        context->inputWakeFd = -1;
+    }
+}
+
 S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequirement *pstReq) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
@@ -413,6 +424,7 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
 
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
 
+    ret = MPP_INIT_FAILED;
     context->stAttr = *pstAttr;
     context->eCodecType = pstAttr->eCodecType;
     context->ePixelFormat = pstAttr->eOutputPixelFormat;
@@ -433,7 +445,7 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
              * caller still owns it on failure and must call al_dec_destory();
              * destroying the locks here would make that cleanup invalid. */
             error("create input wake eventfd failed: %s", strerror(errno));
-            return MPP_INIT_FAILED;
+            goto init_failed;
         }
     }
     /* capture side always runs on external dma-bufs supplied by the caller */
@@ -474,7 +486,8 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     context->nVideoFd = find_v4l2_decoder(context->sDevicePath, context->nInputFormatFourcc);
     if (-1 == context->nVideoFd) {
         error("can not find and open the v4l2 codec device, please check!");
-        return MPP_OPEN_FAILED;
+        ret = MPP_OPEN_FAILED;
+        goto init_failed;
     }
 
     debug("video fd = %d, device path = '%s'", context->nVideoFd, context->sDevicePath);
@@ -482,7 +495,7 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
         S32 flags = fcntl(context->nVideoFd, F_GETFL);
         if (flags < 0 || fcntl(context->nVideoFd, F_SETFL, flags | O_NONBLOCK) < 0)
-            return MPP_INIT_FAILED;
+            goto init_failed;
     }
 
     context->stCodec = createCodec(
@@ -503,7 +516,7 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
         MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
-        return MPP_INIT_FAILED;
+        goto init_failed;
     }
     if (context->nInputMemType == V4L2_MEMORY_DMABUF)
         setReconfigCallbacks(getOutputPort(context->stCodec), pauseInputPoll, resumeInputPoll, context);
@@ -540,9 +553,8 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
         mpp_v4l2_stream_off(context->nVideoFd, &output_type);
         destoryCodec(context->stCodec);
         context->stCodec = NULL;
-        close(context->nVideoFd);
-        context->nVideoFd = -1;
-        return MPP_INIT_FAILED;
+        ret = MPP_INIT_FAILED;
+        goto init_failed;
     }
 
     context->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
@@ -555,6 +567,12 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     debug("init finish");
 
     return MPP_OK;
+
+init_failed:
+    /* Roll back init-owned resources immediately. The create-owned context
+     * and locks remain valid for the caller's later destroy. */
+    closeDecoderFds(context);
+    return ret;
 }
 
 S32 al_dec_get_status(ALBaseContext *ctx, VdecChnStatus *pstStatus) {
@@ -972,8 +990,7 @@ void al_dec_destory(ALBaseContext *ctx) {
     }
     /* The device can be open even if fcntl/createCodec failed. fd 0 is also
      * valid; its ownership must not depend on successful codec creation. */
-    if (context->nVideoFd >= 0) close(context->nVideoFd);
-    if (context->inputWakeFd >= 0) close(context->inputWakeFd);
+    closeDecoderFds(context);
     pthread_cond_destroy(&context->inputPollChanged);
     pthread_mutex_destroy(&context->inputPollLock);
     pthread_mutex_destroy(&context->inputDmaLock);

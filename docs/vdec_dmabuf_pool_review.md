@@ -129,3 +129,69 @@ multi-camera, or day-long reliability validation.
 
 The expected acceptance remains fewer hot allocations/copies, not higher FPS
 or guaranteed lossless live recording.
+
+## Second review: immediate rollback and CI style
+
+The next review covered `11ba300a96da` and was updated at
+`2026-09-16T10:12:38Z`. Its Board CI failed at C/C++ style checking; build and
+tests were skipped, not failed. Clang-format's column alignment produced
+continuation indentation of 11, 15, 18, 19, 21, 25 and 35 spaces in the four
+new tests. The actual CI script requires every non-comment code indentation
+to be a multiple of four. Fix those continuations without reformatting the
+production tree or relaxing any lint rule.
+
+### Findings and changes
+
+1. **Copy versus lease ownership.** `SYS_RecvStream()` copies into the caller's
+   buffer while holding the queue mutex, completes DMA synchronization, and
+   only then clears `queued`. It does not return the slot's address. A lease
+   is neither required nor returned by this compatibility API. Add an explicit
+   invariant comment and a regression that receives packet A by copy,
+   immediately reuses the exact same slot/fd for packet B, and verifies that
+   the caller's copy remains A while the new lease contains B.
+2. **Immediate init rollback.** Previously the normal caller-owned destructor
+   closed the init fds, but `al_dec_init()` itself could retain them on failure.
+   Funnel failed eventfd/device-open/fcntl/codec/thread initialization through
+   one fd cleanup helper, reset owned fds to -1, and reuse the helper in destroy.
+   Thread-create failure still tears down the codec first. Do not destroy
+   create-owned mutexes or the condition variable inside failed init.
+3. **Token validation.** Previous code already rejected extra high bits and
+   out-of-range decoded indices. Express the bounds directly on the encoded
+   one-based fields, retaining high-bit rejection and signed-32-bit static
+   assertions. Add eight invalid-token cases: zero, either zero field,
+   high bits 31/32/40, bind past its maximum, and slot past its maximum.
+   These attempts must not release the valid outstanding lease.
+
+### Second-review regression results
+
+- The stronger cleanup test first failed against `11ba300a96da` because failed
+  init retained an eventfd. It passes with this change: 25 repetitions each
+  of eventfd/open/F_GETFL/F_SETFL/codec/fd-zero failure, 150 total. It checks
+  closed fds **before destroy**, unchanged fd counts, live synchronization
+  until destroy, and exactly-once synchronization destruction. These are
+  injected failures, not a claim of exhaustive driver fault injection.
+- Host Debug cleanup/input-retry/zero-DRI tests: 3/3 PASS.
+- K3 native RelWithDebInfo selected CTest: 9/9 PASS. Hardware pool tests,
+  including the new copy/token assertions and 200 receive/unbind races: PASS.
+  Bound VDEC empty/queued/EOS tests: PASS.
+- All 19 C/C++ files changed by the PR pass the actual upstream
+  `spacemit-robotics/scripts/lint/lint_cpp.sh` with its `.cpplintrc` and cpplint
+  2.0.2. The local script matches upstream byte-for-byte (SHA-256
+  `cf7387b298b658ef5382dd6729247fd8d9e2c9c6573be2878bdbbd90b906d604`).
+  This covers the custom four-space and header-guard checks, not just
+  `clang-format`. `git diff --check`: PASS.
+- Pixel A/B again produced `15d8f2152717f030` in both paths, with zero PTS
+  errors and 64 versus zero measured input allocations. Five further camera
+  cycles completed 300 frames/3005 IMU samples with no invalid metadata.
+  The first SDK invocation loaded the bridge's parser-only SDK and failed
+  before capture; explicitly loading the standalone MPP-enabled SDK passes.
+- A new 60-second live run received stereo at 60.042 FPS and raw/fused IMU at
+  599.822 Hz. OUTPUT QBUF used 3477 DMABUF and zero MMAP submissions; there
+  were zero heap allocations after 5 seconds and no publisher/receiver errors.
+  CMA used returned to 1346 pages; kernel taint stayed zero; all processes
+  exited normally. Library maps confirmed the rebuilt staged MPP/plugin.
+- Recording: 3451 frames, two missing published sequence indices, maximum
+  exposure gap 83.2 ms and IMU gap 66.56 ms. Packet/index counts and sizes
+  matched, timestamps were monotonic, and maximum container/index PTS error
+  was 0.48 ms. This remains a bounded allocation/lifecycle validation, not
+  lossless-recording acceptance.

@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
     BOOL bound = MPP_FALSE;
 
     if (argc > 3 || (strcmp(mode, "decode") && strcmp(mode, "empty") && strcmp(mode, "queued") &&
-                     strcmp(mode, "eos")))
+        strcmp(mode, "eos")))
         return 2;
     if (read_file(jpeg_path, &jpeg, &jpeg_size) != 0) {
         return 2;
