@@ -83,6 +83,9 @@ typedef struct _UvcChnCtx {
     UvcV4l2Buf astBufs[UVC_MAX_V4L2_BUF];
     UL ulVbPool;
     UL aulVbBuf[UVC_MAX_V4L2_BUF];      /* VB buffer handle per slot */
+    /* Only the capture/driver base ref, not depth-queue or caller refs.
+     * Protected by g_stUvcCtx.lock; teardown joins both worker threads. */
+    BOOL abBaseRefHeld[UVC_MAX_V4L2_BUF];
     S32 as32DmaBufFd[UVC_MAX_V4L2_BUF]; /* dma-buf fd per slot */
     BOOL bVbPoolCreated;
     /* depth queue (ring buffer, protected by depthLock) */
@@ -331,6 +334,7 @@ static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize)
             UVC_LOG_ERR("VB_ModGetBuffer[%u] failed", i);
             goto err_destroy_pool;
         }
+        pChn->abBaseRefHeld[i] = MPP_TRUE;
 
         /* get dma-buf fd for V4L2 DMABUF mode */
         S32 s32DmaBufFd = -1;
@@ -376,9 +380,11 @@ static S32 uvc_v4l2_req_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn, U32 u32FrameSize)
 
 err_destroy_pool:
     for (U32 i = 0; i < u32BufCnt; i++) {
-        if (pChn->aulVbBuf[i] != 0) {
+        if (pChn->aulVbBuf[i] != 0 && pChn->abBaseRefHeld[i]) {
             VB_ModReleaseBuffer(pChn->aulVbBuf[i], MPP_ID_UVC);
+            pChn->abBaseRefHeld[i] = MPP_FALSE;
         }
+        pChn->aulVbBuf[i] = 0;
     }
     VB_DestroyPool(pChn->ulVbPool);
     pChn->bVbPoolCreated = MPP_FALSE;
@@ -438,7 +444,10 @@ static VOID uvc_v4l2_release_bufs(UvcDevCtx *pDev, UvcChnCtx *pChn) {
     if (pChn->bVbPoolCreated) {
         for (U32 i = 0; i < UVC_DEFAULT_BUF_CNT; i++) {
             if (pChn->aulVbBuf[i] != 0) {
-                VB_ModReleaseBuffer(pChn->aulVbBuf[i], MPP_ID_UVC);
+                if (pChn->abBaseRefHeld[i]) {
+                    VB_ModReleaseBuffer(pChn->aulVbBuf[i], MPP_ID_UVC);
+                    pChn->abBaseRefHeld[i] = MPP_FALSE;
+                }
                 pChn->aulVbBuf[i] = 0;
             }
             pChn->as32DmaBufFd[i] = -1;
@@ -587,6 +596,8 @@ static void *uvc_recycle_task(void *arg) {
             break;
         }
         S32 ret = uvc_v4l2_qbuf(pDev, pChn, slot);
+        if (ret == UVC_ERR_OK)
+            pChn->abBaseRefHeld[slot] = MPP_TRUE;
         pthread_mutex_unlock(&g_stUvcCtx.lock);
 
         /* QBUF failed, so V4L2 did not take ownership. */
@@ -747,7 +758,10 @@ static void *uvc_capture_task(void *arg) {
         }
 
         /* --- 3. Release the V4L2 base ref --- */
+        pthread_mutex_lock(&g_stUvcCtx.lock);
         VB_ModReleaseBuffer(ulBuf, MPP_ID_UVC);
+        pChn->abBaseRefHeld[v4l2buf.index] = MPP_FALSE;
+        pthread_mutex_unlock(&g_stUvcCtx.lock);
     }
 
     UVC_LOG_INFO("capture task exiting: dev %d chn %d", dev, chn);
