@@ -28,6 +28,7 @@
 #include "log.h"
 #include "mvx-v4l2-controls.h"
 #include "sys/sys_api.h"
+#include <sys/eventfd.h>
 #include "v4l2_utils.h"
 
 #define MODULE_TAG "linlonv5v7_dec"
@@ -142,6 +143,16 @@ struct _ALLinlonv5v7DecContext {
 
     pthread_t pollthread;
     BOOL bPollThreadCreated;
+    pthread_mutex_t inputDmaLock;
+    /* Separate from inputDmaLock: never hold that lock while waiting for the
+     * poll thread to acknowledge a lifecycle barrier. */
+    pthread_mutex_t inputPollLock;
+    pthread_cond_t inputPollChanged;
+    U32 inputPollPauseDepth;
+    BOOL inputPollInFlight;
+    S32 inputWakeFd;
+    BOOL inputDmaActive;
+    BOOL inputDmaError;
 
     /***
      * default MPP_FLASE
@@ -215,11 +226,109 @@ static S32 checkInputParameters(MppStreamCodecType type, MppPixelFormat format) 
     return MPP_OK;
 }
 
-/***
- * pthread for poll event, need usleep, or CPU usage will soar, biubiu.
- */
+static void wakeInputPoll(ALLinlonv5v7DecContext *context) {
+    if (context->inputWakeFd >= 0) {
+        int ret;
+        do { ret = eventfd_write(context->inputWakeFd, 1); } while (ret < 0 && errno == EINTR);
+        if (ret < 0 && errno != EAGAIN) error("input eventfd write failed: %s", strerror(errno));
+    }
+}
+
+/* Waking poll alone is insufficient: poll_freewait must have finished before
+ * STREAMOFF/REQBUFS can replace the driver's capture wait queue. Ref-counted
+ * pauses prevent one lifecycle caller from reopening another caller's gate. */
+static void pauseInputPoll(void *opaque) {
+    ALLinlonv5v7DecContext *context = opaque;
+    if (context->nInputMemType != V4L2_MEMORY_DMABUF || !context->bPollThreadCreated)
+        return;
+    pthread_mutex_lock(&context->inputPollLock);
+    context->inputPollPauseDepth++;
+    wakeInputPoll(context);
+    while (context->inputPollInFlight)
+        pthread_cond_wait(&context->inputPollChanged, &context->inputPollLock);
+    pthread_mutex_unlock(&context->inputPollLock);
+    debug("input poll quiesced before queue reconfiguration");
+}
+
+static void resumeInputPoll(void *opaque) {
+    ALLinlonv5v7DecContext *context = opaque;
+    if (context->nInputMemType != V4L2_MEMORY_DMABUF || !context->bPollThreadCreated)
+        return;
+    pthread_mutex_lock(&context->inputPollLock);
+    if (context->inputPollPauseDepth > 0)
+        context->inputPollPauseDepth--;
+    pthread_cond_broadcast(&context->inputPollChanged);
+    pthread_mutex_unlock(&context->inputPollLock);
+}
+
+/* Reclaim input independently of the next packet. Otherwise a SYS ring with
+ * as many slots as V4L2 OUTPUT buffers can wait forever after its first lap. */
+static void *runInputDmaPoll(ALLinlonv5v7DecContext *context) {
+    while (!atomic_load(&context->bIsDestoryed)) {
+        pthread_mutex_lock(&context->inputPollLock);
+        while (context->inputPollPauseDepth && !atomic_load(&context->bIsDestoryed))
+            pthread_cond_wait(&context->inputPollChanged, &context->inputPollLock);
+        if (atomic_load(&context->bIsDestoryed)) {
+            pthread_mutex_unlock(&context->inputPollLock);
+            break;
+        }
+        context->inputPollInFlight = MPP_TRUE;
+        pthread_mutex_unlock(&context->inputPollLock);
+
+        pthread_mutex_lock(&context->inputDmaLock);
+        BOOL queued = MPP_FALSE;
+        Port *input = getInputPort(context->stCodec);
+        for (S32 i = 0; i < getBufNum(input); ++i)
+            queued |= getIsQueued(getBuffer(input, i));
+        BOOL active = context->inputDmaActive && !context->inputDmaError;
+        pthread_mutex_unlock(&context->inputDmaLock);
+        struct pollfd fds[2] = {
+            {.fd = active ? context->nVideoFd : -1, .events = POLLPRI | (queued ? POLLOUT : 0)},
+            {.fd = context->inputWakeFd, .events = POLLIN}};
+        S32 ret = poll(fds, 2, -1);
+        if (ret < 0 && errno == EINTR) goto iteration_done;
+        if (atomic_load(&context->bIsDestoryed)) goto iteration_done;
+        if (fds[1].revents & POLLIN) {
+            eventfd_t value;
+            int status;
+            do { status = eventfd_read(context->inputWakeFd, &value); } while (status < 0 && errno == EINTR);
+            if (status < 0 && errno != EAGAIN) error("input eventfd read failed: %s", strerror(errno));
+        }
+        pthread_mutex_lock(&context->inputDmaLock);
+        if (atomic_load(&context->bIsDestoryed)) {
+            pthread_mutex_unlock(&context->inputDmaLock);
+            goto iteration_done;
+        }
+        if (context->inputDmaActive) {
+            if (ret < 0 || (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL))) {
+                context->inputDmaError = MPP_TRUE;
+                error("DMA-BUF input poll failed: ret=%d revents=0x%x", ret, fds[0].revents);
+            }
+            if (fds[0].revents & POLLPRI) handleEvent(context->stCodec);
+            if (fds[0].revents & POLLOUT) {
+                Buffer *buffer;
+                while ((buffer = dequeueBuffer(input)) != NULL) {
+                    S32 token = getExtraId(buffer);
+                    setIsQueued(buffer, MPP_FALSE);
+                    setExtraId(buffer, -1);
+                    if (token > 0) (void)SYS_ReleaseStreamDmaBuf((U64)(U32)token);
+                }
+            }
+        }
+        pthread_mutex_unlock(&context->inputDmaLock);
+iteration_done:
+        pthread_mutex_lock(&context->inputPollLock);
+        context->inputPollInFlight = MPP_FALSE;
+        pthread_cond_broadcast(&context->inputPollChanged);
+        pthread_mutex_unlock(&context->inputPollLock);
+    }
+    return NULL;
+}
+
 void *runpoll(void *private_data) {
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)private_data;
+    if (context->nInputMemType == V4L2_MEMORY_DMABUF)
+        return runInputDmaPoll(context);
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
 
@@ -260,6 +369,22 @@ ALBaseContext *al_dec_create(void) {
     }
 
     memset(context, 0, sizeof(ALLinlonv5v7DecContext));
+    context->inputWakeFd = -1;
+    if (pthread_mutex_init(&context->inputDmaLock, NULL) != 0) {
+        free(context);
+        return NULL;
+    }
+    if (pthread_mutex_init(&context->inputPollLock, NULL) != 0) {
+        pthread_mutex_destroy(&context->inputDmaLock);
+        free(context);
+        return NULL;
+    }
+    if (pthread_cond_init(&context->inputPollChanged, NULL) != 0) {
+        pthread_mutex_destroy(&context->inputPollLock);
+        pthread_mutex_destroy(&context->inputDmaLock);
+        free(context);
+        return NULL;
+    }
 
     debug("init create");
 
@@ -300,6 +425,10 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     context->nRotation = (S32)pstAttr->u32RotateDegree;
     context->nScale = 0;
     context->nInputMemType = pstAttr->bEnableInputDmaBuf ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
+    if (pstAttr->bEnableInputDmaBuf) {
+        context->inputWakeFd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (context->inputWakeFd < 0) return MPP_INIT_FAILED;
+    }
     /* capture side always runs on external dma-bufs supplied by the caller */
     context->nOutputMemType = V4L2_MEMORY_DMABUF;
     context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT;
@@ -343,6 +472,12 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
 
     debug("video fd = %d, device path = '%s'", context->nVideoFd, context->sDevicePath);
 
+    if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
+        S32 flags = fcntl(context->nVideoFd, F_GETFL);
+        if (flags < 0 || fcntl(context->nVideoFd, F_SETFL, flags | O_NONBLOCK) < 0)
+            return MPP_INIT_FAILED;
+    }
+
     context->stCodec = createCodec(
         context->nVideoFd,
         context->nWidth,
@@ -363,6 +498,8 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
         error("create Codec failed, please check!");
         return MPP_INIT_FAILED;
     }
+    if (context->nInputMemType == V4L2_MEMORY_DMABUF)
+        setReconfigCallbacks(getOutputPort(context->stCodec), pauseInputPoll, resumeInputPoll, context);
 
     // set some parameters on the stream level
     setDecoderInterlaced(context, context->bIsInterlaced);
@@ -465,12 +602,51 @@ static void releaseInputDmaBufLeases(ALLinlonv5v7DecContext *context) {
     for (S32 i = 0; i < getBufNum(input_port); i++) {
         Buffer *buffer = getBuffer(input_port, i);
         S32 token = getExtraId(buffer);
+        setIsQueued(buffer, MPP_FALSE);
 
         if (token >= 0) {
             (void)SYS_ReleaseStreamDmaBuf((U64)(U32)token);
             setExtraId(buffer, -1);
         }
     }
+}
+
+static S32 decodeInputDmaBuf(ALLinlonv5v7DecContext *context, const StreamBufferInfo *stream) {
+    pthread_mutex_lock(&context->inputDmaLock);
+    if (context->inputDmaError) {
+        pthread_mutex_unlock(&context->inputDmaLock);
+        return MPP_POLL_FAILED;
+    }
+    Port *input = getInputPort(context->stCodec);
+    Buffer *buffer = NULL;
+    for (S32 i = 0; i < getBufNum(input); ++i) {
+        if (!getIsQueued(getBuffer(input, i))) {
+            buffer = getBuffer(input, i);
+            break;
+        }
+    }
+    if (!buffer) {
+        pthread_mutex_unlock(&context->inputDmaLock);
+        return MPP_DATAQUEUE_FULL;
+    }
+    S32 ret = copyInputPayload(buffer, stream, context->eCodecType);
+    if (ret == MPP_OK) {
+        resetVendorFlags(buffer);
+        setEndOfFrame(buffer, MPP_TRUE);
+        setEndOfStream(buffer, stream->bEndOfStream || stream->u32Size == 0);
+        setTimeStamp(buffer, (S64)stream->u64PTS);
+        ret = queueBuffer(input, buffer);
+    }
+    if (ret == MPP_OK) {
+        setIsQueued(buffer, MPP_TRUE);
+        context->inputDmaActive = MPP_TRUE;
+    } else {
+        /* Unaccepted packets remain owned by MPI, which returns their lease. */
+        setExtraId(buffer, -1);
+    }
+    pthread_mutex_unlock(&context->inputDmaLock);
+    if (ret == MPP_OK) wakeInputPoll(context);
+    return ret;
 }
 
 S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
@@ -499,6 +675,9 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         context->bInputEos = MPP_TRUE;
         context->nEosPts = (S64)pstStream->u64PTS;
     }
+
+    if (context->nInputMemType == V4L2_MEMORY_DMABUF)
+        return decodeInputDmaBuf(context, pstStream);
 
     if (unlikely(context->nInputQueuedNum < (U32)getBufNum(getInputPort(context->stCodec)))) {
         Buffer *buf = getBuffer(getInputPort(context->stCodec), context->nInputQueuedNum);
@@ -710,8 +889,14 @@ S32 al_dec_reset(ALBaseContext *ctx) {
 
     debug("Reset start ========================================");
 
+    pauseInputPoll(context);
+    pthread_mutex_lock(&context->inputDmaLock);
+    context->inputDmaActive = MPP_FALSE;
+    context->inputDmaError = MPP_FALSE;
     handleFlush(context->stCodec, MPP_FALSE);
     releaseInputDmaBufLeases(context);
+    pthread_mutex_unlock(&context->inputDmaLock);
+    resumeInputPoll(context);
     context->nInputQueuedNum = 0;
     context->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
     context->bInputEos = MPP_FALSE;
@@ -729,8 +914,14 @@ S32 al_dec_flush(ALBaseContext *ctx) {
 
     debug("Flush start ========================================");
 
+    pauseInputPoll(context);
+    pthread_mutex_lock(&context->inputDmaLock);
+    context->inputDmaActive = MPP_FALSE;
+    context->inputDmaError = MPP_FALSE;
     handleFlush(context->stCodec, MPP_FALSE);
     releaseInputDmaBufLeases(context);
+    pthread_mutex_unlock(&context->inputDmaLock);
+    resumeInputPoll(context);
     context->nInputQueuedNum = 0;
     context->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
     context->bInputEos = MPP_FALSE;
@@ -746,35 +937,37 @@ void al_dec_destory(ALBaseContext *ctx) {
         return;
     ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
     atomic_store(&context->bIsDestoryed, true);
+    wakeInputPoll(context);
+    pthread_mutex_lock(&context->inputPollLock);
+    pthread_cond_broadcast(&context->inputPollChanged);
+    pthread_mutex_unlock(&context->inputPollLock);
     debug("destory start");
 
-    if (context->nVideoFd && context->stCodec) {
-        enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
-        enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
-        mpp_v4l2_stream_off(context->nVideoFd, &input_type);
-        mpp_v4l2_stream_off(context->nVideoFd, &output_type);
-        releaseInputDmaBufLeases(context);
-        debug("stream off finish");
-    }
-
     if (context->bPollThreadCreated) {
-        /*
-         * The poll loop checks bIsDestoryed on every iteration (POLL_TIMEOUT is
-         * non-blocking and the loop only sleeps 10ms), so it exits promptly once
-         * bIsDestoryed is set above. We must block here until the thread has
-         * fully exited before destroying the codec/context below, otherwise the
-         * poll thread could touch already-freed resources (use-after-free).
-         */
+        /* Join BEFORE stream-off/free, not merely before closing the fd.
+         * The direct path wakes through eventfd; the legacy path polls at 0 ms. */
         pthread_join(context->pollthread, NULL);
         debug("pthread join finish");
         context->bPollThreadCreated = MPP_FALSE;
     }
 
     if (context->nVideoFd && context->stCodec) {
+        pthread_mutex_lock(&context->inputDmaLock);
+        enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
+        enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
+        mpp_v4l2_stream_off(context->nVideoFd, &input_type);
+        mpp_v4l2_stream_off(context->nVideoFd, &output_type);
+        releaseInputDmaBufLeases(context);
+        pthread_mutex_unlock(&context->inputDmaLock);
+        debug("stream off finish");
         destoryCodec(context->stCodec);
         debug("destory codec finish");
         close(context->nVideoFd);
     }
+    if (context->inputWakeFd >= 0) close(context->inputWakeFd);
+    pthread_cond_destroy(&context->inputPollChanged);
+    pthread_mutex_destroy(&context->inputPollLock);
+    pthread_mutex_destroy(&context->inputDmaLock);
     free(context);
     context = NULL;
 }

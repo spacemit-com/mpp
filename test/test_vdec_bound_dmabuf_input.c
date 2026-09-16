@@ -51,6 +51,9 @@ static int read_file(const char *path, U8 **data, U32 *size) {
 
 int main(int argc, char **argv) {
     const char *jpeg_path = argc > 1 ? argv[1] : "test/assets/1920x1080.jpg";
+    /* Exercise stop while the event thread waits with no input, or while
+     * compressed packets are still queued. No sleep is used to hide races. */
+    const char *mode = argc > 2 ? argv[2] : "decode";
     const MppNode source = {.eModId = MPP_ID_DEMUX, .s32DevId = 17, .s32ChnId = 0};
     const MppNode sink = {.eModId = MPP_ID_VDEC, .s32DevId = 0, .s32ChnId = 17};
     U8 *jpeg = NULL;
@@ -67,6 +70,9 @@ int main(int argc, char **argv) {
     BOOL channel_enabled = MPP_FALSE;
     BOOL bound = MPP_FALSE;
 
+    if (argc > 3 || (strcmp(mode, "decode") && strcmp(mode, "empty") && strcmp(mode, "queued") &&
+                     strcmp(mode, "eos")))
+        return 2;
     if (read_file(jpeg_path, &jpeg, &jpeg_size) != 0) {
         return 2;
     }
@@ -75,11 +81,16 @@ int main(int argc, char **argv) {
         goto done;
     }
     sys_ready = MPP_TRUE;
-    if ((ret = VB_Init()) != 0 || (ret = VDEC_Init()) != 0) {
+    if ((ret = VB_Init()) != 0) {
+        fprintf(stderr, "VB_Init: %d\n", ret);
+        goto done;
+    }
+    vb_ready = MPP_TRUE;
+    if ((ret = VDEC_Init()) != 0) {
         fprintf(stderr, "VB/VDEC init: %d\n", ret);
         goto done;
     }
-    vb_ready = vdec_ready = MPP_TRUE;
+    vdec_ready = MPP_TRUE;
 
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = MPP_STREAM_CODEC_MJPEG;
@@ -98,12 +109,19 @@ int main(int argc, char **argv) {
         goto done;
     }
     channel_enabled = MPP_TRUE;
-    if ((ret = SYS_Bind(&source, &sink)) != SYS_ERR_OK ||
-        (ret = SYS_ConfigStreamDmaBufPool(&source, &sink, INPUT_SLOT_SIZE, INPUT_SLOT_COUNT)) != SYS_ERR_OK) {
-        fprintf(stderr, "bind/config: %d\n", ret);
+    if ((ret = SYS_Bind(&source, &sink)) != SYS_ERR_OK) {
+        fprintf(stderr, "SYS_Bind: %d\n", ret);
         goto done;
     }
     bound = MPP_TRUE;
+    if ((ret = SYS_ConfigStreamDmaBufPool(&source, &sink, INPUT_SLOT_SIZE, INPUT_SLOT_COUNT)) != SYS_ERR_OK) {
+        fprintf(stderr, "bind/config: %d\n", ret);
+        goto done;
+    }
+    if (!strcmp(mode, "empty")) {
+        result = 0;
+        goto done;
+    }
 
     memset(&packet, 0, sizeof(packet));
     packet.pu8Addr = jpeg;
@@ -114,6 +132,15 @@ int main(int argc, char **argv) {
     packet.s32DmaBufFd = -1;
     if ((ret = SYS_SendStream(&source, &packet)) != SYS_ERR_OK) {
         fprintf(stderr, "SYS_SendStream: %d\n", ret);
+        goto done;
+    }
+    if (!strcmp(mode, "queued")) {
+        for (U32 i = 1; i < 4; ++i) {
+            packet.u64PTS = i + 1;
+            if ((ret = SYS_SendStream(&source, &packet)) != SYS_ERR_OK)
+                goto done;
+        }
+        result = 0;
         goto done;
     }
 
@@ -127,18 +154,29 @@ int main(int argc, char **argv) {
         (void)VDEC_ReleaseFrame(17, frame.ulBufferId);
         goto done;
     }
-    (void)VDEC_ReleaseFrame(17, frame.ulBufferId);
-    printf("[PASS] SYS DMA-BUF ring -> VDEC decoded %ux%u JPEG\n", JPEG_WIDTH, JPEG_HEIGHT);
+    if (VDEC_ReleaseFrame(17, frame.ulBufferId) != 0)
+        goto done;
+    if (!strcmp(mode, "eos")) {
+        packet.pu8Addr = NULL;
+        packet.u32Size = 0;
+        packet.u64PTS = 2;
+        packet.bEndOfStream = MPP_TRUE;
+        if ((ret = SYS_SendStream(&source, &packet)) != SYS_ERR_OK ||
+            (ret = VDEC_GetFrame(17, &frame, 5000)) != ERR_VDEC_EOS) {
+            fprintf(stderr, "EOS submission/drain failed: %d\n", ret);
+            goto done;
+        }
+    }
     result = 0;
 
 done:
     /* VDEC stream-off returns every leased input slot before SYS_UnBind. */
-    if (channel_enabled)
-        (void)VDEC_DisableChn(17);
-    if (channel_created)
-        (void)VDEC_DestroyChn(17);
-    if (bound)
-        (void)SYS_UnBind(&source, &sink);
+    if (channel_enabled && VDEC_DisableChn(17) != 0)
+        result = 1;
+    if (channel_created && VDEC_DestroyChn(17) != 0)
+        result = 1;
+    if (bound && SYS_UnBind(&source, &sink) != 0)
+        result = 1;
     if (vdec_ready)
         (void)VDEC_Exit();
     if (vb_ready)
@@ -146,5 +184,7 @@ done:
     if (sys_ready)
         (void)SYS_Exit();
     free(jpeg);
+    if (result == 0)
+        printf("[PASS] SYS DMA-BUF -> VDEC %s and cleanup %ux%u\n", mode, JPEG_WIDTH, JPEG_HEIGHT);
     return result;
 }

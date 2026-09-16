@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "sys/sys_api.h"
 
@@ -35,6 +36,56 @@ static StreamBufferInfo make_packet(const U8 *payload, U32 size, U64 pts) {
 static S32 send_packet(const MppNode *source, const U8 *payload, U32 size, U64 pts) {
     StreamBufferInfo packet = make_packet(payload, size, pts);
     return SYS_SendStream(source, &packet);
+}
+
+typedef struct {
+    pthread_barrier_t start;
+    const MppNode *sink;
+    StreamBufferInfo lease;
+    S32 ret;
+} ReceiveRace;
+
+static void *receive_during_unbind(void *arg) {
+    ReceiveRace *race = arg;
+    pthread_barrier_wait(&race->start);
+    race->ret = SYS_RecvStreamDmaBuf(race->sink, &race->lease, 0);
+    return NULL;
+}
+
+static int test_unbind_race(const MppNode *source, const MppNode *sink) {
+    const U8 payload[] = "lease-unbind-race";
+    for (U32 i = 0; i < 200; ++i) {
+        if (check(SYS_Bind(source, sink), "race bind") ||
+            check(SYS_ConfigStreamDmaBufPool(source, sink, TEST_SLOT_SIZE, 1), "race pool") ||
+            check(send_packet(source, payload, sizeof(payload), i + 1), "race send"))
+            return -1;
+        ReceiveRace race = {.sink = sink};
+        pthread_t receiver;
+        if (pthread_barrier_init(&race.start, NULL, 2) != 0)
+            return -1;
+        if (pthread_create(&receiver, NULL, receive_during_unbind, &race) != 0) {
+            pthread_barrier_destroy(&race.start);
+            return -1;
+        }
+        pthread_barrier_wait(&race.start);
+        S32 unbound = SYS_UnBind(source, sink);
+        pthread_join(receiver, NULL);
+        pthread_barrier_destroy(&race.start);
+        /* Keep any received lease until unbind has returned. Exactly one
+         * operation may succeed; unbind must never free a returned lease. */
+        if (race.ret == SYS_ERR_OK) {
+            if (unbound != SYS_ERR_BUSY ||
+                check(SYS_ReleaseStreamDmaBuf(race.lease.u64DmaBufToken), "race release") ||
+                check(SYS_UnBind(source, sink), "race unbind after release"))
+                return -1;
+        } else if (unbound != SYS_ERR_OK ||
+                   (race.ret != SYS_ERR_NOT_FOUND && race.ret != SYS_ERR_BUSY && race.ret != SYS_ERR_TIMEOUT)) {
+            fprintf(stderr, "unexpected unbind race result: recv=%d unbind=%d\n", race.ret, unbound);
+            return -1;
+        }
+    }
+    printf("[PASS] 200 concurrent receive/unbind iterations preserve leases\n");
+    return 0;
 }
 
 int main(void) {
@@ -67,6 +118,10 @@ int main(void) {
         return 1;
     }
     fd_a = lease_a.s32DmaBufFd;
+    if (SYS_ReleaseStreamDmaBuf(lease_a.u64DmaBufToken | (1ULL << 40)) != SYS_ERR_INVAL) {
+        fprintf(stderr, "release accepted a token with unencoded high bits\n");
+        return 1;
+    }
 
     if (check(send_packet(&source, packet_b, sizeof(packet_b), 2), "send b") != 0 ||
         check(SYS_RecvStreamDmaBuf(&sink, &lease_b, 0), "receive b") != 0 ||
@@ -91,8 +146,19 @@ int main(void) {
     }
 
     if (check(SYS_ReleaseStreamDmaBuf(lease_b.u64DmaBufToken), "release b") != 0 ||
-        check(SYS_ReleaseStreamDmaBuf(lease_c.u64DmaBufToken), "release c") != 0 ||
-        check(SYS_UnBind(&source, &sink), "SYS_UnBind") != 0 || check(SYS_Exit(), "SYS_Exit") != 0) {
+        check(SYS_ReleaseStreamDmaBuf(lease_c.u64DmaBufToken), "release c") != 0) {
+        return 1;
+    }
+
+    /* The copying compatibility API must also return a fixed slot to its pool. */
+    U8 copied[64];
+    StreamBufferInfo received = {.pu8Addr = copied, .u32Size = sizeof(copied)};
+    if (check(send_packet(&source, packet_a, sizeof(packet_a), 4), "send for copy") != 0 ||
+        check(SYS_RecvStream(&sink, &received, 0), "receive copy") != 0 ||
+        received.u32Size != sizeof(packet_a) || received.u64PTS != 4 || received.u64DmaBufToken != 0 ||
+        received.s32DmaBufFd != -1 || memcmp(copied, packet_a, sizeof(packet_a)) != 0 ||
+        check(SYS_UnBind(&source, &sink), "SYS_UnBind") != 0 ||
+        test_unbind_race(&source, &sink) != 0 || check(SYS_Exit(), "SYS_Exit") != 0) {
         return 1;
     }
 

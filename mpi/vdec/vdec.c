@@ -977,12 +977,14 @@ static void *vdec_stream_input_task(void *arg) {
         pthread_mutex_unlock(&pChn->inputLock);
         if (ret != MPP_OK && ret != 0 && ret != MPP_CODER_EOS && ret != ERR_VDEC_NOT_STARTED) {
             error("stream input task: decode failed %d, chn %d", ret, s32ChnId);
-            if (stStream.u64DmaBufToken != 0) {
-                (void)SYS_ReleaseStreamDmaBuf(stStream.u64DmaBufToken);
-            }
         }
+        if (ret != MPP_OK && stStream.u64DmaBufToken != 0)
+            (void)SYS_ReleaseStreamDmaBuf(stStream.u64DmaBufToken);
 
         if (stStream.bEndOfStream) {
+            /* Successful QBUF transfers even an EOS packet's lease to the
+             * plugin. Its independent poll thread reclaims it on input
+             * DQBUF (or stream-off); releasing here would race hardware. */
             info("stream input task: EOS received, chn %d", s32ChnId);
             break;
         }

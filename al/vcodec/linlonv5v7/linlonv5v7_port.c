@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -54,7 +55,10 @@ struct _Port {
     S32 nFramesCount;
     S32 nRcType;
 
-    BOOL bIsSourceChange;
+    atomic_bool bIsSourceChange;
+    void (*reconfigBegin)(void *);
+    void (*reconfigEnd)(void *);
+    void *reconfigOpaque;
 
     S32 nQueueNumInput;
     S32 nQueueNumOutput;
@@ -104,7 +108,7 @@ Port *createPort(
     port_tmp->nScale = 1;
     port_tmp->nFramesProcessed = 0;
     port_tmp->nFramesCount = 0;
-    port_tmp->bIsSourceChange = MPP_FALSE;
+    atomic_init(&port_tmp->bIsSourceChange, MPP_FALSE);
     port_tmp->nQueueNumInput = 0;
     port_tmp->nQueueNumOutput = 0;
     port_tmp->eBufferType = buffer_type;
@@ -1548,8 +1552,8 @@ S32 copyInputPayload(Buffer *buffer, const StreamBufferInfo *pstStream, MppStrea
     S32 capacity = getLength(buffer, 0);
     size_t payload_size = pstStream->u32Size;
 
-    if (pstStream->s32DmaBufFd >= 0) {
-        if (pstStream->u64DmaBufToken == 0 || pstStream->u64DmaBufToken > INT32_MAX ||
+    if (b->memory == V4L2_MEMORY_DMABUF) {
+        if (pstStream->s32DmaBufFd < 0 || pstStream->u64DmaBufToken == 0 || pstStream->u64DmaBufToken > INT32_MAX ||
             pstStream->u32DmaBufCapacity < pstStream->u32Size) {
             error("invalid DMA-BUF stream packet");
             return MPP_CHECK_FAILED;
@@ -1562,7 +1566,10 @@ S32 copyInputPayload(Buffer *buffer, const StreamBufferInfo *pstStream, MppStrea
             return MPP_CHECK_FAILED;
         }
 
-        if (eCodecType == MPP_STREAM_CODEC_MJPEG || eCodecType == MPP_STREAM_CODEC_JPEG) {
+        if (pstStream->u32Size > 0 &&
+            (eCodecType == MPP_STREAM_CODEC_MJPEG || eCodecType == MPP_STREAM_CODEC_JPEG)) {
+            if (dma_sync_buf(pstStream->s32DmaBufFd, DMA_SYNC_RW | DMA_SYNC_START) != 0)
+                return MPP_CHECK_FAILED;
             /* The fixed SYS slot is writable, so normalize DRI=0 in place. */
             if (linlon_mjpeg_remove_zero_dri(
                     (const U8 *)pstStream->pu8Addr,
@@ -1570,14 +1577,12 @@ S32 copyInputPayload(Buffer *buffer, const StreamBufferInfo *pstStream, MppStrea
                     (U8 *)pstStream->pu8Addr,
                     (size_t)pstStream->u32DmaBufCapacity,
                     &payload_size) != 0) {
+                (void)dma_sync_buf(pstStream->s32DmaBufFd, DMA_SYNC_RW | DMA_SYNC_END);
                 error("failed to normalize DMA-BUF MJPEG input payload");
                 return MPP_CHECK_FAILED;
             }
-        }
-
-        if (dma_sync_buf(pstStream->s32DmaBufFd, DMA_SYNC_WRITE | DMA_SYNC_END) != 0) {
-            error("failed to sync DMA-BUF input payload");
-            return MPP_CHECK_FAILED;
+            if (dma_sync_buf(pstStream->s32DmaBufFd, DMA_SYNC_RW | DMA_SYNC_END) != 0)
+                return MPP_CHECK_FAILED;
         }
         return setExternalDmaBufSinglePlanar(
             buffer,
@@ -1621,6 +1626,7 @@ S32 handleInputBuffer(
         error(
             "dequeueBuffer failed, this dequeueBuffer must successed, because it "
             "is after Poll, please check!");
+        return MPP_DATAQUEUE_FULL;
     }
     index = getExtraId(buffer);
     if (index >= 0) {
@@ -1664,7 +1670,7 @@ S32 handleInputBuffer(
         sendEncStopCommand(port);
     }
 
-    return index;
+    return ret;
 }
 
 /**
@@ -1811,14 +1817,13 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
               // return MPP_FALSE;
             }
         */
-        if (port->bIsSourceChange) {
+        if (atomic_exchange(&port->bIsSourceChange, MPP_FALSE)) {
             debug(
                 "Resolution changed:%d new size: %d x %d",
                 isResChange,
                 port->stFormat.fmt.pix_mp.width,
                 port->stFormat.fmt.pix_mp.height);
             handleResolutionChange(port, eof);
-            port->bIsSourceChange = MPP_FALSE;
             return MPP_RESOLUTION_CHANGED;
         }
     }
@@ -1869,6 +1874,8 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
 }
 
 void handleResolutionChange(Port *port, BOOL eof) {
+    if (port->reconfigBegin)
+        port->reconfigBegin(port->reconfigOpaque);
     streamoff(port);
     getPortFormat(port);
     allocateBuffers(port, 0);
@@ -1889,6 +1896,14 @@ void handleResolutionChange(Port *port, BOOL eof) {
     streamon(port);
     queueBuffers(port, eof);
     port->nFramesProcessed = 0;
+    if (port->reconfigEnd)
+        port->reconfigEnd(port->reconfigOpaque);
+}
+
+void setReconfigCallbacks(Port *port, void (*begin)(void *), void (*end)(void *), void *opaque) {
+    port->reconfigBegin = begin;
+    port->reconfigEnd = end;
+    port->reconfigOpaque = opaque;
 }
 
 S32 getBufNum(Port *port) {
@@ -1905,5 +1920,5 @@ MppFrameBufferType getPortBufferType(Port *port) {
 }
 
 void notifySourceChange(Port *port) {
-    port->bIsSourceChange = MPP_TRUE;
+    atomic_store(&port->bIsSourceChange, MPP_TRUE);
 }

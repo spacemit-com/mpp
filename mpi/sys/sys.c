@@ -106,13 +106,8 @@ static VOID sys_free_stream_dma_pool_locked(MppStreamQueue *q) {
     q->dma_pool_owner_pid = 0;
 }
 
-static VOID sys_reset_stream_queue(MppStreamQueue *q) {
-    if (!q) {
-        return;
-    }
-
-    sys_mutex_lock(&q->lock);
-
+/* Caller holds q->lock, including lease validation during unbind. */
+static VOID sys_reset_stream_queue_locked(MppStreamQueue *q) {
     /* Free legacy per-packet DMA buffers still in the queue. */
     for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; i++) {
         MppStreamQueueEntry *e = &q->entries[i];
@@ -131,6 +126,13 @@ static VOID sys_reset_stream_queue(MppStreamQueue *q) {
         q->entries[i].dma_fd = -1;
         q->entries[i].dma_slot = MPP_STREAM_DMA_SLOT_INVALID;
     }
+}
+
+static VOID sys_reset_stream_queue(MppStreamQueue *q) {
+    if (!q)
+        return;
+    sys_mutex_lock(&q->lock);
+    sys_reset_stream_queue_locked(q);
     pthread_mutex_unlock(&q->lock);
 }
 
@@ -441,11 +443,12 @@ S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode) {
             return SYS_ERR_BUSY;
         }
     }
-    pthread_mutex_unlock(&stream_queue->lock);
-
     shm->binds[idx].state = SYS_BIND_FREE;
     shm->bind_cnt--;
-    sys_reset_stream_queue(stream_queue);
+    /* A receiver can already have looked up this bind before the write lock
+     * was taken. Keep the queue locked from lease validation through reset. */
+    sys_reset_stream_queue_locked(stream_queue);
+    pthread_mutex_unlock(&stream_queue->lock);
 
     pthread_rwlock_unlock(&shm->bind_lock);
 
@@ -1065,8 +1068,18 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
 
         if (pstStream->u32Size > 0) {
             /* One hot-path CPU copy.  Fixed-pool buffers stay mapped. */
+            if (use_fixed_dma_pool && dma_sync_buf(dma_fd, DMA_SYNC_WRITE | DMA_SYNC_START) != 0) {
+                last_err = SYS_ERR_BUSY;
+                pthread_mutex_unlock(&q->lock);
+                continue;
+            }
             memcpy(dma_vir, pstStream->pu8Addr, pstStream->u32Size);
-            dma_sync_buf(dma_fd, DMA_SYNC_WRITE | DMA_SYNC_END);
+            S32 sync_ret = dma_sync_buf(dma_fd, DMA_SYNC_WRITE | DMA_SYNC_END);
+            if (use_fixed_dma_pool && sync_ret != 0) {
+                last_err = SYS_ERR_BUSY;
+                pthread_mutex_unlock(&q->lock);
+                continue;
+            }
 
             if (!use_fixed_dma_pool) {
                 /* Legacy per-packet path remaps in the receiver. */
@@ -1160,8 +1173,15 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
             return SYS_ERR_BUSY;
         }
         if (entry->info.u32Size > 0) {
-            dma_sync_buf(slot->dma_fd, DMA_SYNC_READ | DMA_SYNC_START);
+            if (dma_sync_buf(slot->dma_fd, DMA_SYNC_READ | DMA_SYNC_START) != 0) {
+                pthread_mutex_unlock(&q->lock);
+                return SYS_ERR_BUSY;
+            }
             memcpy(dst, slot->dma_vir, entry->info.u32Size);
+            if (dma_sync_buf(slot->dma_fd, DMA_SYNC_READ | DMA_SYNC_END) != 0) {
+                pthread_mutex_unlock(&q->lock);
+                return SYS_ERR_BUSY;
+            }
         }
         slot->queued = MPP_FALSE;
     } else if (entry->info.u32Size > 0) {
@@ -1200,6 +1220,10 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
     pthread_mutex_unlock(&q->lock);
     return SYS_ERR_OK;
 }
+
+/* The V4L2 plugin carries this token in signed 32-bit Buffer::nExtraId. */
+_Static_assert(MPP_MAX_BIND > 0 && MPP_MAX_BIND <= 0x7fff, "DMA bind token must fit signed 32-bit");
+_Static_assert(MPP_STREAM_CHAN_DEPTH > 0 && MPP_STREAM_CHAN_DEPTH <= 0xffff, "DMA slot token must fit 16-bit");
 
 S32 SYS_RecvStreamDmaBuf(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
     MppSharedMem *shm = mpp_shm_get();
@@ -1274,7 +1298,7 @@ S32 SYS_ReleaseStreamDmaBuf(U64 u64Token) {
     if (!shm || !shm->sys_inited) {
         return SYS_ERR_NOT_INIT;
     }
-    if (bind_plus_one == 0 || slot_plus_one == 0) {
+    if (u64Token > INT32_MAX || bind_plus_one == 0 || slot_plus_one == 0) {
         return SYS_ERR_INVAL;
     }
     bind_idx = bind_plus_one - 1;
