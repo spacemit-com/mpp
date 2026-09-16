@@ -19,6 +19,13 @@ S32 V2D_CancelJob(V2DHandle handle);
 
 S32 V2D_AddFillTask(V2DHandle handle, VideoFrameInfo *pstDstFrame, V2DArea *pstDstRect, V2DFillColor *pstFillColor);
 
+/**
+ * Queue a bitblit task.
+ * The destination rectangle is also the hardware output crop: its X and Y
+ * origins must both be multiples of 16 pixels. Otherwise, logs the offending
+ * coordinates and returns V2D_ERR_INVALID_PARAM without queuing the task.
+ * This alignment restriction does not apply to source rectangle origins.
+ */
 S32 V2D_AddBitblitTask(
     V2DHandle handle,
     const VideoFrameInfo *pstSrcFrame,
