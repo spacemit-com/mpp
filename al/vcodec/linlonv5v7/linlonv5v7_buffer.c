@@ -69,6 +69,8 @@ Buffer *createBuffer(struct v4l2_buffer buf, S32 fd, struct v4l2_format format, 
 
     buffer_tmp->isRoiCfg = MPP_FALSE;
     buffer_tmp->nQp = 0;
+    buffer_tmp->nExtraId = -1;
+    buffer_tmp->nExtraFd = -1;
 
     if (V4L2_MEMORY_DMABUF == buffer_tmp->nMemType) {
         buffer_tmp->pDmaBufWrapper = createDmaBufWrapper(DMA_HEAP_CMA);
@@ -642,6 +644,10 @@ void setSuperblock(Buffer *buf, BOOL superblock) {
 
 S32 getExtraId(Buffer *buf) {
     return buf->nExtraId;
+}
+
+void setExtraId(Buffer *buf, S32 extra_id) {
+    buf->nExtraId = extra_id;
 }
 
 S32 getExtraFd(Buffer *buf) {

@@ -206,6 +206,31 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream);
 S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32TimeoutMs);
 
 /**
+ * @brief Preallocate a fixed CMA DMA-BUF ring for one compressed SYS bind.
+ *
+ * The ring is process-local because DMA-BUF file descriptors are process
+ * resources.  Configure it after SYS_Bind and before the source starts
+ * sending.  Packet delivery then performs one CPU copy into a stable CMA
+ * slot; it never allocates or frees CMA in the frame hot path.
+ */
+S32 SYS_ConfigStreamDmaBufPool(
+    const MppNode *pstSrc, const MppNode *pstSink, U32 u32SlotSize, U32 u32SlotCount
+);
+
+/**
+ * @brief Receive a bound compressed packet as a leased DMA-BUF.
+ *
+ * This is valid only for a same-process bind configured with
+ * SYS_ConfigStreamDmaBufPool.  The caller must call
+ * SYS_ReleaseStreamDmaBuf() only after its hardware consumer has returned the
+ * DMA-BUF (for V4L2, after input VIDIOC_DQBUF).
+ */
+S32 SYS_RecvStreamDmaBuf(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32TimeoutMs);
+
+/** @brief Return a lease obtained by SYS_RecvStreamDmaBuf. */
+S32 SYS_ReleaseStreamDmaBuf(U64 u64Token);
+
+/**
  * @description: Dump MPP system status to stdout for debugging.
  *               Shows PTS, bind table, memory mappings, and process info.
  */

@@ -12,11 +12,14 @@
 #define ENABLE_DEBUG 1
 
 #include "linlonv5v7_port.h"
+#include "sys/dma_alloc.h"
+#include "sys/sys_api.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -1545,6 +1548,45 @@ S32 copyInputPayload(Buffer *buffer, const StreamBufferInfo *pstStream, MppStrea
     S32 capacity = getLength(buffer, 0);
     size_t payload_size = pstStream->u32Size;
 
+    if (pstStream->s32DmaBufFd >= 0) {
+        if (pstStream->u64DmaBufToken == 0 || pstStream->u64DmaBufToken > INT32_MAX ||
+            pstStream->u32DmaBufCapacity < pstStream->u32Size) {
+            error("invalid DMA-BUF stream packet");
+            return MPP_CHECK_FAILED;
+        }
+        if (capacity <= 0 || pstStream->u32DmaBufCapacity < (U32)capacity) {
+            error(
+                "DMA-BUF stream slot too small: slot=%u V4L2_OUTPUT=%d",
+                pstStream->u32DmaBufCapacity,
+                capacity);
+            return MPP_CHECK_FAILED;
+        }
+
+        if (eCodecType == MPP_STREAM_CODEC_MJPEG || eCodecType == MPP_STREAM_CODEC_JPEG) {
+            /* The fixed SYS slot is writable, so normalize DRI=0 in place. */
+            if (linlon_mjpeg_remove_zero_dri(
+                    (const U8 *)pstStream->pu8Addr,
+                    pstStream->u32Size,
+                    (U8 *)pstStream->pu8Addr,
+                    (size_t)pstStream->u32DmaBufCapacity,
+                    &payload_size) != 0) {
+                error("failed to normalize DMA-BUF MJPEG input payload");
+                return MPP_CHECK_FAILED;
+            }
+        }
+
+        if (dma_sync_buf(pstStream->s32DmaBufFd, DMA_SYNC_WRITE | DMA_SYNC_END) != 0) {
+            error("failed to sync DMA-BUF input payload");
+            return MPP_CHECK_FAILED;
+        }
+        return setExternalDmaBufSinglePlanar(
+            buffer,
+            pstStream->s32DmaBufFd,
+            (U8 *)pstStream->pu8Addr,
+            (S32)payload_size,
+            (S32)pstStream->u64DmaBufToken);
+    }
+
     if (pstStream->u32Size == 0) {
         b->bytesused = 0;
         return MPP_OK;
@@ -1581,6 +1623,10 @@ S32 handleInputBuffer(
             "is after Poll, please check!");
     }
     index = getExtraId(buffer);
+    if (index >= 0) {
+        (void)SYS_ReleaseStreamDmaBuf((U64)(U32)index);
+        setExtraId(buffer, -1);
+    }
     struct v4l2_buffer *b = getV4l2Buffer(buffer);
     if (eof) {
         if (port->bTryDecStop) {
@@ -1592,7 +1638,7 @@ S32 handleInputBuffer(
     /* Remove vendor custom flags. */
     resetVendorFlags(buffer);
 
-    if (V4L2_BUF_TYPE_VIDEO_OUTPUT == port->eBufType && V4L2_MEMORY_MMAP == port->nMemType) {
+    if (V4L2_BUF_TYPE_VIDEO_OUTPUT == port->eBufType) {
         // decode input
         ret = copyInputPayload(buffer, pstStream, eCodecType);
         if (ret != MPP_OK)
@@ -1607,6 +1653,10 @@ S32 handleInputBuffer(
         error(
             "queueBuffer failed, this queueBuffer must successed, because it is "
             "after Poll and dequeueBuffer, please check!");
+        if (getExtraId(buffer) >= 0) {
+            (void)SYS_ReleaseStreamDmaBuf((U64)(U32)getExtraId(buffer));
+            setExtraId(buffer, -1);
+        }
     }
 
     if (eof) {

@@ -914,10 +914,15 @@ static void *vdec_stream_input_task(void *arg) {
         .s32ChnId = s32ChnId,
     };
 
-    U8 *pRecvBuf = (U8 *)malloc(MPP_STREAM_MAX_PAYLOAD);
-    if (!pRecvBuf) {
-        error("stream input task: malloc %d failed, chn %d", MPP_STREAM_MAX_PAYLOAD, s32ChnId);
-        return NULL;
+    const BOOL bUseInputDmaBuf = pChn->stAttr.bEnableInputDmaBuf;
+    U8 *pRecvBuf = NULL;
+
+    if (!bUseInputDmaBuf) {
+        pRecvBuf = (U8 *)malloc(MPP_STREAM_MAX_PAYLOAD);
+        if (!pRecvBuf) {
+            error("stream input task: malloc %d failed, chn %d", MPP_STREAM_MAX_PAYLOAD, s32ChnId);
+            return NULL;
+        }
     }
 
     info("stream input task started: chn %d", s32ChnId);
@@ -925,10 +930,14 @@ static void *vdec_stream_input_task(void *arg) {
     while (vdec_stream_input_active(pChn)) {
         StreamBufferInfo stStream;
         memset(&stStream, 0, sizeof(stStream));
-        stStream.pu8Addr = pRecvBuf;
-        stStream.u32Size = MPP_STREAM_MAX_PAYLOAD;
-
-        ret = SYS_RecvStream(&stSink, &stStream, 100);
+        stStream.s32DmaBufFd = -1;
+        if (bUseInputDmaBuf) {
+            ret = SYS_RecvStreamDmaBuf(&stSink, &stStream, 100);
+        } else {
+            stStream.pu8Addr = pRecvBuf;
+            stStream.u32Size = MPP_STREAM_MAX_PAYLOAD;
+            ret = SYS_RecvStream(&stSink, &stStream, 100);
+        }
         if (ret != 0) {
             /* timeout or no bind — just retry */
             if (SYS_ERR_NOT_FOUND == ret) {
@@ -936,6 +945,10 @@ static void *vdec_stream_input_task(void *arg) {
                 pChn->bBound = MPP_FALSE;
                 pthread_mutex_unlock(&pChn->lock);
                 usleep(20000);  // Sleep 20ms before retrying to avoid busy loop when no stream is bound
+            }
+            if (bUseInputDmaBuf && ret == SYS_ERR_BUSY) {
+                error("stream input task: direct DMA-BUF path is not configured for chn %d", s32ChnId);
+                usleep(20000);
             }
             continue;
         }
@@ -962,8 +975,12 @@ static void *vdec_stream_input_task(void *arg) {
         pthread_mutex_lock(&pChn->inputLock);
         ret = vdec_input_submit_with_timeout(&retry, (U32)-1);
         pthread_mutex_unlock(&pChn->inputLock);
-        if (ret != MPP_OK && ret != 0 && ret != MPP_CODER_EOS && ret != ERR_VDEC_NOT_STARTED)
+        if (ret != MPP_OK && ret != 0 && ret != MPP_CODER_EOS && ret != ERR_VDEC_NOT_STARTED) {
             error("stream input task: decode failed %d, chn %d", ret, s32ChnId);
+            if (stStream.u64DmaBufToken != 0) {
+                (void)SYS_ReleaseStreamDmaBuf(stStream.u64DmaBufToken);
+            }
+        }
 
         if (stStream.bEndOfStream) {
             info("stream input task: EOS received, chn %d", s32ChnId);

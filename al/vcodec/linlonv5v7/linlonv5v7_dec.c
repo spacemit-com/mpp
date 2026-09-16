@@ -27,6 +27,7 @@
 #include "linlonv5v7_codec.h"
 #include "log.h"
 #include "mvx-v4l2-controls.h"
+#include "sys/sys_api.h"
 #include "v4l2_utils.h"
 
 #define MODULE_TAG "linlonv5v7_dec"
@@ -298,7 +299,7 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     context->bIsInterlaced = pstAttr->bIsInterlaced;
     context->nRotation = (S32)pstAttr->u32RotateDegree;
     context->nScale = 0;
-    context->nInputMemType = V4L2_MEMORY_MMAP;
+    context->nInputMemType = pstAttr->bEnableInputDmaBuf ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
     /* capture side always runs on external dma-bufs supplied by the caller */
     context->nOutputMemType = V4L2_MEMORY_DMABUF;
     context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT;
@@ -454,6 +455,24 @@ S32 al_dec_get_status(ALBaseContext *ctx, VdecChnStatus *pstStatus) {
     return MPP_OK;
 }
 
+static void releaseInputDmaBufLeases(ALLinlonv5v7DecContext *context) {
+    Port *input_port;
+
+    if (!context || !context->stCodec) {
+        return;
+    }
+    input_port = getInputPort(context->stCodec);
+    for (S32 i = 0; i < getBufNum(input_port); i++) {
+        Buffer *buffer = getBuffer(input_port, i);
+        S32 token = getExtraId(buffer);
+
+        if (token >= 0) {
+            (void)SYS_ReleaseStreamDmaBuf((U64)(U32)token);
+            setExtraId(buffer, -1);
+        }
+    }
+}
+
 S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
     if (!ctx) {
         error("input para ALBaseContext is NULL, please check!");
@@ -492,6 +511,10 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream) {
         ret = queueBuffer(getInputPort(context->stCodec), buf);
         if (ret) {
             error("queueBuffer failed, should not failed, please check!");
+            if (getExtraId(buf) >= 0) {
+                (void)SYS_ReleaseStreamDmaBuf((U64)(U32)getExtraId(buf));
+                setExtraId(buf, -1);
+            }
             return ret;
         }
         context->nInputQueuedNum++;
@@ -688,6 +711,7 @@ S32 al_dec_reset(ALBaseContext *ctx) {
     debug("Reset start ========================================");
 
     handleFlush(context->stCodec, MPP_FALSE);
+    releaseInputDmaBufLeases(context);
     context->nInputQueuedNum = 0;
     context->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
     context->bInputEos = MPP_FALSE;
@@ -706,6 +730,7 @@ S32 al_dec_flush(ALBaseContext *ctx) {
     debug("Flush start ========================================");
 
     handleFlush(context->stCodec, MPP_FALSE);
+    releaseInputDmaBufLeases(context);
     context->nInputQueuedNum = 0;
     context->nInputQueueLeftNum = getBufNum(getInputPort(context->stCodec));
     context->bInputEos = MPP_FALSE;
@@ -728,6 +753,7 @@ void al_dec_destory(ALBaseContext *ctx) {
         enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
         mpp_v4l2_stream_off(context->nVideoFd, &input_type);
         mpp_v4l2_stream_off(context->nVideoFd, &output_type);
+        releaseInputDmaBufLeases(context);
         debug("stream off finish");
     }
 

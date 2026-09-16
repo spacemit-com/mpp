@@ -129,6 +129,19 @@ target_compile_definitions(test_vdec_backpressure PRIVATE ${MPP_TEST_COMMON_DEFS
 target_link_libraries(test_vdec_backpressure PRIVATE mpp)
 target_include_directories(test_vdec_backpressure PRIVATE ${MPP_INCLUDE_DIRS})
 
+# Hardware-only regression for the fixed compressed-input DMA-BUF ring.
+add_executable(test_sys_stream_dmabuf_pool test_sys_stream_dmabuf_pool.c)
+target_compile_definitions(test_sys_stream_dmabuf_pool PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_sys_stream_dmabuf_pool PRIVATE mpp_sys)
+target_include_directories(test_sys_stream_dmabuf_pool PRIVATE ${MPP_INCLUDE_DIRS})
+
+# Hardware-only end-to-end VDEC regression for the fixed compressed-input
+# DMA-BUF ring.  It needs the Linlon V4L2 decoder and is not a CTest target.
+add_executable(test_vdec_bound_dmabuf_input test_vdec_bound_dmabuf_input.c)
+target_compile_definitions(test_vdec_bound_dmabuf_input PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vdec_bound_dmabuf_input PRIVATE mpp)
+target_include_directories(test_vdec_bound_dmabuf_input PRIVATE ${MPP_INCLUDE_DIRS})
+
 add_executable(test_mjpeg_zero_dri
     vdec/test_mjpeg_zero_dri.c
     ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/linlonv5v7_mjpeg.c)

@@ -90,6 +90,22 @@ static S32 sys_find_sink_bind_idx(MppSharedMem *shm, const MppNode *sink) {
     return -1;
 }
 
+static VOID sys_free_stream_dma_pool_locked(MppStreamQueue *q) {
+    for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; i++) {
+        MppStreamDmaSlot *slot = &q->dma_slots[i];
+
+        if (slot->allocated && slot->owner_pid == getpid()) {
+            dma_free_buf(slot->dma_fd, slot->dma_vir, slot->capacity);
+        }
+    }
+
+    memset(q->dma_slots, 0, sizeof(q->dma_slots));
+    q->dma_pool_enabled = MPP_FALSE;
+    q->dma_pool_slot_count = 0;
+    q->dma_pool_capacity = 0;
+    q->dma_pool_owner_pid = 0;
+}
+
 static VOID sys_reset_stream_queue(MppStreamQueue *q) {
     if (!q) {
         return;
@@ -97,19 +113,64 @@ static VOID sys_reset_stream_queue(MppStreamQueue *q) {
 
     sys_mutex_lock(&q->lock);
 
-    /* Free any DMA buffers still in the queue (leaked by crashed producer) */
+    /* Free legacy per-packet DMA buffers still in the queue. */
     for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; i++) {
         MppStreamQueueEntry *e = &q->entries[i];
-        if (e->used && e->dma_fd >= 0 && e->owner_pid == getpid()) {
+        if (e->used && e->dma_slot == MPP_STREAM_DMA_SLOT_INVALID && e->dma_fd >= 0 && e->owner_pid == getpid()) {
             dma_free_buf(e->dma_fd, NULL, e->dma_size);
         }
     }
+
+    sys_free_stream_dma_pool_locked(q);
 
     q->head = 0;
     q->tail = 0;
     q->count = 0;
     memset(q->entries, 0, sizeof(q->entries));
+    for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; i++) {
+        q->entries[i].dma_fd = -1;
+        q->entries[i].dma_slot = MPP_STREAM_DMA_SLOT_INVALID;
+    }
     pthread_mutex_unlock(&q->lock);
+}
+
+static S32 sys_wait_stream_queue_locked(MppStreamQueue *q, U32 u32TimeoutMs) {
+    if (q->count == 0 && u32TimeoutMs > 0) {
+        struct timespec ts;
+
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += u32TimeoutMs / 1000;
+        ts.tv_nsec += (u32TimeoutMs % 1000) * 1000000L;
+        if (ts.tv_nsec >= 1000000000L) {
+            ts.tv_sec++;
+            ts.tv_nsec -= 1000000000L;
+        }
+        while (q->count == 0) {
+            int r = pthread_cond_timedwait(&q->not_empty, &q->lock, &ts);
+            if (r == ETIMEDOUT) {
+                break;
+            }
+            if (r == EOWNERDEAD) {
+                pthread_mutex_consistent(&q->lock);
+                break;
+            }
+        }
+    }
+
+    return q->count == 0 ? SYS_ERR_TIMEOUT : SYS_ERR_OK;
+}
+
+static MppStreamDmaSlot *sys_find_free_stream_dma_slot_locked(MppStreamQueue *q, U32 *slot_idx) {
+    for (U32 i = 0; i < q->dma_pool_slot_count; i++) {
+        MppStreamDmaSlot *slot = &q->dma_slots[i];
+
+        if (slot->allocated && !slot->queued && !slot->leased) {
+            *slot_idx = i;
+            return slot;
+        }
+    }
+
+    return NULL;
 }
 
 /* ======================== Map Helpers ======================== */
@@ -370,8 +431,21 @@ S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode) {
         return SYS_ERR_NOT_FOUND;
     }
 
+    MppStreamQueue *stream_queue = &shm->stream_queues[idx];
+    sys_mutex_lock(&stream_queue->lock);
+    for (U32 i = 0; i < stream_queue->dma_pool_slot_count; i++) {
+        if (stream_queue->dma_slots[i].leased) {
+            pthread_mutex_unlock(&stream_queue->lock);
+            pthread_rwlock_unlock(&shm->bind_lock);
+            SYS_LOG_WARN("stream bind %d still has DMA-BUF leases", idx);
+            return SYS_ERR_BUSY;
+        }
+    }
+    pthread_mutex_unlock(&stream_queue->lock);
+
     shm->binds[idx].state = SYS_BIND_FREE;
     shm->bind_cnt--;
+    sys_reset_stream_queue(stream_queue);
 
     pthread_rwlock_unlock(&shm->bind_lock);
 
@@ -383,6 +457,71 @@ S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode) {
         pstSinkNode->eModId,
         pstSinkNode->s32DevId,
         pstSinkNode->s32ChnId);
+    return SYS_ERR_OK;
+}
+
+S32 SYS_ConfigStreamDmaBufPool(
+    const MppNode *pstSrc, const MppNode *pstSink, U32 u32SlotSize, U32 u32SlotCount
+) {
+    MppSharedMem *shm = mpp_shm_get();
+    S32 bind_idx;
+    MppStreamQueue *q;
+
+    if (!pstSrc || !pstSink || u32SlotSize == 0 || u32SlotCount == 0 || u32SlotCount > MPP_STREAM_CHAN_DEPTH) {
+        SYS_LOG_ERR("invalid DMA-BUF pool config");
+        return SYS_ERR_INVAL;
+    }
+    if (!shm || !shm->sys_inited) {
+        return SYS_ERR_NOT_INIT;
+    }
+
+    pthread_rwlock_rdlock(&shm->bind_lock);
+    bind_idx = sys_find_bind_idx(shm, pstSrc, pstSink);
+    if (bind_idx < 0) {
+        pthread_rwlock_unlock(&shm->bind_lock);
+        return SYS_ERR_NOT_FOUND;
+    }
+
+    q = &shm->stream_queues[bind_idx];
+    sys_mutex_lock(&q->lock);
+    if (q->count != 0) {
+        pthread_mutex_unlock(&q->lock);
+        pthread_rwlock_unlock(&shm->bind_lock);
+        return SYS_ERR_BUSY;
+    }
+    for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; i++) {
+        if (q->dma_slots[i].leased) {
+            pthread_mutex_unlock(&q->lock);
+            pthread_rwlock_unlock(&shm->bind_lock);
+            return SYS_ERR_BUSY;
+        }
+    }
+
+    sys_free_stream_dma_pool_locked(q);
+    for (U32 i = 0; i < u32SlotCount; i++) {
+        MppStreamDmaSlot *slot = &q->dma_slots[i];
+
+        if (dma_alloc_buf(u32SlotSize, &slot->dma_fd, &slot->dma_phy, &slot->dma_vir) != 0) {
+            SYS_LOG_ERR("DMA-BUF pool allocation failed: slot=%u size=%u", i, u32SlotSize);
+            sys_free_stream_dma_pool_locked(q);
+            pthread_mutex_unlock(&q->lock);
+            pthread_rwlock_unlock(&shm->bind_lock);
+            return SYS_ERR_NOMEM;
+        }
+        slot->allocated = MPP_TRUE;
+        slot->capacity = u32SlotSize;
+        slot->owner_pid = getpid();
+    }
+
+    q->dma_pool_enabled = MPP_TRUE;
+    q->dma_pool_slot_count = u32SlotCount;
+    q->dma_pool_capacity = u32SlotSize;
+    q->dma_pool_owner_pid = getpid();
+    pthread_mutex_unlock(&q->lock);
+    pthread_rwlock_unlock(&shm->bind_lock);
+
+    SYS_LOG_INFO(
+        "stream DMA-BUF pool configured: bind=%d slots=%u size=%u", bind_idx, u32SlotCount, u32SlotSize);
     return SYS_ERR_OK;
 }
 
@@ -846,10 +985,6 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
         SYS_LOG_ERR("invalid params");
         return SYS_ERR_INVAL;
     }
-    if (pstStream->u32Size > MPP_STREAM_MAX_PAYLOAD) {
-        SYS_LOG_ERR("stream payload too large: %u", pstStream->u32Size);
-        return SYS_ERR_FULL;
-    }
     if (!shm || !shm->sys_inited) {
         SYS_LOG_ERR("SYS not initialized");
         return SYS_ERR_NOT_INIT;
@@ -863,6 +998,8 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
         int dma_fd = -1;
         U64 dma_phy = 0;
         void *dma_vir = NULL;
+        U32 dma_slot = MPP_STREAM_DMA_SLOT_INVALID;
+        BOOL use_fixed_dma_pool = MPP_FALSE;
 
         if (e->state != SYS_BIND_ACTIVE || !sys_node_equal(&e->src, pstSrc)) {
             continue;
@@ -878,7 +1015,44 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
             continue;
         }
 
-        if (pstStream->u32Size > 0) {
+        if (q->dma_pool_enabled) {
+            MppStreamDmaSlot *slot;
+
+            if (q->dma_pool_owner_pid != getpid()) {
+                SYS_LOG_ERR("DMA-BUF pool owner mismatch for bind=%u", i);
+                last_err = SYS_ERR_BUSY;
+                pthread_mutex_unlock(&q->lock);
+                continue;
+            }
+            slot = sys_find_free_stream_dma_slot_locked(q, &dma_slot);
+            if (!slot) {
+                SYS_LOG_WARN("stream DMA-BUF pool exhausted, bind=%u", i);
+                last_err = SYS_ERR_FULL;
+                pthread_mutex_unlock(&q->lock);
+                continue;
+            }
+            if (pstStream->u32Size > slot->capacity) {
+                SYS_LOG_ERR(
+                    "stream payload exceeds fixed DMA-BUF slot: size=%u capacity=%u bind=%u",
+                    pstStream->u32Size,
+                    slot->capacity,
+                    i);
+                last_err = SYS_ERR_FULL;
+                pthread_mutex_unlock(&q->lock);
+                continue;
+            }
+
+            dma_fd = slot->dma_fd;
+            dma_phy = slot->dma_phy;
+            dma_vir = slot->dma_vir;
+            use_fixed_dma_pool = MPP_TRUE;
+        } else if (pstStream->u32Size > 0) {
+            if (pstStream->u32Size > MPP_STREAM_MAX_PAYLOAD) {
+                SYS_LOG_ERR("stream payload too large for legacy queue: %u", pstStream->u32Size);
+                last_err = SYS_ERR_FULL;
+                pthread_mutex_unlock(&q->lock);
+                continue;
+            }
             /* Allocate DMA buffer for this stream packet (outside shm) */
             if (dma_alloc_buf(pstStream->u32Size, &dma_fd, &dma_phy, &dma_vir) != 0) {
                 SYS_LOG_ERR("DMA alloc failed for stream, size=%u", pstStream->u32Size);
@@ -887,14 +1061,17 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
                 continue;
             }
 
-            /* Copy payload into DMA buffer */
-            memcpy(dma_vir, pstStream->pu8Addr, pstStream->u32Size);
+        }
 
-            /* Sync DMA buffer for consumer to read */
+        if (pstStream->u32Size > 0) {
+            /* One hot-path CPU copy.  Fixed-pool buffers stay mapped. */
+            memcpy(dma_vir, pstStream->pu8Addr, pstStream->u32Size);
             dma_sync_buf(dma_fd, DMA_SYNC_WRITE | DMA_SYNC_END);
 
-            /* Unmap producer's virtual mapping — consumer will re-mmap via fd */
-            munmap(dma_vir, pstStream->u32Size);
+            if (!use_fixed_dma_pool) {
+                /* Legacy per-packet path remaps in the receiver. */
+                munmap(dma_vir, pstStream->u32Size);
+            }
         }
 
         /* Store metadata in shared queue entry */
@@ -903,10 +1080,17 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
         entry->used = MPP_TRUE;
         entry->info = *pstStream;
         entry->info.pu8Addr = NULL; /* no direct pointer in shm */
+        entry->info.s32DmaBufFd = -1;
+        entry->info.u32DmaBufCapacity = 0;
+        entry->info.u64DmaBufToken = 0;
         entry->dma_fd = dma_fd;
         entry->dma_phy = dma_phy;
-        entry->dma_size = pstStream->u32Size;
+        entry->dma_size = use_fixed_dma_pool ? q->dma_slots[dma_slot].capacity : pstStream->u32Size;
         entry->owner_pid = getpid();
+        entry->dma_slot = dma_slot;
+        if (use_fixed_dma_pool) {
+            q->dma_slots[dma_slot].queued = MPP_TRUE;
+        }
 
         q->tail = (q->tail + 1) % MPP_STREAM_CHAN_DEPTH;
         q->count++;
@@ -950,29 +1134,7 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
     dst = (U8 *)pstStream->pu8Addr;
 
     sys_mutex_lock(&q->lock);
-    if (q->count == 0 && u32TimeoutMs > 0) {
-        struct timespec ts;
-
-        clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_sec += u32TimeoutMs / 1000;
-        ts.tv_nsec += (u32TimeoutMs % 1000) * 1000000L;
-        if (ts.tv_nsec >= 1000000000L) {
-            ts.tv_sec++;
-            ts.tv_nsec -= 1000000000L;
-        }
-        while (q->count == 0) {
-            int r = pthread_cond_timedwait(&q->not_empty, &q->lock, &ts);
-            if (r == ETIMEDOUT) {
-                break;
-            }
-            if (r == EOWNERDEAD) {
-                pthread_mutex_consistent(&q->lock);
-                break;
-            }
-        }
-    }
-
-    if (q->count == 0) {
+    if (sys_wait_stream_queue_locked(q, u32TimeoutMs) != SYS_ERR_OK) {
         pthread_mutex_unlock(&q->lock);
         return SYS_ERR_TIMEOUT;
     }
@@ -983,7 +1145,26 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
         return SYS_ERR_FULL;
     }
 
-    if (entry->info.u32Size > 0) {
+    if (entry->dma_slot != MPP_STREAM_DMA_SLOT_INVALID) {
+        MppStreamDmaSlot *slot;
+
+        if (entry->dma_slot >= q->dma_pool_slot_count) {
+            SYS_LOG_ERR("invalid stream DMA-BUF slot %u", entry->dma_slot);
+            pthread_mutex_unlock(&q->lock);
+            return SYS_ERR_INVAL;
+        }
+        slot = &q->dma_slots[entry->dma_slot];
+        if (!slot->allocated || slot->owner_pid != getpid() || !slot->dma_vir) {
+            SYS_LOG_ERR("fixed stream DMA-BUF is not available in this process");
+            pthread_mutex_unlock(&q->lock);
+            return SYS_ERR_BUSY;
+        }
+        if (entry->info.u32Size > 0) {
+            dma_sync_buf(slot->dma_fd, DMA_SYNC_READ | DMA_SYNC_START);
+            memcpy(dst, slot->dma_vir, entry->info.u32Size);
+        }
+        slot->queued = MPP_FALSE;
+    } else if (entry->info.u32Size > 0) {
         /* Map the DMA buffer into this process to read the payload */
         dma_vir = mmap(NULL, entry->dma_size, PROT_READ, MAP_SHARED, entry->dma_fd, 0);
         if (dma_vir == MAP_FAILED) {
@@ -1006,12 +1187,110 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
     /* Return metadata to caller */
     *pstStream = entry->info;
     pstStream->pu8Addr = dst;
+    pstStream->s32DmaBufFd = -1;
+    pstStream->u32DmaBufCapacity = 0;
+    pstStream->u64DmaBufToken = 0;
 
     /* Clear entry and advance queue */
     memset(entry, 0, sizeof(*entry));
     entry->dma_fd = -1;
     q->head = (q->head + 1) % MPP_STREAM_CHAN_DEPTH;
     q->count--;
+    pthread_cond_signal(&q->not_full);
+    pthread_mutex_unlock(&q->lock);
+    return SYS_ERR_OK;
+}
+
+S32 SYS_RecvStreamDmaBuf(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
+    MppSharedMem *shm = mpp_shm_get();
+    S32 bind_idx;
+    MppStreamQueue *q;
+    MppStreamQueueEntry *entry;
+    MppStreamDmaSlot *slot;
+
+    if (!pstSink || !pstStream) {
+        return SYS_ERR_INVAL;
+    }
+    if (!shm || !shm->sys_inited) {
+        return SYS_ERR_NOT_INIT;
+    }
+
+    pthread_rwlock_rdlock(&shm->bind_lock);
+    bind_idx = sys_find_sink_bind_idx(shm, pstSink);
+    pthread_rwlock_unlock(&shm->bind_lock);
+    if (bind_idx < 0) {
+        return SYS_ERR_NOT_FOUND;
+    }
+
+    q = &shm->stream_queues[bind_idx];
+    sys_mutex_lock(&q->lock);
+    if (!q->dma_pool_enabled || q->dma_pool_owner_pid != getpid()) {
+        pthread_mutex_unlock(&q->lock);
+        return SYS_ERR_BUSY;
+    }
+    if (sys_wait_stream_queue_locked(q, u32TimeoutMs) != SYS_ERR_OK) {
+        pthread_mutex_unlock(&q->lock);
+        return SYS_ERR_TIMEOUT;
+    }
+
+    entry = &q->entries[q->head];
+    if (entry->dma_slot == MPP_STREAM_DMA_SLOT_INVALID || entry->dma_slot >= q->dma_pool_slot_count) {
+        pthread_mutex_unlock(&q->lock);
+        return SYS_ERR_BUSY;
+    }
+    slot = &q->dma_slots[entry->dma_slot];
+    if (!slot->allocated || !slot->queued || slot->owner_pid != getpid()) {
+        pthread_mutex_unlock(&q->lock);
+        return SYS_ERR_BUSY;
+    }
+
+    *pstStream = entry->info;
+    pstStream->pu8Addr = (const U8 *)slot->dma_vir;
+    pstStream->s32DmaBufFd = slot->dma_fd;
+    pstStream->u32DmaBufCapacity = slot->capacity;
+    /* Fits Buffer::nExtraId, which is signed 32-bit in the V4L2 plugin. */
+    pstStream->u64DmaBufToken = ((U64)(bind_idx + 1) << 16) | (U64)(entry->dma_slot + 1);
+
+    slot->queued = MPP_FALSE;
+    slot->leased = MPP_TRUE;
+    memset(entry, 0, sizeof(*entry));
+    entry->dma_fd = -1;
+    entry->dma_slot = MPP_STREAM_DMA_SLOT_INVALID;
+    q->head = (q->head + 1) % MPP_STREAM_CHAN_DEPTH;
+    q->count--;
+    pthread_cond_signal(&q->not_full);
+    pthread_mutex_unlock(&q->lock);
+    return SYS_ERR_OK;
+}
+
+S32 SYS_ReleaseStreamDmaBuf(U64 u64Token) {
+    MppSharedMem *shm = mpp_shm_get();
+    U32 bind_plus_one = (U32)((u64Token >> 16) & 0xffffU);
+    U32 slot_plus_one = (U32)(u64Token & 0xffffU);
+    U32 bind_idx;
+    U32 slot_idx;
+    MppStreamQueue *q;
+
+    if (!shm || !shm->sys_inited) {
+        return SYS_ERR_NOT_INIT;
+    }
+    if (bind_plus_one == 0 || slot_plus_one == 0) {
+        return SYS_ERR_INVAL;
+    }
+    bind_idx = bind_plus_one - 1;
+    slot_idx = slot_plus_one - 1;
+    if (bind_idx >= MPP_MAX_BIND || slot_idx >= MPP_STREAM_CHAN_DEPTH) {
+        return SYS_ERR_INVAL;
+    }
+
+    q = &shm->stream_queues[bind_idx];
+    sys_mutex_lock(&q->lock);
+    if (!q->dma_pool_enabled || q->dma_pool_owner_pid != getpid() || slot_idx >= q->dma_pool_slot_count ||
+        !q->dma_slots[slot_idx].leased) {
+        pthread_mutex_unlock(&q->lock);
+        return SYS_ERR_INVAL;
+    }
+    q->dma_slots[slot_idx].leased = MPP_FALSE;
     pthread_cond_signal(&q->not_full);
     pthread_mutex_unlock(&q->lock);
     return SYS_ERR_OK;

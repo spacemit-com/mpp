@@ -32,7 +32,7 @@ extern "C" {
 
 #define MPP_SHM_NAME "/mpp_ctrl"
 #define MPP_SHM_MAGIC 0x4D505053 /* "MPPS" */
-#define MPP_SHM_VERSION 4
+#define MPP_SHM_VERSION 5
 
 #define MPP_MAX_POOL 16
 #define MPP_MAX_BLK 256 /* per pool */
@@ -117,7 +117,25 @@ typedef struct _MppStreamQueueEntry {
     U32 dma_size;          /* allocated DMA buffer size (page-aligned) */
     int dma_fd;            /* dma-buf fd in producer's fd table */
     pid_t owner_pid;       /* PID that allocated the DMA buffer */
+    U32 dma_slot;          /* fixed-pool slot, or MPP_STREAM_DMA_SLOT_INVALID */
 } MppStreamQueueEntry;
+
+#define MPP_STREAM_DMA_SLOT_INVALID ((U32)-1)
+
+/*
+ * Fixed CMA input storage used by an opt-in same-process compressed stream
+ * bind.  dma_vir is meaningful only in owner_pid's address space.
+ */
+typedef struct _MppStreamDmaSlot {
+    U32 allocated;
+    U32 queued;
+    U32 leased;
+    U32 capacity;
+    U64 dma_phy;
+    S32 dma_fd;
+    VOID *dma_vir;
+    pid_t owner_pid;
+} MppStreamDmaSlot;
 
 typedef struct _MppStreamQueue {
     pthread_mutex_t lock;     /* PTHREAD_PROCESS_SHARED */
@@ -127,6 +145,11 @@ typedef struct _MppStreamQueue {
     U32 tail;
     U32 count;
     MppStreamQueueEntry entries[MPP_STREAM_CHAN_DEPTH];
+    U32 dma_pool_enabled;
+    U32 dma_pool_slot_count;
+    U32 dma_pool_capacity;
+    pid_t dma_pool_owner_pid;
+    MppStreamDmaSlot dma_slots[MPP_STREAM_CHAN_DEPTH];
 } MppStreamQueue;
 
 /* ======================== Map Record ======================== */
