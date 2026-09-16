@@ -369,6 +369,7 @@ ALBaseContext *al_dec_create(void) {
     }
 
     memset(context, 0, sizeof(ALLinlonv5v7DecContext));
+    context->nVideoFd = -1;
     context->inputWakeFd = -1;
     if (pthread_mutex_init(&context->inputDmaLock, NULL) != 0) {
         free(context);
@@ -427,7 +428,13 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     context->nInputMemType = pstAttr->bEnableInputDmaBuf ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
     if (pstAttr->bEnableInputDmaBuf) {
         context->inputWakeFd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-        if (context->inputWakeFd < 0) return MPP_INIT_FAILED;
+        if (context->inputWakeFd < 0) {
+            /* Locks belong to the context created by al_dec_create(). The
+             * caller still owns it on failure and must call al_dec_destory();
+             * destroying the locks here would make that cleanup invalid. */
+            error("create input wake eventfd failed: %s", strerror(errno));
+            return MPP_INIT_FAILED;
+        }
     }
     /* capture side always runs on external dma-bufs supplied by the caller */
     context->nOutputMemType = V4L2_MEMORY_DMABUF;
@@ -951,7 +958,7 @@ void al_dec_destory(ALBaseContext *ctx) {
         context->bPollThreadCreated = MPP_FALSE;
     }
 
-    if (context->nVideoFd && context->stCodec) {
+    if (context->stCodec) {
         pthread_mutex_lock(&context->inputDmaLock);
         enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
         enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
@@ -962,8 +969,10 @@ void al_dec_destory(ALBaseContext *ctx) {
         debug("stream off finish");
         destoryCodec(context->stCodec);
         debug("destory codec finish");
-        close(context->nVideoFd);
     }
+    /* The device can be open even if fcntl/createCodec failed. fd 0 is also
+     * valid; its ownership must not depend on successful codec creation. */
+    if (context->nVideoFd >= 0) close(context->nVideoFd);
     if (context->inputWakeFd >= 0) close(context->inputWakeFd);
     pthread_cond_destroy(&context->inputPollChanged);
     pthread_mutex_destroy(&context->inputPollLock);

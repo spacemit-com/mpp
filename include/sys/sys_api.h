@@ -212,6 +212,9 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
  * resources.  Configure it after SYS_Bind and before the source starts
  * sending.  Packet delivery then performs one CPU copy into a stable CMA
  * slot; it never allocates or frees CMA in the frame hot path.
+ * SYS_SendStream accepts payload sizes up to and including u32SlotSize.
+ * An oversized payload returns SYS_ERR_INVAL; unavailable slots/queue space
+ * return SYS_ERR_FULL. The fixed pool is never grown to fit a packet.
  */
 S32 SYS_ConfigStreamDmaBufPool(
     const MppNode *pstSrc, const MppNode *pstSink, U32 u32SlotSize, U32 u32SlotCount

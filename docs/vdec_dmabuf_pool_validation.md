@@ -3,6 +3,9 @@
 Date: 2026-09-16. Acceptance criterion: fewer compressed-payload copies and no
 per-frame CMA allocation, not an FPS improvement.
 
+For the subsequent review responses, failure-injection regression, and separate
+live-camera results, see [the review follow-up](vdec_dmabuf_pool_review.md).
+
 **Historical blocker from initial testing on 10.0.90.98:** the fixed input pool
 completed 5,400 frames under buffered-write/CMA pressure without hot allocations,
 but startup triggered a kernel `list_del corruption` warning in

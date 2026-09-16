@@ -1040,7 +1040,7 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
                     pstStream->u32Size,
                     slot->capacity,
                     i);
-                last_err = SYS_ERR_FULL;
+                last_err = SYS_ERR_INVAL;
                 pthread_mutex_unlock(&q->lock);
                 continue;
             }

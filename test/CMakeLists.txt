@@ -123,6 +123,13 @@ target_include_directories(test_vdec_input_retry PRIVATE
     ${CMAKE_SOURCE_DIR}/mpi/vdec)
 add_test(NAME test_vdec_input_retry COMMAND $<TARGET_FILE:test_vdec_input_retry>)
 
+add_executable(test_vdec_init_cleanup test_vdec_init_cleanup.c)
+target_compile_definitions(test_vdec_init_cleanup PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_vdec_init_cleanup PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+target_link_libraries(test_vdec_init_cleanup PRIVATE v4l2_linlonv5v7_codec2 mpp pthread)
+add_test(NAME test_vdec_init_cleanup COMMAND $<TARGET_FILE:test_vdec_init_cleanup>)
+
 # Hardware-only regression; intentionally not registered with CTest.
 add_executable(test_vdec_backpressure vdec/test_vdec_backpressure.c)
 target_compile_definitions(test_vdec_backpressure PRIVATE ${MPP_TEST_COMMON_DEFS})

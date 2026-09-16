@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 #include "sys/sys_api.h"
 
@@ -36,6 +37,33 @@ static StreamBufferInfo make_packet(const U8 *payload, U32 size, U64 pts) {
 static S32 send_packet(const MppNode *source, const U8 *payload, U32 size, U64 pts) {
     StreamBufferInfo packet = make_packet(payload, size, pts);
     return SYS_SendStream(source, &packet);
+}
+
+static int test_capacity(const MppNode *source, const MppNode *sink) {
+    U8 *payload = malloc(TEST_SLOT_SIZE + 1);
+    StreamBufferInfo lease;
+    int result = -1;
+    if (!payload)
+        return -1;
+    memset(payload, 0x5a, TEST_SLOT_SIZE + 1);
+    if (send_packet(source, payload, TEST_SLOT_SIZE + 1, 0) != SYS_ERR_INVAL) {
+        fprintf(stderr, "oversized payload was not rejected as invalid\n");
+        goto done;
+    }
+    /* Rejection must not consume a slot; both boundary sizes must still work. */
+    for (U32 size = TEST_SLOT_SIZE - 1; size <= TEST_SLOT_SIZE; ++size) {
+        if (check(send_packet(source, payload, size, 0), "capacity send") ||
+            check(SYS_RecvStreamDmaBuf(sink, &lease, 0), "capacity receive"))
+            goto done;
+        int mismatch = lease.u32Size != size || memcmp(lease.pu8Addr, payload, size);
+        if (check(SYS_ReleaseStreamDmaBuf(lease.u64DmaBufToken), "capacity release") || mismatch)
+            goto done;
+    }
+    result = 0;
+    printf("[PASS] fixed slot accepts capacity-1/capacity, rejects capacity+1\n");
+done:
+    free(payload);
+    return result;
 }
 
 typedef struct {
@@ -74,8 +102,7 @@ static int test_unbind_race(const MppNode *source, const MppNode *sink) {
         /* Keep any received lease until unbind has returned. Exactly one
          * operation may succeed; unbind must never free a returned lease. */
         if (race.ret == SYS_ERR_OK) {
-            if (unbound != SYS_ERR_BUSY ||
-                check(SYS_ReleaseStreamDmaBuf(race.lease.u64DmaBufToken), "race release") ||
+            if (unbound != SYS_ERR_BUSY || check(SYS_ReleaseStreamDmaBuf(race.lease.u64DmaBufToken), "race release") ||
                 check(SYS_UnBind(source, sink), "race unbind after release"))
                 return -1;
         } else if (unbound != SYS_ERR_OK ||
@@ -111,10 +138,10 @@ int main(void) {
         return 77; /* No usable CMA heap on a host is an expected skip. */
     }
 
-    if (check(send_packet(&source, packet_a, sizeof(packet_a), 1), "send a") != 0 ||
-        check(SYS_RecvStreamDmaBuf(&sink, &lease_a, 0), "receive a") != 0 ||
-        lease_a.s32DmaBufFd < 0 || lease_a.u64DmaBufToken == 0 ||
-        memcmp(lease_a.pu8Addr, packet_a, sizeof(packet_a)) != 0) {
+    if (test_capacity(&source, &sink) != 0 ||
+        check(send_packet(&source, packet_a, sizeof(packet_a), 1), "send a") != 0 ||
+        check(SYS_RecvStreamDmaBuf(&sink, &lease_a, 0), "receive a") != 0 || lease_a.s32DmaBufFd < 0 ||
+        lease_a.u64DmaBufToken == 0 || memcmp(lease_a.pu8Addr, packet_a, sizeof(packet_a)) != 0) {
         return 1;
     }
     fd_a = lease_a.s32DmaBufFd;
@@ -154,10 +181,9 @@ int main(void) {
     U8 copied[64];
     StreamBufferInfo received = {.pu8Addr = copied, .u32Size = sizeof(copied)};
     if (check(send_packet(&source, packet_a, sizeof(packet_a), 4), "send for copy") != 0 ||
-        check(SYS_RecvStream(&sink, &received, 0), "receive copy") != 0 ||
-        received.u32Size != sizeof(packet_a) || received.u64PTS != 4 || received.u64DmaBufToken != 0 ||
-        received.s32DmaBufFd != -1 || memcmp(copied, packet_a, sizeof(packet_a)) != 0 ||
-        check(SYS_UnBind(&source, &sink), "SYS_UnBind") != 0 ||
+        check(SYS_RecvStream(&sink, &received, 0), "receive copy") != 0 || received.u32Size != sizeof(packet_a) ||
+        received.u64PTS != 4 || received.u64DmaBufToken != 0 || received.s32DmaBufFd != -1 ||
+        memcmp(copied, packet_a, sizeof(packet_a)) != 0 || check(SYS_UnBind(&source, &sink), "SYS_UnBind") != 0 ||
         test_unbind_race(&source, &sink) != 0 || check(SYS_Exit(), "SYS_Exit") != 0) {
         return 1;
     }
