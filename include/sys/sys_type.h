@@ -97,6 +97,15 @@ typedef struct _StreamBufferInfo {
     U32 u32Width;
     U32 u32Height;
     UL ulPrivate;
+    /*
+     * Optional DMA-BUF backing for a compressed packet.  A negative fd means
+     * that pu8Addr is the only valid input representation.  The SYS stream
+     * DMA-BUF API owns the fd and the associated lease token; consumers must
+     * return the token after the hardware has finished reading the packet.
+     */
+    S32 s32DmaBufFd;
+    U32 u32DmaBufCapacity;
+    U64 u64DmaBufToken;
 } StreamBufferInfo;
 
 #ifdef __cplusplus

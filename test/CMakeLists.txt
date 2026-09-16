@@ -123,11 +123,38 @@ target_include_directories(test_vdec_input_retry PRIVATE
     ${CMAKE_SOURCE_DIR}/mpi/vdec)
 add_test(NAME test_vdec_input_retry COMMAND $<TARGET_FILE:test_vdec_input_retry>)
 
+add_executable(test_vdec_init_cleanup test_vdec_init_cleanup.c)
+target_compile_definitions(test_vdec_init_cleanup PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_vdec_init_cleanup PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+target_link_libraries(test_vdec_init_cleanup PRIVATE v4l2_linlonv5v7_codec2 mpp pthread)
+add_test(NAME test_vdec_init_cleanup COMMAND $<TARGET_FILE:test_vdec_init_cleanup>)
+
 # Hardware-only regression; intentionally not registered with CTest.
 add_executable(test_vdec_backpressure vdec/test_vdec_backpressure.c)
 target_compile_definitions(test_vdec_backpressure PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_link_libraries(test_vdec_backpressure PRIVATE mpp)
 target_include_directories(test_vdec_backpressure PRIVATE ${MPP_INCLUDE_DIRS})
+
+# Hardware-only regression for the fixed compressed-input DMA-BUF ring.
+add_executable(test_sys_stream_dmabuf_pool test_sys_stream_dmabuf_pool.c)
+target_compile_definitions(test_sys_stream_dmabuf_pool PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_sys_stream_dmabuf_pool PRIVATE mpp_sys pthread)
+target_include_directories(test_sys_stream_dmabuf_pool PRIVATE ${MPP_INCLUDE_DIRS})
+
+# Hardware-only end-to-end VDEC regression for the fixed compressed-input
+# DMA-BUF ring.  It needs the Linlon V4L2 decoder and is not a CTest target.
+add_executable(test_vdec_bound_dmabuf_input test_vdec_bound_dmabuf_input.c)
+target_compile_definitions(test_vdec_bound_dmabuf_input PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vdec_bound_dmabuf_input PRIVATE mpp)
+target_include_directories(test_vdec_bound_dmabuf_input PRIVATE ${MPP_INCLUDE_DIRS})
+
+# Sustained hardware A/B benchmark; inputs are preloaded before measurement.
+add_executable(test_vdec_input_benchmark test_vdec_input_benchmark.c)
+target_compile_definitions(test_vdec_input_benchmark PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_link_libraries(test_vdec_input_benchmark PRIVATE mpp dl pthread)
+target_include_directories(test_vdec_input_benchmark PRIVATE ${MPP_INCLUDE_DIRS})
+set_target_properties(test_vdec_input_benchmark PROPERTIES ENABLE_EXPORTS ON)
 
 add_executable(test_mjpeg_zero_dri
     vdec/test_mjpeg_zero_dri.c

@@ -220,6 +220,7 @@ S32 memoryMap(Buffer *buf, S32 fd);
 S32 memoryUnmap(Buffer *buf);
 S32 getLength(Buffer *buf, U32 plane);
 S32 getExtraId(Buffer *buf);
+void setExtraId(Buffer *buf, S32 extra_id);
 S32 getExtraFd(Buffer *buf);
 BOOL getIsQueued(Buffer *buf);
 S32 setIsQueued(Buffer *buf, BOOL queued);

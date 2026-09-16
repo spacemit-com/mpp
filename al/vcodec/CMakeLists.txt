@@ -26,12 +26,6 @@ add_library(v4l2_linlonv5v7_codec2 SHARED ${LINLONV5V7_SRCS})
 target_link_libraries(v4l2_linlonv5v7_codec2 PRIVATE
     -Wl,--no-as-needed mpp -Wl,--as-needed)
 
-# Post-build: try copying to /usr/lib first; if no permission, fall back to $HOME/.mpp/plugins
-add_custom_command(TARGET v4l2_linlonv5v7_codec2 POST_BUILD
-    COMMAND /bin/sh ${CMAKE_CURRENT_SOURCE_DIR}/install_plugin.sh $<TARGET_FILE:v4l2_linlonv5v7_codec2>
-    COMMENT "Installing libv4l2_linlonv5v7_codec2.so to system or user plugin directory"
-)
-
 install(TARGETS v4l2_linlonv5v7_codec2
     LIBRARY DESTINATION lib
 )

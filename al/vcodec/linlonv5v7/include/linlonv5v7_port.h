@@ -71,6 +71,11 @@ typedef enum _DIRECTION {
 
 typedef struct _Port Port;
 
+/* Internal lifecycle hooks. Installed before streaming threads are started.
+ * begin must return only after other threads have left device poll(); end
+ * allows them to register waiters again after capture queue replacement. */
+void setReconfigCallbacks(Port *port, void (*begin)(void *), void (*end)(void *), void *opaque);
+
 /**
  * @description: create a port for decode or encode
  * @return {*}: context of port

@@ -207,6 +207,10 @@ static S32 shm_init_stream_queue(MppStreamQueue *q) {
     q->tail = 0;
     q->count = 0;
     memset(q->entries, 0, sizeof(q->entries));
+    for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; i++) {
+        q->entries[i].dma_fd = -1;
+        q->entries[i].dma_slot = MPP_STREAM_DMA_SLOT_INVALID;
+    }
     return 0;
 }
 

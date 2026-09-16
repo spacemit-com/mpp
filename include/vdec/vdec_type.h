@@ -73,6 +73,12 @@ typedef struct _VdecChnAttr {
     BOOL bDispErrorFrame;              /**< display error frames */
     VdecScale stScale;                 /**< scaling parameters */
     U32 u32BufCnt;                     /**< output buffer count (0 = default 12) */
+    /**
+     * Use SYS fixed DMA-BUF compressed input for a bound same-process source.
+     * The source/sink bind must also be configured with
+     * SYS_ConfigStreamDmaBufPool.  Disabled by default for API compatibility.
+     */
+    BOOL bEnableInputDmaBuf;
 } VdecChnAttr;
 
 /**

@@ -41,6 +41,8 @@ ALBaseContext *al_dec_create(void);
  *               The decoder always runs CAPTURE in external-dmabuf mode: after
  *               init the caller must queue pstReq->u32OutputBufNum buffers via
  *               al_dec_queue_output_buffer before frames can be produced.
+ *               Failure closes device/event fds acquired during init. The
+ *               caller must still destroy the context returned by create.
  * @param {ALBaseContext} *ctx: the base context of video decoder
  * @param {VdecChnAttr} *pstAttr: channel attributes from MPI
  * @param {AlDecBufferRequirement} *pstReq: out, buffer counts the plugin decided
