@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); abort(); } } while (0)
+#define CHECK_EQ(a, b) do { if ((a) != (b)) { fprintf(stderr, "FAIL %d: %s == %s\n", __LINE__, #a, #b); abort(); } } while (0)
+#define CHECK_GE(a, b) do { if (!((a) >= (b))) { fprintf(stderr, "FAIL %d: %s >= %s\n", __LINE__, #a, #b); abort(); } } while (0)
 
 static MppSharedMem shared;
 static U8 source_data[64] = "original-camera-packet";
@@ -46,7 +48,7 @@ S32 VB_GetVirAddr(UL handle, VOID **ptr) {
     return 0;
 }
 S32 dma_sync_buf(int fd, U32 flags) {
-    CHECK(fcntl(fd, F_GETFD) >= 0);
+    CHECK_GE(fcntl(fd, F_GETFD), 0);
     if (fd == source_fd) {
         if (flags == (DMA_SYNC_READ | DMA_SYNC_START)) {
             if (fail_start) return -1;
@@ -70,8 +72,8 @@ S32 dma_alloc_buf(U32 size, int *fd, U64 *phy, VOID **ptr) {
 }
 void dma_free_buf(int fd, VOID *ptr, U32 size) {
     CHECK(fd != source_fd);
-    if (ptr) CHECK(munmap(ptr, size) == 0);
-    CHECK(close(fd) == 0);
+    if (ptr) CHECK_EQ(munmap(ptr, size), 0);
+    CHECK_EQ(close(fd), 0);
 }
 
 static StreamBufferInfo packet(void) {
@@ -88,23 +90,23 @@ static S32 receive_vb(const MppNode *node, StreamBufferInfo *stream, UL *held, U
 static void test_borrow_and_unbind(void) {
     StreamBufferInfo sent = packet(), received = {0};
     UL held = 0;
-    CHECK(SYS_Bind(&source, &sink) == 0);
+    CHECK_EQ(SYS_Bind(&source, &sink), 0);
     sent.pu8Addr = NULL; /* VB send must not dereference the supplied pointer. */
     refs = 1;
     CHECK(SYS_SendStream(&source, &sent) == 0 && refs == 2);
     CHECK(VB_ReleaseBuffer(source_handle) == 0 && refs == 1); /* producer drops ownership */
-    CHECK(receive_vb(&sink, &received, &held, 0) == 0);
+    CHECK_EQ(receive_vb(&sink, &received, &held, 0), 0);
     CHECK(held == source_handle && received.pu8Addr == source_data);
     S32 fd = -1;
     CHECK(VB_GetDmaBufFd(held, &fd) == 0 && fd == source_fd);
     CHECK(received.u64PTS == 123 && received.ulPrivate == 99 && received.u32Size == sizeof(source_data));
     CHECK(allocations == 0 && refs == 1 && read_starts == 0 && read_ends == 0);
     CHECK(SYS_UnBind(&source, &sink) == 0 && refs == 1);
-    CHECK(dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_START) == 0);
-    CHECK(memcmp(received.pu8Addr, source_data, sizeof(source_data)) == 0);
-    CHECK(dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_END) == 0);
+    CHECK_EQ(dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_START), 0);
+    CHECK_EQ(memcmp(received.pu8Addr, source_data, sizeof(source_data)), 0);
+    CHECK_EQ(dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_END), 0);
     CHECK(VB_ReleaseBuffer(held) == 0 && refs == 0 && read_ends == 1);
-    CHECK(fcntl(source_fd, F_GETFD) >= 0); /* SYS must never close the source fd */
+    CHECK_GE(fcntl(source_fd, F_GETFD), 0); /* SYS must never close the source fd */
     puts("[PASS] original storage/fd retained without allocation, received ref survives unbind");
 }
 
@@ -114,11 +116,11 @@ static void test_fanout_and_full(void) {
     refs = 1;
     CHECK(SYS_Bind(&source, &sink) == 0 && SYS_Bind(&source, &sink2) == 0);
     for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; ++i)
-        CHECK(SYS_SendStream(&source, &sent) == 0);
+        CHECK_EQ(SYS_SendStream(&source, &sent), 0);
     int expected = 1 + 2 * MPP_STREAM_CHAN_DEPTH;
     CHECK(refs == expected);
     CHECK(SYS_SendStream(&source, &sent) == SYS_ERR_FULL && refs == expected);
-    CHECK(receive_vb(&sink, &received, &held, 0) == 0);
+    CHECK_EQ(receive_vb(&sink, &received, &held, 0), 0);
     CHECK(VB_ReleaseBuffer(held) == 0 && refs == expected - 1);
     CHECK(SYS_UnBind(&source, &sink) == 0 && refs == 1 + MPP_STREAM_CHAN_DEPTH);
     CHECK(SYS_UnBind(&source, &sink2) == 0 && refs == 1);
@@ -128,7 +130,7 @@ static void test_fanout_and_full(void) {
 
 static void test_copy_and_errors(void) {
     StreamBufferInfo sent = packet(), received = {0};
-    CHECK(SYS_Bind(&source, &sink) == 0);
+    CHECK_EQ(SYS_Bind(&source, &sink), 0);
     refs = 1;
     sent.ulVbHandle = 0;
     CHECK(SYS_SendStream(&source, &sent) == SYS_ERR_INVAL);
@@ -148,7 +150,7 @@ static void test_copy_and_errors(void) {
     fail_map = MPP_FALSE;
     CHECK(SYS_RecvStream(&sink, &received, 0) == 0 && refs == 2);
     CHECK(received.pu8Addr == source_data && received.ulVbHandle == source_handle);
-    CHECK(VB_ReleaseBuffer(received.ulVbHandle) == 0);
+    CHECK_EQ(VB_ReleaseBuffer(received.ulVbHandle), 0);
     CHECK(SYS_UnBind(&source, &sink) == 0 && VB_ReleaseBuffer(source_handle) == 0);
     CHECK(refs == 0 && allocations == 0);
     puts("[PASS] pointer-only payloads rejected; invalid refs/maps preserve ownership");
@@ -156,40 +158,40 @@ static void test_copy_and_errors(void) {
 
 static void test_eos_and_cleanup(void) {
     StreamBufferInfo sent = {.bEndOfStream = MPP_TRUE, .u64PTS = 124}, received = {0};
-    CHECK(SYS_Bind(&source, &sink) == 0);
-    CHECK(SYS_SendStream(&source, &sent) == 0);
-    CHECK(SYS_RecvStream(&sink, &received, 0) == 0);
+    CHECK_EQ(SYS_Bind(&source, &sink), 0);
+    CHECK_EQ(SYS_SendStream(&source, &sent), 0);
+    CHECK_EQ(SYS_RecvStream(&sink, &received, 0), 0);
     CHECK(received.bEndOfStream && !received.ulVbHandle && !received.pu8Addr && !received.u32Size);
     CHECK(received.u64PTS == 124 && allocations == 0);
-    CHECK(SYS_UnBind(&source, &sink) == 0);
+    CHECK_EQ(SYS_UnBind(&source, &sink), 0);
     refs = 1;
     sent = packet();
-    CHECK(SYS_Bind(&source, &sink) == 0);
-    CHECK(SYS_SendStream(&source, &sent) == 0);
+    CHECK_EQ(SYS_Bind(&source, &sink), 0);
+    CHECK_EQ(SYS_SendStream(&source, &sent), 0);
     CHECK(VB_ReleaseBuffer(source_handle) == 0 && refs == 1);
     g_sys_init_ref = 1;
-    CHECK(SYS_Exit() == 0);
+    CHECK_EQ(SYS_Exit(), 0);
     CHECK(refs == 0 && shared.bind_cnt == 0);
     puts("[PASS] empty EOS and final queue cleanup");
 }
 
 int main(void) {
     shared.sys_inited = 1;
-    CHECK(pthread_mutex_init(&shared.map_lock, NULL) == 0);
-    CHECK(pthread_rwlock_init(&shared.bind_lock, NULL) == 0);
+    CHECK_EQ(pthread_mutex_init(&shared.map_lock, NULL), 0);
+    CHECK_EQ(pthread_rwlock_init(&shared.bind_lock, NULL), 0);
     for (U32 i = 0; i < MPP_MAX_BIND; ++i) {
-        CHECK(pthread_mutex_init(&shared.queues[i].lock, NULL) == 0);
-        CHECK(pthread_mutex_init(&shared.stream_queues[i].lock, NULL) == 0);
-        CHECK(pthread_cond_init(&shared.stream_queues[i].not_empty, NULL) == 0);
-        CHECK(pthread_cond_init(&shared.stream_queues[i].not_full, NULL) == 0);
+        CHECK_EQ(pthread_mutex_init(&shared.queues[i].lock, NULL), 0);
+        CHECK_EQ(pthread_mutex_init(&shared.stream_queues[i].lock, NULL), 0);
+        CHECK_EQ(pthread_cond_init(&shared.stream_queues[i].not_empty, NULL), 0);
+        CHECK_EQ(pthread_cond_init(&shared.stream_queues[i].not_full, NULL), 0);
     }
     source_fd = memfd_create("original-vb-dmabuf", MFD_CLOEXEC);
-    CHECK(source_fd >= 0);
+    CHECK_GE(source_fd, 0);
     test_borrow_and_unbind();
     test_fanout_and_full();
     test_copy_and_errors();
     test_eos_and_cleanup();
     CHECK(read_starts == read_ends);
-    CHECK(close(source_fd) == 0);
+    CHECK_EQ(close(source_fd), 0);
     return 0;
 }

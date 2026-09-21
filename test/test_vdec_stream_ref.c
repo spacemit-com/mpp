@@ -2,6 +2,7 @@
 #include "../mpi/vdec/vdec.c"
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); abort(); } } while (0)
+#define CHECK_EQ(a, b) do { if ((a) != (b)) { fprintf(stderr, "FAIL %d: %s == %s\n", __LINE__, #a, #b); abort(); } } while (0)
 
 static const U8 payload[] = {1, 2, 3};
 static struct {
@@ -58,7 +59,7 @@ S32 dma_sync_buf(int fd, U32 flags) {
 }
 
 static S32 decode(ALBaseContext *ctx, const StreamBufferInfo *stream) {
-    CHECK(stream->u64PTS == 123);
+    CHECK_EQ(stream->u64PTS, 123);
     CHECK(fake.empty_eos ? (!stream->pu8Addr && !stream->u32Size) :
         (stream->pu8Addr == payload && stream->u32Size == sizeof(payload)));
     CHECK(fake.empty_eos || (fake.held && fake.reading && !fake.releases));
@@ -79,8 +80,8 @@ static void run(S32 result, BOOL stop_receive, BOOL stop_retry, BOOL fail_fd, BO
     fake.fail_start = fail_start;
     fake.fail_end = fail_end;
     fake.empty_eos = empty_eos;
-    CHECK(pthread_mutex_init(&chn->lock, NULL) == 0);
-    CHECK(pthread_mutex_init(&chn->inputLock, NULL) == 0);
+    CHECK_EQ(pthread_mutex_init(&chn->lock, NULL), 0);
+    CHECK_EQ(pthread_mutex_init(&chn->inputLock, NULL), 0);
     chn->bUsed = chn->bStreamInputRun = MPP_TRUE;
     chn->eState = VDEC_CHN_STATE_STARTED;
     chn->stOps.decode = decode;
@@ -90,8 +91,8 @@ static void run(S32 result, BOOL stop_receive, BOOL stop_retry, BOOL fail_fd, BO
     CHECK(fake.releases == !empty_eos);
     CHECK(fake.starts == (!empty_eos && !fail_fd));
     CHECK(fake.ends == (!empty_eos && !fail_fd && !fail_start));
-    CHECK(pthread_mutex_destroy(&chn->inputLock) == 0);
-    CHECK(pthread_mutex_destroy(&chn->lock) == 0);
+    CHECK_EQ(pthread_mutex_destroy(&chn->inputLock), 0);
+    CHECK_EQ(pthread_mutex_destroy(&chn->lock), 0);
 }
 
 int main(void) {
