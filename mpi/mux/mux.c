@@ -84,7 +84,7 @@ static VOID *mux_bind_worker(VOID *arg) {
         S32 fd = -1;
         if (stStream.ulVbHandle &&
             (VB_GetDmaBufFd(stStream.ulVbHandle, &fd) != 0 ||
-             dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_START) != 0)) {
+                dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_START) != 0)) {
             VB_ReleaseBuffer(stStream.ulVbHandle);
             MUX_LOGE("Channel %d: stream read sync failed", pstChn->s32ChnId);
             continue;

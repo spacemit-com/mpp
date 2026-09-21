@@ -13,6 +13,7 @@
 #include "sys/mpp_shm.h"
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); exit(1); } } while (0)
+#define CHECK_EQ(a, b) do { if ((a) != (b)) { fprintf(stderr, "FAIL %d: %s == %s\n", __LINE__, #a, #b); exit(1); } } while (0)
 #define FRAME_COUNT 40
 static atomic_uint mux_packets, demux_packets, venc_packets;
 
@@ -55,7 +56,7 @@ static U64 now_ms(void) {
 static void send_raw(SynthSource *src, U32 index) {
     VideoFrameInfo frame;
     UL handle = 0;
-    CHECK(synth_fill_frame(src, index, &frame, &handle) == 0);
+    CHECK_EQ(synth_fill_frame(src, index, &frame, &handle), 0);
     frame.stVFrame.u64PTS = index * 33333ULL;
     S32 ret;
     U64 deadline = now_ms() + 3000;
@@ -76,19 +77,19 @@ static void encode(const char *prefix) {
     FILE *file = fopen(path, "wb");
     U32 count = 0, keys = 0;
     CHECK(file);
-    CHECK(encode_synth(0, &cfg, FRAME_COUNT, file, NULL, &count, &keys) == 0);
+    CHECK_EQ(encode_synth(0, &cfg, FRAME_COUNT, file, NULL, &count, &keys), 0);
     fclose(file);
     CHECK(count == FRAME_COUNT && keys && mpp_shm_get()->pool_cnt == 0);
     puts("PASS VENC manual GetStream/ReleaseStream frames=40 pools=0");
 
     SynthSource src;
-    CHECK(synth_source_create(&src, 640, 480, 16) == 0);
+    CHECK_EQ(synth_source_create(&src, 640, 480, 16), 0);
     CHECK(VENC_CreateChn(0, &attr) == 0 && VENC_EnableChn(0) == 0);
     for (U32 i = 0; i < 4; ++i) send_raw(&src, i);
     StreamBufferInfo held = {0};
     CHECK(VENC_GetStream(0, &held, 3000) == 0 && held.ulVbHandle && held.pu8Addr);
-    CHECK(VENC_DisableChn(0) == 0);
-    CHECK(VENC_DestroyChn(0) == ERR_VENC_BUSY);
+    CHECK_EQ(VENC_DisableChn(0), 0);
+    CHECK_EQ(VENC_DestroyChn(0), ERR_VENC_BUSY);
     CHECK(VENC_ReleaseStream(0, &held) == 0 && VENC_DestroyChn(0) == 0);
     CHECK(VB_DestroyPool(src.ulPool) == 0 && mpp_shm_get()->pool_cnt == 0);
     puts("PASS VENC retained packet survives stop; destroy waits for release");
@@ -100,8 +101,8 @@ static void encode(const char *prefix) {
     snprintf(mux.stSegment.szPattern, sizeof(mux.stSegment.szPattern), "%s-bound.mp4", prefix);
     CHECK(MUX_CreateChn(0, &mux) == 0 && MUX_StartChn(0) == 0);
     MppNode source = {MPP_ID_VENC, 0, 0}, sink = {MPP_ID_MUX, 0, 0};
-    CHECK(SYS_Bind(&source, &sink) == 0);
-    CHECK(synth_source_create(&src, 640, 480, 16) == 0);
+    CHECK_EQ(SYS_Bind(&source, &sink), 0);
+    CHECK_EQ(synth_source_create(&src, 640, 480, 16), 0);
     CHECK(VENC_CreateChn(0, &attr) == 0 && VENC_EnableChn(0) == 0);
     for (U32 i = 0; i < FRAME_COUNT; ++i) {
         send_raw(&src, i);
@@ -111,7 +112,7 @@ static void encode(const char *prefix) {
     while (atomic_load(&mux_packets) < FRAME_COUNT && now_ms() < deadline) usleep(10000);
     CHECK(atomic_load(&mux_packets) == FRAME_COUNT && atomic_load(&venc_packets) == FRAME_COUNT);
     CHECK(VENC_DisableChn(0) == 0 && MUX_StopChn(0) == 0);
-    CHECK(SYS_UnBind(&source, &sink) == 0);
+    CHECK_EQ(SYS_UnBind(&source, &sink), 0);
     CHECK(VENC_DestroyChn(0) == 0 && MUX_DestroyChn(0) == 0);
     CHECK(VB_DestroyPool(src.ulPool) == 0 && mpp_shm_get()->pool_cnt == 0);
     puts("PASS VENC->SYS->MUX frames=40 pools=0");
@@ -123,7 +124,7 @@ static void demux(const char *path) {
     VdecChnAttr dec = {.eCodecType = MPP_STREAM_CODEC_H264, .eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12,
         .u32Width = 640, .u32Height = 480, .u32BufCnt = 8, .u32Align = 16};
     MppNode source = {MPP_ID_DEMUX, 0, 0}, sink = {MPP_ID_VDEC, 0, 0};
-    CHECK(DEMUX_CreateChn(0, &attr) == 0);
+    CHECK_EQ(DEMUX_CreateChn(0, &attr), 0);
     CHECK(VDEC_CreateChn(0, &dec) == 0 && VDEC_EnableChn(0) == 0);
     CHECK(SYS_Bind(&source, &sink) == 0 && DEMUX_StartChn(0) == 0);
     U32 count = 0;
@@ -137,11 +138,11 @@ static void demux(const char *path) {
         CHECK(ret == 0 && (!count || frame.stVFrame.u64PTS > last_pts));
         last_pts = frame.stVFrame.u64PTS;
         count++;
-        CHECK(VDEC_ReleaseFrame(0, frame.ulBufferId) == 0);
+        CHECK_EQ(VDEC_ReleaseFrame(0, frame.ulBufferId), 0);
     }
     CHECK(ret == ERR_VDEC_EOS && count == FRAME_COUNT);
     CHECK(DEMUX_StopChn(0) == 0 && VDEC_DisableChn(0) == 0);
-    CHECK(SYS_UnBind(&source, &sink) == 0);
+    CHECK_EQ(SYS_UnBind(&source, &sink), 0);
     CHECK(DEMUX_DestroyChn(0) == 0 && VDEC_DestroyChn(0) == 0 && mpp_shm_get()->pool_cnt == 0);
     puts("PASS DEMUX->SYS->VDEC h264 frames=40 EOS=PASS pools=0");
 
@@ -149,22 +150,22 @@ static void demux(const char *path) {
     sink.eModId = MPP_ID_MUX;
     U32 before = atomic_load(&demux_packets);
     CHECK(DEMUX_CreateChn(0, &attr) == 0 && SYS_Bind(&source, &sink) == 0);
-    CHECK(DEMUX_StartChn(0) == 0);
+    CHECK_EQ(DEMUX_StartChn(0), 0);
     deadline = now_ms() + 3000;
     while (atomic_load(&demux_packets) == before && now_ms() < deadline) usleep(1000);
     CHECK(atomic_load(&demux_packets) > before && DEMUX_StopChn(0) == 0);
-    CHECK(DEMUX_DestroyChn(0) == ERR_DEMUX_BUSY);
+    CHECK_EQ(DEMUX_DestroyChn(0), ERR_DEMUX_BUSY);
     CHECK(SYS_UnBind(&source, &sink) == 0 && DEMUX_DestroyChn(0) == 0);
-    CHECK(mpp_shm_get()->pool_cnt == 0);
+    CHECK_EQ(mpp_shm_get()->pool_cnt, 0);
     puts("PASS DEMUX queued packets survive stop; unbind releases producer pool");
 }
 
 int main(int argc, char **argv) {
-    CHECK(argc == 3);
+    CHECK_EQ(argc, 3);
     CHECK(SYS_Init() == 0 && VB_Init() == 0 && VENC_Init() == 0);
     CHECK(VDEC_Init() == 0 && DEMUX_Init() == 0 && MUX_Init() == 0);
     if (strcmp(argv[1], "encode") == 0) encode(argv[2]);
-    else { CHECK(strcmp(argv[1], "demux") == 0); demux(argv[2]); }
+    else { CHECK_EQ(strcmp(argv[1], "demux"), 0); demux(argv[2]); }
     CHECK(MUX_Exit() == 0 && DEMUX_Exit() == 0 && VDEC_Exit() == 0 && VENC_Exit() == 0);
     CHECK(VB_Exit() == 0 && SYS_Exit() == 0);
     return 0;
