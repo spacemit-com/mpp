@@ -188,7 +188,11 @@ S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs);
 
 /**
  * @description: Send a compressed stream packet to all sink nodes bound to the source node.
- *               Used for compressed-domain binding such as DEMUX->VDEC or VENC->MUX.
+ *               Payload must be in ulVbHandle at offset zero; pu8Addr is ignored.
+ *               SYS only queues metadata and adds one reference per accepting sink.
+ *               The sender keeps its own reference and must not overwrite/requeue
+ *               the VB until all references return. Empty EOS may use handle zero.
+ *               Ordinary pointer-only payloads return SYS_ERR_INVAL.
  * @param {MppNode *} pstSrc    Source node pointer
  * @param {StreamBufferInfo *} pstStream Stream metadata and payload pointer
  * @return {S32} Returns 0 on success, error code on failure
@@ -197,9 +201,15 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream);
 
 /**
  * @description: Receive a compressed stream packet from the channel queue bound to the sink node.
- *               Caller must provide a writable payload buffer via pu8Addr/u32Size.
+ *               Returns the original VB mapping in pu8Addr and transfers one
+ *               reference in ulVbHandle. No destination buffer is required.
+ *               Obtain the process-local fd with VB_GetDmaBufFd, bracket CPU reads
+ *               with dma_sync_buf READ START/END, then call VB_ReleaseBuffer,
+ *               including on error/stop. Do not overwrite data or close its fd.
+ *               Release the previous packet before receiving again. Empty EOS and
+ *               failed receives return ulVbHandle=0. Initialize the struct to zero.
  * @param {MppNode *} pstSink       Sink node pointer
- * @param {StreamBufferInfo *} pstStream In/out stream metadata and payload buffer
+ * @param {StreamBufferInfo *} pstStream Output stream metadata, mapping and owned VB reference
  * @param {U32}       u32TimeoutMs  Timeout in milliseconds (0=non-blocking)
  * @return {S32} Returns 0 on success, error code on failure/timeout
  */

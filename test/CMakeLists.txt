@@ -219,3 +219,21 @@ target_include_directories(test_vi_k1_offline_addr PRIVATE ${MPP_INCLUDE_DIRS})
 set_tests_properties(test_multiproc PROPERTIES
     LABELS "slow;multiproc"
 )
+
+# Stream ownership tests use isolated stubs; no hardware or global SHM.
+foreach(name test_sys_stream_ref test_vdec_stream_ref)
+    add_executable(${name} ${name}.c)
+    target_compile_definitions(${name} PRIVATE ${MPP_TEST_COMMON_DEFS})
+    target_include_directories(${name} PRIVATE ${MPP_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/mpi/vdec)
+    target_link_libraries(${name} PRIVATE pthread)
+    target_link_options(${name} PRIVATE -Wl,--gc-sections)
+    add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
+endforeach()
+target_sources(test_vdec_stream_ref PRIVATE ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_input_retry.c)
+
+# Hardware-only: run explicitly on K3, not through CTest.
+add_executable(test_stream_vb_pipeline test_stream_vb_pipeline.c)
+target_compile_definitions(test_stream_vb_pipeline PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_stream_vb_pipeline PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_stream_vb_pipeline PRIVATE mpp dl pthread)
+target_link_options(test_stream_vb_pipeline PRIVATE -Wl,--export-dynamic)

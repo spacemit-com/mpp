@@ -32,7 +32,7 @@ extern "C" {
 
 #define MPP_SHM_NAME "/mpp_ctrl"
 #define MPP_SHM_MAGIC 0x4D505053 /* "MPPS" */
-#define MPP_SHM_VERSION 4
+#define MPP_SHM_VERSION 6
 
 #define MPP_MAX_POOL 16
 #define MPP_MAX_BLK 256 /* per pool */
@@ -113,10 +113,6 @@ typedef struct _MppChanQueue {
 typedef struct _MppStreamQueueEntry {
     U32 used;
     StreamBufferInfo info; /* pu8Addr is meaningless across processes */
-    U64 dma_phy;           /* DMA buffer physical address */
-    U32 dma_size;          /* allocated DMA buffer size (page-aligned) */
-    int dma_fd;            /* dma-buf fd in producer's fd table */
-    pid_t owner_pid;       /* PID that allocated the DMA buffer */
 } MppStreamQueueEntry;
 
 typedef struct _MppStreamQueue {

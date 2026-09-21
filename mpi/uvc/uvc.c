@@ -689,7 +689,7 @@ static void *uvc_capture_task(void *arg) {
          * At this point ref=1 (the "V4L2 base ref" from the initial
          * VB_ModGetBuffer or the recycle thread's VB_ModGetBuffer).
          *
-         * SYS_SendFrame internally does VB_RefAdd for each bound sink,
+         * SYS_SendFrame / SYS_SendStream retain a VB reference for each bound sink,
          * and each sink will eventually VB_ReleaseBuffer.
          *
          * If depth > 0, we VB_RefAdd once for the depth queue consumer.
@@ -713,6 +713,7 @@ static void *uvc_capture_task(void *arg) {
             stStreamInfo.bEndOfStream = MPP_FALSE;
             stStreamInfo.eCodecType =
                 (ePixFmt == MPP_PIXEL_FORMAT_H264) ? MPP_STREAM_CODEC_H264 : MPP_STREAM_CODEC_MJPEG;
+            stStreamInfo.ulVbHandle = ulBuf;
             SYS_SendStream(&stSrcNode, &stStreamInfo);
         } else {
             /* Raw YUV: send as frame (zero-copy via VB ref) */

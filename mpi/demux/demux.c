@@ -24,6 +24,9 @@
 
 #include "common/url_parser.h"
 #include "sys/sys_api.h"
+#include "sys/vb_api.h"
+#include "sys/dma_alloc.h"
+#include "sys/mpp_shm.h"
 
 #ifdef DEMUX_RTSP
 #include "protocol/rtsp/rtsp_client.h"
@@ -406,6 +409,7 @@ typedef struct _DemuxChn {
     DemuxPacketCallback pfnCb;
     VOID *pCbPriv;
     MppNode stSrcNode;
+    UL ulStreamPool; /* producer-owned storage for bound packets */
 
     /* Native demux context */
     DemuxCtx *pCtx;
@@ -431,6 +435,33 @@ static S32 demux_check_chn(S32 s32ChnId) {
         return ERR_DEMUX_INVALID_CHN;
     }
     return ERR_DEMUX_OK;
+}
+
+/* Keep demux-owned packet storage alive after the protocol reuses its buffer. */
+static S32 demux_prepare_stream(DemuxChn *pChn, StreamBufferInfo *stream) {
+    if (!stream->pu8Addr || !stream->u32Size || stream->u32Size > MPP_STREAM_MAX_PAYLOAD)
+        return SYS_ERR_INVAL;
+    if (!pChn->ulStreamPool) {
+        VbPoolCfg cfg = {.u32BufSize = MPP_STREAM_MAX_PAYLOAD, .u32BufCnt = 4, .eModId = MPP_ID_DEMUX};
+        pChn->ulStreamPool = VB_CreatePool(&cfg);
+        if (!pChn->ulStreamPool)
+            return SYS_ERR_NOMEM;
+    }
+    UL handle = VB_ModGetBuffer(pChn->ulStreamPool, MPP_ID_DEMUX, 0);
+    if (!handle)
+        return SYS_ERR_FULL;
+    VOID *ptr = NULL;
+    S32 fd = -1, ret = SYS_ERR_BUSY;
+    if (VB_GetVirAddr(handle, &ptr) == 0 && VB_GetDmaBufFd(handle, &fd) == 0 &&
+        dma_sync_buf(fd, DMA_SYNC_WRITE | DMA_SYNC_START) == 0) {
+        memcpy(ptr, stream->pu8Addr, stream->u32Size);
+        if (dma_sync_buf(fd, DMA_SYNC_WRITE | DMA_SYNC_END) == 0) {
+            stream->ulVbHandle = handle;
+            return SYS_ERR_OK;
+        }
+    }
+    VB_ModReleaseBuffer(handle, MPP_ID_DEMUX);
+    return ret;
 }
 
 static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
@@ -495,10 +526,18 @@ static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
         U32 maxRetries = isFileProto ? 1500 : 50; /* File: up to 30s */
         U32 retryDelayUs = isFileProto ? 20000 : 10000;
 
-        while (!pChn->s32Stop && (send_ret = SYS_SendStream(&pChn->stSrcNode, &stStream)) != 0 && retry < maxRetries) {
+        while (!pChn->s32Stop) {
+            send_ret = stStream.ulVbHandle ? SYS_ERR_OK : demux_prepare_stream(pChn, &stStream);
+            if (send_ret == SYS_ERR_OK)
+                send_ret = SYS_SendStream(&pChn->stSrcNode, &stStream);
+            if (send_ret == SYS_ERR_OK || retry >= maxRetries ||
+                (send_ret != SYS_ERR_FULL && send_ret != SYS_ERR_NOT_FOUND))
+                break;
             usleep(retryDelayUs);
             retry++;
         }
+        if (stStream.ulVbHandle)
+            VB_ModReleaseBuffer(stStream.ulVbHandle, MPP_ID_DEMUX);
         if (send_ret != 0) {
             DEMUX_LOGE("Channel %d: SYS_SendStream failed after %u retries, "
                 "dropping packet size=%u key=%d pts=%" PRIu64,
@@ -754,8 +793,12 @@ S32 DEMUX_Exit(VOID) {
 
     for (i = 0; i < DEMUX_MAX_CHN; i++) {
         if (g_stDemuxCtx.astChn[i].s32Created) {
-            DEMUX_DestroyChn(i);
+            S32 ret = DEMUX_DestroyChn(i);
+            if (ret != ERR_DEMUX_OK)
+                return ret;
         }
+    }
+    for (i = 0; i < DEMUX_MAX_CHN; i++) {
         pthread_mutex_destroy(&g_stDemuxCtx.astChn[i].lock);
     }
 
@@ -827,6 +870,13 @@ S32 DEMUX_DestroyChn(S32 s32ChnId) {
 
     pthread_mutex_lock(&pChn->lock);
 
+    if (pChn->ulStreamPool) {
+        if (VB_DestroyPool(pChn->ulStreamPool) != 0) {
+            pthread_mutex_unlock(&pChn->lock);
+            return ERR_DEMUX_BUSY;
+        }
+        pChn->ulStreamPool = 0;
+    }
     if (pChn->pCtx) {
         Demux_Close(pChn->pCtx);
         Demux_Destroy(pChn->pCtx);

@@ -31,6 +31,7 @@
 #include "module.h"
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "sys/dma_alloc.h"
 
 #define MODULE_TAG "mpp_venc"
 
@@ -72,9 +73,11 @@ typedef struct _VencChnCtx {
     BOOL bBound;     /**< TRUE if SYS_RecvFrame got data */
     BOOL bBoundSink; /**< TRUE if SYS_SendStream got data */
 
-    /* Task thread: sole consumer of al_enc_request_output_stream; pushes
-     *  same StreamBufferInfo to SYS_SendStream and to the queue for VENC_GetStream;
-     *  buffer is returned to the encoder only in VENC_ReleaseStream. */
+    /* Producer-owned VB storage, retained by bound sinks or GetStream callers. */
+    UL ulStreamPool;
+    U32 u32StreamCapacity;
+
+    /* Sole consumer of al_enc_request_output_stream. */
     pthread_t taskTid;
     BOOL bTaskRun;
 
@@ -240,8 +243,8 @@ static void venc_plugin_close(VencChnCtx *pChn) {
 
 /**
  * @brief Task thread: continuously polls encoded stream from encoder, sends
- *        a copy to bound sinks via SYS_SendStream, then enqueues the same
- *        packet for VENC_GetStream; VENC_ReleaseStream returns the buffer.
+ *        VB references to bound sinks via SYS_SendStream, or queues a packet
+ *        for VENC_GetStream; VENC_ReleaseStream releases the application reference.
  */
 static void *venc_task_thread(void *arg) {
     VencChnCtx *pChn = (VencChnCtx *)arg;
@@ -256,12 +259,14 @@ static void *venc_task_thread(void *arg) {
     info("venc task thread started: chn %d", s32ChnId);
 
     while (pChn->bTaskRun) {
-        /* Allocate buffer for encoded output */
-        U32 allocSize = pChn->stAttr.u32Width * pChn->stAttr.u32Height;
-        if (allocSize == 0)
-            allocSize = 1280 * 720;
-        U8 *pOutBuf = (U8 *)malloc(allocSize);
-        if (!pOutBuf) {
+        UL handle = VB_ModGetBuffer(pChn->ulStreamPool, MPP_ID_VENC, 100);
+        if (!handle)
+            continue;
+        VOID *pOutBuf = NULL;
+        S32 fd = -1;
+        if (VB_GetVirAddr(handle, &pOutBuf) != 0 || VB_GetDmaBufFd(handle, &fd) != 0 ||
+            dma_sync_buf(fd, DMA_SYNC_WRITE | DMA_SYNC_START) != 0) {
+            VB_ModReleaseBuffer(handle, MPP_ID_VENC);
             usleep(1000);
             continue;
         }
@@ -272,18 +277,21 @@ static void *venc_task_thread(void *arg) {
         StreamBufferInfo stStream;
         memset(&stStream, 0, sizeof(stStream));
         stStream.pu8Addr = pOutBuf;
-        stStream.u32Size = allocSize;
+        stStream.u32Size = pChn->u32StreamCapacity;
+        stStream.ulVbHandle = handle;
 
         pthread_mutex_lock(&pChn->pluginIoLock);
         S32 ret = pChn->stOps.request_output_stream(pChn->pAlCtx, &stStream, 100);
         pthread_mutex_unlock(&pChn->pluginIoLock);
+        if (dma_sync_buf(fd, DMA_SYNC_WRITE | DMA_SYNC_END) != 0)
+            ret = MPP_POLL_FAILED;
         if (ret != MPP_OK && ret != MPP_CODER_EOS) {
-            free(pOutBuf);
+            VB_ModReleaseBuffer(handle, MPP_ID_VENC);
             usleep(5000); /* no stream available */
             continue;
         }
 
-        if (stStream.pu8Addr && stStream.u32Size > 0) {
+        if (stStream.u32Size > 0 || stStream.bEndOfStream) {
             ret = SYS_SendStream(&stSrcNode, &stStream);
             if (ret != 0) {
                 if (SYS_ERR_NOT_FOUND == ret) {
@@ -298,17 +306,12 @@ static void *venc_task_thread(void *arg) {
         }
 
         if (pChn->bBoundSink) {
-            /* Bind mode: downstream already consumed the data via
-             * SYS_SendStream (which does memcpy into DMA buf).
-             * The CAPTURE buffer was already re-queued inside the plugin,
-             * so just free the local output buffer. */
-            free(pOutBuf);
+            /* Each accepting sink retains its own reference. */
+            VB_ModReleaseBuffer(handle, MPP_ID_VENC);
             continue;
         }
 
-        /* Non-bind mode: queue for VENC_GetStream;
-         * VENC_ReleaseStream frees the buffer. */
-        stStream.ulPrivate = (UL)pOutBuf;
+        /* Non-bind mode: transfer the producer reference into the queue. */
 
         pthread_mutex_lock(&pChn->queueLock);
         while (pChn->u32QueueCount >= VENC_STREAM_QUEUE_SIZE && pChn->bTaskRun) {
@@ -316,7 +319,7 @@ static void *venc_task_thread(void *arg) {
         }
         if (!pChn->bTaskRun) {
             pthread_mutex_unlock(&pChn->queueLock);
-            free(pOutBuf);
+            VB_ModReleaseBuffer(handle, MPP_ID_VENC);
             break;
         }
         pChn->astStreamQueue[pChn->u32QueueTail] = stStream;
@@ -337,9 +340,8 @@ static void venc_drain_out_stream_queue(VencChnCtx *pChn) {
         StreamBufferInfo st = pChn->astStreamQueue[pChn->u32QueueHead];
         pChn->u32QueueHead = (pChn->u32QueueHead + 1) % VENC_STREAM_QUEUE_SIZE;
         pChn->u32QueueCount--;
-        if (st.ulPrivate) {
-            free((void *)st.ulPrivate);
-        }
+        if (st.ulVbHandle)
+            VB_ModReleaseBuffer(st.ulVbHandle, MPP_ID_VENC);
     }
     pthread_cond_broadcast(&pChn->queueNotEmpty);
     pthread_mutex_unlock(&pChn->queueLock);
@@ -382,7 +384,7 @@ static void venc_stop_threads(VencChnCtx *pChn) {
 
 /**
  * @brief  Thread: receive VB frame buffers from bound source via SYS_RecvFrame,
- *         encode each frame, and output stream via VENC_RecvStream path.
+ *         encode each frame, and output stream via the task thread.
  *         Runs when VENC channel is enabled; stops on disable.
  */
 static void *venc_frame_input_task(void *arg) {
@@ -533,6 +535,13 @@ S32 VENC_DestroyChn(S32 s32ChnId) {
         return ERR_VENC_BUSY;
     }
 
+    if (pChn->ulStreamPool) {
+        if (VB_DestroyPool(pChn->ulStreamPool) != 0) {
+            pthread_mutex_unlock(&pChn->lock);
+            return ERR_VENC_BUSY;
+        }
+        pChn->ulStreamPool = 0;
+    }
     venc_plugin_close(pChn);
 
     pChn->bUsed = MPP_FALSE;
@@ -556,6 +565,22 @@ S32 VENC_EnableChn(S32 s32ChnId) {
         return ERR_VENC_ALREADY_INIT;
     }
 
+    if (!pChn->ulStreamPool) {
+        U64 capacity = (U64)pChn->stAttr.u32Width * pChn->stAttr.u32Height;
+        if (!capacity)
+            capacity = 1280 * 720;
+        if (capacity > UINT32_MAX) {
+            pthread_mutex_unlock(&pChn->lock);
+            return ERR_VENC_NOMEM;
+        }
+        VbPoolCfg cfg = {.u32BufSize = (U32)capacity, .u32BufCnt = 4, .eModId = MPP_ID_VENC};
+        pChn->ulStreamPool = VB_CreatePool(&cfg);
+        if (!pChn->ulStreamPool) {
+            pthread_mutex_unlock(&pChn->lock);
+            return ERR_VENC_NOMEM;
+        }
+        pChn->u32StreamCapacity = (U32)capacity;
+    }
     S32 ret = venc_plugin_open(pChn);
     if (ret != MPP_OK) {
         error("venc_plugin_open failed for chn %d, ret=%d", s32ChnId, ret);
@@ -696,8 +721,8 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream, U32 u32TimeoutMs) 
 
     /*
      * The task thread is the only path that calls al_enc_request_output_stream.
-     * The heap output buffer is queued here zero-copy; VENC_ReleaseStream
-     * frees it after SYS_SendStream and the app are done.
+     * Transfer the queued VENC reference to an application reference and begin
+     * CPU access; VENC_ReleaseStream ends access and releases that reference.
      */
     pthread_mutex_lock(&pChn->queueLock);
     for (;;) {
@@ -749,14 +774,24 @@ S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream, U32 u32TimeoutMs) 
     }
 
     if (pstStream->bEndOfStream) {
-        if (pstStream->ulPrivate) {
-            free((void *)pstStream->ulPrivate);
-            pstStream->ulPrivate = 0;
-        }
+        VB_ModReleaseBuffer(pstStream->ulVbHandle, MPP_ID_VENC);
+        pstStream->ulVbHandle = 0;
+        pstStream->pu8Addr = NULL;
         return ERR_VENC_EOS;
     }
 
-    return ERR_VENC_OK;
+    S32 ret = VB_RefAdd(pstStream->ulVbHandle);
+    VB_ModReleaseBuffer(pstStream->ulVbHandle, MPP_ID_VENC);
+    if (ret == 0) {
+        S32 fd = -1;
+        if (VB_GetDmaBufFd(pstStream->ulVbHandle, &fd) == 0 &&
+            dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_START) == 0)
+            return ERR_VENC_OK;
+        VB_ReleaseBuffer(pstStream->ulVbHandle);
+    }
+    pstStream->ulVbHandle = 0;
+    pstStream->pu8Addr = NULL;
+    return ERR_VENC_BUSY;
 }
 
 S32 VENC_ReleaseStream(S32 s32ChnId, const StreamBufferInfo *pstStream) {
@@ -773,14 +808,13 @@ S32 VENC_ReleaseStream(S32 s32ChnId, const StreamBufferInfo *pstStream) {
         return ERR_VENC_INVALID_CHN;
     }
 
-    /* The CAPTURE buffer was already re-queued inside the plugin;
-     * just free the heap output copy carried in ulPrivate. */
-    if (pstStream->ulPrivate) {
-        free((void *)pstStream->ulPrivate);
-    }
-
+    S32 fd = -1;
+    S32 ret = VB_GetDmaBufFd(pstStream->ulVbHandle, &fd);
+    if (ret == 0)
+        ret = dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_END);
+    S32 release_ret = VB_ReleaseBuffer(pstStream->ulVbHandle);
     pthread_mutex_unlock(&pChn->lock);
-    return ERR_VENC_OK;
+    return ret == 0 ? release_ret : ret;
 }
 
 S32 VENC_QueryStatus(S32 s32ChnId, VencChnStatus *pstStatus) {

@@ -97,6 +97,9 @@ typedef struct _StreamBufferInfo {
     U32 u32Width;
     U32 u32Height;
     UL ulPrivate;
+    /* SYS stream payload is a VB at offset zero; only empty EOS may omit it.
+     * Receive transfers one reference, released with VB_ReleaseBuffer. */
+    UL ulVbHandle;
 } StreamBufferInfo;
 
 #ifdef __cplusplus

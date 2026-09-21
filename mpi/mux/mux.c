@@ -24,6 +24,8 @@
 #include "mux_rtsp_server.h"
 #include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
+#include "sys/vb_api.h"
+#include "sys/dma_alloc.h"
 
 #define MUX_STATE_IDLE 0
 #define MUX_STATE_CREATED 1
@@ -59,15 +61,9 @@ static MuxCodecType mux_codec_from_stream(MppStreamCodecType eCodecType) {
 
 static VOID *mux_bind_worker(VOID *arg) {
     MuxChannel *pstChn = (MuxChannel *)arg;
-    U8 *pu8Buf;
     S32 ret = 0;
 
     if (!pstChn) {
-        return NULL;
-    }
-
-    pu8Buf = (U8 *)malloc(MPP_STREAM_MAX_PAYLOAD);
-    if (!pu8Buf) {
         return NULL;
     }
 
@@ -77,8 +73,6 @@ static VOID *mux_bind_worker(VOID *arg) {
         MuxPacket stPkt;
 
         memset(&stStream, 0, sizeof(stStream));
-        stStream.pu8Addr = pu8Buf;
-        stStream.u32Size = MPP_STREAM_MAX_PAYLOAD;
         ret = SYS_RecvStream(&pstChn->stSinkNode, &stStream, 100);
         if (ret != 0) {
             /* No data yet, or no producer bound (manual MUX_SendPacket mode):
@@ -87,17 +81,30 @@ static VOID *mux_bind_worker(VOID *arg) {
             continue;
         }
 
+        S32 fd = -1;
+        if (stStream.ulVbHandle &&
+            (VB_GetDmaBufFd(stStream.ulVbHandle, &fd) != 0 ||
+             dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_START) != 0)) {
+            VB_ReleaseBuffer(stStream.ulVbHandle);
+            MUX_LOGE("Channel %d: stream read sync failed", pstChn->s32ChnId);
+            continue;
+        }
         memset(&stPkt, 0, sizeof(stPkt));
         stPkt.pu8Data = (U8 *)stStream.pu8Addr;
         stPkt.u32Size = stStream.u32Size;
         stPkt.bKeyFrame = stStream.bKeyFrame;
         stPkt.eCodecType = mux_codec_from_stream(stStream.eCodecType);
         stPkt.u64PTS = stStream.u64PTS;
-        (VOID) MUX_SendPacket(pstChn->s32ChnId, &stPkt);
+        if (stPkt.u32Size)
+            (VOID) MUX_SendPacket(pstChn->s32ChnId, &stPkt);
+        if (stStream.ulVbHandle) {
+            if (dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_END) != 0)
+                MUX_LOGE("Channel %d: stream read end failed", pstChn->s32ChnId);
+            VB_ReleaseBuffer(stStream.ulVbHandle);
+        }
     }
 
     pstChn->s32WorkerAlive = 0;
-    free(pu8Buf);
     return NULL;
 }
 

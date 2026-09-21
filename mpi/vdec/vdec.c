@@ -29,6 +29,7 @@
 #include "al_interface_dec.h"
 #include "log.h"
 #include "module.h"
+#include "sys/dma_alloc.h"
 #include "sys/mpp_shm.h"
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
@@ -914,19 +915,11 @@ static void *vdec_stream_input_task(void *arg) {
         .s32ChnId = s32ChnId,
     };
 
-    U8 *pRecvBuf = (U8 *)malloc(MPP_STREAM_MAX_PAYLOAD);
-    if (!pRecvBuf) {
-        error("stream input task: malloc %d failed, chn %d", MPP_STREAM_MAX_PAYLOAD, s32ChnId);
-        return NULL;
-    }
-
     info("stream input task started: chn %d", s32ChnId);
 
     while (vdec_stream_input_active(pChn)) {
         StreamBufferInfo stStream;
         memset(&stStream, 0, sizeof(stStream));
-        stStream.pu8Addr = pRecvBuf;
-        stStream.u32Size = MPP_STREAM_MAX_PAYLOAD;
 
         ret = SYS_RecvStream(&stSink, &stStream, 100);
         if (ret != 0) {
@@ -948,6 +941,16 @@ static void *vdec_stream_input_task(void *arg) {
         }
         pthread_mutex_unlock(&pChn->lock);
 
+        S32 fd = -1;
+        BOOL read_started = MPP_FALSE;
+        ret = MPP_OK;
+        if (stStream.ulVbHandle) {
+            if (VB_GetDmaBufFd(stStream.ulVbHandle, &fd) != 0 ||
+                dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_START) != 0)
+                ret = MPP_POLL_FAILED;
+            else
+                read_started = MPP_TRUE;
+        }
         VdecInputSubmitCtx submit = {
             .pChn = pChn,
             .pstStream = &stStream,
@@ -959,9 +962,16 @@ static void *vdec_stream_input_task(void *arg) {
             .sleepUs = vdec_sleep_us,
             .opaque = &submit,
         };
-        pthread_mutex_lock(&pChn->inputLock);
-        ret = vdec_input_submit_with_timeout(&retry, (U32)-1);
-        pthread_mutex_unlock(&pChn->inputLock);
+        if (ret == MPP_OK) {
+            /* Keep the source VB alive throughout the existing input retry. */
+            pthread_mutex_lock(&pChn->inputLock);
+            ret = vdec_input_submit_with_timeout(&retry, (U32)-1);
+            pthread_mutex_unlock(&pChn->inputLock);
+        }
+        if (read_started && dma_sync_buf(fd, DMA_SYNC_READ | DMA_SYNC_END) != 0)
+            error("stream input task: VB read end failed, chn %d", s32ChnId);
+        if (stStream.ulVbHandle && VB_ReleaseBuffer(stStream.ulVbHandle) != 0)
+            error("stream input task: VB release failed, chn %d", s32ChnId);
         if (ret != MPP_OK && ret != 0 && ret != MPP_CODER_EOS && ret != ERR_VDEC_NOT_STARTED)
             error("stream input task: decode failed %d, chn %d", ret, s32ChnId);
 
@@ -971,7 +981,6 @@ static void *vdec_stream_input_task(void *arg) {
         }
     }
 
-    free(pRecvBuf);
     info("stream input task exiting: chn %d", s32ChnId);
     return NULL;
 }
