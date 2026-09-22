@@ -37,7 +37,8 @@ The test includes the reader implementation to inspect allocation reuse and
 inject allocation failures, following the existing isolated SYS/VDEC test
 pattern. It builds its own sample data, without codecs, devices or downloads.
 
-For a standalone host sanitizer check:
+Run these commands from the MPP repository root. For a standalone host
+sanitizer check:
 
 ```sh
 cc -std=c11 -D_GNU_SOURCE -Wall -Wextra -Wno-unused-parameter -Werror \
@@ -46,11 +47,21 @@ cc -std=c11 -D_GNU_SOURCE -Wall -Wextra -Wno-unused-parameter -Werror \
 ASAN_OPTIONS=detect_leaks=1 /tmp/test_mp4_read_buffer
 ```
 
+Only `-Iinclude` is required for this standalone test: its relative include
+loads `mpi/demux/container/mp4/mp4_demuxer.c`, whose quoted
+`#include "mp4_demuxer.h"` is resolved beside that C file by the compiler.
+The test does not require an installed MPP library or generated headers.
+
 Coverage includes the exact 512 KiB boundary, 512 KiB + 1 byte, 649,848 and
 1,114,788 byte samples, byte-for-byte contents, dimensions/PTS, seek, reuse
 without extra allocations, EOF, initial/growth allocation failure with retry,
 64 MiB and oversized guards, short reads, repeated close, and small H.264
 Annex-B output.
+
+`Mp4Demuxer_Close()` releases the reader's file, sample tables and sample
+buffer, leaving the reader object valid. `Mp4Demuxer_Destroy()` calls Close
+and then frees the object. The repeated-close test intentionally inspects
+the cleared members before Destroy; callers must not inspect them afterward.
 
 ## 2026-09-22 validation
 

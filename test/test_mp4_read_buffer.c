@@ -26,6 +26,7 @@ static void *test_realloc(void *ptr, size_t size) {
         }                                                                                                    \
     } while (0)
 #define CHECK_EQ(a, b) CHECK((a) == (b))
+#define CHECK_GE(a, b) CHECK((a) >= (b))
 
 static Mp4Demuxer *make_reader(const U32 *sizes, U32 count, U8 **expected) {
     Mp4Demuxer *reader = Mp4Demuxer_Create();
@@ -41,7 +42,7 @@ static Mp4Demuxer *make_reader(const U32 *sizes, U32 count, U8 **expected) {
     track->u32Width = 4000;
     track->u32Height = 1200;
     for (U32 i = 0; i < count; ++i) {
-        CHECK(sizes[i] >= 4);
+        CHECK_GE(sizes[i], 4);
         expected[i] = (U8 *)malloc(sizes[i]);
         CHECK(expected[i] != NULL);
         for (U32 j = 0; j < sizes[i]; ++j)
