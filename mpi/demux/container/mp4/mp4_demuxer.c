@@ -50,6 +50,10 @@
  * value within the 32-bit size used by the parser. */
 #define MP4_MAX_MOOV_SIZE (256U * 1024U * 1024U)
 
+/* Bound allocations from sample-table data while allowing large MJPEG frames. */
+#define MP4_MAX_SAMPLE_SIZE (64U * 1024U * 1024U)
+#define MP4_INITIAL_READ_BUFFER_SIZE (512U * 1024U)
+
 typedef struct _SampleEntry {
     U64 u64Offset;
     U32 u32Size;
@@ -95,7 +99,8 @@ struct _Mp4Demuxer {
     BOOL bHasAudio;
 
     /* Read buffer */
-    U8 au8ReadBuf[512 * 1024];
+    U8 *pu8ReadBuf;
+    U32 u32ReadBufSize;
 
     /* Output buffer for Annex-B converted packet */
     U8 au8AnnexBBuf[512 * 1024];
@@ -103,6 +108,26 @@ struct _Mp4Demuxer {
     /* Stream info cache */
     DemuxStreamInfo stStreamInfo;
 };
+
+static S32 ensure_read_buffer(Mp4Demuxer *pDemux, U32 u32RequiredSize) {
+    if (u32RequiredSize > MP4_MAX_SAMPLE_SIZE)
+        return ERR_DEMUX_UNSUPPORTED;
+    if (u32RequiredSize <= pDemux->u32ReadBufSize)
+        return ERR_DEMUX_OK;
+
+    U32 u32NewSize = pDemux->u32ReadBufSize;
+    if (u32NewSize == 0)
+        u32NewSize = MP4_INITIAL_READ_BUFFER_SIZE;
+    while (u32NewSize < u32RequiredSize)
+        u32NewSize *= 2;
+
+    U8 *pu8NewBuffer = (U8 *)realloc(pDemux->pu8ReadBuf, u32NewSize);
+    if (!pu8NewBuffer)
+        return ERR_DEMUX_NOMEM;
+    pDemux->pu8ReadBuf = pu8NewBuffer;
+    pDemux->u32ReadBufSize = u32NewSize;
+    return ERR_DEMUX_OK;
+}
 
 /* Helper: Read big endian integers */
 static U32 read_be32(const U8 *p) { return ((U32)p[0] << 24) | ((U32)p[1] << 16) | ((U32)p[2] << 8) | p[3]; }
@@ -749,6 +774,10 @@ VOID Mp4Demuxer_Close(Mp4Demuxer *pDemux) {
         free(pDemux->stAudioTrack.pstSamples);
         pDemux->stAudioTrack.pstSamples = NULL;
     }
+
+    free(pDemux->pu8ReadBuf);
+    pDemux->pu8ReadBuf = NULL;
+    pDemux->u32ReadBufSize = 0;
 }
 
 S32 Mp4Demuxer_GetStreamInfo(Mp4Demuxer *pDemux, DemuxStreamInfo *pstInfo) {
@@ -789,20 +818,21 @@ S32 Mp4Demuxer_ReadPacket(Mp4Demuxer *pDemux, DemuxPacket *pstPkt) {
     /* Seek and read raw AVCC sample */
     fseeko(pDemux->pFile, (off_t)pSample->u64Offset, SEEK_SET);
 
-    if (pSample->u32Size > sizeof(pDemux->au8ReadBuf)) {
-        return ERR_DEMUX_NO_STREAM;
-    }
+    S32 s32Ret = ensure_read_buffer(pDemux, pSample->u32Size);
+    if (s32Ret != ERR_DEMUX_OK)
+        return s32Ret;
 
-    if (fread(pDemux->au8ReadBuf, 1, pSample->u32Size, pDemux->pFile) != pSample->u32Size) {
+    if (pSample->u32Size > 0 &&
+        fread(pDemux->pu8ReadBuf, 1, pSample->u32Size, pDemux->pFile) != pSample->u32Size) {
         return ERR_DEMUX_NO_STREAM;
     }
 
     /* MJPEG samples are complete JPEG bitstreams. FFmpeg commonly tags this
      * MP4 track as mp4v, so identify it by the JPEG SOI marker and bypass the
      * AVCC-to-Annex-B conversion that would otherwise emit an empty packet. */
-    if (pSample->u32Size >= 2 && pDemux->au8ReadBuf[0] == 0xff && pDemux->au8ReadBuf[1] == 0xd8) {
+    if (pSample->u32Size >= 2 && pDemux->pu8ReadBuf[0] == 0xff && pDemux->pu8ReadBuf[1] == 0xd8) {
         pTrack->eCodec = DEMUX_CODEC_MJPEG;
-        pstPkt->pu8Data = pDemux->au8ReadBuf;
+        pstPkt->pu8Data = pDemux->pu8ReadBuf;
         pstPkt->u32Size = pSample->u32Size;
         pstPkt->bKeyFrame = MPP_TRUE;
         pstPkt->eCodecType = DEMUX_CODEC_MJPEG;
@@ -812,6 +842,11 @@ S32 Mp4Demuxer_ReadPacket(Mp4Demuxer *pDemux, DemuxPacket *pstPkt) {
         pTrack->u32CurrentSample++;
         return 0;
     }
+
+    /* Large non-MJPEG samples still exceed the fixed Annex-B output buffer.
+     * Reject them explicitly rather than accepting a partially converted packet. */
+    if (pSample->u32Size > sizeof(pDemux->au8AnnexBBuf))
+        return ERR_DEMUX_UNSUPPORTED;
 
     /* Convert AVCC (length-prefixed) to Annex-B (start-code-prefixed).
      * For keyframes, prepend SPS/PPS from avcC box. */
@@ -832,7 +867,7 @@ S32 Mp4Demuxer_ReadPacket(Mp4Demuxer *pDemux, DemuxPacket *pstPkt) {
     while (inPos + nls <= pSample->u32Size) {
         U32 nalLen = 0;
         for (U8 b = 0; b < nls; b++) {
-            nalLen = (nalLen << 8) | pDemux->au8ReadBuf[inPos + b];
+            nalLen = (nalLen << 8) | pDemux->pu8ReadBuf[inPos + b];
         }
         inPos += nls;
         if (inPos + nalLen > pSample->u32Size)
@@ -842,7 +877,7 @@ S32 Mp4Demuxer_ReadPacket(Mp4Demuxer *pDemux, DemuxPacket *pstPkt) {
 
         memcpy(pOut + u32OutLen, startCode, 4);
         u32OutLen += 4;
-        memcpy(pOut + u32OutLen, pDemux->au8ReadBuf + inPos, nalLen);
+        memcpy(pOut + u32OutLen, pDemux->pu8ReadBuf + inPos, nalLen);
         u32OutLen += nalLen;
         inPos += nalLen;
     }
