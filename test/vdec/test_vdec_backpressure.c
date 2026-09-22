@@ -16,6 +16,8 @@
 
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
+#include "sys/dma_alloc.h"
+#include "sys/mpp_shm.h"
 #include "vdec/vdec_api.h"
 
 typedef struct _Consumer {
@@ -120,6 +122,30 @@ static S32 send_eos(S32 chn, const MppNode *source, U64 pts) {
     return VDEC_SendStream(chn, &stream, 3000);
 }
 
+static S32 prepare_bound_packet(UL pool, StreamBufferInfo *stream, U32 *busyCount) {
+    if (stream->u32Size > MPP_STREAM_MAX_PAYLOAD)
+        return SYS_ERR_INVAL;
+    UL handle = VB_ModGetBuffer(pool, MPP_ID_DEMUX, 0);
+    if (!handle) {
+        ++*busyCount;
+        handle = VB_ModGetBuffer(pool, MPP_ID_DEMUX, 3000);
+    }
+    if (!handle)
+        return SYS_ERR_TIMEOUT;
+    VOID *ptr = NULL;
+    S32 fd = -1;
+    if (VB_GetVirAddr(handle, &ptr) == 0 && VB_GetDmaBufFd(handle, &fd) == 0 &&
+        dma_sync_buf(fd, DMA_SYNC_WRITE | DMA_SYNC_START) == 0) {
+        memcpy(ptr, stream->pu8Addr, stream->u32Size);
+        if (dma_sync_buf(fd, DMA_SYNC_WRITE | DMA_SYNC_END) == 0) {
+            stream->ulVbHandle = handle;
+            return 0;
+        }
+    }
+    VB_ModReleaseBuffer(handle, MPP_ID_DEMUX);
+    return SYS_ERR_BUSY;
+}
+
 int main(int argc, char **argv) {
     const char *path;
     U32 width;
@@ -138,6 +164,7 @@ int main(int argc, char **argv) {
     MppNode source = {.eModId = MPP_ID_DEMUX, .s32DevId = 0, .s32ChnId = 0};
     MppNode sink = {.eModId = MPP_ID_VDEC, .s32DevId = 0, .s32ChnId = 0};
     BOOL bound = MPP_FALSE;
+    UL streamPool = 0;
     S32 ret = 1;
 
     if (argc < 4 || argc > 6) {
@@ -184,6 +211,10 @@ int main(int argc, char **argv) {
             goto channel_down;
         }
         bound = MPP_TRUE;
+        VbPoolCfg cfg = {.u32BufSize = MPP_STREAM_MAX_PAYLOAD, .u32BufCnt = 4, .eModId = MPP_ID_DEMUX};
+        streamPool = VB_CreatePool(&cfg);
+        if (!streamPool)
+            goto channel_down;
     }
 
     memset(&consumer, 0, sizeof(consumer));
@@ -210,6 +241,9 @@ int main(int argc, char **argv) {
             stream.u32Height = height;
 
             if (bindMode) {
+                ret = prepare_bound_packet(streamPool, &stream, &busyCount);
+                if (ret != 0)
+                    goto stop_consumer;
                 do {
                     ret = SYS_SendStream(&source, &stream);
                     if (ret == SYS_ERR_FULL) {
@@ -217,6 +251,7 @@ int main(int argc, char **argv) {
                         usleep(2000);
                     }
                 } while (ret == SYS_ERR_FULL);
+                VB_ModReleaseBuffer(stream.ulVbHandle, MPP_ID_DEMUX);
             } else {
                 ret = VDEC_SendStream(0, &stream, 0);
                 if (ret == ERR_VDEC_BUSY) {
@@ -268,6 +303,8 @@ channel_down:
         (void)SYS_UnBind(&source, &sink);
     (void)VDEC_DisableChn(0);
     (void)VDEC_DestroyChn(0);
+    if (streamPool && VB_DestroyPool(streamPool) != 0)
+        ret = 1;
 runtime_down:
     (void)VDEC_Exit();
     (void)VB_Exit();

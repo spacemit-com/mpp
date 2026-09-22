@@ -85,7 +85,9 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
 
 /**
  * @brief  Receive an encoded stream packet (zero-copy).
- *         Caller MUST call VENC_ReleaseStream after use.
+ *         Returns a read-only VB mapping with CPU read access already started.
+ *         Caller MUST call VENC_ReleaseStream after use; do not free the pointer
+ *         or release ulVbHandle separately. Release before destroying the channel.
  * @param  s32ChnId       Channel ID
  * @param  pstStream      Output: stream packet (address, size, PTS, key frame flag)
  * @param  u32TimeoutMs   Timeout in ms (0 = non-blocking, -1 = infinite)
@@ -95,10 +97,10 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
 S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream, U32 u32TimeoutMs);
 
 /**
- * @brief  Release an encoded stream packet back to the encoder.
- *         Must be paired with each successful VENC_RecvStream.
+ * @brief  End CPU read access and release the encoded stream's VB reference.
+ *         Must be paired with each successful VENC_GetStream.
  * @param  s32ChnId   Channel ID
- * @param  pstStream  Stream packet from VENC_RecvStream
+ * @param  pstStream  Stream packet from VENC_GetStream
  * @return 0 on success, error code on failure
  */
 S32 VENC_ReleaseStream(S32 s32ChnId, const StreamBufferInfo *pstStream);

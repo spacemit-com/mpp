@@ -97,11 +97,11 @@ static VOID sys_reset_stream_queue(MppStreamQueue *q) {
 
     sys_mutex_lock(&q->lock);
 
-    /* Free any DMA buffers still in the queue (leaked by crashed producer) */
+    /* Release each reference still owned by the stream queue. */
     for (U32 i = 0; i < MPP_STREAM_CHAN_DEPTH; i++) {
         MppStreamQueueEntry *e = &q->entries[i];
-        if (e->used && e->dma_fd >= 0 && e->owner_pid == getpid()) {
-            dma_free_buf(e->dma_fd, NULL, e->dma_size);
+        if (e->used && e->info.ulVbHandle) {
+            VB_ReleaseBuffer(e->info.ulVbHandle);
         }
     }
 
@@ -233,6 +233,7 @@ static void sys_last_process_cleanup(MppSharedMem *shm) {
                 shm->binds[i].sink.eModId,
                 shm->binds[i].sink.s32DevId,
                 shm->binds[i].sink.s32ChnId);
+            sys_reset_stream_queue(&shm->stream_queues[i]);
             shm->binds[i].state = SYS_BIND_FREE;
         }
     }
@@ -370,6 +371,7 @@ S32 SYS_UnBind(const MppNode *pstSrcNode, const MppNode *pstSinkNode) {
         return SYS_ERR_NOT_FOUND;
     }
 
+    sys_reset_stream_queue(&shm->stream_queues[idx]);
     shm->binds[idx].state = SYS_BIND_FREE;
     shm->bind_cnt--;
 
@@ -836,13 +838,14 @@ S32 SYS_RecvFrame(const MppNode *pstSink, UL *pulBuff, U32 u32TimeoutMs) {
 }
 
 S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
+    const UL ulBuff = pstStream ? pstStream->ulVbHandle : 0;
     MppSharedMem *shm = mpp_shm_get();
     BOOL found = MPP_FALSE;
     BOOL sent = MPP_FALSE;
     S32 last_err = SYS_ERR_OK;
 
-    if (!pstSrc || !pstStream ||
-        (!pstStream->bEndOfStream && (!pstStream->pu8Addr || pstStream->u32Size == 0))) {
+    if (!pstSrc || !pstStream || (!pstStream->bEndOfStream && pstStream->u32Size == 0) ||
+        (pstStream->u32Size && !ulBuff)) {
         SYS_LOG_ERR("invalid params");
         return SYS_ERR_INVAL;
     }
@@ -855,14 +858,17 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
         return SYS_ERR_NOT_INIT;
     }
 
+    if (ulBuff) {
+        VideoFrameInfo frame;
+        if (VB_GetFrameInfo(ulBuff, &frame) != 0 || pstStream->u32Size > frame.stVFrame.u32PlaneSize[0])
+            return SYS_ERR_INVAL;
+    }
+
     pthread_rwlock_rdlock(&shm->bind_lock);
     for (U32 i = 0; i < MPP_MAX_BIND; i++) {
         SysBindEntry *e = &shm->binds[i];
         MppStreamQueue *q;
         MppStreamQueueEntry *entry;
-        int dma_fd = -1;
-        U64 dma_phy = 0;
-        void *dma_vir = NULL;
 
         if (e->state != SYS_BIND_ACTIVE || !sys_node_equal(&e->src, pstSrc)) {
             continue;
@@ -878,23 +884,12 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
             continue;
         }
 
-        if (pstStream->u32Size > 0) {
-            /* Allocate DMA buffer for this stream packet (outside shm) */
-            if (dma_alloc_buf(pstStream->u32Size, &dma_fd, &dma_phy, &dma_vir) != 0) {
-                SYS_LOG_ERR("DMA alloc failed for stream, size=%u", pstStream->u32Size);
-                last_err = SYS_ERR_NOMEM;
+        if (ulBuff) {
+            if (VB_RefAdd(ulBuff) != 0) {
+                last_err = SYS_ERR_INVAL;
                 pthread_mutex_unlock(&q->lock);
                 continue;
             }
-
-            /* Copy payload into DMA buffer */
-            memcpy(dma_vir, pstStream->pu8Addr, pstStream->u32Size);
-
-            /* Sync DMA buffer for consumer to read */
-            dma_sync_buf(dma_fd, DMA_SYNC_WRITE | DMA_SYNC_END);
-
-            /* Unmap producer's virtual mapping — consumer will re-mmap via fd */
-            munmap(dma_vir, pstStream->u32Size);
         }
 
         /* Store metadata in shared queue entry */
@@ -903,10 +898,6 @@ S32 SYS_SendStream(const MppNode *pstSrc, const StreamBufferInfo *pstStream) {
         entry->used = MPP_TRUE;
         entry->info = *pstStream;
         entry->info.pu8Addr = NULL; /* no direct pointer in shm */
-        entry->dma_fd = dma_fd;
-        entry->dma_phy = dma_phy;
-        entry->dma_size = pstStream->u32Size;
-        entry->owner_pid = getpid();
 
         q->tail = (q->tail + 1) % MPP_STREAM_CHAN_DEPTH;
         q->count++;
@@ -927,10 +918,11 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
     S32 bind_idx;
     MppStreamQueue *q;
     MppStreamQueueEntry *entry;
-    U8 *dst;
     void *dma_vir = NULL;
 
-    if (!pstSink || !pstStream || !pstStream->pu8Addr || pstStream->u32Size == 0) {
+    if (pstStream)
+        memset(pstStream, 0, sizeof(*pstStream));
+    if (!pstSink || !pstStream) {
         SYS_LOG_ERR("invalid params");
         return SYS_ERR_INVAL;
     }
@@ -947,7 +939,6 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
     }
 
     q = &shm->stream_queues[bind_idx];
-    dst = (U8 *)pstStream->pu8Addr;
 
     sys_mutex_lock(&q->lock);
     if (q->count == 0 && u32TimeoutMs > 0) {
@@ -978,38 +969,18 @@ S32 SYS_RecvStream(const MppNode *pstSink, StreamBufferInfo *pstStream, U32 u32T
     }
 
     entry = &q->entries[q->head];
-    if (pstStream->u32Size < entry->info.u32Size) {
+    if (entry->info.ulVbHandle &&
+        (VB_GetVirAddr(entry->info.ulVbHandle, &dma_vir) != 0 || !dma_vir)) {
         pthread_mutex_unlock(&q->lock);
-        return SYS_ERR_FULL;
+        return SYS_ERR_BUSY;
     }
 
-    if (entry->info.u32Size > 0) {
-        /* Map the DMA buffer into this process to read the payload */
-        dma_vir = mmap(NULL, entry->dma_size, PROT_READ, MAP_SHARED, entry->dma_fd, 0);
-        if (dma_vir == MAP_FAILED) {
-            SYS_LOG_ERR("mmap DMA fd=%d failed: %s", entry->dma_fd, strerror(errno));
-            pthread_mutex_unlock(&q->lock);
-            return SYS_ERR_NOMEM;
-        }
-
-        /* Sync for CPU read */
-        dma_sync_buf(entry->dma_fd, DMA_SYNC_READ | DMA_SYNC_START);
-
-        /* Copy payload to caller's buffer */
-        memcpy(dst, dma_vir, entry->info.u32Size);
-
-        /* Unmap and close the DMA buffer — consumer is done */
-        munmap(dma_vir, entry->dma_size);
-        close(entry->dma_fd);
-    }
-
-    /* Return metadata to caller */
+    /* Transfer the queue reference; the receiver releases it after use. */
     *pstStream = entry->info;
-    pstStream->pu8Addr = dst;
+    pstStream->pu8Addr = dma_vir;
 
     /* Clear entry and advance queue */
     memset(entry, 0, sizeof(*entry));
-    entry->dma_fd = -1;
     q->head = (q->head + 1) % MPP_STREAM_CHAN_DEPTH;
     q->count--;
     pthread_cond_signal(&q->not_full);
