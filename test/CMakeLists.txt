@@ -54,6 +54,12 @@ target_include_directories(test_demux_seek PRIVATE ${MPP_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/mpi/demux)
 target_link_libraries(test_demux_seek PRIVATE mpp)
 
+# Hardware-independent MP4 sample-reader allocation regression.
+add_executable(test_mp4_read_buffer test_mp4_read_buffer.c)
+target_compile_definitions(test_mp4_read_buffer PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_mp4_read_buffer PRIVATE ${MPP_INCLUDE_DIRS})
+add_test(NAME test_mp4_read_buffer COMMAND $<TARGET_FILE:test_mp4_read_buffer>)
+
 # MUX shared Annex-B helpers regression test.
 add_executable(test_mux_common test_mux_common.c)
 target_compile_definitions(test_mux_common PRIVATE ${MPP_TEST_COMMON_DEFS})
