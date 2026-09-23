@@ -72,15 +72,27 @@ S32 mux_rtsp_tx_commit(MuxRtspClient *client) {
         return -1;
     client->pTxBuilding = NULL;
     if (buffer->uSize == 0) {
+        /* An empty response/frame never enters the queue or consumes a slot. */
         mux_rtsp_tx_free(buffer);
         return 0;
+    }
+    /* Release growth slack before enqueueing so payload-byte accounting also
+     * bounds the memory reserved for committed buffers. */
+    if (buffer->uCapacity != buffer->uSize) {
+        U8 *exact = realloc(buffer->pu8Data, buffer->uSize);
+        if (!exact) {
+            client->pTxBuilding = buffer;
+            return -1;
+        }
+        buffer->pu8Data = exact;
+        buffer->uCapacity = buffer->uSize;
     }
     if (client->pTxTail)
         client->pTxTail->pNext = buffer;
     else
         client->pTxHead = buffer;
     client->pTxTail = buffer;
-    client->uTxBytes += buffer->uCapacity;
+    client->uTxBytes += buffer->uSize;
     ++client->u32TxCount;
     return 0;
 }
@@ -128,7 +140,7 @@ S32 mux_rtsp_tx_flush(MuxRtspClient *client) {
             client->pTxHead = buffer->pNext;
             if (!client->pTxHead)
                 client->pTxTail = NULL;
-            client->uTxBytes -= buffer->uCapacity;
+            client->uTxBytes -= buffer->uSize;
             --client->u32TxCount;
             mux_rtsp_tx_free(buffer);
         }

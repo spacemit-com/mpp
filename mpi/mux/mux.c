@@ -407,6 +407,8 @@ S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt) {
         pthread_mutex_unlock(&pstChn->lock);
         return ERR_MUX_INVALID_CHN;
     }
+    /* Stop marks STOPPING while holding this lock, before joining the worker.
+     * Calls during or after teardown cannot reach the output backend. */
     if (pstChn->s32State != MUX_STATE_RUNNING) {
         pthread_mutex_unlock(&pstChn->lock);
         return ERR_MUX_NOT_STARTED;

@@ -202,7 +202,7 @@ static S32 mux_rtsp_send_response(MuxRtspClient *pstClient, const CHAR *pszBody,
         mux_rtsp_tx_append(pstClient, (const U8 *)szMsg, strlen(szMsg)) != 0 ||
         mux_rtsp_tx_commit(pstClient) != 0)
         return -1;
-    mux_rtsp_wake(&g_stGlobalServer);
+    /* Requests run on the I/O thread; its next poll iteration sees POLLOUT. */
     return 0;
 }
 
@@ -771,6 +771,28 @@ static S32 mux_rtsp_server_start_locked(MuxChannel *pstChn) {
         return ret;
     }
 
+    /* The lifecycle lock prevents concurrent registration and teardown. Check
+     * existing registrations before taking a new server reference. */
+    if (pServer->s32Inited) {
+        if (pServer->u16Port != u16Port) {
+            MUX_RTSP_LOGE("RTSP server already listens on port %u", pServer->u16Port);
+            return ERR_MUX_BUSY;
+        }
+        pthread_mutex_lock(&pServer->lock);
+        pStream = mux_rtsp_find_stream_by_chn(pstChn->s32ChnId);
+        if (pStream) {
+            S32 samePath = strcmp(pStream->szPath, szPath) == 0;
+            pthread_mutex_unlock(&pServer->lock);
+            return samePath ? ERR_MUX_OK : ERR_MUX_BUSY;
+        }
+        pStream = mux_rtsp_find_stream_by_path(szPath);
+        pthread_mutex_unlock(&pServer->lock);
+        if (pStream) {
+            MUX_RTSP_LOGE("RTSP path '%s' is already registered", szPath);
+            return ERR_MUX_BUSY;
+        }
+    }
+
     /* Initialize global server if needed */
     ret = mux_rtsp_global_server_init(u16Port);
     if (ret != ERR_MUX_OK) {
@@ -779,15 +801,6 @@ static S32 mux_rtsp_server_start_locked(MuxChannel *pstChn) {
 
     /* Register stream with global server */
     pthread_mutex_lock(&pServer->lock);
-
-    /* Check if already registered */
-    pStream = mux_rtsp_find_stream_by_chn(pstChn->s32ChnId);
-    if (pStream) {
-        pthread_mutex_unlock(&pServer->lock);
-        MUX_RTSP_LOGI("Stream chn=%d already registered at '%s'", pstChn->s32ChnId, pStream->szPath);
-        mux_rtsp_global_server_deinit(); /* Balance the extra init reference. */
-        return ERR_MUX_OK;
-    }
 
     /* Find free slot */
     for (S32 i = 0; i < MUX_RTSP_MAX_STREAMS; i++) {
