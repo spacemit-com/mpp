@@ -961,9 +961,29 @@ static S32 rtsp_send_setup(RtspClient *pClient) {
     S32 s32Len;
     const CHAR *pszTransport;
 
-    /* Use track0 instead of trackID=N to match server format */
-    s32Len = snprintf(szUri, sizeof(szUri), "rtsp://%s:%u%s/track%d", pClient->stUrl.szHost, pClient->stUrl.u16Port,
-        pClient->stUrl.szPath, pClient->stSdp.s32VideoTrackId);
+    /* Build the SETUP URI from the SDP "a=control:" value (RFC 2326 sec C.1.1):
+     *   - absolute "rtsp://" control  -> use verbatim
+     *   - relative control (e.g. "trackID=0", "streamid=0", "track1") -> append
+     *     it to the aggregate (DESCRIBE) URL, inserting a single '/' separator
+     * mediamtx advertises "trackID=0" with Content-Base ".../<path>/", so the
+     * correct SETUP URI is "rtsp://host:port/<path>/trackID=0". The previous
+     * hardcoded "/track%d" form did not match and drew a 400 Bad Request. */
+    const CHAR *pszControl = pClient->stSdp.szVideoControl;
+    if (pszControl && strncmp(pszControl, "rtsp://", 7) == 0) {
+        s32Len = snprintf(szUri, sizeof(szUri), "%s", pszControl);
+    } else if (pszControl && pszControl[0] != '\0' && strcmp(pszControl, "*") != 0) {
+        const CHAR *pszSep = "/";
+        size_t pathLen = strlen(pClient->stUrl.szPath);
+        if (pathLen > 0 && pClient->stUrl.szPath[pathLen - 1] == '/') {
+            pszSep = ""; /* path already ends with '/', do not double it */
+        }
+        s32Len = snprintf(szUri, sizeof(szUri), "rtsp://%s:%u%s%s%s", pClient->stUrl.szHost, pClient->stUrl.u16Port,
+            pClient->stUrl.szPath, pszSep, pszControl);
+    } else {
+        /* No usable control attribute: fall back to the legacy trackID form. */
+        s32Len = snprintf(szUri, sizeof(szUri), "rtsp://%s:%u%s/trackID=%d", pClient->stUrl.szHost,
+            pClient->stUrl.u16Port, pClient->stUrl.szPath, pClient->stSdp.s32VideoTrackId);
+    }
     if (s32Len < 0 || (size_t)s32Len >= sizeof(szUri)) {
         return -1;
     }
