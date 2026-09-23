@@ -30,11 +30,15 @@ static VOID mux_rtsp_tx_free(MuxRtspTxBuffer *buffer) {
 
 S32 mux_rtsp_tx_begin(MuxRtspClient *client) {
     U64 now = mux_rtsp_monotonic_ns();
-    if (!now || client->pTxBuilding || client->u32TxCount >= MUX_TX_MAX_BUFFERS)
-        return -1;
+    if (!now)
+        return -EIO;
+    if (client->pTxBuilding)
+        return -EBUSY;
+    if (client->u32TxCount >= MUX_TX_MAX_BUFFERS || client->uTxBytes >= MUX_TX_MAX_BYTES)
+        return -ENOBUFS;
     client->pTxBuilding = calloc(1, sizeof(*client->pTxBuilding));
     if (!client->pTxBuilding)
-        return -1;
+        return -ENOMEM;
     client->pTxBuilding->u64DeadlineNs = now + MUX_TX_DEADLINE_NS;
     return 0;
 }

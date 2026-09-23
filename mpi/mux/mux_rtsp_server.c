@@ -581,10 +581,13 @@ static VOID *mux_rtsp_accept_thread(VOID *arg) {
             struct sockaddr_in peer;
             socklen_t len = sizeof(peer);
             S32 fd = accept(pServer->s32ListenFd, (struct sockaddr *)&peer, &len);
-            if (fd >= 0 && (fcntl(fd, F_SETFL, O_NONBLOCK) < 0 ||
-                           fcntl(fd, F_SETFD, FD_CLOEXEC) < 0)) {
-                close(fd);
-                fd = -1;
+            if (fd >= 0) {
+                S32 nonblock = fcntl(fd, F_SETFL, O_NONBLOCK);
+                S32 cloexec = fcntl(fd, F_SETFD, FD_CLOEXEC);
+                if (nonblock < 0 || cloexec < 0) {
+                    close(fd);
+                    fd = -1;
+                }
             }
             if (fd >= 0) {
                 /* Keep one complete 4 Mbps IDR burst in the TCP queue.  The
@@ -771,8 +774,9 @@ static S32 mux_rtsp_server_start_locked(MuxChannel *pstChn) {
         return ret;
     }
 
-    /* The lifecycle lock prevents concurrent registration and teardown. Check
-     * existing registrations before taking a new server reference. */
+    /* The lifecycle lock covers this check, init and insertion. When the
+     * server is not initialized there cannot be an existing stream; another
+     * channel cannot register one until this function returns. */
     if (pServer->s32Inited) {
         if (pServer->u16Port != u16Port) {
             MUX_RTSP_LOGE("RTSP server already listens on port %u", pServer->u16Port);
@@ -813,6 +817,8 @@ static S32 mux_rtsp_server_start_locked(MuxChannel *pstChn) {
     if (!pStream) {
         pthread_mutex_unlock(&pServer->lock);
         MUX_RTSP_LOGE("No free stream slots");
+        /* init acquired one extra reference. Existing streams retain their
+         * own references, so releasing this one cannot stop their server. */
         mux_rtsp_global_server_deinit();
         return ERR_MUX_BUSY;
     }
@@ -971,10 +977,17 @@ S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt) {
         }
         if (pstClient->bInterleaved)
             wake = MPP_TRUE;
-        if (pstClient->bInterleaved && mux_rtsp_tx_begin(pstClient) != 0) {
-            mux_rtsp_client_close(pstClient);
-            ret = ERR_MUX_BUSY;
-            continue;
+        if (pstClient->bInterleaved) {
+            S32 beginRet = mux_rtsp_tx_begin(pstClient);
+            if (beginRet != 0) {
+                /* A full live queue means this client is falling behind.
+                 * Closing it bounds latency without sending a broken GOP. */
+                MUX_RTSP_LOGE("client tx queue unavailable: %s, queued=%zu bytes/%u frames, fd=%d",
+                    strerror(-beginRet), pstClient->uTxBytes, pstClient->u32TxCount, pstClient->s32RtspFd);
+                mux_rtsp_client_close(pstClient);
+                ret = ERR_MUX_BUSY;
+                continue;
+            }
         }
 
         /* Inject cached SPS/PPS for new clients before first frame */
