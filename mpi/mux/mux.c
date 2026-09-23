@@ -30,6 +30,7 @@
 #define MUX_STATE_IDLE 0
 #define MUX_STATE_CREATED 1
 #define MUX_STATE_RUNNING 2
+#define MUX_STATE_STOPPING 3
 
 typedef struct _MuxContext {
     S32 s32Init;
@@ -67,8 +68,12 @@ static VOID *mux_bind_worker(VOID *arg) {
         return NULL;
     }
 
-    pstChn->s32WorkerAlive = 1;
-    while (!pstChn->s32StopWorker) {
+    for (;;) {
+        pthread_mutex_lock(&pstChn->lock);
+        S32 stop = pstChn->s32StopWorker;
+        pthread_mutex_unlock(&pstChn->lock);
+        if (stop)
+            break;
         StreamBufferInfo stStream;
         MuxPacket stPkt;
 
@@ -104,7 +109,6 @@ static VOID *mux_bind_worker(VOID *arg) {
         }
     }
 
-    pstChn->s32WorkerAlive = 0;
     return NULL;
 }
 
@@ -189,6 +193,7 @@ S32 MUX_Init(VOID) {
         pstChn->stSinkNode.s32DevId = 0;
         pstChn->stSinkNode.s32ChnId = i;
         pthread_mutex_init(&pstChn->lock, NULL);
+        pthread_mutex_init(&pstChn->lifecycleLock, NULL);
     }
 
     g_stMuxCtx.s32Init = 1;
@@ -207,6 +212,7 @@ S32 MUX_Exit(VOID) {
             MUX_DestroyChn(i);
         }
         pthread_mutex_destroy(&g_stMuxCtx.astChn[i].lock);
+        pthread_mutex_destroy(&g_stMuxCtx.astChn[i].lifecycleLock);
     }
 
     pthread_mutex_destroy(&g_stMuxCtx.lock);
@@ -231,9 +237,11 @@ S32 MUX_CreateChn(S32 s32ChnId, const MuxChnAttr *pstAttr) {
     }
 
     pstChn = &g_stMuxCtx.astChn[s32ChnId];
+    pthread_mutex_lock(&pstChn->lifecycleLock);
     pthread_mutex_lock(&pstChn->lock);
     if (pstChn->s32Created) {
         pthread_mutex_unlock(&pstChn->lock);
+        pthread_mutex_unlock(&pstChn->lifecycleLock);
         return ERR_MUX_BUSY;
     }
 
@@ -241,7 +249,35 @@ S32 MUX_CreateChn(S32 s32ChnId, const MuxChnAttr *pstAttr) {
     pstChn->s32State = MUX_STATE_CREATED;
     pstChn->s32Created = 1;
     pstChn->s32StopWorker = 0;
-    pstChn->s32WorkerAlive = 0;
+    pstChn->s32WorkerStarted = 0;
+    pthread_mutex_unlock(&pstChn->lock);
+    pthread_mutex_unlock(&pstChn->lifecycleLock);
+    return ERR_MUX_OK;
+}
+
+/* lifecycleLock stays held across join and backend teardown. The worker only
+ * takes lock, which must be released before join. Init/Exit require callers
+ * to quiesce public API calls, as before. */
+static S32 mux_stop_channel(MuxChannel *pstChn) {
+    pthread_mutex_lock(&pstChn->lock);
+    if (!pstChn->s32Created) {
+        pthread_mutex_unlock(&pstChn->lock);
+        return ERR_MUX_INVALID_CHN;
+    }
+    if (pstChn->s32State != MUX_STATE_RUNNING) {
+        pthread_mutex_unlock(&pstChn->lock);
+        return ERR_MUX_OK;
+    }
+    pstChn->s32StopWorker = 1;
+    pstChn->s32State = MUX_STATE_STOPPING;
+    S32 started = pstChn->s32WorkerStarted;
+    pthread_mutex_unlock(&pstChn->lock);
+    if (started)
+        pthread_join(pstChn->tidWorker, NULL);
+    pthread_mutex_lock(&pstChn->lock);
+    pstChn->s32WorkerStarted = 0;
+    mux_close_output(pstChn);
+    pstChn->s32State = MUX_STATE_CREATED;
     pthread_mutex_unlock(&pstChn->lock);
     return ERR_MUX_OK;
 }
@@ -260,13 +296,19 @@ S32 MUX_DestroyChn(S32 s32ChnId) {
     }
 
     pstChn = &g_stMuxCtx.astChn[s32ChnId];
-    MUX_StopChn(s32ChnId);
+    pthread_mutex_lock(&pstChn->lifecycleLock);
+    ret = mux_stop_channel(pstChn);
+    if (ret != ERR_MUX_OK) {
+        pthread_mutex_unlock(&pstChn->lifecycleLock);
+        return ret;
+    }
 
     pthread_mutex_lock(&pstChn->lock);
     pstChn->s32Created = 0;
     pstChn->s32State = MUX_STATE_IDLE;
     memset(&pstChn->stAttr, 0, sizeof(pstChn->stAttr));
     pthread_mutex_unlock(&pstChn->lock);
+    pthread_mutex_unlock(&pstChn->lifecycleLock);
     return ERR_MUX_OK;
 }
 
@@ -284,35 +326,42 @@ S32 MUX_StartChn(S32 s32ChnId) {
     }
 
     pstChn = &g_stMuxCtx.astChn[s32ChnId];
+    pthread_mutex_lock(&pstChn->lifecycleLock);
     pthread_mutex_lock(&pstChn->lock);
     if (!pstChn->s32Created) {
         pthread_mutex_unlock(&pstChn->lock);
+        pthread_mutex_unlock(&pstChn->lifecycleLock);
         return ERR_MUX_INVALID_CHN;
     }
     if (pstChn->s32State == MUX_STATE_RUNNING) {
         pthread_mutex_unlock(&pstChn->lock);
+        pthread_mutex_unlock(&pstChn->lifecycleLock);
         return ERR_MUX_OK;
     }
 
     ret = mux_open_output(pstChn);
     if (ret != ERR_MUX_OK) {
         pthread_mutex_unlock(&pstChn->lock);
+        pthread_mutex_unlock(&pstChn->lifecycleLock);
         return ret;
     }
 
     pstChn->s32State = MUX_STATE_RUNNING;
     pstChn->s32StopWorker = 0;
-    pthread_mutex_unlock(&pstChn->lock);
 
     if (pthread_create(&pstChn->tidWorker, NULL, mux_bind_worker, pstChn) != 0) {
-        pthread_mutex_lock(&pstChn->lock);
         mux_close_output(pstChn);
+        pstChn->s32StopWorker = 1;
         pstChn->s32State = MUX_STATE_CREATED;
         pthread_mutex_unlock(&pstChn->lock);
+        pthread_mutex_unlock(&pstChn->lifecycleLock);
         return ERR_MUX_BUSY;
     }
+    pstChn->s32WorkerStarted = 1;
 
     MUX_LOGI("channel %d started, url=%s", s32ChnId, pstChn->stAttr.szUrl);
+    pthread_mutex_unlock(&pstChn->lock);
+    pthread_mutex_unlock(&pstChn->lifecycleLock);
     return ERR_MUX_OK;
 }
 
@@ -330,28 +379,10 @@ S32 MUX_StopChn(S32 s32ChnId) {
     }
 
     pstChn = &g_stMuxCtx.astChn[s32ChnId];
-    pthread_mutex_lock(&pstChn->lock);
-    if (!pstChn->s32Created) {
-        pthread_mutex_unlock(&pstChn->lock);
-        return ERR_MUX_INVALID_CHN;
-    }
-    if (pstChn->s32State != MUX_STATE_RUNNING) {
-        pthread_mutex_unlock(&pstChn->lock);
-        return ERR_MUX_OK;
-    }
-
-    pstChn->s32StopWorker = 1;
-    pstChn->s32State = MUX_STATE_CREATED;
-    pthread_mutex_unlock(&pstChn->lock);
-
-    if (pstChn->s32WorkerAlive) {
-        pthread_join(pstChn->tidWorker, NULL);
-    }
-
-    pthread_mutex_lock(&pstChn->lock);
-    mux_close_output(pstChn);
-    pthread_mutex_unlock(&pstChn->lock);
-    return ERR_MUX_OK;
+    pthread_mutex_lock(&pstChn->lifecycleLock);
+    ret = mux_stop_channel(pstChn);
+    pthread_mutex_unlock(&pstChn->lifecycleLock);
+    return ret;
 }
 
 S32 MUX_SendPacket(S32 s32ChnId, const MuxPacket *pstPkt) {
