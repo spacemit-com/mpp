@@ -67,7 +67,15 @@ S32 VDEC_EnableChn(S32 s32ChnId);
 
 /**
  * @brief  Disable decoding on the channel.
- *         Flushes remaining frames and stops the decoder.
+ *         Stops the channel immediately and discards decoded frames still
+ *         waiting in the internal output queue; it does not drain to EOS.
+ *         Frames already returned to the caller remain valid and must still
+ *         be released with VDEC_ReleaseFrame.
+ *
+ *         The caller must stop and join threads executing VDEC_SendStream,
+ *         VDEC_GetFrame or VDEC_GetLatestFrame before calling this function.
+ *         VDEC_ReleaseFrame may still be called for outstanding frames after
+ *         the channel has been disabled.
  * @param  s32ChnId  Channel ID
  * @return 0 on success, error code on failure
  */
@@ -91,6 +99,9 @@ S32 VDEC_SendStream(S32 s32ChnId, const StreamBufferInfo *pstStream, U32 u32Time
  * @brief  Receive a decoded video frame (zero-copy).
  *         The returned VB buffer handle wraps the decoder's dma-buf fd directly.
  *         Caller MUST call VDEC_ReleaseFrame (or VB_ReleaseBuffer) after use.
+ *         This function must not run concurrently with VDEC_DisableChn.
+ *         Worker threads should use a finite timeout so they can be stopped
+ *         and joined before the channel is disabled.
  * @param  s32ChnId       Channel ID
  * @param  pstFrameInfo   Output: frame metadata; pstFrameInfo->ulBufferId is
  *                        the VB buffer handle to pass to VDEC_ReleaseFrame.
@@ -107,6 +118,9 @@ S32 VDEC_GetFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32TimeoutMs);
  *         atomic with respect to the decoder output thread, and references
  *         held by discarded entries are released internally.
  *         Caller MUST release the returned frame with VDEC_ReleaseFrame.
+ *         This function must not run concurrently with VDEC_DisableChn.
+ *         Worker threads should use a finite timeout so they can be stopped
+ *         and joined before the channel is disabled.
  * @param  s32ChnId       Channel ID
  * @param  pstFrameInfo   Output frame metadata
  * @param  u32TimeoutMs   Timeout in ms (0 = non-blocking, -1 = infinite)
@@ -119,6 +133,8 @@ S32 VDEC_GetLatestFrame(S32 s32ChnId, VideoFrameInfo *pstFrameInfo, U32 u32Timeo
  * @brief  Release a decoded frame back to the decoder.
  *         Decrements VB reference count and returns the buffer to the decoder
  *         for reuse. Must be paired with each successful VDEC_GetFrame.
+ *         Outstanding frames remain releasable after VDEC_DisableChn; the
+ *         channel cannot be destroyed until all such frames are released.
  * @param  s32ChnId   Channel ID
  * @param  ulVbBuff   pstFrameInfo->ulBufferId from VDEC_GetFrame
  * @return 0 on success, error code on failure
