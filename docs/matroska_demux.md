@@ -57,11 +57,9 @@ python3 test/test_demux_mkv.py build/test/test_demux_mkv
 build/test/test_demux_mkv recording.mkv packets.csv
 ```
 
-The MP4 fixture comparison checks unchanged packet payloads, EOF and seek. It
-does not claim MP4 supports MKV's repeated-close/reopen contract: the existing
-MP4 implementation retains track flags when closed. Also, existing MJPEG MP4
-stream-info may initially report H.264 until the first JPEG sample is read.
-Those existing issues are separate from this backend.
+The MP4 fixture comparison checks unchanged packet payloads, EOF and seek.
+It does not exercise repeated close/reopen for MP4. Existing MP4 behavior is
+outside the scope of this backend.
 
 Reference: [FFmpeg demuxing API](https://ffmpeg.org/doxygen/trunk/group__lavf__decoding.html)
 and [bitstream filter API](https://ffmpeg.org/doxygen/trunk/group__lavc__bsf.html).

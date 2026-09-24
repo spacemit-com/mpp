@@ -79,7 +79,7 @@ S32 MkvDemuxer_Open(MkvDemuxer *demux, const CHAR *path, U32 timeout_ms) {
     if (strncasecmp(path, "file://", 7) == 0) {
         path += 7;
     }
-    /* File API only: reject network protocols, directories and blocking FIFOs. */
+    /* Accept regular local files only; stat follows symlinks to regular files. */
     if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) {
         return ERR_DEMUX_OPEN_FAIL;
     }
