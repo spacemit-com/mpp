@@ -36,6 +36,10 @@
 #include "container/mp4/mp4_demuxer.h"
 #endif
 
+#ifdef DEMUX_MKV
+#include "container/mkv/mkv_demuxer.h"
+#endif
+
 #ifdef DEMUX_FLV
 #include "container/flv/flv_demuxer.h"
 #endif
@@ -54,6 +58,9 @@ struct _DemuxCtx {
 #endif
 #ifdef DEMUX_MP4
         Mp4Demuxer *pMp4;
+#endif
+#ifdef DEMUX_MKV
+        MkvDemuxer *pMkv;
 #endif
 #ifdef DEMUX_FLV
         FlvDemuxer *pFlv;
@@ -97,6 +104,8 @@ DemuxProtocol Demux_DetectProtocol(const CHAR *pszUrl) {
         const CHAR *pExt = Url_GetExtension(pszUrl);
         if (ext_matches(pExt, "mp4"))
             return DEMUX_PROTO_FILE_MP4;
+        if (ext_matches(pExt, "mkv"))
+            return DEMUX_PROTO_FILE_MKV;
         if (ext_matches(pExt, "ts"))
             return DEMUX_PROTO_FILE_TS;
         if (ext_matches(pExt, "flv"))
@@ -118,6 +127,10 @@ BOOL Demux_IsSupported(DemuxProtocol eProto) {
 #endif
 #ifdef DEMUX_MP4
     case DEMUX_PROTO_FILE_MP4:
+        return MPP_TRUE;
+#endif
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
         return MPP_TRUE;
 #endif
 #ifdef DEMUX_FLV
@@ -159,6 +172,15 @@ DemuxCtx *Demux_Create(const CHAR *pszUrl) {
 
     /* Create protocol-specific context */
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        pCtx->impl.pMkv = MkvDemuxer_Create();
+        if (!pCtx->impl.pMkv) {
+            free(pCtx);
+            return NULL;
+        }
+        break;
+#endif
 #ifdef DEMUX_RTSP
     case DEMUX_PROTO_RTSP:
         pCtx->impl.pRtsp = RtspClient_Create();
@@ -207,6 +229,11 @@ VOID Demux_Destroy(DemuxCtx *pCtx) {
         return;
 
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        MkvDemuxer_Destroy(pCtx->impl.pMkv);
+        break;
+#endif
 #ifdef DEMUX_RTSP
     case DEMUX_PROTO_RTSP:
         if (pCtx->impl.pRtsp) {
@@ -247,6 +274,10 @@ S32 Demux_Open(DemuxCtx *pCtx, BOOL bPreferTcp, U32 u32TimeoutMs) {
         return ERR_DEMUX_NULL_PTR;
 
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        return MkvDemuxer_Open(pCtx->impl.pMkv, pCtx->szUrl, u32TimeoutMs);
+#endif
 #ifdef DEMUX_RTSP
     case DEMUX_PROTO_RTSP:
         return RtspClient_Connect(pCtx->impl.pRtsp, pCtx->szUrl, bPreferTcp, u32TimeoutMs);
@@ -273,6 +304,11 @@ VOID Demux_Close(DemuxCtx *pCtx) {
         return;
 
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        MkvDemuxer_Close(pCtx->impl.pMkv);
+        break;
+#endif
 #ifdef DEMUX_RTSP
     case DEMUX_PROTO_RTSP:
         RtspClient_Disconnect(pCtx->impl.pRtsp);
@@ -303,6 +339,10 @@ S32 Demux_GetStreamInfoCtx(DemuxCtx *pCtx, DemuxStreamInfo *pstInfo) {
         return ERR_DEMUX_NULL_PTR;
 
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        return MkvDemuxer_GetStreamInfo(pCtx->impl.pMkv, pstInfo);
+#endif
 #ifdef DEMUX_RTSP
     case DEMUX_PROTO_RTSP:
         return RtspClient_GetStreamInfo(pCtx->impl.pRtsp, pstInfo);
@@ -329,6 +369,10 @@ S32 Demux_ReadPacket(DemuxCtx *pCtx, DemuxPacket *pstPkt) {
         return ERR_DEMUX_NULL_PTR;
 
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        return MkvDemuxer_ReadPacket(pCtx->impl.pMkv, pstPkt);
+#endif
 #ifdef DEMUX_RTSP
     case DEMUX_PROTO_RTSP:
         return RtspClient_ReadPacket(pCtx->impl.pRtsp, pstPkt);
@@ -355,6 +399,10 @@ S32 Demux_Seek(DemuxCtx *pCtx, S64 s64PtsUs) {
         return ERR_DEMUX_NULL_PTR;
 
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        return MkvDemuxer_Seek(pCtx->impl.pMkv, s64PtsUs);
+#endif
 #ifdef DEMUX_MP4
     case DEMUX_PROTO_FILE_MP4:
         return Mp4Demuxer_Seek(pCtx->impl.pMp4, s64PtsUs);
@@ -373,6 +421,10 @@ S64 Demux_GetDuration(DemuxCtx *pCtx) {
         return 0;
 
     switch (pCtx->eProto) {
+#ifdef DEMUX_MKV
+    case DEMUX_PROTO_FILE_MKV:
+        return MkvDemuxer_GetDuration(pCtx->impl.pMkv);
+#endif
 #ifdef DEMUX_MP4
     case DEMUX_PROTO_FILE_MP4:
         return Mp4Demuxer_GetDuration(pCtx->impl.pMp4);
@@ -386,6 +438,11 @@ S64 Demux_GetDuration(DemuxCtx *pCtx) {
  * Channel-based API Implementation
  * Compatible with mpp_demux, with auto-reconnect and thread management.
  * ============================================================================ */
+
+static BOOL demux_is_file(const DemuxCtx *pCtx) {
+    return pCtx && (pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pCtx->eProto == DEMUX_PROTO_FILE_TS ||
+                      pCtx->eProto == DEMUX_PROTO_FILE_FLV || pCtx->eProto == DEMUX_PROTO_FILE_MKV);
+}
 
 #define DEMUX_LOGE(fmt, ...) fprintf(stderr, "[DEMUX][ERR] " fmt "\n", ##__VA_ARGS__)
 #define DEMUX_LOGI(fmt, ...) fprintf(stdout, "[DEMUX][INF] " fmt "\n", ##__VA_ARGS__)
@@ -513,9 +570,7 @@ static S32 demux_deliver_packet(DemuxChn *pChn, const DemuxPacket *pPkt) {
 
         /* For file protocols, limit send rate to avoid overwhelming decoder.
          * Network protocols (RTSP/RTMP) have natural flow control. */
-        BOOL isFileProto =
-            (pChn->pCtx && (pChn->pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pChn->pCtx->eProto == DEMUX_PROTO_FILE_TS ||
-                                pChn->pCtx->eProto == DEMUX_PROTO_FILE_FLV));
+        BOOL isFileProto = demux_is_file(pChn->pCtx);
 
         /* Send with backpressure.
          * File demux has no natural network backpressure. Dropping one TS PES can
@@ -616,9 +671,7 @@ static void *demux_thread_proc(void *arg) {
         /* Get stream info */
         Demux_GetStreamInfoCtx(pChn->pCtx, &pChn->stStreamInfo);
 
-        BOOL bIsFileProto =
-            (pChn->pCtx && (pChn->pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pChn->pCtx->eProto == DEMUX_PROTO_FILE_TS ||
-                                pChn->pCtx->eProto == DEMUX_PROTO_FILE_FLV));
+        BOOL bIsFileProto = demux_is_file(pChn->pCtx);
 
         /* If resolution not available from SDP, probe first packets to get SPS.
          * File streams are intentionally not probed here: probing delivers up to
@@ -687,9 +740,7 @@ static void *demux_thread_proc(void *arg) {
             if (ret == ERR_DEMUX_NO_STREAM) {
                 DEMUX_LOGI("Channel %d: End of stream", pChn->s32ChnId);
                 /* For file-based protocols, exit cleanly on EOF */
-                if (pChn->pCtx &&
-                    (pChn->pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pChn->pCtx->eProto == DEMUX_PROTO_FILE_TS ||
-                        pChn->pCtx->eProto == DEMUX_PROTO_FILE_FLV)) {
+                if (demux_is_file(pChn->pCtx)) {
                     demux_deliver_eos(pChn);
                     pChn->s32Stop = 1; /* Signal stop to exit thread */
                 }

@@ -56,6 +56,9 @@ target_include_directories(mpp PUBLIC
 # ---- External dependencies (unified on the final mpp target) ----
 find_package(Threads REQUIRED)
 target_link_libraries(mpp PUBLIC Threads::Threads)
+if(TARGET mpp_demux_ffmpeg)
+    target_link_libraries(mpp PRIVATE mpp_demux_ffmpeg)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(mpp PUBLIC ${CMAKE_DL_LIBS} rt)
@@ -76,4 +79,3 @@ set_target_properties(mpp PROPERTIES
 )
 
 install(TARGETS mpp LIBRARY DESTINATION lib)
-

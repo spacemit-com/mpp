@@ -31,7 +31,8 @@ typedef enum _DemuxProtocol {
     DEMUX_PROTO_FILE_MP4,  // *.mp4
     DEMUX_PROTO_FILE_TS,  // *.ts
     DEMUX_PROTO_FILE_FLV,  // *.flv
-    DEMUX_PROTO_UNKNOWN
+    DEMUX_PROTO_UNKNOWN,
+    DEMUX_PROTO_FILE_MKV  // *.mkv (optional FFmpeg Matroska backend)
 } DemuxProtocol;
 
 /* ======================== Context (Low-level API) ======================== */
