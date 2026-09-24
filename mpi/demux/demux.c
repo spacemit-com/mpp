@@ -440,8 +440,19 @@ S64 Demux_GetDuration(DemuxCtx *pCtx) {
  * ============================================================================ */
 
 static BOOL demux_is_file(const DemuxCtx *pCtx) {
-    return pCtx && (pCtx->eProto == DEMUX_PROTO_FILE_MP4 || pCtx->eProto == DEMUX_PROTO_FILE_TS ||
-                      pCtx->eProto == DEMUX_PROTO_FILE_FLV || pCtx->eProto == DEMUX_PROTO_FILE_MKV);
+    if (!pCtx) {
+        return MPP_FALSE;
+    }
+
+    switch (pCtx->eProto) {
+    case DEMUX_PROTO_FILE_MP4:
+    case DEMUX_PROTO_FILE_TS:
+    case DEMUX_PROTO_FILE_FLV:
+    case DEMUX_PROTO_FILE_MKV:
+        return MPP_TRUE;
+    default:
+        return MPP_FALSE;
+    }
 }
 
 #define DEMUX_LOGE(fmt, ...) fprintf(stderr, "[DEMUX][ERR] " fmt "\n", ##__VA_ARGS__)

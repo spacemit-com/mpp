@@ -18,6 +18,8 @@
             exit(1);                                                                                         \
         }                                                                                                    \
     } while (0)
+#define CHECK_EQ(a, b) CHECK((a) == (b))
+#define CHECK_GT(a, b) CHECK((a) > (b))
 
 int main(int argc, char **argv) {
     DemuxPacket packet;
@@ -32,7 +34,7 @@ int main(int argc, char **argv) {
     CHECK(MkvDemuxer_ReadPacket(empty, &packet) == ERR_DEMUX_NOT_STARTED);
     CHECK(MkvDemuxer_GetStreamInfo(empty, &info) == ERR_DEMUX_NOT_STARTED);
     CHECK(MkvDemuxer_Seek(empty, 0) == ERR_DEMUX_NOT_STARTED);
-    CHECK(MkvDemuxer_GetDuration(empty) == 0);
+    CHECK_EQ(MkvDemuxer_GetDuration(empty), 0);
     CHECK(MkvDemuxer_Open(empty, "/", 1) == ERR_DEMUX_OPEN_FAIL);
     CHECK(MkvDemuxer_Open(empty, "/nonexistent/mpp-test.mkv", 1) == ERR_DEMUX_OPEN_FAIL);
     MkvDemuxer_Close(empty);
@@ -70,7 +72,7 @@ int main(int argc, char **argv) {
         if (Demux_DetectProtocol(argv[1]) == DEMUX_PROTO_FILE_MKV) {
             CHECK(packet.eCodecType == info.eCodecType);
         }
-        CHECK(av_sha_init(sha, 256) == 0);
+        CHECK_EQ(av_sha_init(sha, 256), 0);
         av_sha_update(sha, packet.pu8Data, packet.u32Size);
         av_sha_final(sha, hash);
         if (count == 0) {
@@ -90,7 +92,7 @@ int main(int argc, char **argv) {
         ++count;
     }
     CHECK(ret == ERR_DEMUX_NO_STREAM);
-    CHECK(count > 0);
+    CHECK_GT(count, 0);
     CHECK(Demux_ReadPacket(ctx, &packet) == ERR_DEMUX_NO_STREAM);
     CHECK(Demux_Seek(ctx, (S64)first_pts) == ERR_DEMUX_OK);
     CHECK(Demux_ReadPacket(ctx, &packet) == ERR_DEMUX_OK);
@@ -98,10 +100,10 @@ int main(int argc, char **argv) {
     if (argc != 5) {
         CHECK(packet.u64PTS == first_pts && packet.u32Size == first_size);
         U8 hash[32];
-        CHECK(av_sha_init(sha, 256) == 0);
+        CHECK_EQ(av_sha_init(sha, 256), 0);
         av_sha_update(sha, packet.pu8Data, packet.u32Size);
         av_sha_final(sha, hash);
-        CHECK(memcmp(hash, first_hash, sizeof(hash)) == 0);
+        CHECK_EQ(memcmp(hash, first_hash, sizeof(hash)), 0);
     }
     if (Demux_DetectProtocol(argv[1]) == DEMUX_PROTO_FILE_MKV) {
         Demux_Close(ctx);
@@ -111,9 +113,9 @@ int main(int argc, char **argv) {
     }
     Demux_Destroy(ctx);
     av_free(sha);
-    CHECK(fclose(ledger) == 0);
+    CHECK_EQ(fclose(ledger), 0);
     if (dump) {
-        CHECK(fclose(dump) == 0);
+        CHECK_EQ(fclose(dump), 0);
     }
     fprintf(stderr, "PASS packets=%u (EOF, seek; MKV also exercises reopen/close)\n", count);
     return 0;
