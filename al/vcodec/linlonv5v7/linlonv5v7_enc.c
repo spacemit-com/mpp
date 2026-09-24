@@ -570,22 +570,6 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
     context->nInputQueuedCount = 0;
     context->nInputCallbacksInFlight = 0;
 
-    MppFrameBufferType eBufferType;
-    switch (pstAttr->eFrameBufMode) {
-        case VENC_FRAME_BUF_DMABUF_INTERNAL:
-            eBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
-            break;
-        case VENC_FRAME_BUF_NORMAL_INTERNAL:
-            eBufferType = MPP_FRAME_BUFFERTYPE_NORMAL_INTERNAL;
-            break;
-        case VENC_FRAME_BUF_DMABUF_EXTERNAL:
-            eBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL;
-            break;
-        default:
-            eBufferType = MPP_FRAME_BUFFERTYPE_DMABUF_INTERNAL;
-            break;
-    }
-
     debug(
         "input para check: foramt:0x%x output format:0x%x", context->nInputFormatFourcc, context->nOutputFormatFourcc);
 
@@ -613,7 +597,7 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
         ENCODER_INPUT_BUF_NUM,
         ENCODER_OUTPUT_BUF_NUM,
         context->bIsBlockMode,
-        eBufferType);
+        MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
         return MPP_INIT_FAILED;
