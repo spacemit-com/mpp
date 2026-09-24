@@ -1159,6 +1159,14 @@ S32 V2D_AddBitblitTask(
         return ret;
     }
 
+    /* V2D hardware requires output crop origins to be 16-pixel aligned. */
+    if (((pstDstRect->u16X & 15U) != 0U) || ((pstDstRect->u16Y & 15U) != 0U)) {
+        error(
+            "dst crop (%u, %u) must be 16-pixel aligned",
+            (unsigned int)pstDstRect->u16X, (unsigned int)pstDstRect->u16Y);
+        return V2D_ERR_INVALID_PARAM;
+    }
+
     ret = mpp_v2d_append_task(job, MPP_V2D_TASK_BITBLIT, &node);
     if (ret != SUCCESS) {
         return ret;
