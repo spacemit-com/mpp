@@ -5,6 +5,7 @@
 set(VDEC_SRCS
     vdec.c
     vdec_input_retry.c
+    vdec_output_recovery.c
 )
 
 add_library(mpp_vdec OBJECT ${VDEC_SRCS})

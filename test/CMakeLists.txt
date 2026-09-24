@@ -129,6 +129,15 @@ target_include_directories(test_vdec_input_retry PRIVATE
     ${CMAKE_SOURCE_DIR}/mpi/vdec)
 add_test(NAME test_vdec_input_retry COMMAND $<TARGET_FILE:test_vdec_input_retry>)
 
+add_executable(test_vdec_output_recovery
+    test_vdec_output_recovery.c
+    ${CMAKE_SOURCE_DIR}/mpi/vdec/vdec_output_recovery.c)
+target_compile_definitions(test_vdec_output_recovery PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_vdec_output_recovery PRIVATE
+    ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/mpi/vdec)
+add_test(NAME test_vdec_output_recovery COMMAND $<TARGET_FILE:test_vdec_output_recovery>)
+
 # Hardware-only regression; intentionally not registered with CTest.
 add_executable(test_vdec_backpressure vdec/test_vdec_backpressure.c)
 target_compile_definitions(test_vdec_backpressure PRIVATE ${MPP_TEST_COMMON_DEFS})

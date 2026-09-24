@@ -35,6 +35,7 @@
 #include "sys/sys_api.h"
 #include "sys/vb_api.h"
 #include "vdec_input_retry.h"
+#include "vdec_output_recovery.h"
 
 #define MODULE_TAG "mpp_vdec"
 
@@ -622,6 +623,40 @@ done:
     return ret;
 }
 
+static S32 vdec_reset_running_channel(VdecChnCtx *pChn) {
+    S32 ret;
+
+    pthread_mutex_lock(&pChn->lock);
+    if (!pChn->bUsed || pChn->eState != VDEC_CHN_STATE_STARTED) {
+        pthread_mutex_unlock(&pChn->lock);
+        return ERR_VDEC_NOT_STARTED;
+    }
+
+    pthread_mutex_lock(&pChn->poolLock);
+    pChn->bPoolReconfig = MPP_TRUE;
+    while (!pChn->bRecycleIdle && pChn->bRecycleRun)
+        pthread_cond_wait(&pChn->poolCond, &pChn->poolLock);
+
+    pthread_mutex_lock(&pChn->depthLock);
+    vdec_drain_depth_queue_locked(pChn);
+    pthread_mutex_unlock(&pChn->depthLock);
+
+    ret = pChn->stOps.reset(pChn->pAlCtx);
+    if (ret == MPP_OK)
+        ret = vdec_requeue_ext_buffers(pChn);
+
+    pChn->bPoolReconfig = MPP_FALSE;
+    pthread_cond_broadcast(&pChn->poolCond);
+    pthread_mutex_unlock(&pChn->poolLock);
+    pthread_mutex_unlock(&pChn->lock);
+
+    return ret == MPP_OK ? ERR_VDEC_OK : ret;
+}
+
+static BOOL vdec_codec_supports_automatic_recovery(MppStreamCodecType eCodecType) {
+    return eCodecType == MPP_STREAM_CODEC_MJPEG || eCodecType == MPP_STREAM_CODEC_JPEG;
+}
+
 /* ======================== Recycle / Output Task Threads ======================== */
 
 /* Requires poolLock. */
@@ -746,6 +781,7 @@ static VOID vdec_stop_recycle_task(VdecChnCtx *pChn) {
 static void *vdec_output_task(void *arg) {
     VdecChnCtx *pChn = (VdecChnCtx *)arg;
     S32 s32ChnId = pChn->s32ChnId;
+    VdecOutputRecoveryState stRecovery = {0};
 
     MppNode stSrcNode;
     stSrcNode.eModId = MPP_ID_VDEC;
@@ -785,6 +821,10 @@ static void *vdec_output_task(void *arg) {
                 break;
             continue;
         }
+        BOOL bErrorOutput = ret == MPP_ERROR_FRAME || ret == MPP_CODER_NULL_DATA;
+        if (bErrorOutput && vdec_codec_supports_automatic_recovery(pChn->stAttr.eCodecType))
+            vdec_output_recovery_record_error(&stRecovery, vdec_monotonic_ms());
+
         if (ret == MPP_ERROR_FRAME && pChn->stAttr.bDispErrorFrame)
             ret = MPP_OK;
         if (ret == MPP_ERROR_FRAME || ret == MPP_CODER_NULL_DATA) {
@@ -803,8 +843,10 @@ static void *vdec_output_task(void *arg) {
             U32 errIdx = stFrame.u32Idx;
             if (errIdx < pChn->u32ExtBufCnt) {
                 pChn->stExtBuf[errIdx].bInDecoder = MPP_FALSE;
-                pChn->stOps.return_output_frame(pChn->pAlCtx, &stFrame);
-                pChn->stExtBuf[errIdx].bInDecoder = MPP_TRUE;
+                S32 returnRet = pChn->stOps.return_output_frame(pChn->pAlCtx, &stFrame);
+                pChn->stExtBuf[errIdx].bInDecoder = returnRet == MPP_OK ? MPP_TRUE : MPP_FALSE;
+                if (returnRet != MPP_OK)
+                    error("output task: error frame idx=%u re-queue failed, ret=%d", errIdx, returnRet);
             } else {
                 error("output task: error frame idx=%u out of range", errIdx);
             }
@@ -814,12 +856,26 @@ static void *vdec_output_task(void *arg) {
          * After capture EOS, poll may still report POLLIN while DQBUF fails;
          * plugin returns MPP_CODER_NO_DATA — not an error, avoid log spam.
          */
-        if (ret == MPP_CODER_NO_DATA)
+        if (ret == MPP_CODER_NO_DATA) {
+            if (vdec_output_recovery_due(&stRecovery, vdec_monotonic_ms())) {
+                info("output task: decoder stalled after an error frame, resetting chn %d", s32ChnId);
+                S32 recoveryRet = vdec_reset_running_channel(pChn);
+                if (recoveryRet != ERR_VDEC_OK) {
+                    error("output task: decoder recovery failed on chn %d, ret=%d", s32ChnId, recoveryRet);
+                    vdec_output_recovery_record_error(&stRecovery, vdec_monotonic_ms());
+                } else {
+                    info("output task: decoder recovered on chn %d", s32ChnId);
+                }
+            }
             continue;
+        }
         if (ret != MPP_OK) {
             error("output task: unexpected ret=%d", ret);
             continue; /* timeout or transient error */
         }
+
+        if (!bErrorOutput)
+            vdec_output_recovery_record_frame(&stRecovery);
 
         /* The plugin filled stFrame (planes/fds/strides/sizes/PTS/geometry)
          * and set u32Idx to the V4L2 buffer index == our ext buf slot. */
