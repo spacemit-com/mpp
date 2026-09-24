@@ -13,6 +13,7 @@ option(DEMUX_BUILD_FLV    "Build FLV demuxer (Phase 2)"    ON)
 option(DEMUX_BUILD_RTMP   "Build RTMP client (Phase 3)"    ON)
 option(DEMUX_BUILD_TS     "Build TS demuxer (Phase 4)"     ON)
 option(DEMUX_BUILD_HLS    "Build HLS client (Phase 4)"     ON)
+option(DEMUX_BUILD_MKV    "Build Matroska demuxer (requires FFmpeg development libraries)" OFF)
 
 # Common sources (always built)
 set(COMMON_SOURCES
@@ -108,6 +109,24 @@ if(DEMUX_BUILD_HLS)
 endif()
 
 add_library(mpp_demux OBJECT ${DEMUX_SOURCES})
+
+if(DEMUX_BUILD_MKV)
+    find_path(MPP_AVFORMAT_INCLUDE_DIR libavformat/avformat.h)
+    find_library(MPP_AVFORMAT_LIBRARY avformat)
+    find_library(MPP_AVCODEC_LIBRARY avcodec)
+    find_library(MPP_AVUTIL_LIBRARY avutil)
+    if(NOT MPP_AVFORMAT_INCLUDE_DIR OR NOT MPP_AVFORMAT_LIBRARY OR
+       NOT MPP_AVCODEC_LIBRARY OR NOT MPP_AVUTIL_LIBRARY)
+        message(FATAL_ERROR "DEMUX_BUILD_MKV requires libavformat/libavcodec/libavutil development packages")
+    endif()
+    add_library(mpp_demux_ffmpeg INTERFACE)
+    target_include_directories(mpp_demux_ffmpeg INTERFACE ${MPP_AVFORMAT_INCLUDE_DIR})
+    target_link_libraries(mpp_demux_ffmpeg INTERFACE
+        ${MPP_AVFORMAT_LIBRARY} ${MPP_AVCODEC_LIBRARY} ${MPP_AVUTIL_LIBRARY})
+    target_sources(mpp_demux PRIVATE container/mkv/mkv_demuxer.c)
+    target_compile_definitions(mpp_demux PRIVATE DEMUX_MKV=1)
+    target_link_libraries(mpp_demux PRIVATE mpp_demux_ffmpeg)
+endif()
 
 target_include_directories(mpp_demux 
     PUBLIC

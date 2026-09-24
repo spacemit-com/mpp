@@ -41,6 +41,7 @@ extern "C" {
 #define ERR_DEMUX_OPEN_FAIL (-1008)
 #define ERR_DEMUX_NO_STREAM (-1009)
 #define ERR_DEMUX_UNSUPPORTED (-1010)
+#define ERR_DEMUX_READ_FAIL (-1011) /* Packet read, validation or bitstream-filter failure */
 
 /* ======================== 枚举 ======================== */
 
