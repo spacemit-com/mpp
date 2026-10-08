@@ -30,6 +30,18 @@ typedef struct _AlDecBufferRequirement {
     U32 u32OutputBufNum; /**< V4L2 CAPTURE buffers the caller must supply via al_dec_queue_output_buffer */
 } AlDecBufferRequirement;
 
+/* Layout of one contiguous external dma-buf, valid until the next CAPTURE
+ * reconfiguration. Sizes include any padding required by QUERYBUF. */
+typedef struct _AlDecOutputRequirement {
+    U32 u32BufCnt;
+    U32 u32Width;
+    U32 u32Height;
+    MppPixelFormat ePixelFormat;
+    U32 u32PlaneNum;
+    U32 au32Stride[FRAME_MAX_PLANE];
+    U32 au32Size[FRAME_MAX_PLANE];
+} AlDecOutputRequirement;
+
 /**
  * @description: create a context for video decoder
  * @return {*}: the base context of video decoder, NULL on failure
@@ -57,6 +69,10 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
  */
 S32 al_dec_get_status(ALBaseContext *ctx, VdecChnStatus *pstStatus);
 
+/* Query the actual CAPTURE count and layout after init or
+ * MPP_RESOLUTION_CHANGED. Serialize with all other CAPTURE operations. */
+S32 al_dec_get_output_requirement(ALBaseContext *ctx, AlDecOutputRequirement *pstReq);
+
 /**
  * @description: send one bitstream packet to the decoder.
  *               EOS is signaled by pstStream->bEndOfStream == MPP_TRUE or
@@ -68,8 +84,8 @@ S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream);
 
 /**
  * @description: queue one external dma-buf CAPTURE buffer to the decoder.
- *               Required fields: u32Idx (slot index, stable for the channel's
- *               lifetime), stVFrame.u32Fd[0] (dma-buf fd),
+ *               Required fields: u32Idx (slot index, valid for the current
+ *               CAPTURE allocation), stVFrame.u32Fd[0] (dma-buf fd),
  *               stVFrame.ulPlaneVirAddr[0] (mapped address, may be 0).
  *               Also used to re-queue buffers after MPP_RESOLUTION_CHANGED and
  *               after the caller is done with a recycled buffer.
@@ -94,11 +110,12 @@ S32 al_dec_queue_output_buffer(ALBaseContext *ctx, const VideoFrameInfo *pstFram
  *              MPP_RESOLUTION_CHANGED stream geometry changed: the plugin has
  *                already re-negotiated CAPTURE internally and filled the new
  *                width/height in stVdecFrameInfo.stCommFrameInfo; the caller
- *                must re-queue all external buffers (note: a new resolution
- *                larger than the original buffer size is not supported);
+ *                must query al_dec_get_output_requirement and supply a new
+ *                pool matching its actual count and layout. Old consumer-held
+ *                buffers must not be queued into the new CAPTURE allocation;
  *              MPP_ERROR_FRAME / MPP_CODER_NULL_DATA frame invalid but
  *                pstFrame->u32Idx/fd are valid — caller must hand the buffer
- *                back via al_dec_return_output_frame;
+ *                back via al_dec_return_output_frame or al_dec_queue_output_buffer;
  *              MPP_POLL_FAILED on poll error
  */
 S32 al_dec_request_output_frame(ALBaseContext *ctx, VideoFrameInfo *pstFrame, U32 u32TimeoutMs);
