@@ -6,6 +6,7 @@ set(MUX_SRCS
     mux.c
     mux_socket.c
     mux_rtsp_server.c
+    mux_rtsp_tx.c
     mux_rtp.c
     mux_common.c
     mux_writer.c
