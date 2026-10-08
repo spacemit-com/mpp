@@ -47,6 +47,19 @@ target_include_directories(test_ts_dump PRIVATE ${MPP_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/mpi/demux/container/ts)
 target_link_libraries(test_ts_dump PRIVATE mpp)
 
+# Optional Matroska packet and seek regression test.
+if(DEMUX_BUILD_MKV)
+    add_executable(test_demux_mkv test_demux_mkv.c)
+    target_include_directories(test_demux_mkv PRIVATE ${MPP_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/mpi/demux)
+    target_link_libraries(test_demux_mkv PRIVATE mpp mpp_demux_ffmpeg)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME test_demux_mkv
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_demux_mkv.py $<TARGET_FILE:test_demux_mkv>)
+        set_tests_properties(test_demux_mkv PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+    endif()
+endif()
+
 # DEMUX seek regression test (low-level demux API)
 add_executable(test_demux_seek test_demux_seek.c)
 target_compile_definitions(test_demux_seek PRIVATE ${MPP_TEST_COMMON_DEFS})
