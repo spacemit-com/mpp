@@ -629,13 +629,14 @@ S32 al_dec_return_output_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFram
         ret = queueBuffer(getOutputPort(context->stCodec), buf);
         if (ret) {
             error("queueBuffer failed, this should not happen, please check!");
+            return ret;
         }
 
         if (buf_idx >= 0 && buf_idx < MAX_OUTPUT_BUF_NUM)
             context->bIsBufferInDecoder[buf_idx] = MPP_TRUE;
     }
 
-    return MPP_OK;
+    return ret;
 }
 
 S32 al_dec_queue_output_buffer(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) {
