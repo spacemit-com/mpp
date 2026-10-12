@@ -339,7 +339,6 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
         error("can not find and open the v4l2 codec device, please check!");
         return MPP_OPEN_FAILED;
     }
-
     debug("video fd = %d, device path = '%s'", context->nVideoFd, context->sDevicePath);
 
     context->stCodec = createCodec(
@@ -410,6 +409,19 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     debug("init finish");
 
     return MPP_OK;
+}
+
+S32 al_dec_get_output_requirement(ALBaseContext *ctx, AlDecOutputRequirement *pstReq) {
+    if (!ctx || !pstReq)
+        return MPP_NULL_POINTER;
+    ALLinlonv5v7DecContext *context = (ALLinlonv5v7DecContext *)ctx;
+    S32 ret = getOutputRequirement(getOutputPort(context->stCodec), pstReq);
+    if (ret == MPP_OK && (context->nRotation == 90 || context->nRotation == 270)) {
+        U32 width = pstReq->u32Width;
+        pstReq->u32Width = pstReq->u32Height;
+        pstReq->u32Height = width;
+    }
+    return ret;
 }
 
 S32 al_dec_get_status(ALBaseContext *ctx, VdecChnStatus *pstStatus) {
@@ -617,6 +629,7 @@ S32 al_dec_return_output_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFram
     Buffer *buf = getBuffer(getOutputPort(context->stCodec), buf_idx);
     if (!buf) {
         error("buf is NULL, this should not happen, please check!");
+        return MPP_CHECK_FAILED;
     } else {
         clearBytesUsed(buf);
 
@@ -629,6 +642,7 @@ S32 al_dec_return_output_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFram
         ret = queueBuffer(getOutputPort(context->stCodec), buf);
         if (ret) {
             error("queueBuffer failed, this should not happen, please check!");
+            return ret;
         }
 
         if (buf_idx >= 0 && buf_idx < MAX_OUTPUT_BUF_NUM)
@@ -667,6 +681,8 @@ S32 al_dec_queue_output_buffer(ALBaseContext *ctx, const VideoFrameInfo *pstFram
 
     clearBytesUsed(buf);
     setExternalDmaBuf(buf, (S32)pstFrame->stVFrame.u32Fd[0], (U8 *)pstFrame->stVFrame.ulPlaneVirAddr[0], buf_idx);
+    resetVendorFlags(buf);
+    setEndOfStream(buf, MPP_FALSE);
 
     ret = queueBuffer(getOutputPort(context->stCodec), buf);
     if (ret) {

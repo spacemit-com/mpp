@@ -142,6 +142,21 @@ target_include_directories(test_vdec_input_retry PRIVATE
     ${CMAKE_SOURCE_DIR}/mpi/vdec)
 add_test(NAME test_vdec_input_retry COMMAND $<TARGET_FILE:test_vdec_input_retry>)
 
+add_executable(test_vdec_output_requirement vdec/test_vdec_output_requirement.c)
+target_compile_definitions(test_vdec_output_requirement PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_vdec_output_requirement PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+target_link_options(test_vdec_output_requirement PRIVATE -Wl,--gc-sections)
+add_test(NAME test_vdec_output_requirement COMMAND $<TARGET_FILE:test_vdec_output_requirement>)
+
+add_executable(test_vdec_buffer_payload
+    vdec/test_vdec_buffer_payload.c
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/linlonv5v7_buffer.c)
+target_include_directories(test_vdec_buffer_payload PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+target_link_options(test_vdec_buffer_payload PRIVATE -Wl,--gc-sections)
+add_test(NAME test_vdec_buffer_payload COMMAND $<TARGET_FILE:test_vdec_buffer_payload>)
+
 # Hardware-only regression; intentionally not registered with CTest.
 add_executable(test_vdec_backpressure vdec/test_vdec_backpressure.c)
 target_compile_definitions(test_vdec_backpressure PRIVATE ${MPP_TEST_COMMON_DEFS})
