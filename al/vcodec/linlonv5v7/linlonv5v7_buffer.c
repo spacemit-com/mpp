@@ -262,7 +262,12 @@ S32 getBytesUsed(struct v4l2_buffer *buf) {
 
     if (V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
         for (U32 i = 0; i < buf->length; ++i) {
-            size += buf->m.planes[i].bytesused;
+            /* bytesused includes data_offset for a plane sharing a dma-buf.
+             * A returned reconfiguration/EOS buffer may contain only that
+             * offset and must not be reported as a decoded image. */
+            const struct v4l2_plane *plane = &buf->m.planes[i];
+            if (plane->bytesused > plane->data_offset)
+                size += plane->bytesused - plane->data_offset;
         }
     } else {
         size = buf->bytesused;

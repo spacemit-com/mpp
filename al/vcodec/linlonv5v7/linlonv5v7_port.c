@@ -15,6 +15,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +52,7 @@ struct _Port {
     S32 nFramesCount;
     S32 nRcType;
 
-    BOOL bIsSourceChange;
+    atomic_bool bIsSourceChange;
 
     S32 nQueueNumInput;
     S32 nQueueNumOutput;
@@ -101,7 +102,7 @@ Port *createPort(
     port_tmp->nScale = 1;
     port_tmp->nFramesProcessed = 0;
     port_tmp->nFramesCount = 0;
-    port_tmp->bIsSourceChange = MPP_FALSE;
+    atomic_init(&port_tmp->bIsSourceChange, MPP_FALSE);
     port_tmp->nQueueNumInput = 0;
     port_tmp->nQueueNumOutput = 0;
     port_tmp->eBufferType = buffer_type;
@@ -142,7 +143,7 @@ void destoryPort(Port *port) {
 }
 
 Buffer *getBuffer(Port *port, S32 index) {
-    return port->stBuf[index];
+    return index >= 0 && index < port->nBufNum ? port->stBuf[index] : NULL;
 }
 
 enum v4l2_buf_type getV4l2BufType(Port *port) {
@@ -372,7 +373,7 @@ void tryDecStopCmd(Port *port, BOOL tryStop) {
 }
 
 S32 allocateBuffers(Port *port, S32 count) {
-    struct v4l2_requestbuffers reqbuf;
+    struct v4l2_requestbuffers reqbuf = {0};
     U32 i;
     S32 ret;
 
@@ -397,19 +398,20 @@ S32 allocateBuffers(Port *port, S32 count) {
 
     debug("Request buffers. type:%d count:%d(%d) memory:%d", reqbuf.type, reqbuf.count, count, reqbuf.memory);
 
-    /* the driver may grant more buffers than requested; never track more
-     * than stBuf can hold */
+    /* Preserve the driver's actual allocation. Never silently truncate it. */
     if (reqbuf.count > MAX_BUF_NUM) {
-        error("driver granted %d buffers, only tracking MAX_BUF_NUM(%d)", reqbuf.count, MAX_BUF_NUM);
-        reqbuf.count = MAX_BUF_NUM;
+        error("driver granted %d buffers, maximum is %d", reqbuf.count, MAX_BUF_NUM);
+        reqbuf.count = 0;
+        ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
+        return MPP_CHECK_FAILED;
     }
 
     port->nBufNum = reqbuf.count;
 
     /* Query each buffer and create a new meta buffer. */
     for (i = 0; i < reqbuf.count; ++i) {
-        struct v4l2_buffer buf;
-        struct v4l2_plane planes[VIDEO_MAX_PLANES];
+        struct v4l2_buffer buf = {0};
+        struct v4l2_plane planes[VIDEO_MAX_PLANES] = {0};
 
         buf.type = port->eBufType;
         buf.memory = port->nMemType;
@@ -438,12 +440,15 @@ S32 allocateBuffers(Port *port, S32 count) {
 
 void freeBuffers(Port *port) {
     for (S32 i = 0; i < port->nBufNum; i++) {
-        destoryBuffer(port->stBuf[i]);
+        if (port->stBuf[i])
+            destoryBuffer(port->stBuf[i]);
+        port->stBuf[i] = NULL;
     }
+    port->nBufNum = 0;
 }
 
 U32 getBufferCount(Port *port) {
-    struct v4l2_control control;
+    struct v4l2_control control = {0};
 
     control.id =
         V4L2_TYPE_IS_OUTPUT(port->eBufType) ? V4L2_CID_MIN_BUFFERS_FOR_OUTPUT : V4L2_CID_MIN_BUFFERS_FOR_CAPTURE;
@@ -1653,6 +1658,38 @@ static MppPixelFormat linlon_port_v4l2_to_mpp_pixel(U32 pixfmt) {
     }
 }
 
+S32 getOutputRequirement(Port *port, AlDecOutputRequirement *req) {
+    if (!port || !req || port->nBufNum <= 0)
+        return MPP_CHECK_FAILED;
+    const struct v4l2_pix_format_mplane *fmt = &port->stFormat.fmt.pix_mp;
+    if (!V4L2_TYPE_IS_MULTIPLANAR(port->eBufType) || !fmt->num_planes || fmt->num_planes > FRAME_MAX_PLANE)
+        return MPP_CHECK_FAILED;
+    memset(req, 0, sizeof(*req));
+    req->u32BufCnt = (U32)port->nBufNum;
+    req->u32Width = fmt->width;
+    req->u32Height = fmt->height;
+    req->ePixelFormat = linlon_port_v4l2_to_mpp_pixel(fmt->pixelformat);
+    req->u32PlaneNum = fmt->num_planes;
+    for (U32 i = 0; i < req->u32PlaneNum; ++i) {
+        req->au32Stride[i] = fmt->plane_fmt[i].bytesperline;
+        req->au32Size[i] = fmt->plane_fmt[i].sizeimage;
+    }
+    /* QUERYBUF may require more padding than G_FMT sizeimage. This query is
+     * made before supplying external buffers, while lengths are unmodified. */
+    for (S32 slot = 0; slot < port->nBufNum; ++slot) {
+        if (!port->stBuf[slot])
+            return MPP_CHECK_FAILED;
+        const struct v4l2_buffer *buf = getV4l2Buffer(port->stBuf[slot]);
+        if (buf->length != req->u32PlaneNum)
+            return MPP_CHECK_FAILED;
+        for (U32 i = 0; i < req->u32PlaneNum; ++i) {
+            if (buf->m.planes[i].length > req->au32Size[i])
+                req->au32Size[i] = buf->m.planes[i].length;
+        }
+    }
+    return MPP_OK;
+}
+
 S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
     Buffer *buffer = dequeueBuffer(port);
     if (!buffer)
@@ -1713,7 +1750,9 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
                 }
                 pstFrame->stVFrame.u32PlaneStride[i] = stride;
                 pstFrame->stVFrame.u32PlaneSize[i] = (i < mp->num_planes) ? mp->plane_fmt[i].sizeimage : 0;
-                pstFrame->stVFrame.u32PlaneSizeValid[i] = b->m.planes[i].bytesused;
+                const struct v4l2_plane *plane = &b->m.planes[i];
+                pstFrame->stVFrame.u32PlaneSizeValid[i] =
+                    plane->bytesused > plane->data_offset ? plane->bytesused - plane->data_offset : 0;
                 u32Total += pstFrame->stVFrame.u32PlaneSize[i];
             }
             pstFrame->stVFrame.u32TotalSize = u32Total;
@@ -1725,10 +1764,11 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
     }
 
     /* EOS on capture port-> */
-    if (!V4L2_TYPE_IS_OUTPUT(b->type) && b->flags & V4L2_BUF_FLAG_LAST) {
+    if (!V4L2_TYPE_IS_OUTPUT(b->type) && (b->flags & V4L2_BUF_FLAG_LAST) &&
+        !atomic_load(&port->bIsSourceChange)) {
         debug("Capture EOS");
         pstFrame->stVdecFrameInfo.bEndOfStream = MPP_TRUE;
-        return MPP_CODER_EOS;
+        return getBytesUsed(b) && !(b->flags & V4L2_BUF_FLAG_ERROR) ? MPP_OK : MPP_CODER_EOS;
     }
 
     /* Resolution change. we should only handle this on decode
@@ -1761,15 +1801,14 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
               // return MPP_FALSE;
             }
         */
-        if (port->bIsSourceChange) {
+        if (atomic_exchange(&port->bIsSourceChange, MPP_FALSE)) {
             debug(
                 "Resolution changed:%d new size: %d x %d",
                 isResChange,
                 port->stFormat.fmt.pix_mp.width,
                 port->stFormat.fmt.pix_mp.height);
-            handleResolutionChange(port, eof);
-            port->bIsSourceChange = MPP_FALSE;
-            return MPP_RESOLUTION_CHANGED;
+            S32 ret = handleResolutionChange(port, eof);
+            return ret == MPP_OK ? MPP_RESOLUTION_CHANGED : ret;
         }
     }
 
@@ -1818,10 +1857,12 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
     return MPP_OK;
 }
 
-void handleResolutionChange(Port *port, BOOL eof) {
+S32 handleResolutionChange(Port *port, BOOL eof) {
     streamoff(port);
     getPortFormat(port);
-    allocateBuffers(port, 0);
+    S32 ret = allocateBuffers(port, 0);
+    if (ret != MPP_OK)
+        return ret;
     getTrySetFormat(
         port,
         port->stFormat.fmt.pix_mp.width,
@@ -1834,11 +1875,13 @@ void handleResolutionChange(Port *port, BOOL eof) {
     count += DECODER_OUTPUT_BUF_EXTRA;
     if (count > MAX_BUF_NUM)
         count = MAX_BUF_NUM;
-    allocateBuffers(port, count);
-    port->nBufNum = count;
+    ret = allocateBuffers(port, count);
+    if (ret != MPP_OK)
+        return ret;
     streamon(port);
     queueBuffers(port, eof);
     port->nFramesProcessed = 0;
+    return MPP_OK;
 }
 
 S32 getBufNum(Port *port) {
@@ -1855,5 +1898,5 @@ MppFrameBufferType getPortBufferType(Port *port) {
 }
 
 void notifySourceChange(Port *port) {
-    port->bIsSourceChange = MPP_TRUE;
+    atomic_store(&port->bIsSourceChange, MPP_TRUE);
 }

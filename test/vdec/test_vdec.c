@@ -31,7 +31,9 @@
 
 #include <errno.h>
 #include <getopt.h>
+#include <pthread.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -401,44 +403,97 @@ static int advance_after_parse(
     return 0;
 }
 
-/* Accumulates pure VDEC_GetFrame time so we can report real decode throughput
- * (frames / pure-decode-time), independent of init/teardown/file IO. */
+typedef struct {
+    S32 chn;
+    FILE *raw_out;
+    U32 max_frames;
+    atomic_bool producer_done;
+    atomic_uint decoded_count;
+    U32 last_w;
+    U32 last_h;
+    U64 first_frame_us;
+    U64 last_frame_us;
+    S32 error;
+} DecodeConsumer;
+
+static U64 monotonic_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (U64)ts.tv_sec * 1000000U + (U64)ts.tv_nsec / 1000U;
+}
+
+static void *decode_consumer_task(void *opaque) {
+    DecodeConsumer *consumer = (DecodeConsumer *)opaque;
+    U32 idle_after_done = 0;
+
+    for (;;) {
+        VideoFrameInfo frame;
+        memset(&frame, 0, sizeof(frame));
+        S32 ret = VDEC_GetFrame(consumer->chn, &frame, 100);
+        if (ret == ERR_VDEC_EOS)
+            break;
+        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT) {
+            if (atomic_load_explicit(&consumer->producer_done, memory_order_acquire) && ++idle_after_done >= 5)
+                break;
+            continue;
+        }
+        if (ret != ERR_VDEC_OK) {
+            consumer->error = ret;
+            break;
+        }
+
+        idle_after_done = 0;
+        U32 decoded_count = atomic_load_explicit(&consumer->decoded_count, memory_order_relaxed);
+        if (consumer->max_frames == 0 || decoded_count < consumer->max_frames) {
+            U64 frame_us = monotonic_us();
+            if (decoded_count == 0)
+                consumer->first_frame_us = frame_us;
+            consumer->last_frame_us = frame_us;
+            consumer->last_w = frame.stVdecFrameInfo.stCommFrameInfo.u32Width;
+            consumer->last_h = frame.stVdecFrameInfo.stCommFrameInfo.u32Height;
+
+            if (consumer->raw_out && save_decoded_frame(consumer->raw_out, &frame) != 0) {
+                fprintf(stderr, "save_decoded_frame failed\n");
+                (void)VDEC_ReleaseFrame(consumer->chn, frame.ulBufferId);
+                consumer->error = -1;
+                break;
+            }
+            atomic_fetch_add_explicit(&consumer->decoded_count, 1, memory_order_release);
+        }
+        ret = VDEC_ReleaseFrame(consumer->chn, frame.ulBufferId);
+        if (ret != ERR_VDEC_OK) {
+            fprintf(stderr, "VDEC_ReleaseFrame: %d\n", ret);
+            consumer->error = ret;
+            break;
+        }
+    }
+    return NULL;
+}
+
+/* Functional suites keep their existing synchronous drain behavior. */
 static double g_vdec_getframe_total_us = 0.0;
 
 static int drain_available_frames(
     S32 chn, FILE *raw_out, U32 *decoded_count, U32 max_frames, U32 *last_w, U32 *last_h
 ) {
-    VideoFrameInfo frame;
-    S32 ret;
-    struct timespec tg0, tg1;
-
     for (;;) {
+        VideoFrameInfo frame;
+        struct timespec start;
+        struct timespec end;
         memset(&frame, 0, sizeof(frame));
-        clock_gettime(CLOCK_MONOTONIC, &tg0);
-        ret = VDEC_GetFrame(chn, &frame, 80);
-        clock_gettime(CLOCK_MONOTONIC, &tg1);
-        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT)
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        S32 ret = VDEC_GetFrame(chn, &frame, 80);
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        if (ret == ERR_VDEC_NO_FRAME || ret == ERR_VDEC_TIMEOUT || ret == ERR_VDEC_EOS)
             break;
-        if (ret == ERR_VDEC_EOS) {
-            break;
-        }
-        if (ret != 0) {
+        if (ret != ERR_VDEC_OK) {
             fprintf(stderr, "VDEC_GetFrame: %d\n", ret);
             return -1;
         }
-
-        /* Pure decode latency: only the frame that came back successfully. */
-        {
-            double cost_us = (double)(tg1.tv_sec - tg0.tv_sec) * 1000000.0 +
-                (double)(tg1.tv_nsec - tg0.tv_nsec) / 1000.0;
-            g_vdec_getframe_total_us += cost_us;
-            printf("[MPP_PERF] module=VDEC op=GetFrame cost_us=%.0f frame=%u\n",
-                cost_us, *decoded_count);
-        }
-
+        g_vdec_getframe_total_us += (double)(end.tv_sec - start.tv_sec) * 1000000.0 +
+            (double)(end.tv_nsec - start.tv_nsec) / 1000.0;
         *last_w = frame.stVdecFrameInfo.stCommFrameInfo.u32Width;
         *last_h = frame.stVdecFrameInfo.stCommFrameInfo.u32Height;
-
         if (raw_out && save_decoded_frame(raw_out, &frame) != 0) {
             fprintf(stderr, "save_decoded_frame failed\n");
             (void)VDEC_ReleaseFrame(chn, frame.ulBufferId);
@@ -446,11 +501,10 @@ static int drain_available_frames(
         }
         (*decoded_count)++;
         ret = VDEC_ReleaseFrame(chn, frame.ulBufferId);
-        if (ret != 0) {
+        if (ret != ERR_VDEC_OK) {
             fprintf(stderr, "VDEC_ReleaseFrame: %d\n", ret);
             return -1;
         }
-
         if (max_frames > 0 && *decoded_count >= max_frames)
             break;
     }
@@ -493,15 +547,18 @@ static int decode_media_with_parse(
     S32 is_first = 1;
     S32 frame_size = 0;
     S32 pret;
-    U32 dec_count = 0;
-    U32 last_w = 0, last_h = 0;
     U64 pts = 0;
     S32 ret;
     U8 *next_p;
     S32 next_left;
-    S32 pass;
+    DecodeConsumer consumer;
+    pthread_t consumer_tid;
+    BOOL consumer_started = MPP_FALSE;
+    U32 submitted_count = 0;
+    U64 pipeline_start_us = 0;
+    U64 pipeline_total_us;
+    U64 steady_total_us;
 
-    g_vdec_getframe_total_us = 0.0;
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = mc->codec;
     attr.eOutputPixelFormat = output_format;
@@ -542,11 +599,25 @@ static int decode_media_with_parse(
         goto err;
     }
 
+    memset(&consumer, 0, sizeof(consumer));
+    consumer.chn = chn;
+    consumer.raw_out = raw_out;
+    consumer.max_frames = max_frames;
+    atomic_init(&consumer.producer_done, MPP_FALSE);
+    atomic_init(&consumer.decoded_count, 0);
+    ret = pthread_create(&consumer_tid, NULL, decode_consumer_task, &consumer);
+    if (ret != 0) {
+        fprintf(stderr, "decode consumer create failed: %s\n", strerror(ret));
+        goto err;
+    }
+    consumer_started = MPP_TRUE;
+
     p = file_buf;
     left = (S32)file_sz;
 
     while (left > 0) {
-        if (max_frames > 0 && dec_count >= max_frames)
+        if (max_frames > 0 &&
+            atomic_load_explicit(&consumer.decoded_count, memory_order_acquire) >= max_frames)
             break;
 
         pret = pctx->ops->parse(pctx, p, left, frame_buf, &frame_size, is_first);
@@ -573,12 +644,14 @@ static int decode_media_with_parse(
 
         if (frame_size <= 0 || frame_size > STREAM_BUFFER_SIZE) {
             fprintf(stderr, "parse: bad frame_size %d\n", frame_size);
-            goto err;
+            ret = -1;
+            goto finish_stream;
         }
 
         if (advance_after_parse(mc->codec, p, left, frame_buf, frame_size, &next_p, &next_left) != 0) {
             fprintf(stderr, "parse: could not align stream (size=%d)\n", frame_size);
-            goto err;
+            ret = -1;
+            goto finish_stream;
         }
 
         {
@@ -593,43 +666,42 @@ static int decode_media_with_parse(
             stream.u32Width = mc->width;
             stream.u32Height = mc->height;
 
+            if (submitted_count == 0)
+                pipeline_start_us = monotonic_us();
             ret = VDEC_SendStream(chn, &stream, 3000);
             if (ret != 0 && ret != ERR_VDEC_EOS) {
                 fprintf(stderr, "VDEC_SendStream: %d\n", ret);
-                goto err;
+                goto finish_stream;
             }
+            submitted_count++;
         }
-
-        if (drain_available_frames(chn, raw_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
-            goto err;
-        }
-
-        if (max_frames > 0 && dec_count >= max_frames)
-            break;
 
         p = next_p;
         left = next_left;
     }
 
-    (void)send_eos_packet(chn, mc->codec);
-
-    for (pass = 0; pass < 64; ++pass) {
-        U32 before = dec_count;
-        if (drain_available_frames(chn, raw_out, &dec_count, max_frames, &last_w, &last_h) != 0) {
-            goto err;
-        }
-        if (max_frames > 0 && dec_count >= max_frames)
-            break;
-        if (dec_count == before) {
-            usleep(5000);
-            if (pass > 8 && dec_count == before)
-                break;
+finish_stream:
+    {
+        S32 eos_ret = send_eos_packet(chn, mc->codec);
+        if (ret == ERR_VDEC_OK && eos_ret != ERR_VDEC_OK && eos_ret != ERR_VDEC_EOS) {
+            fprintf(stderr, "VDEC EOS: %d\n", eos_ret);
+            ret = eos_ret;
         }
     }
+    atomic_store_explicit(&consumer.producer_done, MPP_TRUE, memory_order_release);
+    pthread_join(consumer_tid, NULL);
+    consumer_started = MPP_FALSE;
 
-    *out_decoded = dec_count;
-    *out_fw = last_w;
-    *out_fh = last_h;
+    U32 decoded_count = atomic_load_explicit(&consumer.decoded_count, memory_order_acquire);
+    *out_decoded = decoded_count;
+    *out_fw = consumer.last_w;
+    *out_fh = consumer.last_h;
+
+    if (ret != ERR_VDEC_OK || consumer.error != ERR_VDEC_OK || submitted_count == 0 || decoded_count == 0)
+        goto err;
+
+    pipeline_total_us = consumer.last_frame_us - pipeline_start_us;
+    steady_total_us = consumer.last_frame_us - consumer.first_frame_us;
 
     free(frame_buf);
     PARSE_Destory(pctx);
@@ -639,16 +711,27 @@ static int decode_media_with_parse(
     ret = VDEC_DestroyChn(chn);
     if (ret != 0)
         fprintf(stderr, "VDEC_DestroyChn: %d\n", ret);
-    printf("[decode] %s decoded_frames=%u last %ux%u\n", mc->path, dec_count, last_w, last_h);
-    printf("[MPP_PERF] metric=frames value=%u unit=frames\n", dec_count);
-    if (g_vdec_getframe_total_us > 0.0 && dec_count > 0) {
-        printf("[MPP_PERF] metric=vdec_decode_total_ms value=%.3f unit=ms\n", g_vdec_getframe_total_us / 1000.0);
+    printf("[decode] %s submitted_packets=%u decoded_frames=%u last %ux%u\n",
+        mc->path, submitted_count, decoded_count, consumer.last_w, consumer.last_h);
+    printf("[MPP_PERF] metric=frames value=%u unit=frames\n", decoded_count);
+    if (pipeline_total_us > 0) {
+        printf("[MPP_PERF] metric=pipeline_total_ms value=%.3f unit=ms\n", pipeline_total_us / 1000.0);
+        printf("[MPP_PERF] metric=pipeline_fps value=%.3f unit=fps\n",
+            (double)decoded_count * 1000000.0 / pipeline_total_us);
+    }
+    if (decoded_count > 1 && steady_total_us > 0) {
+        printf("[MPP_PERF] metric=vdec_decode_total_ms value=%.3f unit=ms\n", steady_total_us / 1000.0);
         printf("[MPP_PERF] metric=fps value=%.3f unit=fps\n",
-            (double)dec_count * 1000000.0 / g_vdec_getframe_total_us);
+            (double)(decoded_count - 1) * 1000000.0 / steady_total_us);
     }
     return 0;
 
 err:
+    if (consumer_started) {
+        (void)send_eos_packet(chn, mc->codec);
+        atomic_store_explicit(&consumer.producer_done, MPP_TRUE, memory_order_release);
+        pthread_join(consumer_tid, NULL);
+    }
     free(frame_buf);
     PARSE_Destory(pctx);
     (void)VDEC_DisableChn(chn);

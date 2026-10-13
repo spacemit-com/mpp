@@ -47,6 +47,19 @@ target_include_directories(test_ts_dump PRIVATE ${MPP_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/mpi/demux/container/ts)
 target_link_libraries(test_ts_dump PRIVATE mpp)
 
+# Optional Matroska packet and seek regression test.
+if(DEMUX_BUILD_MKV)
+    add_executable(test_demux_mkv test_demux_mkv.c)
+    target_include_directories(test_demux_mkv PRIVATE ${MPP_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/mpi/demux)
+    target_link_libraries(test_demux_mkv PRIVATE mpp mpp_demux_ffmpeg)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME test_demux_mkv
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_demux_mkv.py $<TARGET_FILE:test_demux_mkv>)
+        set_tests_properties(test_demux_mkv PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+    endif()
+endif()
+
 # DEMUX seek regression test (low-level demux API)
 add_executable(test_demux_seek test_demux_seek.c)
 target_compile_definitions(test_demux_seek PRIVATE ${MPP_TEST_COMMON_DEFS})
@@ -128,6 +141,21 @@ target_include_directories(test_vdec_input_retry PRIVATE
     ${CMAKE_SOURCE_DIR}/utils/include
     ${CMAKE_SOURCE_DIR}/mpi/vdec)
 add_test(NAME test_vdec_input_retry COMMAND $<TARGET_FILE:test_vdec_input_retry>)
+
+add_executable(test_vdec_output_requirement vdec/test_vdec_output_requirement.c)
+target_compile_definitions(test_vdec_output_requirement PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_vdec_output_requirement PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+target_link_options(test_vdec_output_requirement PRIVATE -Wl,--gc-sections)
+add_test(NAME test_vdec_output_requirement COMMAND $<TARGET_FILE:test_vdec_output_requirement>)
+
+add_executable(test_vdec_buffer_payload
+    vdec/test_vdec_buffer_payload.c
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/linlonv5v7_buffer.c)
+target_include_directories(test_vdec_buffer_payload PRIVATE ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+target_link_options(test_vdec_buffer_payload PRIVATE -Wl,--gc-sections)
+add_test(NAME test_vdec_buffer_payload COMMAND $<TARGET_FILE:test_vdec_buffer_payload>)
 
 # Hardware-only regression; intentionally not registered with CTest.
 add_executable(test_vdec_backpressure vdec/test_vdec_backpressure.c)

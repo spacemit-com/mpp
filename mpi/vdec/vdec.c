@@ -1288,6 +1288,13 @@ S32 VDEC_DisableChn(S32 s32ChnId) {
     pthread_join(pChn->streamInputTid, NULL);
     pthread_join(pChn->taskTid, NULL);
 
+    /*
+     * Stop recycling before releasing queued frames or closing the decoder.
+     * Otherwise a buffer returned by the depth queue can be queued back to
+     * the decoder while it is being stopped.
+     */
+    vdec_stop_recycle_task(pChn);
+
     /* Flush depth queue — release VB refs */
     pthread_mutex_lock(&pChn->depthLock);
     vdec_drain_depth_queue_locked(pChn);
@@ -1298,10 +1305,8 @@ S32 VDEC_DisableChn(S32 s32ChnId) {
     pChn->pstDepth = NULL;
     pChn->u32DepthMax = 0;
 
-    /* Flush decoder */
-    pChn->stOps.flush(pChn->pAlCtx);
-
-    vdec_stop_recycle_task(pChn);
+    /* Stop streaming, join the plugin poll thread and release the decoder. */
+    vdec_plugin_close(pChn);
 
     pthread_mutex_lock(&pChn->lock);
 
