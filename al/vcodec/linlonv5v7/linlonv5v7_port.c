@@ -243,6 +243,18 @@ void getTrySetFormat(Port *port, S32 width, S32 height, U32 pixel_format, BOOL i
                 f->plane_fmt[2].sizeimage = f->plane_fmt[2].bytesperline * height / 2;
                 f->num_planes = 3;
                 break;
+            case V4L2_PIX_FMT_RGBA32:
+            case V4L2_PIX_FMT_ARGB32:
+            case V4L2_PIX_FMT_BGRA32:
+            case V4L2_PIX_FMT_ABGR32:
+                f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width * 4, port->nAlign);
+                f->plane_fmt[0].sizeimage = f->plane_fmt[0].bytesperline * height;
+                f->plane_fmt[1].bytesperline = 0;
+                f->plane_fmt[1].sizeimage = 0;
+                f->plane_fmt[2].bytesperline = 0;
+                f->plane_fmt[2].sizeimage = 0;
+                f->num_planes = 1;
+                break;
             case V4L2_PIX_FMT_YUYV:
             case V4L2_PIX_FMT_UYVY:
                 f->plane_fmt[0].bytesperline = ST_ALIGN_UP(width * 2, port->nAlign);
