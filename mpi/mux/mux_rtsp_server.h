@@ -22,6 +22,7 @@
 
 #include <netinet/in.h>
 #include <pthread.h>
+#include <stddef.h>
 
 #include "mux/mux_type.h"
 #include "sys/sys_type.h"
@@ -46,6 +47,18 @@ extern "C" {
 
 /* Forward declaration */
 typedef struct _MuxRtspStream MuxRtspStream;
+
+/* Owned by one client, protected by the global server lock. Network waits
+ * happen in the I/O thread outside that lock. One buffer is a complete TCP
+ * access unit (including interleaved headers), or a complete RTSP response. */
+typedef struct _MuxRtspTxBuffer {
+    struct _MuxRtspTxBuffer *pNext;
+    U8 *pu8Data;
+    size_t uSize;
+    size_t uOffset;
+    size_t uCapacity;
+    U64 u64DeadlineNs;
+} MuxRtspTxBuffer;
 
 typedef enum _MuxRtspClientState {
     MUX_RTSP_CLIENT_INIT = 0,
@@ -74,6 +87,12 @@ typedef struct _MuxRtspClient {
     CHAR szRecvBuf[MUX_RTSP_RECV_BUF_SIZE];
     U32 u32RecvLen;
     MuxRtspStream *pStream; /* Stream this client is subscribed to */
+    U64 u64Generation; /* Reject stale poll entries after a client slot is reused. */
+    MuxRtspTxBuffer *pTxHead;
+    MuxRtspTxBuffer *pTxTail;
+    MuxRtspTxBuffer *pTxBuilding;
+    size_t uTxBytes;
+    U32 u32TxCount;
 } MuxRtspClient;
 
 /* Stream registered with the shared server (one per MuxChannel) */
@@ -104,6 +123,7 @@ typedef struct _MuxGlobalRtspServer {
     S32 s32Inited;
     S32 s32Running;
     S32 s32ListenFd;
+    S32 s32WakeFd;
     U16 u16Port;
     pthread_t tidAccept;
     pthread_mutex_t lock; /* Global lock for streams/clients arrays */
@@ -141,9 +161,10 @@ typedef struct _MuxChannel {
     S32 s32State;
     S32 s32ChnId;
     S32 s32StopWorker;
-    S32 s32WorkerAlive;
+    S32 s32WorkerStarted; /* Successful pthread_create, cleared only after join. */
     pthread_t tidWorker;
     pthread_mutex_t lock;
+    pthread_mutex_t lifecycleLock; /* Serialize start/stop/destroy across join. */
     MuxChnAttr stAttr;
     MppNode stSinkNode;
     MuxRtspServer stRtspServer;
@@ -160,6 +181,14 @@ S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt);
 /* RTP packetizer */
 S32 mux_rtsp_send_h26x_annexb(MuxRtspServer *pstServer, MuxRtspClient *pstClient, const MuxPacket *pstPkt);
 VOID mux_rtsp_cache_param_sets(MuxRtspServer *pstServer, const MuxPacket *pstPkt);
+
+/* Caller holds the server lock. Deadlines include queueing and partial writes. */
+U64 mux_rtsp_monotonic_ns(VOID);
+S32 mux_rtsp_tx_begin(MuxRtspClient *pstClient);
+S32 mux_rtsp_tx_append(MuxRtspClient *pstClient, const U8 *pu8Data, size_t uSize);
+S32 mux_rtsp_tx_commit(MuxRtspClient *pstClient);
+VOID mux_rtsp_tx_clear(MuxRtspClient *pstClient);
+S32 mux_rtsp_tx_flush(MuxRtspClient *pstClient);
 
 #ifdef __cplusplus
 #if __cplusplus

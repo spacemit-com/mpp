@@ -117,6 +117,17 @@ target_link_libraries(test_venc PRIVATE mpp)
 target_include_directories(test_venc PRIVATE ${MPP_INCLUDE_DIRS})
 add_test(NAME test_venc COMMAND $<TARGET_FILE:test_venc> --test api)
 
+# Hardware-independent regressions against the actual plugin implementation.
+# Unused hardware entry points are discarded; the layout test scripts ioctl.
+foreach(name test_venc_rgb_mapping test_venc_rgb_layout)
+    add_executable(${name} venc/${name}.c)
+    target_compile_definitions(${name} PRIVATE ${MPP_TEST_COMMON_DEFS})
+    target_include_directories(${name} PRIVATE ${MPP_INCLUDE_DIRS}
+        ${CMAKE_SOURCE_DIR}/al/vcodec/linlonv5v7/include)
+    target_link_options(${name} PRIVATE -Wl,--gc-sections)
+    add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
+endforeach()
+
 # VDEC: API / multi-codec / scale regression (select suites via --test)
 # Paths are relative to this directory (test/), not project root.
 set(TEST_VDEC_PARSE_SRCS
