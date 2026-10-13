@@ -561,6 +561,7 @@ static int decode_media_with_parse(
 
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = mc->codec;
+    attr.eOutputMode = VDEC_OUTPUT_PULL;
     attr.eOutputPixelFormat = output_format;
     attr.u32Align = 0;
     attr.u32Width = mc->width;
@@ -777,6 +778,7 @@ static int decode_media_with_parse_ex(
     g_vdec_getframe_total_us = 0.0;
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = mc->codec;
+    attr.eOutputMode = VDEC_OUTPUT_PULL;
     attr.eOutputPixelFormat = output_format;
     attr.u32Align = 0;
     attr.u32Width = mc->width;
@@ -1019,6 +1021,7 @@ static int run_multichn_suite(
         VdecChnAttr attr;
         memset(&attr, 0, sizeof(attr));
         attr.eCodecType = cases[ch].codec;
+        attr.eOutputMode = VDEC_OUTPUT_PULL;
         attr.eOutputPixelFormat = output_format;
         attr.u32Width = cases[ch].width;
         attr.u32Height = cases[ch].height;
@@ -1363,6 +1366,7 @@ static int run_api_suite(void) {
 
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    attr.eOutputMode = VDEC_OUTPUT_PULL;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     attr.u32Width = 128;
     attr.u32Height = 128;

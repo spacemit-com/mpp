@@ -198,6 +198,7 @@ int main(int argc, char **argv) {
     }
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    attr.eOutputMode = VDEC_OUTPUT_PULL;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     attr.u32Width = width;
     attr.u32Height = height;

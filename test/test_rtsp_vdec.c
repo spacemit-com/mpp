@@ -138,6 +138,7 @@ int main(int argc, char *argv[]) {
     VdecChnAttr stVdecAttr;
     memset(&stVdecAttr, 0, sizeof(stVdecAttr));
     stVdecAttr.eCodecType          = MPP_STREAM_CODEC_H264; /* will be updated after stream info */
+    stVdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     stVdecAttr.eOutputPixelFormat  = MPP_PIXEL_FORMAT_NV12;
     stVdecAttr.u32Align            = 16;
 

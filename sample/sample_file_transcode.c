@@ -155,6 +155,7 @@ static S32 build_vdec(MppStreamCodecType eInCodec, U32 u32Width, U32 u32Height) 
 
     memset(&stAttr, 0, sizeof(stAttr));
     stAttr.eCodecType = eInCodec;
+    stAttr.eOutputMode = VDEC_OUTPUT_BIND;
     stAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     stAttr.u32Align = 16;
     stAttr.u32Width = (u32Width > 0) ? u32Width : DEFAULT_WIDTH;

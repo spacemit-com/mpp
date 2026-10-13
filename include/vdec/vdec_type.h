@@ -46,6 +46,12 @@ extern "C" {
 
 /* ======================== Enums ======================== */
 
+/* Fixed from EnableChn until DisableChn. Input stream binding is independent. */
+typedef enum _VdecOutputMode {
+    VDEC_OUTPUT_PULL = 0, /**< GetFrame drives decoding; no background output queue */
+    VDEC_OUTPUT_BIND,     /**< output worker delivers frames only through SYS bindings */
+} VdecOutputMode;
+
 /* ======================== Structures ======================== */
 
 /**
@@ -73,6 +79,7 @@ typedef struct _VdecChnAttr {
     BOOL bDispErrorFrame;              /**< display error frames */
     VdecScale stScale;                 /**< scaling parameters */
     U32 u32BufCnt;                     /**< output buffer count (0 = default 12) */
+    VdecOutputMode eOutputMode;        /**< PULL (default) or BIND; mutually exclusive */
 } VdecChnAttr;
 
 /**

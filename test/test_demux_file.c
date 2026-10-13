@@ -156,6 +156,7 @@ static S32 test_demux_vdec_bind(const char *filename, const char *output_yuv) {
     /* Create VDEC channel */
     memset(&stVdecAttr, 0, sizeof(stVdecAttr));
     stVdecAttr.eCodecType = MPP_STREAM_CODEC_H264;
+    stVdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     stVdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     stVdecAttr.u32Width = 640;
     stVdecAttr.u32Height = 480;

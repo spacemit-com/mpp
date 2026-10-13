@@ -211,6 +211,7 @@ static S32 run_pipeline(void) {
     /* --- VDEC: MJPEG -> NV12 --- */
     memset(&stVdec, 0, sizeof(stVdec));
     stVdec.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    stVdec.eOutputMode = VDEC_OUTPUT_PULL;
     stVdec.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     stVdec.u32Width = SAMPLE_WIDTH;
     stVdec.u32Height = SAMPLE_HEIGHT;

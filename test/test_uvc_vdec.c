@@ -135,6 +135,7 @@ static void test_uvc_vdec_venc_mux_pipeline(void) {
     VdecChnAttr vdecAttr;
     memset(&vdecAttr, 0, sizeof(vdecAttr));
     vdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    vdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     vdecAttr.u32Width = 1280;
     vdecAttr.u32Height = 720;

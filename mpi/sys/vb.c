@@ -840,7 +840,8 @@ S32 VB_DestroyPool(UL ulPool) {
     for (U32 i = 0; i < pool->blk_cnt; i++) {
         int rc = atomic_load(&pool->blocks[i].ref_cnt);
         if (rc > 0) {
-            VB_LOG_ERR("pool %u blk %u ref_cnt=%d, cannot destroy", pool_id, i, rc);
+            /* BUSY is a normal result for producers retiring consumer-held
+             * pools. Callers may retry without emitting an error per frame. */
             pthread_mutex_unlock(&pool->lock);
             pthread_rwlock_unlock(&shm->vb_lock);
             return VB_ERR_BUSY;

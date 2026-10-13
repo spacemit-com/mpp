@@ -205,6 +205,7 @@ int main(int argc, char **argv) {
 
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = MPP_STREAM_CODEC_H264;
+    attr.eOutputMode = VDEC_OUTPUT_PULL;
     attr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     attr.u32Width = argc == 4 ? (U32)strtoul(argv[2], NULL, 10) : 1280;
     attr.u32Height = argc == 4 ? (U32)strtoul(argv[3], NULL, 10) : 720;

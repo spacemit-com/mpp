@@ -175,6 +175,7 @@ static S32 run_uvc_vdec_manual(void) {
     VdecChnAttr vdecAttr;
     memset(&vdecAttr, 0, sizeof(vdecAttr));
     vdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    vdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     vdecAttr.u32Width = SAMPLE_WIDTH;
     vdecAttr.u32Height = SAMPLE_HEIGHT;
@@ -352,6 +353,7 @@ static S32 run_uvc_vdec_bind(void) {
     VdecChnAttr vdecAttr;
     memset(&vdecAttr, 0, sizeof(vdecAttr));
     vdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    vdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     vdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     vdecAttr.u32Width = SAMPLE_WIDTH;
     vdecAttr.u32Height = SAMPLE_HEIGHT;

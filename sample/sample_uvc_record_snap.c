@@ -289,6 +289,7 @@ int main(int argc, char *argv[]) {
     VdecChnAttr stVdecAttr;
     memset(&stVdecAttr, 0, sizeof(stVdecAttr));
     stVdecAttr.eCodecType = MPP_STREAM_CODEC_MJPEG;
+    stVdecAttr.eOutputMode = VDEC_OUTPUT_PULL;
     stVdecAttr.eOutputPixelFormat = MPP_PIXEL_FORMAT_NV12;
     stVdecAttr.u32Width = CAP_WIDTH;
     stVdecAttr.u32Height = CAP_HEIGHT;
