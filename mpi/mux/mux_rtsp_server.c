@@ -25,13 +25,15 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <netdb.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <netinet/tcp.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -41,6 +43,19 @@
 /* ======================== Global Shared Server ======================== */
 
 static MuxGlobalRtspServer g_stGlobalServer = {0};
+/* Different MUX channels may start/stop concurrently. Serialize singleton
+ * lifetime separately from the lock used by the I/O thread. */
+static pthread_mutex_t g_server_lifecycle_lock = PTHREAD_MUTEX_INITIALIZER;
+static U64 g_client_generation = 0;
+
+static VOID mux_rtsp_wake(MuxGlobalRtspServer *server) {
+    U64 value = 1;
+    ssize_t result;
+    do {
+        result = write(server->s32WakeFd, &value, sizeof(value));
+    } while (result < 0 && errno == EINTR);
+    /* EAGAIN means a wakeup is already pending. */
+}
 
 static MuxRtspStream *mux_rtsp_find_stream_by_path(const CHAR *pszPath) {
     for (S32 i = 0; i < MUX_RTSP_MAX_STREAMS; i++) {
@@ -183,7 +198,12 @@ static S32 mux_rtsp_send_response(MuxRtspClient *pstClient, const CHAR *pszBody,
         snprintf(szMsg, sizeof(szMsg), "%s\r\n", szHdr);
     }
 
-    return mux_socket_send_no_signal(pstClient->s32RtspFd, szMsg, strlen(szMsg), 0) < 0 ? -1 : 0;
+    if (mux_rtsp_tx_begin(pstClient) != 0 ||
+        mux_rtsp_tx_append(pstClient, (const U8 *)szMsg, strlen(szMsg)) != 0 ||
+        mux_rtsp_tx_commit(pstClient) != 0)
+        return -1;
+    /* Requests run on the I/O thread; its next poll iteration sees POLLOUT. */
+    return 0;
 }
 
 static S32 mux_rtsp_base64_encode(const U8 *pu8Src, U32 u32SrcLen, CHAR *pszDst, U32 u32DstLen) {
@@ -268,13 +288,14 @@ static VOID mux_rtsp_client_close(MuxRtspClient *pstClient) {
         return;
     }
 
-    if (pstClient->s32RtpSock > 0) {
+    mux_rtsp_tx_clear(pstClient);
+    if (pstClient->s32RtpSock >= 0) {
         close(pstClient->s32RtpSock);
     }
-    if (pstClient->s32RtcpSock > 0) {
+    if (pstClient->s32RtcpSock >= 0) {
         close(pstClient->s32RtcpSock);
     }
-    if (pstClient->s32RtspFd > 0) {
+    if (pstClient->s32RtspFd >= 0) {
         close(pstClient->s32RtspFd);
     }
     memset(pstClient, 0, sizeof(*pstClient));
@@ -286,6 +307,7 @@ static MuxRtspClient *mux_rtsp_client_alloc(void) {
             MuxRtspClient *pClient = &g_stGlobalServer.astClients[i];
             memset(pClient, 0, sizeof(*pClient));
             pClient->s32Used = 1;
+            pClient->u64Generation = ++g_client_generation;
             pClient->s32RtspFd = -1;
             pClient->s32RtpSock = -1;
             pClient->s32RtcpSock = -1;
@@ -498,43 +520,85 @@ static S32 mux_rtsp_process_request(MuxRtspClient *pstClient, const CHAR *pszReq
     return mux_rtsp_send_response(pstClient, NULL, "RTSP/1.0 405 Method Not Allowed\r\nCSeq: %u\r\n", cseq);
 }
 
-/* Accept thread for global shared server */
+/* One socket owner drains bounded queues fairly. poll() is the only network
+ * wait and runs without the server/channel locks. All recv/send calls made
+ * under the server lock are nonblocking, preserving fd/slot ownership. */
 static VOID *mux_rtsp_accept_thread(VOID *arg) {
     MuxGlobalRtspServer *pServer = &g_stGlobalServer;
     (void)arg;
 
-    while (pServer->s32Running) {
-        fd_set rfds;
-        S32 maxfd = pServer->s32ListenFd;
-        struct timeval tv;
-
-        FD_ZERO(&rfds);
-        FD_SET(pServer->s32ListenFd, &rfds);
-
+    for (;;) {
+        struct pollfd fds[MUX_RTSP_MAX_CLIENTS + 2] = {0};
+        S32 slots[MUX_RTSP_MAX_CLIENTS + 2] = {0};
+        U64 generations[MUX_RTSP_MAX_CLIENTS + 2] = {0};
+        nfds_t count = 2;
+        S32 timeout = 1000;
+        U64 now = mux_rtsp_monotonic_ns();
         pthread_mutex_lock(&pServer->lock);
+        if (!pServer->s32Running) {
+            pthread_mutex_unlock(&pServer->lock);
+            break;
+        }
+        fds[0] = (struct pollfd){pServer->s32ListenFd, POLLIN, 0};
+        fds[1] = (struct pollfd){pServer->s32WakeFd, POLLIN, 0};
         for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
-            if (pServer->astClients[i].s32Used && pServer->astClients[i].s32RtspFd >= 0) {
-                FD_SET(pServer->astClients[i].s32RtspFd, &rfds);
-                if (pServer->astClients[i].s32RtspFd > maxfd) {
-                    maxfd = pServer->astClients[i].s32RtspFd;
-                }
+            MuxRtspClient *client = &pServer->astClients[i];
+            if (!client->s32Used)
+                continue;
+            fds[count] = (struct pollfd){client->s32RtspFd, POLLIN, 0};
+            slots[count] = i;
+            generations[count] = client->u64Generation;
+            if (client->pTxHead) {
+                fds[count].events |= POLLOUT;
+                U64 deadline = client->pTxHead->u64DeadlineNs;
+                S32 remaining = !now || now >= deadline ? 0 :
+                    (S32)((deadline - now + 999999ULL) / 1000000ULL);
+                if (remaining < timeout)
+                    timeout = remaining;
             }
+            ++count;
         }
         pthread_mutex_unlock(&pServer->lock);
 
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-        if (select(maxfd + 1, &rfds, NULL, NULL, &tv) <= 0) {
+        int ready = poll(fds, count, timeout);
+        if (ready < 0 && errno == EINTR)
             continue;
+        if (ready < 0) {
+            MUX_RTSP_LOGE("socket poll failed: %s", strerror(errno));
+            break;
         }
 
-        /* Accept new connections */
-        if (FD_ISSET(pServer->s32ListenFd, &rfds)) {
+        pthread_mutex_lock(&pServer->lock);
+        if (!pServer->s32Running) {
+            pthread_mutex_unlock(&pServer->lock);
+            break;
+        }
+        if (fds[1].revents & POLLIN) {
+            U64 value;
+            (void)read(pServer->s32WakeFd, &value, sizeof(value));
+        }
+        if (fds[0].revents & POLLIN) {
             struct sockaddr_in peer;
             socklen_t len = sizeof(peer);
             S32 fd = accept(pServer->s32ListenFd, (struct sockaddr *)&peer, &len);
             if (fd >= 0) {
-                pthread_mutex_lock(&pServer->lock);
+                S32 nonblock = fcntl(fd, F_SETFL, O_NONBLOCK);
+                S32 cloexec = fcntl(fd, F_SETFD, FD_CLOEXEC);
+                if (nonblock < 0 || cloexec < 0) {
+                    close(fd);
+                    fd = -1;
+                }
+            }
+            if (fd >= 0) {
+                /* Keep one complete 4 Mbps IDR burst in the TCP queue.  The
+                 * kernel may cap this to net.core.wmem_max; either value is
+                 * substantially larger than the default observed on K1. */
+                S32 send_buffer = 1024 * 1024;
+                S32 no_delay = 1;
+                (void)setsockopt(fd, SOL_SOCKET, SO_SNDBUF,
+                    &send_buffer, sizeof(send_buffer));
+                (void)setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
+                    &no_delay, sizeof(no_delay));
                 MuxRtspClient *pstClient = mux_rtsp_client_alloc();
                 if (pstClient) {
                     pstClient->s32RtspFd = fd;
@@ -546,29 +610,42 @@ static VOID *mux_rtsp_accept_thread(VOID *arg) {
                     close(fd);
                     MUX_RTSP_LOGE("no free client slots");
                 }
-                pthread_mutex_unlock(&pServer->lock);
             }
         }
 
-        /* Handle client requests */
-        pthread_mutex_lock(&pServer->lock);
-        for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
-            MuxRtspClient *pstClient = &pServer->astClients[i];
-            if (!pstClient->s32Used || pstClient->s32RtspFd < 0) {
+        for (nfds_t i = 2; i < count; ++i) {
+            MuxRtspClient *pstClient = &pServer->astClients[slots[i]];
+            /* A producer/stop may close a client while poll sleeps. Never
+             * apply readiness for an old fd to a newly allocated client. */
+            if (!pstClient->s32Used || pstClient->s32RtspFd != fds[i].fd ||
+                pstClient->u64Generation != generations[i])
                 continue;
-            }
-            if (!FD_ISSET(pstClient->s32RtspFd, &rfds)) {
-                continue;
-            }
-
-            ssize_t rd = recv(pstClient->s32RtspFd, pstClient->szRecvBuf, sizeof(pstClient->szRecvBuf) - 1, 0);
-            if (rd <= 0) {
+            if (fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
                 mux_rtsp_client_close(pstClient);
                 continue;
             }
-            pstClient->szRecvBuf[rd] = '\0';
-            if (mux_rtsp_process_request(pstClient, pstClient->szRecvBuf) != 0) {
-                mux_rtsp_client_close(pstClient);
+            if (fds[i].revents & POLLIN) {
+                ssize_t rd = recv(pstClient->s32RtspFd, pstClient->szRecvBuf,
+                    sizeof(pstClient->szRecvBuf) - 1, MSG_DONTWAIT);
+                if (rd == 0 || (rd < 0 && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)) {
+                    mux_rtsp_client_close(pstClient);
+                    continue;
+                }
+                if (rd > 0) {
+                    pstClient->szRecvBuf[rd] = '\0';
+                    if (mux_rtsp_process_request(pstClient, pstClient->szRecvBuf) != 0) {
+                        mux_rtsp_client_close(pstClient);
+                        continue;
+                    }
+                }
+            }
+            now = mux_rtsp_monotonic_ns();
+            if (pstClient->pTxHead && ((fds[i].revents & POLLOUT) || !now ||
+                    now >= pstClient->pTxHead->u64DeadlineNs)) {
+                if (mux_rtsp_tx_flush(pstClient) != 0) {
+                    MUX_RTSP_LOGE("client send failed or exceeded frame deadline: fd=%d", pstClient->s32RtspFd);
+                    mux_rtsp_client_close(pstClient);
+                }
             }
         }
         pthread_mutex_unlock(&pServer->lock);
@@ -592,9 +669,16 @@ static S32 mux_rtsp_global_server_init(U16 u16Port) {
     memset(pServer, 0, sizeof(*pServer));
     pthread_mutex_init(&pServer->lock, NULL);
     pServer->u16Port = u16Port;
+    pServer->s32WakeFd = -1;
 
-    pServer->s32ListenFd = socket(AF_INET, SOCK_STREAM, 0);
+    pServer->s32ListenFd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (pServer->s32ListenFd < 0) {
+        pthread_mutex_destroy(&pServer->lock);
+        return ERR_MUX_OPEN_FAIL;
+    }
+    pServer->s32WakeFd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (pServer->s32WakeFd < 0) {
+        close(pServer->s32ListenFd);
         pthread_mutex_destroy(&pServer->lock);
         return ERR_MUX_OPEN_FAIL;
     }
@@ -609,12 +693,14 @@ static S32 mux_rtsp_global_server_init(U16 u16Port) {
     if (bind(pServer->s32ListenFd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         MUX_RTSP_LOGE("bind port %u failed: %s", u16Port, strerror(errno));
         close(pServer->s32ListenFd);
+        close(pServer->s32WakeFd);
         pthread_mutex_destroy(&pServer->lock);
         return ERR_MUX_OPEN_FAIL;
     }
 
     if (listen(pServer->s32ListenFd, MUX_RTSP_MAX_CLIENTS) < 0) {
         close(pServer->s32ListenFd);
+        close(pServer->s32WakeFd);
         pthread_mutex_destroy(&pServer->lock);
         return ERR_MUX_OPEN_FAIL;
     }
@@ -625,8 +711,11 @@ static S32 mux_rtsp_global_server_init(U16 u16Port) {
 
     if (pthread_create(&pServer->tidAccept, NULL, mux_rtsp_accept_thread, NULL) != 0) {
         close(pServer->s32ListenFd);
+        close(pServer->s32WakeFd);
         pthread_mutex_destroy(&pServer->lock);
         pServer->s32Inited = 0;
+        pServer->s32Running = 0;
+        pServer->u32RefCount = 0;
         return ERR_MUX_OPEN_FAIL;
     }
 
@@ -646,10 +735,13 @@ static VOID mux_rtsp_global_server_deinit(void) {
         return; /* Still referenced */
     }
 
+    pthread_mutex_lock(&pServer->lock);
     pServer->s32Running = 0;
-    shutdown(pServer->s32ListenFd, SHUT_RDWR);
-    close(pServer->s32ListenFd);
+    mux_rtsp_wake(pServer);
+    pthread_mutex_unlock(&pServer->lock);
     pthread_join(pServer->tidAccept, NULL);
+    close(pServer->s32ListenFd);
+    close(pServer->s32WakeFd);
 
     pthread_mutex_lock(&pServer->lock);
     for (S32 i = 0; i < MUX_RTSP_MAX_CLIENTS; ++i) {
@@ -664,7 +756,7 @@ static VOID mux_rtsp_global_server_deinit(void) {
 
 /* ======================== Stream Registration ======================== */
 
-S32 mux_rtsp_server_start(MuxChannel *pstChn) {
+static S32 mux_rtsp_server_start_locked(MuxChannel *pstChn) {
     MuxGlobalRtspServer *pServer = &g_stGlobalServer;
     MuxRtspStream *pStream = NULL;
     CHAR szHost[64];
@@ -682,6 +774,29 @@ S32 mux_rtsp_server_start(MuxChannel *pstChn) {
         return ret;
     }
 
+    /* The lifecycle lock covers this check, init and insertion. When the
+     * server is not initialized there cannot be an existing stream; another
+     * channel cannot register one until this function returns. */
+    if (pServer->s32Inited) {
+        if (pServer->u16Port != u16Port) {
+            MUX_RTSP_LOGE("RTSP server already listens on port %u", pServer->u16Port);
+            return ERR_MUX_BUSY;
+        }
+        pthread_mutex_lock(&pServer->lock);
+        pStream = mux_rtsp_find_stream_by_chn(pstChn->s32ChnId);
+        if (pStream) {
+            S32 samePath = strcmp(pStream->szPath, szPath) == 0;
+            pthread_mutex_unlock(&pServer->lock);
+            return samePath ? ERR_MUX_OK : ERR_MUX_BUSY;
+        }
+        pStream = mux_rtsp_find_stream_by_path(szPath);
+        pthread_mutex_unlock(&pServer->lock);
+        if (pStream) {
+            MUX_RTSP_LOGE("RTSP path '%s' is already registered", szPath);
+            return ERR_MUX_BUSY;
+        }
+    }
+
     /* Initialize global server if needed */
     ret = mux_rtsp_global_server_init(u16Port);
     if (ret != ERR_MUX_OK) {
@@ -690,14 +805,6 @@ S32 mux_rtsp_server_start(MuxChannel *pstChn) {
 
     /* Register stream with global server */
     pthread_mutex_lock(&pServer->lock);
-
-    /* Check if already registered */
-    pStream = mux_rtsp_find_stream_by_chn(pstChn->s32ChnId);
-    if (pStream) {
-        pthread_mutex_unlock(&pServer->lock);
-        MUX_RTSP_LOGI("Stream chn=%d already registered at '%s'", pstChn->s32ChnId, pStream->szPath);
-        return ERR_MUX_OK;
-    }
 
     /* Find free slot */
     for (S32 i = 0; i < MUX_RTSP_MAX_STREAMS; i++) {
@@ -710,6 +817,9 @@ S32 mux_rtsp_server_start(MuxChannel *pstChn) {
     if (!pStream) {
         pthread_mutex_unlock(&pServer->lock);
         MUX_RTSP_LOGE("No free stream slots");
+        /* init acquired one extra reference. Existing streams retain their
+         * own references, so releasing this one cannot stop their server. */
+        mux_rtsp_global_server_deinit();
         return ERR_MUX_BUSY;
     }
 
@@ -732,7 +842,7 @@ S32 mux_rtsp_server_start(MuxChannel *pstChn) {
     return ERR_MUX_OK;
 }
 
-VOID mux_rtsp_server_stop(MuxChannel *pstChn) {
+static VOID mux_rtsp_server_stop_locked(MuxChannel *pstChn) {
     MuxGlobalRtspServer *pServer = &g_stGlobalServer;
     MuxRtspStream *pStream;
 
@@ -760,7 +870,23 @@ VOID mux_rtsp_server_stop(MuxChannel *pstChn) {
     pthread_mutex_unlock(&pServer->lock);
 
     /* Deinit global server if no more streams */
-    mux_rtsp_global_server_deinit();
+    if (pStream) {
+        mux_rtsp_wake(pServer);
+        mux_rtsp_global_server_deinit();
+    }
+}
+
+S32 mux_rtsp_server_start(MuxChannel *pstChn) {
+    pthread_mutex_lock(&g_server_lifecycle_lock);
+    S32 result = mux_rtsp_server_start_locked(pstChn);
+    pthread_mutex_unlock(&g_server_lifecycle_lock);
+    return result;
+}
+
+VOID mux_rtsp_server_stop(MuxChannel *pstChn) {
+    pthread_mutex_lock(&g_server_lifecycle_lock);
+    mux_rtsp_server_stop_locked(pstChn);
+    pthread_mutex_unlock(&g_server_lifecycle_lock);
 }
 
 /* Cache SPS/PPS/VPS to stream's parameter sets */
@@ -808,6 +934,7 @@ S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt) {
     MuxRtspStream *pStream;
     S32 ret = ERR_MUX_OK;
     U32 u32ActiveCnt = 0;
+    BOOL wake = MPP_FALSE;
 
     if (!pstChn || !pstPkt) {
         return ERR_MUX_NULL_PTR;
@@ -848,6 +975,20 @@ S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt) {
         if (pstClient->eState != MUX_RTSP_CLIENT_PLAYING) {
             continue;
         }
+        if (pstClient->bInterleaved)
+            wake = MPP_TRUE;
+        if (pstClient->bInterleaved) {
+            S32 beginRet = mux_rtsp_tx_begin(pstClient);
+            if (beginRet != 0) {
+                /* A full live queue means this client is falling behind.
+                 * Closing it bounds latency without sending a broken GOP. */
+                MUX_RTSP_LOGE("client tx queue unavailable: %s, queued=%zu bytes/%u frames, fd=%d",
+                    strerror(-beginRet), pstClient->uTxBytes, pstClient->u32TxCount, pstClient->s32RtspFd);
+                mux_rtsp_client_close(pstClient);
+                ret = ERR_MUX_BUSY;
+                continue;
+            }
+        }
 
         /* Inject cached SPS/PPS for new clients before first frame */
         if (pstClient->bNeedParamInject && pStream->u32SpsLen > 0 && pStream->u32PpsLen > 0) {
@@ -877,15 +1018,22 @@ S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt) {
             paramPkt.bKeyFrame = MPP_TRUE;
             paramPkt.u64PTS = pstPkt->u64PTS;
 
-            mux_rtsp_send_h26x_annexb_stream(pStream, pstClient, &paramPkt);
+            if (mux_rtsp_send_h26x_annexb_stream(pStream, pstClient, &paramPkt) != 0) {
+                mux_rtsp_client_close(pstClient);
+                wake = MPP_TRUE;
+                ret = ERR_MUX_OPEN_FAIL;
+                continue;
+            }
             pstClient->bNeedParamInject = MPP_FALSE;
             MUX_RTSP_LOGI("injected SPS(%u)/PPS(%u) for client on stream '%s'", pStream->u32SpsLen, pStream->u32PpsLen,
                 pStream->szPath);
         }
 
-        if (mux_rtsp_send_h26x_annexb_stream(pStream, pstClient, pstPkt) != 0) {
+        if (mux_rtsp_send_h26x_annexb_stream(pStream, pstClient, pstPkt) != 0 ||
+            (pstClient->bInterleaved && mux_rtsp_tx_commit(pstClient) != 0)) {
             MUX_RTSP_LOGE("send failed to client on stream '%s', closing", pStream->szPath);
             mux_rtsp_client_close(pstClient);
+            wake = MPP_TRUE;
             ret = ERR_MUX_OPEN_FAIL;
         } else {
             ++u32ActiveCnt;
@@ -894,6 +1042,8 @@ S32 mux_rtsp_server_send_packet(MuxChannel *pstChn, const MuxPacket *pstPkt) {
 
     pStream->u64TotalPkts++;
     pStream->u64TotalBytes += pstPkt->u32Size;
+    if (wake)
+        mux_rtsp_wake(pServer);
     pthread_mutex_unlock(&pServer->lock);
 
     return ret;
