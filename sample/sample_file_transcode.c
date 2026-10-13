@@ -181,7 +181,6 @@ static S32 build_venc(const TranscodeCfg *pstCfg, U32 u32Width, U32 u32Height) {
     memset(&stAttr, 0, sizeof(stAttr));
     stAttr.eCodecType = pstCfg->eOutCodec;
     stAttr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    stAttr.eFrameBufMode = VENC_FRAME_BUF_DMABUF_EXTERNAL; /* frames belong to VDEC's VB pool */
     stAttr.u32Width = (u32Width > 0) ? u32Width : DEFAULT_WIDTH;
     stAttr.u32Height = (u32Height > 0) ? u32Height : DEFAULT_HEIGHT;
     stAttr.u32Bitrate = pstCfg->u32BitrateKbps * 1000;

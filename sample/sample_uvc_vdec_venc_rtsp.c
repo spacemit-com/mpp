@@ -148,7 +148,6 @@ static S32 run_manual(void) {
     memset(&vencAttr, 0, sizeof(vencAttr));
     vencAttr.eCodecType = MPP_STREAM_CODEC_H264;
     vencAttr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    vencAttr.eFrameBufMode = VENC_FRAME_BUF_DMABUF_EXTERNAL;
     vencAttr.u32Width = SAMPLE_WIDTH;
     vencAttr.u32Height = SAMPLE_HEIGHT;
     vencAttr.u32Bitrate = SAMPLE_BITRATE;
@@ -370,7 +369,6 @@ static S32 run_bind(void) {
     memset(&vencAttr, 0, sizeof(vencAttr));
     vencAttr.eCodecType = MPP_STREAM_CODEC_H264;
     vencAttr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;
-    vencAttr.eFrameBufMode = VENC_FRAME_BUF_DMABUF_EXTERNAL;
     vencAttr.u32Width = SAMPLE_WIDTH;
     vencAttr.u32Height = SAMPLE_HEIGHT;
     vencAttr.u32Bitrate = SAMPLE_BITRATE;
