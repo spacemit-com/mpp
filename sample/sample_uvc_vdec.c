@@ -1,6 +1,6 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
  *
  * @File      :    sample_uvc_vdec.c
  * @Date      :    2026-04-24

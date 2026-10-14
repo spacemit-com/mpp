@@ -1,7 +1,7 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * BSD-style license.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
+ * MIT license.
  *
  * @File      :    pat_pmt.h
  * @Brief     :    MPEG-2 TS PAT/PMT table definitions and parsing.

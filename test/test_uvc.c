@@ -1,6 +1,6 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
  *
  * @File      :    test_uvc.c
  * @Date      :    2026-4-15

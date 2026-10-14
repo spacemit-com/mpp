@@ -1,4 +1,4 @@
-/* Copyright 2026 SPACEMIT. All rights reserved. BSD-style license: LICENSE. */
+/* Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd. MIT license: LICENSE. */
 #include "vdec_bufpool.h"
 
 #include <stdint.h>

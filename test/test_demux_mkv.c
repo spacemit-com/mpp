@@ -1,4 +1,4 @@
-/* Copyright 2026 SPACEMIT. All rights reserved. BSD-style license.
+/* Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd. MIT license.
  * File-only packet integrity/lifecycle test; no hardware or CMA allocation. */
 #include <inttypes.h>
 #include <stdio.h>

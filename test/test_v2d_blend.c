@@ -1,6 +1,6 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
  *
  * @File      :    test_v2d_blend.c
  * @Brief     :    V2D AddBlendTask demo: convert 1080P NV12 to 480P RGBA and

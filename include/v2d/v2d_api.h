@@ -1,6 +1,6 @@
 /*
- * SPDX-License-Identifier: Apache-2.0
- * Copyright (C) 2026 Spacemit Co., Ltd.
+ * SPDX-License-Identifier: MIT
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
  */
 
 #ifndef V2D_API_H

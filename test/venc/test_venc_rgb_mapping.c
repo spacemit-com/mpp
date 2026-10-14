@@ -1,4 +1,4 @@
-/* Copyright 2026 SPACEMIT. All rights reserved. BSD-style license: LICENSE.
+/* Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd. MIT license: LICENSE.
  * Exercise the encoder's real mapping table without opening any device. */
 #include "../../al/vcodec/linlonv5v7/linlonv5v7_enc.c"
 

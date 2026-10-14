@@ -1,7 +1,7 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * BSD-style license.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
+ * MIT license.
  *
  * @File      :    hls_client.c
  * @Brief     :    HLS (HTTP Live Streaming) client implementation.

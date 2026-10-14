@@ -1,4 +1,4 @@
-/* Copyright 2026 SPACEMIT. All rights reserved. BSD-style license: LICENSE.
+/* Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd. MIT license: LICENSE.
  * Exercise a single sender and concurrent channel control without a codec device. */
 #include "../../mpi/vdec/vdec.c"
 #include <poll.h>

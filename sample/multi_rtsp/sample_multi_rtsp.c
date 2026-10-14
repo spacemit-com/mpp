@@ -1,6 +1,6 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
  *
  * @File      : sample_multi_rtsp.c
  * @Brief     : Multi-stream RTSP transcoding sample.

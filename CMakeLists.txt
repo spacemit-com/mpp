@@ -1,6 +1,6 @@
 # ============================================================
 # MPP (Media Processing Platform) - Top-level CMakeLists
-# Copyright 2025-2026 SPACEMIT. All rights reserved.
+# Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
 # ============================================================
 
 cmake_minimum_required(VERSION 3.16)
@@ -33,6 +33,14 @@ endif()
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Install prefix" FORCE)
 endif()
+
+# Install the license with the library distribution.
+include(GNUInstallDirs)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+    COMPONENT Documentation
+)
 
 # ────────────────────────────────────────────────────────────
 # Compiler flags
