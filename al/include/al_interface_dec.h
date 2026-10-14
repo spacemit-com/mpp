@@ -78,9 +78,14 @@ S32 al_dec_get_output_requirement(ALBaseContext *ctx, AlDecOutputRequirement *ps
  *               EOS is signaled by pstStream->bEndOfStream == MPP_TRUE or
  *               u32Size == 0; the PTS of an EOS-with-data packet marks the
  *               last displayable frame.
- * @return {*}: MPP_OK on success, MPP_CODER_NO_DATA if no input slot available
+ * @param {U32} timeoutMs: one finite input wait in ms, 0..INT_MAX (0 = non-blocking).
+ *               MPI manages the total timeout and infinite waits across attempts.
+ *               The caller serializes input and control.
+ * @return {*}: MPP_OK when queued, MPP_DATAQUEUE_FULL if no slot is available
+ *               (including an expired wait), or a device error.
+ *               FULL does not consume the packet.
  */
-S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream);
+S32 al_dec_decode(ALBaseContext *ctx, const StreamBufferInfo *pstStream, U32 timeoutMs);
 
 /**
  * @description: queue one external dma-buf CAPTURE buffer to the decoder.
