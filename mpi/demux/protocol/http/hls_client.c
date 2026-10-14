@@ -8,6 +8,7 @@
  *------------------------------------------------------------------------------
  */
 
+#include "log.h"
 #include "hls_client.h"
 
 #include <stdio.h>
@@ -151,7 +152,7 @@ static S32 hls_parse_playlist(HlsClient *pClient, const CHAR *pszPlaylist) {
                     int n = snprintf(szCombined, sizeof(szCombined), "%s/%s",
                         pClient->szBaseUrl, szLine);
                     if (n >= (int)HLS_MAX_URL_LEN) {
-                        fprintf(stderr, "[HLS][WRN] segment URL truncated "
+                        MPP_LOG(MPP_LOG_WARN, "demux", "[HLS][WRN] segment URL truncated "
                             "(%d > %d): %s\n", n, HLS_MAX_URL_LEN - 1, szLine);
                     }
                     snprintf(pSeg->szUrl, HLS_MAX_URL_LEN, "%.*s",
