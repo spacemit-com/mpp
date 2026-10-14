@@ -13,6 +13,7 @@
  *------------------------------------------------------------------------------
  */
 
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,9 +55,9 @@ extern "C" {
 
 /* ======================== Log Macros ======================== */
 
-#define UVC_LOG_ERR(fmt, ...) fprintf(stderr, "[UVC][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define UVC_LOG_WARN(fmt, ...) fprintf(stderr, "[UVC][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define UVC_LOG_INFO(fmt, ...) fprintf(stdout, "[UVC][INFO] " fmt "\n", ##__VA_ARGS__)
+#define UVC_LOG_ERR(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "uvc", fmt, ##__VA_ARGS__)
+#define UVC_LOG_WARN(fmt, ...) MPP_LOG(MPP_LOG_WARN, "uvc", fmt, ##__VA_ARGS__)
+#define UVC_LOG_INFO(fmt, ...) MPP_LOG(MPP_LOG_INFO, "uvc", fmt, ##__VA_ARGS__)
 
 /* ======================== Internal State ======================== */
 

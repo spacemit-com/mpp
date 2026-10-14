@@ -175,6 +175,8 @@ static VOID mux_close_output(MuxChannel *pstChn) {
 }
 
 S32 MUX_Init(VOID) {
+    /* These modules also support standalone use without SYS_Init. */
+    (void)mpp_log_start();
     S32 i;
 
     if (g_stMuxCtx.s32Init) {

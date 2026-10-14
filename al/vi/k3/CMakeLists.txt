@@ -32,7 +32,7 @@ else()
             ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
 
-    target_link_libraries(vi_k3_cam_plugin PRIVATE pthread)
+    target_link_libraries(vi_k3_cam_plugin PRIVATE mpp pthread)
 
     set_target_properties(vi_k3_cam_plugin PROPERTIES
         OUTPUT_NAME "vi_k3_cam_plugin"

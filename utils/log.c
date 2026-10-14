@@ -3,119 +3,110 @@
  * Use of this source code is governed by the MIT license
  * that can be found in the LICENSE file.
  */
-
-#define MODULE_TAG "mpp_log"
-
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include "log.h"
-
+#include "log_internal.h"
+#include <errno.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
+#include <time.h>
 
-#include "os_log.h"
+U32 mpp_debug = 0; /* Retained exported symbol for existing applications. */
+static atomic_int log_level = MPP_LOG_INFO;
 
-#define MPP_LOG_MAX_LEN 256
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-U32 mpp_debug = 0;
-
-static const char *msg_log_warning = "log message is long\n";
-static const char *msg_log_nothing = "\n";
-static int mpp_log_level = MPP_LOG_INFO;
-
-static void __mpp_log(os_log_callback func, const char *tag, const char *fmt, const char *fname, va_list args) {
-    char msg[MPP_LOG_MAX_LEN + 1];
-    char *tmp = msg;
-    const char *buf = fmt;
-    size_t len_fmt = strnlen(fmt, MPP_LOG_MAX_LEN);
-    size_t len_name = (fname) ? (strnlen(fname, MPP_LOG_MAX_LEN)) : (0);
-    size_t buf_left = MPP_LOG_MAX_LEN;
-    size_t len_all = len_fmt + len_name;
-
-    if (NULL == tag)
-        tag = MODULE_TAG;
-
-    if (len_name) {
-        buf = msg;
-        buf_left -= snprintf(msg, buf_left, "%s ", fname);
-        tmp += len_name + 1;
-    }
-
-    if (len_all == 0) {
-        buf = msg_log_nothing;
-    } else if (len_all >= MPP_LOG_MAX_LEN) {
-        buf_left -= snprintf(tmp, buf_left, "%s", msg_log_warning);
-        buf = msg;
-    } else {
-        snprintf(tmp, buf_left, "%s", fmt);
-        if (fmt[len_fmt - 1] != '\n') {
-            tmp[len_fmt] = '\n';
-            tmp[len_fmt + 1] = '\0';
-        }
-        buf = msg;
-    }
-
-    func(tag, buf, args);
+static const char *basename_of(const char *path) {
+    if (!path) return "mpp";
+    const char *slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
 }
 
-void _mpp_log(const char *tag, const char *fmt, const char *fname, ...) {
+static int module_of(const char *tag) {
+    if (!tag) return MPP_LOG_MOD_OTHER;
+    for (int i = 0; i < MPP_LOG_MOD_COUNT; ++i)
+        if (!strcasecmp(tag, mpp_log_module_names[i])) return i;
+    /* File paths identify legacy macros; MODULE_TAG identifies logx callers. */
+    if (strstr(tag, "linlon") || strstr(tag, "/al/vcodec/") || strstr(tag, "/al/module.c"))
+        return MPP_LOG_MOD_AL;
+    if (strstr(tag, "/al/vi/")) return MPP_LOG_MOD_VI;
+    const char *name = basename_of(tag);
+    if (!strncmp(name, "mpp_", 4)) name += 4;
+    for (int i = 0; i < MPP_LOG_MOD_COUNT; ++i) {
+        size_t n = strlen(mpp_log_module_names[i]);
+        if (!strncasecmp(name, mpp_log_module_names[i], n) &&
+            (name[n] == '.' || name[n] == '_' || name[n] == '\0')) return i;
+    }
+    if (!strncmp(name, "dma_", 4) || !strncmp(name, "shm", 3)) return MPP_LOG_MOD_SYS;
+    if (strstr(tag, "/utils/") || strstr(name, "v4l2_utils") || !strcmp(name, "env"))
+        return MPP_LOG_MOD_UTILS;
+    return MPP_LOG_MOD_OTHER;
+}
+
+int mpp_log_enabled(int level, const char *tag) {
+    if (level < MPP_LOG_FATAL || level > MPP_LOG_VERBOSE) return 0;
+    int base = atomic_load_explicit(&log_level, memory_order_relaxed);
+    if (base != MPP_LOG_SILENT && level <= base) return 1;
+    return level <= mpp_log_subscription_level(module_of(tag));
+}
+
+static void log_writev(int level, const char *tag, const char *file, const char *func,
+    int line, const char *fmt, va_list args) {
+    if (!fmt || !mpp_log_enabled(level, tag)) return;
+    int saved_errno = errno;
+    char message[1024];
+    int count = vsnprintf(message, sizeof(message), fmt, args);
+    if (count < 0) { errno = saved_errno; return; }
+    if ((size_t)count >= sizeof(message)) {
+        static const char suffix[] = " [truncated]";
+        memcpy(message + sizeof(message) - sizeof(suffix), suffix, sizeof(suffix));
+    }
+    size_t len = strlen(message);
+    while (len && (message[len - 1] == '\n' || message[len - 1] == '\r')) message[--len] = '\0';
+    for (size_t i = 0; i < len; ++i)
+        if (message[i] == '\n' || message[i] == '\r') message[i] = ' ';
+    static const char *const levels[] = {"?", "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "VERBOSE"};
+    struct timespec now;
+    struct tm tm;
+    char stamp[32], text[MPP_LOG_TEXT_SIZE];
+    clock_gettime(CLOCK_REALTIME, &now);
+    localtime_r(&now.tv_sec, &tm);
+    strftime(stamp, sizeof(stamp), "%H:%M:%S", &tm);
+    int module = module_of(tag);
+    snprintf(text, sizeof(text), "%s.%03ld [%-7s] [%ld:%ld] [%s] %.96s:%d %.64s: %s\n",
+        stamp, now.tv_nsec / 1000000, levels[level], (long)getpid(), (long)gettid(),
+        mpp_log_module_names[module], basename_of(file), line,
+        func ? func : "-", message);
+    mpp_log_publish(level, module, text);
+    errno = saved_errno;
+}
+
+void mpp_log_write(int level, const char *tag, const char *file, const char *func,
+    int line, const char *fmt, ...) {
     va_list args;
-
-    mpp_logw("warning: use new logx function\n");
-
-    va_start(args, fname);
-    __mpp_log(os_log_info, tag, fmt, fname, args);
+    va_start(args, fmt);
+    log_writev(level, tag, file, func, line, fmt, args);
     va_end(args);
 }
-
-void _mpp_log_l(int level, const char *tag, const char *fmt, const char *fname, ...) {
-    static os_log_callback log_func[] = {
-        NULL,         /* MPP_LOG_DEFAULT */
-        os_log_fatal, /* MPP_LOG_FATAL   */
-        os_log_error, /* MPP_LOG_ERROR   */
-        os_log_warn,  /* MPP_LOG_WARN    */
-        os_log_info,  /* MPP_LOG_INFO    */
-        os_log_debug, /* MPP_LOG_DEBUG   */
-        os_log_trace, /* MPP_LOG_VERBOSE */
-        os_log_info,  /* MPP_LOG_DEFAULT */
-    };
-
+void _mpp_log_l(int level, const char *tag, const char *fmt, const char *func, ...) {
     va_list args;
-    int log_level;
-
-    if (level <= MPP_LOG_UNKNOWN || level >= MPP_LOG_SILENT)
-        return;
-
-    log_level = mpp_log_level;
-    if (log_level >= MPP_LOG_SILENT)
-        return;
-
-    if (level > log_level)
-        return;
-
-    va_start(args, fname);
-    __mpp_log(log_func[level], tag, fmt, fname, args);
+    va_start(args, func);
+    log_writev(level, tag, tag, func, 0, fmt, args);
     va_end(args);
 }
-
+void _mpp_log(const char *tag, const char *fmt, const char *func, ...) {
+    va_list args;
+    va_start(args, func);
+    log_writev(MPP_LOG_INFO, tag, tag, func, 0, fmt, args);
+    va_end(args);
+}
 void mpp_set_log_level(int level) {
-    if (level <= MPP_LOG_UNKNOWN || level > MPP_LOG_SILENT) {
-        mpp_logw("log level should in range [%d : %d] invalid intput %d\n", MPP_LOG_FATAL, MPP_LOG_SILENT, level);
-        level = MPP_LOG_INFO;
-    }
-
-    mpp_log_level = level;
+    if (level < MPP_LOG_FATAL || level > MPP_LOG_SILENT) level = MPP_LOG_INFO;
+    atomic_store_explicit(&log_level, level, memory_order_relaxed);
 }
-
 int mpp_get_log_level(void) {
-    int level = 0;
-    mpp_log_level = level;
-    return level;
+    return atomic_load_explicit(&log_level, memory_order_relaxed);
 }
-
-#ifdef __cplusplus
-}
-#endif

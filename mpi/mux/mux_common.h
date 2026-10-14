@@ -15,6 +15,7 @@
 #ifndef MUX_COMMON_H
 #define MUX_COMMON_H
 
+#include "log.h"
 #include <stdio.h>
 #include "mux/mux_type.h"
 #include "sys/type.h"
@@ -26,13 +27,13 @@ extern "C" {
 #endif /* __cplusplus */
 
 #ifndef MUX_LOGE
-#define MUX_LOGE(fmt, ...) fprintf(stderr, "[MUX][ERR] " fmt "\n", ##__VA_ARGS__)
+#define MUX_LOGE(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "mux", fmt, ##__VA_ARGS__)
 #endif
 #ifndef MUX_LOGW
-#define MUX_LOGW(fmt, ...) fprintf(stderr, "[MUX][WRN] " fmt "\n", ##__VA_ARGS__)
+#define MUX_LOGW(fmt, ...) MPP_LOG(MPP_LOG_WARN, "mux", fmt, ##__VA_ARGS__)
 #endif
 #ifndef MUX_LOGI
-#define MUX_LOGI(fmt, ...) fprintf(stdout, "[MUX][INF] " fmt "\n", ##__VA_ARGS__)
+#define MUX_LOGI(fmt, ...) MPP_LOG(MPP_LOG_INFO, "mux", fmt, ##__VA_ARGS__)
 #endif
 
 /* Single NAL unit referenced inside an Annex-B access unit. */

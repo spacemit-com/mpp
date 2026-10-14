@@ -8,6 +8,7 @@
  *------------------------------------------------------------------------------
  */
 
+#include "log.h"
 #include "mp4_demuxer.h"
 #include <inttypes.h>
 #include <stdio.h>
@@ -680,7 +681,7 @@ S32 Mp4Demuxer_Open(Mp4Demuxer *pDemux, const CHAR *pszPath) {
 
     pDemux->pFile = fopen(pszPath, "rb");
     if (!pDemux->pFile) {
-        fprintf(stderr, "[MP4] Failed to open file: %s\n", pszPath);
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[MP4] Failed to open file: %s\n", pszPath);
         return ERR_DEMUX_OPEN_FAIL;
     }
 
@@ -689,7 +690,7 @@ S32 Mp4Demuxer_Open(Mp4Demuxer *pDemux, const CHAR *pszPath) {
     pDemux->s64FileSize = ftell(pDemux->pFile);
     fseek(pDemux->pFile, 0, SEEK_SET);
 
-    fprintf(stderr, "[MP4] File size: %" PRId64 " bytes\n", (int64_t)pDemux->s64FileSize);
+    MPP_LOG(MPP_LOG_INFO, "demux", "[MP4] File size: %" PRId64 " bytes\n", (int64_t)pDemux->s64FileSize);
 
     /* Parse top-level boxes */
     U8 au8Hdr[16];
@@ -711,7 +712,7 @@ S32 Mp4Demuxer_Open(Mp4Demuxer *pDemux, const CHAR *pszPath) {
         typeStr[2] = (boxType >> 8) & 0xFF;
         typeStr[3] = boxType & 0xFF;
         typeStr[4] = '\0';
-        fprintf(stderr, "[MP4] Found box: %s size=%" PRIu64 "\n", typeStr, (uint64_t)boxSize);
+        MPP_LOG(MPP_LOG_INFO, "demux", "[MP4] Found box: %s size=%" PRIu64 "\n", typeStr, (uint64_t)boxSize);
 
         /* Validate box size: must at least cover its own header and must not
          * exceed the remaining bytes in the file. A bogus size would otherwise
@@ -720,7 +721,7 @@ S32 Mp4Demuxer_Open(Mp4Demuxer *pDemux, const CHAR *pszPath) {
         if (s64Pos < 0)
             break;
         if (boxSize < u32HdrLen || (S64)(boxSize - u32HdrLen) > pDemux->s64FileSize - s64Pos) {
-            fprintf(stderr, "[MP4] Invalid box size %" PRIu64 ", aborting\n", (uint64_t)boxSize);
+            MPP_LOG(MPP_LOG_ERROR, "demux", "[MP4] Invalid box size %" PRIu64 ", aborting\n", (uint64_t)boxSize);
             break;
         }
 
@@ -731,7 +732,7 @@ S32 Mp4Demuxer_Open(Mp4Demuxer *pDemux, const CHAR *pszPath) {
              * crafted (but in-range) huge moov cannot exhaust memory, and so the
              * value fits the 32-bit size used by the parser. */
             if (u64BodySize == 0 || u64BodySize > MP4_MAX_MOOV_SIZE) {
-                fprintf(stderr, "[MP4] moov size %" PRIu64 " out of range\n", (uint64_t)u64BodySize);
+                MPP_LOG(MPP_LOG_ERROR, "demux", "[MP4] moov size %" PRIu64 " out of range\n", (uint64_t)u64BodySize);
                 break;
             }
             U32 moovSize = (U32)u64BodySize;
@@ -749,7 +750,7 @@ S32 Mp4Demuxer_Open(Mp4Demuxer *pDemux, const CHAR *pszPath) {
     }
 
     if (pDemux->bHasVideo) {
-        fprintf(stderr, "[MP4] Video track: %ux%u, %u samples\n", pDemux->stVideoTrack.u32Width,
+        MPP_LOG(MPP_LOG_INFO, "demux", "[MP4] Video track: %ux%u, %u samples\n", pDemux->stVideoTrack.u32Width,
             pDemux->stVideoTrack.u32Height, pDemux->stVideoTrack.u32SampleCount);
     }
 
@@ -890,13 +891,13 @@ S32 Mp4Demuxer_ReadPacket(Mp4Demuxer *pDemux, DemuxPacket *pstPkt) {
     pstPkt->u32Height = pTrack->u32Height;
     pstPkt->u64PTS = (U64)pTrack->u32CurrentSample * frameIntervalUs;
 
-    /* Debug: dump first 3 packets */
-    if (pTrack->u32CurrentSample < 3) {
-        printf("[MP4] Packet %u: size=%u sync=%d hex=", pTrack->u32CurrentSample, u32OutLen, pSample->bSync);
-        for (U32 i = 0; i < (u32OutLen < 32 ? u32OutLen : 32); i++) {
-            printf("%02x", pOut[i]);
-        }
-        printf("\n");
+    /* Format packet bytes only while DEMUX DEBUG is enabled. */
+    if (pTrack->u32CurrentSample < 3 && mpp_log_enabled(MPP_LOG_DEBUG, "demux")) {
+        char hex[65] = {0};
+        for (U32 i = 0; i < (u32OutLen < 32 ? u32OutLen : 32); i++)
+            snprintf(hex + i * 2, sizeof(hex) - i * 2, "%02x", pOut[i]);
+        MPP_LOG(MPP_LOG_DEBUG, "demux", "[MP4] Packet %u: size=%u sync=%d hex=%s",
+                pTrack->u32CurrentSample, u32OutLen, pSample->bSync, hex);
     }
 
     pTrack->u32CurrentSample++;

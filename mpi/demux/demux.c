@@ -11,6 +11,7 @@
  *------------------------------------------------------------------------------
  */
 
+#include "log.h"
 #include "demux.h"
 
 #include <errno.h>
@@ -455,8 +456,8 @@ static BOOL demux_is_file(const DemuxCtx *pCtx) {
     }
 }
 
-#define DEMUX_LOGE(fmt, ...) fprintf(stderr, "[DEMUX][ERR] " fmt "\n", ##__VA_ARGS__)
-#define DEMUX_LOGI(fmt, ...) fprintf(stdout, "[DEMUX][INF] " fmt "\n", ##__VA_ARGS__)
+#define DEMUX_LOGE(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "demux", fmt, ##__VA_ARGS__)
+#define DEMUX_LOGI(fmt, ...) MPP_LOG(MPP_LOG_INFO, "demux", fmt, ##__VA_ARGS__)
 
 #define CHN_STATE_IDLE 0
 #define CHN_STATE_CREATED 1
@@ -821,6 +822,8 @@ static void *demux_thread_proc(void *arg) {
 /* ======================== Channel Public API ======================== */
 
 S32 DEMUX_Init(VOID) {
+    /* These modules also support standalone use without SYS_Init. */
+    (void)mpp_log_start();
     S32 i;
 
     if (g_stDemuxCtx.s32Init) {

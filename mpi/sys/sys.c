@@ -17,6 +17,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,9 +42,9 @@ extern "C" {
 
 /* ======================== Log Macros ======================== */
 
-#define SYS_LOG_ERR(fmt, ...) fprintf(stderr, "[SYS][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SYS_LOG_WARN(fmt, ...) fprintf(stderr, "[SYS][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SYS_LOG_INFO(fmt, ...) fprintf(stdout, "[SYS][INFO] " fmt "\n", ##__VA_ARGS__)
+#define SYS_LOG_ERR(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "sys", fmt, ##__VA_ARGS__)
+#define SYS_LOG_WARN(fmt, ...) MPP_LOG(MPP_LOG_WARN, "sys", fmt, ##__VA_ARGS__)
+#define SYS_LOG_INFO(fmt, ...) MPP_LOG(MPP_LOG_INFO, "sys", fmt, ##__VA_ARGS__)
 
 /* ======================== Robust mutex helper ======================== */
 
@@ -136,6 +137,9 @@ static int g_sys_init_ref = 0; /* per-process init refcount */
 
 S32 SYS_Init(VOID) {
     S32 ret;
+
+    /* Logging is optional and must not make SYS initialization fail. */
+    (void)mpp_log_start();
 
     /* Per-process refcount: if already inited locally, just bump */
     if (g_sys_init_ref > 0) {
@@ -274,6 +278,7 @@ S32 SYS_Exit(VOID) {
     mpp_shm_detach(sys_last_process_cleanup);
 
     SYS_LOG_INFO("SYS_Exit done");
+    mpp_log_stop();
     return SYS_ERR_OK;
 }
 
