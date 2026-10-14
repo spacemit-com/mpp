@@ -1,7 +1,7 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * Use of this source code is governed by a BSD-style license
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
+ * Use of this source code is governed by the MIT license
  * that can be found in the LICENSE file.
  *
  * @File      :    test_demux_file.c

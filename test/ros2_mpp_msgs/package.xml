@@ -4,7 +4,7 @@
   <version>0.1.0</version>
   <description>ROS2 interface messages for MPP zero-copy video frame descriptors.</description>
   <maintainer email="support@spacemit.com">SPACEMIT</maintainer>
-  <license>BSD</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>

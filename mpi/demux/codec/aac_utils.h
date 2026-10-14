@@ -1,7 +1,7 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * BSD-style license.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
+ * MIT license.
  *
  * @File      :    aac_utils.h
  * @Brief     :    AAC audio utilities (ADTS parsing).

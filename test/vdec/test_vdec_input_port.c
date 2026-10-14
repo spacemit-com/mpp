@@ -1,4 +1,4 @@
-/* Copyright 2026 SPACEMIT. All rights reserved. BSD-style license: LICENSE.
+/* Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd. MIT license: LICENSE.
  * Exercise actual input buffer recycling with scripted V4L2 ioctls. */
 #include <stdarg.h>
 #include <sys/ioctl.h>

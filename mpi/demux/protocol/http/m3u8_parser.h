@@ -1,7 +1,7 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
- * BSD-style license.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
+ * MIT license.
  *
  * @File      :    m3u8_parser.h
  * @Brief     :    M3U8 playlist parser for HLS streaming.

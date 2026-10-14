@@ -1,5 +1,5 @@
-/* Copyright 2026 SPACEMIT. All rights reserved.
- * BSD-style license.
+/* Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
+ * MIT license.
  * Exercise the MP4 sample reader without hardware or downloaded media.
  * Include the implementation to inject realloc failure and inspect reuse. */
 #include <stdio.h>

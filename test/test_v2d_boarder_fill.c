@@ -1,6 +1,6 @@
 /*
  *------------------------------------------------------------------------------
- * Copyright 2025-2026 SPACEMIT. All rights reserved.
+ * Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
  *
  * @File      :    test_v2d_boarder_fill.c
  * @Brief     :    V2D_CopyMakeBorder demo: caller prepares an already-scaled
