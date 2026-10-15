@@ -8,7 +8,6 @@
  *               VencChnStatus / VideoFrameInfo / StreamBufferInfo / VencCmd).
  */
 
-#define ENABLE_DEBUG 1
 
 #include <errno.h>
 #include <linux/videodev2.h>

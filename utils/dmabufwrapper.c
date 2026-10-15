@@ -4,7 +4,6 @@
  * that can be found in the LICENSE file.
  */
 
-#define ENABLE_DEBUG 0
 
 #include "dmabufwrapper.h"
 

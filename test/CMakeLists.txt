@@ -1,12 +1,12 @@
 # Test executables (SYS + VB + integration + multi-process)
-# Link mpp_sys (contains sys.c, vb.c, mpp_shm.c, dma_alloc.c).
+# Link libmpp, including the shared logging implementation.
 
 set(MPP_TEST_COMMON_DEFS _GNU_SOURCE)
 
 function(mpp_add_test_executable name)
     add_executable(${name} ${name}.c)
     target_compile_definitions(${name} PRIVATE ${MPP_TEST_COMMON_DEFS})
-    target_link_libraries(${name} PRIVATE mpp_sys)
+    target_link_libraries(${name} PRIVATE mpp)
     target_include_directories(${name} PRIVATE ${MPP_INCLUDE_DIRS})
     add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
 endfunction()
@@ -71,6 +71,7 @@ target_link_libraries(test_demux_seek PRIVATE mpp)
 add_executable(test_mp4_read_buffer test_mp4_read_buffer.c)
 target_compile_definitions(test_mp4_read_buffer PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_mp4_read_buffer PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_mp4_read_buffer PRIVATE mpp)
 add_test(NAME test_mp4_read_buffer COMMAND $<TARGET_FILE:test_mp4_read_buffer>)
 
 # MUX shared Annex-B helpers regression test.
@@ -295,3 +296,30 @@ target_compile_definitions(test_stream_vb_pipeline PRIVATE ${MPP_TEST_COMMON_DEF
 target_include_directories(test_stream_vb_pipeline PRIVATE ${MPP_INCLUDE_DIRS})
 target_link_libraries(test_stream_vb_pipeline PRIVATE mpp dl pthread)
 target_link_options(test_stream_vb_pipeline PRIVATE -Wl,--export-dynamic)
+
+# Standalone implementation tests now share the same runtime logging core.
+foreach(log_test test_venc_rgb_mapping test_venc_rgb_layout
+        test_vdec_input test_vdec_input_poll test_vdec_input_port test_vdec_output
+        test_vdec_output_requirement test_vdec_buffer_payload
+        test_sys_stream_ref test_vdec_stream_ref)
+    target_link_libraries(${log_test} PRIVATE utils Threads::Threads)
+endforeach()
+
+# Live log transport/CLI regression; no camera or codec hardware required.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(test_log_fixture log/test_log_fixture.c)
+    target_include_directories(test_log_fixture PRIVATE ${MPP_INCLUDE_DIRS})
+    target_link_libraries(test_log_fixture PRIVATE mpp)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME test_live_log COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/log/test_live_log.py
+            $<TARGET_FILE:test_log_fixture> $<TARGET_FILE:mpp-log>)
+        set_tests_properties(test_live_log PROPERTIES TIMEOUT 60)
+        add_test(NAME test_live_log_all COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/log/test_live_log_all.py
+            $<TARGET_FILE:test_log_fixture> $<TARGET_FILE:mpp-log>)
+        # Aggregate discovery must not subscribe to concurrently running test fixtures.
+        set_tests_properties(test_live_log_all PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+    endif()
+endif()

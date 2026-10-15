@@ -17,6 +17,7 @@
  *------------------------------------------------------------------------------
  */
 
+#include "log.h"
 #include "mux_rtsp_server.h"
 #include "mux_socket.h"
 
@@ -37,8 +38,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MUX_RTSP_LOGE(fmt, ...) fprintf(stderr, "[MUX][RTSP][ERR] " fmt "\n", ##__VA_ARGS__)
-#define MUX_RTSP_LOGI(fmt, ...) fprintf(stdout, "[MUX][RTSP][INF] " fmt "\n", ##__VA_ARGS__)
+#define MUX_RTSP_LOGE(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "mux", fmt, ##__VA_ARGS__)
+#define MUX_RTSP_LOGI(fmt, ...) MPP_LOG(MPP_LOG_INFO, "mux", fmt, ##__VA_ARGS__)
 
 /* ======================== Global Shared Server ======================== */
 
