@@ -185,8 +185,6 @@ static S32 DemoInitConfig(CPP_DEMO_CONFIG_S *pstCfg) {
     pstCfg->stViDevAttr.u32Width = 3864;
     pstCfg->stViDevAttr.u32Height = 2192;
     pstCfg->stViDevAttr.u32MipiLaneNum = 4;
-    pstCfg->stViDevAttr.u32mbps = 800;
-    pstCfg->stViDevAttr.bCapture2Preview = MPP_FALSE;
 
     pstCfg->stViChnAttr.eChnType = VI_CHN_TYPE_PHYSICAL;
     pstCfg->stViChnAttr.ePixelFormat = pstCfg->ePixelFormat;

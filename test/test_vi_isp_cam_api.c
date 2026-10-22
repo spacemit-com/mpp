@@ -176,8 +176,6 @@ static S32 isp_cam_open(IspCamHandle *cam, const IspCamConfig *cfg) {
     devAttr.u32Width = cfg->sensorWidth;
     devAttr.u32Height = cfg->sensorHeight;
     devAttr.u32MipiLaneNum = cfg->mipiLaneNum;
-    devAttr.u32mbps = cfg->mbps;
-    devAttr.bCapture2Preview = MPP_FALSE;
 
     ret = VI_SetDevAttr(cfg->viDev, &devAttr);
     if (ret != 0) {
