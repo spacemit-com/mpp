@@ -7,8 +7,10 @@
 #endif
 #include "log.h"
 #include "log_internal.h"
+#include <errno.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -17,6 +19,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <syslog.h>
+#include <time.h>
 
 static pthread_once_t setup_once = PTHREAD_ONCE_INIT;
 static atomic_int syslog_fd = -1;
@@ -65,6 +68,33 @@ static int send_record(int fd, int level, const char *text) {
         (struct sockaddr *)&address, address_length) == size ? 0 : -1;
 }
 
+static int write_stderr(const char *text, size_t size) {
+    /* A closed stderr pipe must not deliver SIGPIPE to the host application.
+     * Only mask this thread, preserving any signal that was already pending. */
+    sigset_t blocked, previous, pending;
+    sigemptyset(&blocked);
+    sigaddset(&blocked, SIGPIPE);
+    if (pthread_sigmask(SIG_BLOCK, &blocked, &previous)) return -1;
+    if (sigpending(&pending)) {
+        pthread_sigmask(SIG_SETMASK, &previous, NULL);
+        return -1;
+    }
+    ssize_t written = write(STDERR_FILENO, text, size);
+    if (written < 0 && errno == EPIPE && !sigismember(&pending, SIGPIPE)) {
+        const struct timespec zero = {0, 0};
+        while (sigtimedwait(&blocked, NULL, &zero) < 0 && errno == EINTR) {}
+    }
+    pthread_sigmask(SIG_SETMASK, &previous, NULL);
+    return written == (ssize_t)size ? 0 : -1;
+}
+
+static void fallback_stderr(const char *text) {
+    char output[MPP_LOG_TEXT_SIZE + 8];
+    int count = snprintf(output, sizeof(output), "mpp: %s", text);
+    if (count > 0 && (size_t)count < sizeof(output))
+        (void)write_stderr(output, (size_t)count);
+}
+
 void mpp_log_publish(int level, const char *text) {
     pthread_once(&setup_once, setup);
     int fd = get_socket();
@@ -72,6 +102,7 @@ void mpp_log_publish(int level, const char *text) {
      * Resolve the pathname on every send so collector restarts recover naturally. */
     if (fd < 0 || send_record(fd, level, text) != 0) {
         atomic_fetch_add_explicit(&dropped, 1, memory_order_relaxed);
+        fallback_stderr(text);
         return;
     }
     uint64_t lost = atomic_exchange_explicit(&dropped, 0, memory_order_relaxed);

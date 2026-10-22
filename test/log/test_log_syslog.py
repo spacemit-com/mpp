@@ -2,6 +2,7 @@
 # Copyright (C) 2026 SpacemiT (Beijing) Technology Co. Ltd.
 # Use of this source code is governed by the MIT license in LICENSE.
 """Exercise log levels and the real library against a private syslog socket."""
+from collections import Counter
 import os
 from pathlib import Path
 import re
@@ -18,6 +19,7 @@ path = Path(temp.name) / "log"
 config = Path(temp.name) / "log-level"
 receiver = None
 processes = []
+stderr_files = []
 
 
 def bind_receiver():
@@ -28,14 +30,20 @@ def bind_receiver():
 
 
 class Fixture:
-    def __init__(self, level=None, override=None):
-        env = dict(os.environ, MPP_SYSLOG_SOCKET=str(path), MPP_LOG_LEVEL_FILE=str(config))
+    def __init__(self, level=None, override=None, syslog_path=None, stderr_target=None):
+        env = dict(os.environ, MPP_SYSLOG_SOCKET=str(syslog_path or path), MPP_LOG_LEVEL_FILE=str(config))
         env.pop("MPP_LOG_LEVEL", None)
         if level is not None:
             env["MPP_LOG_LEVEL"] = level
         args = [FIXTURE] if override is None else [FIXTURE, str(override)]
+        self.stderr_file = None
+        self.stderr_position = 0
+        if stderr_target is None:
+            self.stderr_file = tempfile.TemporaryFile()
+            stderr_files.append(self.stderr_file)
+            stderr_target = self.stderr_file
         self.proc = subprocess.Popen(args, env=env, stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                     stdout=subprocess.PIPE, stderr=stderr_target, text=True)
         processes.append(self.proc)
         self.pid = self.proc.pid
         self.initial = int(self.reply().split(" LEVEL ")[1])
@@ -51,12 +59,25 @@ class Fixture:
         self.proc.stdin.flush()
         return self.reply()
 
+    def stderr_text(self):
+        if self.stderr_file is None:
+            return ""
+        # pread does not change the offset shared with the writing subprocess.
+        fd = self.stderr_file.fileno()
+        data = os.pread(fd, os.fstat(fd).st_size - self.stderr_position, self.stderr_position)
+        self.stderr_position += len(data)
+        return data.decode()
+
     def idle_threads(self):
         assert len(list(Path("/proc/%d/task" % self.pid).iterdir())) == 1
 
     def stop(self):
         out, err = self.proc.communicate("quit\n", timeout=5)
-        assert self.proc.returncode == 0 and not out and not err, (self.proc.returncode, out, err)
+        remaining = self.stderr_text()
+        assert self.proc.returncode == 0 and not out and not err and not remaining, (
+            self.proc.returncode, out, err, remaining[:1024])
+        if self.stderr_file is not None:
+            self.stderr_file.close()
 
 
 def record(fixture, marker, priority):
@@ -157,6 +178,91 @@ def runtime_config():
     print("PASS file levels, runtime multi-process updates, SILENT recovery, invalid input and removal fallback")
 
 
+def fallback_checks():
+    missing = Path(temp.name) / "missing-socket"
+    refused = Path(temp.name) / "refused-socket"
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.bind(str(refused))
+    sock.close()
+    for endpoint in (missing, refused):
+        target = Fixture(syslog_path=endpoint)
+        for level in range(1, 6):
+            assert target.command("emit sys %d 1" % level) == "OK"
+        text = target.stderr_text()
+        assert text.count("mpp: ") == 4 and "event-sys-5" not in text, text
+        for level in range(1, 5):
+            assert "event-sys-%d-0" % level in text, text
+        assert target.command("long") == "OK"
+        assert "[truncated]" in target.stderr_text()
+        assert target.command("multiline") == "OK"
+        assert "one second third" in target.stderr_text()
+        assert target.command("base 7") == "7"
+        assert target.command("emit sys 1 1") == "OK"
+        assert not target.stderr_text()
+        assert target.command("base 6") == "6"
+        for level in range(1, 7):
+            assert target.command("emit al %d 25" % level) == "OK"
+            lines = target.stderr_text().splitlines()
+            assert len(lines) == 25, (level, len(lines))
+            for index, line in enumerate(lines):
+                assert line.endswith("event-al-%d-%d" % (level, index)), line
+        target.stop()
+
+    target = Fixture(syslog_path=missing)
+    began = time.monotonic()
+    assert target.command("burst 5000") == "OK"
+    elapsed = time.monotonic() - began
+    assert elapsed < 4, "fallback flood stalled"
+    text = target.stderr_text()
+    entries = re.findall(r"^mpp: [^\n]+ burst (\d+)$", text, re.M)
+    assert len(text.splitlines()) == len(entries) == 20000
+    assert Counter(map(int, entries)) == Counter({i: 4 for i in range(5000)})
+    for level in (1, 2):
+        assert target.command("emit sys %d 1" % level) == "OK"
+        assert "event-sys-%d-0" % level in target.stderr_text()
+    assert target.command("fork") == "CHILD 0"
+    assert "child alive" in target.stderr_text()
+    assert target.command("emit sys 4 1") == "OK"
+    assert "event-sys-4-0" in target.stderr_text()
+    target.stop()
+
+    # A broken pipe must neither terminate the host nor change its signal mask.
+    read_fd, write_fd = os.pipe()
+    os.close(read_fd)
+    try:
+        target = Fixture(syslog_path=missing, stderr_target=write_fd)
+    finally:
+        os.close(write_fd)
+    status = Path("/proc/%d/status" % target.pid)
+    mask = re.search(r"^SigBlk:.*$", status.read_text(), re.M).group()
+    assert target.command("emit sys 2 1") == "OK"
+    assert re.search(r"^SigBlk:.*$", status.read_text(), re.M).group() == mask
+    target.stop()
+
+    # Respect an application's nonblocking stderr and resume writing after it drains.
+    read_fd, write_fd = os.pipe()
+    try:
+        os.set_blocking(write_fd, False)
+        while True:
+            try:
+                os.write(write_fd, b"x" * 4096)
+            except BlockingIOError:
+                break
+        target = Fixture(syslog_path=missing, stderr_target=write_fd)
+        assert target.command("emit sys 2 1") == "OK"
+        assert not os.get_blocking(write_fd)
+        while select.select([read_fd], [], [], 0)[0]:
+            os.read(read_fd, 65536)
+        assert target.command("emit sys 2 1") == "OK"
+        text = os.read(read_fd, 65536).decode()
+        assert len(text.splitlines()) == 1 and "event-sys-2-0" in text, text
+        target.stop()
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+    print("PASS missing/refused syslog, complete stderr fallback, fork, SILENT, errno and broken/full pipes")
+
+
 try:
     receiver = bind_receiver()
     cases = [(None, 4), ("fatal", 1), ("error", 2), ("warn", 3), ("info", 4),
@@ -175,6 +281,7 @@ try:
     print("PASS environment levels, invalid-value fallback and API precedence")
 
     runtime_config()
+    fallback_checks()
 
     fixture = Fixture()
     fixture.idle_threads()
@@ -221,20 +328,25 @@ try:
     began = time.monotonic()
     assert fixture.command("burst 5000") == "OK"
     assert time.monotonic() - began < 4, "missing syslog receiver blocked producers"
+    assert fixture.stderr_text().count("burst ") == 20000
     receiver = bind_receiver()
     assert fixture.command("emit al 2 1") == "OK"
     record(fixture, b"event-al-2-0", 11)
     record(fixture, b"syslog transport dropped 20000 records", 12)
+    assert not fixture.stderr_text(), "healthy syslog also wrote to stderr"
 
     began = time.monotonic()
     assert fixture.command("burst 5000") == "OK"
     assert time.monotonic() - began < 4, "full syslog queue blocked producers"
+    fallback = fixture.stderr_text()
     queued = drain()
     assert queued
+    assert fallback.count("burst ") + len(queued) == 20000
     assert all(re.match(rb"<\d+>mpp\[\d+\]: [^\n]+$", line) for line in queued), queued
     assert fixture.command("emit al 2 1") == "OK"
     record(fixture, b"event-al-2-0", 11)
     record(fixture, b"syslog transport dropped ", 12)
+    assert not fixture.stderr_text(), "healthy syslog also wrote to stderr"
     fixture.idle_threads()
     fixture.stop()
     print("PASS concurrent nonblocking sends, loss accounting, restart recovery, thread count and terminal isolation")
@@ -245,4 +357,6 @@ finally:
         process.communicate(timeout=5)
     if receiver is not None:
         receiver.close()
+    for stream in stderr_files:
+        stream.close()
     temp.cleanup()
