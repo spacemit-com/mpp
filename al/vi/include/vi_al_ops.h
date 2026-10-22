@@ -77,44 +77,26 @@ typedef struct _ViAlOps {
         const UL *paulBufferId,
         const VideoFrameInfo *pastFrameInfo);
 
-    /* ------------------------------------------------------------------ */
-    /* Optional: rawdump — set to NULL if not supported by this platform. */
-    /* ------------------------------------------------------------------ */
+    /* Optional: output layout negotiation.  MPI pre-fills pstFrameInfo with
+     * the neutral pixel layout, then the backend adjusts it to what its
+     * hardware actually writes (K1 appends DWT sub-band tails; K3 needs no
+     * adjustment).  NULL = the neutral layout is already exact. */
+    S32 (*calc_frame_layout)(
+        VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo);
 
+    /* Optional: rawdump.  The backend owns the buffer: it allocates it from
+     * its own ISP raw layout, targets it and recycles it.  The frame returned
+     * by get_raw_dump_frame stays valid until the next trigger_raw_dump. */
     S32 (*trigger_raw_dump)(VI_DEV ViDev, VI_CHN ViChn);
 
     S32 (*get_raw_dump_frame)(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
 
     S32 (*release_raw_dump_frame)(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame);
 
-    /* Returns the chn attr that should be used to size the rawdump buffer. */
-    S32 (*get_rawdump_attr)(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr);
-
-    /*
-     * Import the pre-allocated rawdump buffer described by pstFrameInfo
-     * into the plugin so it can be targeted by the ISP.
-     * The plugin converts VideoFrameInfo to its internal buffer type.
-     */
-    S32 (*set_rawdump_buf)(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstFrameInfo);
-
-    /* ------------------------------------------------------------------ */
-    /* Optional: offline — set to NULL if not supported.                  */
-    /* ------------------------------------------------------------------ */
-
-    /*
-     * Feed a raw frame from CPU memory into the offline ISP pipeline.
-     * pstFrameInfo describes the destination VB buffer (already allocated
-     * by MPI); the plugin converts it to its internal buffer type.
-     * pu8RawVirAddr / u32RawSize are the source CPU data.
-     */
-    S32 (*offline_set_input_addr)(
-        VI_DEV ViDev,
-        VI_CHN ViChn,
-        UL ulPoolId,
-        UL ulBufferId,
-        const VideoFrameInfo *pstFrameInfo,
-        const U8 *pu8RawVirAddr,
-        U32 u32RawSize);
+    /* Optional: offline.  Feed a raw frame from CPU memory into the offline
+     * ISP pipeline.  The backend owns the staging buffer: it allocates it
+     * from the device input format, copies the user data once and submits. */
+    S32 (*offline_set_input_addr)(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize);
 
     /* ------------------------------------------------------------------ */
     /* Optional: platform-specific extensions — set to NULL if unused.   */
@@ -122,7 +104,8 @@ typedef struct _ViAlOps {
 
     /*
      * Query per-slot DQBUF metadata captured at the last dequeue.
-     * K3 extension: timestamp / sequence / bytesused per plane.
+     * K3: timestamp / sequence / bytesused per plane from V4L2.
+     * K1: timestamp / frameId captured in the SDK buffer callback.
      */
     S32 (*query_dqbuf_meta)(
         VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, U64 *pu64PtsUs, U32 *pu32Sequence, U32 *pau32BytesUsed);

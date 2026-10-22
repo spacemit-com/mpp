@@ -38,5 +38,6 @@ S32 K1_VI_QueueAllBuffers(K1_VI_CHN_CTX_S *pstChnCtx);
 S32 K1_VI_QueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode);
 VOID K1_VI_UpdateBufNodeMeta(K1_VI_BUF_NODE_S *pstBufNode, const VI_IMAGE_BUFFER_S *vi_buffer);
 VOID K1_VI_FillImageBufferFromVideoFrame(const VideoFrameInfo *fi, IMAGE_BUFFER_S *ib);
+S32 K1_VI_AdjustChnFrameLayout(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo);
 
 #endif /* VI_K1_BUFFER_H */

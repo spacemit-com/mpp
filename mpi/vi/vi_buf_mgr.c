@@ -16,8 +16,13 @@
 #define MPI_VI_ERR_NOT_SUPPORT (-3)
 #define MPI_VI_ERR_BUSY (-4)
 #define MPI_VI_DEFAULT_ALIGN (16)
-#define MPI_VI_RAW10_DUMP_SIZE(w, h) ((((w) / 12U) + (((w) % 12U) ? 1U : 0U)) * 16U * (h))
-#define MPI_VI_RAW12_DUMP_SIZE(w, h) ((((w) / 10U) + (((w) % 10U) ? 1U : 0U)) * 16U * (h))
+
+/*
+ * Neutral pixel-math layout only.  Platform-specific memory organisation
+ * (e.g. K1's DWT sub-band tails) is answered by the backend through
+ * ViAlOps.calc_frame_layout; this file must stay free of per-platform
+ * formulas.  Rawdump and offline buffers are allocated by the backend.
+ */
 
 static U32 MPI_VI_AlignUp(U32 u32Value, U32 u32Align) {
     if (u32Align == 0)
@@ -42,31 +47,6 @@ static U32 MPI_VI_GetStrideAlign(const ViChnAttrS *pstChnAttr) {
         default:
             return MPI_VI_DEFAULT_ALIGN;
     }
-}
-
-static U32 MPI_VI_CalcDwtPlaneLength(U32 u32Width, U32 u32Height, U32 u32Level, U32 u32Plane) {
-    U32 u32Divisor = 1U << u32Level;
-    U32 u32AlignedWidth = MPI_VI_AlignUp(u32Width, 64U);
-    U32 u32AlignedHeight = MPI_VI_AlignUp(u32Height, 32U);
-    U32 u32PlaneWidth = ((u32AlignedWidth / u32Divisor) * 10U + 7U) / 8U;
-    U32 u32PlaneHeight = (u32AlignedHeight / u32Divisor);
-
-    if (u32Plane != 0U)
-        u32PlaneHeight /= 2U;
-
-    return MPI_VI_AlignUp(u32PlaneWidth * u32PlaneHeight, 4096U);
-}
-
-static U32 MPI_VI_CalcDwtTotalSize(U32 u32Width, U32 u32Height) {
-    U32 u32Total = 0;
-    U32 u32Level = 0;
-
-    for (u32Level = 1; u32Level <= 4U; u32Level++) {
-        u32Total += MPI_VI_CalcDwtPlaneLength(u32Width, u32Height, u32Level, 0U);
-        u32Total += MPI_VI_CalcDwtPlaneLength(u32Width, u32Height, u32Level, 1U);
-    }
-
-    return u32Total;
 }
 
 S32 MPI_VI_CalcFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo) {
@@ -108,8 +88,6 @@ S32 MPI_VI_CalcFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameI
             pstFrameInfo->stVFrame.u32PlaneSizeValid[1] = pstFrameInfo->stVFrame.u32PlaneSize[1];
             pstFrameInfo->stVFrame.u32TotalSize =
                 pstFrameInfo->stVFrame.u32PlaneSize[0] + pstFrameInfo->stVFrame.u32PlaneSize[1];
-            if (pstChnAttr->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || pstChnAttr->ePixelFormat == MPP_PIXEL_FORMAT_NV21)
-                pstFrameInfo->stVFrame.u32TotalSize += MPI_VI_CalcDwtTotalSize(u32Width, u32Height);
             break;
         case MPP_PIXEL_FORMAT_RGB_565:
             pstFrameInfo->stVFrame.u32PlaneNum = 1;
@@ -168,91 +146,28 @@ S32 MPI_VI_CalcFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameI
     return MPI_VI_SUCCESS;
 }
 
-S32 MPI_VI_CalcRawDumpFrameInfo(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo) {
-    U32 u32Width = 0;
-    U32 u32Height = 0;
-    U32 u32Stride = 0;
-    U32 u32Size = 0;
-
-    if (pstChnAttr == NULL || pstFrameInfo == NULL)
-        return MPI_VI_ERR_INVALID_PARAM;
-
-    memset(pstFrameInfo, 0, sizeof(*pstFrameInfo));
-    u32Width = pstChnAttr->u32Width;
-    u32Height = pstChnAttr->u32Height;
-
-    pstFrameInfo->eFrameType = FRAME_TYPE_VI;
-    pstFrameInfo->eModId = MPP_ID_VI;
-    pstFrameInfo->stViFrameInfo.stCommFrameInfo.u32Width = u32Width;
-    pstFrameInfo->stViFrameInfo.stCommFrameInfo.u32Height = u32Height;
-    pstFrameInfo->stViFrameInfo.stCommFrameInfo.u32Align = VI_STRIDE_ALIGN_DEFAULT;
-    pstFrameInfo->stViFrameInfo.stCommFrameInfo.ePixelFormat = pstChnAttr->ePixelFormat;
-    pstFrameInfo->stViFrameInfo.stCommFrameInfo.eCompressMode = COMPRESS_MODE_NONE;
-    pstFrameInfo->stViFrameInfo.stCommFrameInfo.eColorSpace = COLOR_SPACE_BT601;
-    pstFrameInfo->stVFrame.u32PlaneNum = 1;
-
-    switch (pstChnAttr->ePixelFormat) {
-        case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
-            u32Stride = u32Width;
-            u32Size = u32Stride * u32Height;
-            break;
-        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
-            u32Stride = (((u32Width / 12U) + ((u32Width % 12U) ? 1U : 0U)) * 16U);
-            u32Size = MPI_VI_RAW10_DUMP_SIZE(u32Width, u32Height);
-            break;
-        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS_PACKED:
-            /* MIPI CSI-2 RAW10 packed: 5 bytes per 4 pixels, matches V4L2 sizeimage. */
-            u32Stride = ((u32Width / 4U) + ((u32Width % 4U) ? 1U : 0U)) * 5U;
-            u32Size = u32Stride * u32Height;
-            break;
-        case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
-            u32Stride = (((u32Width / 10U) + ((u32Width % 10U) ? 1U : 0U)) * 16U);
-            u32Size = MPI_VI_RAW12_DUMP_SIZE(u32Width, u32Height);
-            break;
-        case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
-            u32Stride = u32Width * 2U;
-            u32Size = u32Stride * u32Height;
-            break;
-        default:
-            return MPI_VI_ERR_NOT_SUPPORT;
-    }
-
-    pstFrameInfo->stVFrame.u32PlaneStride[0] = u32Stride;
-    pstFrameInfo->stVFrame.u32PlaneSize[0] = u32Size;
-    pstFrameInfo->stVFrame.u32PlaneSizeValid[0] = u32Size;
-    pstFrameInfo->stVFrame.u32TotalSize = u32Size;
-
-    return MPI_VI_SUCCESS;
-}
-
 S32 MPI_VI_CreateOutBufPool(
     VI_DEV ViDev,
     VI_CHN ViChn,
     const ViChnAttrS *pstChnAttr,
+    const VideoFrameInfo *pstFrameTemplate,
     U32 u32BufCnt,
     UL *pulPoolId,
-    VideoFrameInfo *pstFrameTemplate,
     VideoFrameInfo *pastFrameInfo,
     UL *paulBufferId
 ) {
     VbPoolCfg stPoolCfg;
-    VideoFrameInfo stFrameInfo;
     U32 i = 0;
     S32 s32Ret = 0;
 
-    if (pstChnAttr == NULL || pulPoolId == NULL || pstFrameTemplate == NULL || pastFrameInfo == NULL ||
+    if (pstChnAttr == NULL || pstFrameTemplate == NULL || pulPoolId == NULL || pastFrameInfo == NULL ||
         paulBufferId == NULL || u32BufCnt == 0)
         return MPI_VI_ERR_INVALID_PARAM;
 
     memset(&stPoolCfg, 0, sizeof(stPoolCfg));
-    memset(&stFrameInfo, 0, sizeof(stFrameInfo));
-
-    s32Ret = MPI_VI_CalcFrameInfo(pstChnAttr, &stFrameInfo);
-    if (s32Ret != MPI_VI_SUCCESS)
-        return s32Ret;
 
     stPoolCfg.u32BufCnt = u32BufCnt;
-    stPoolCfg.u32BufSize = stFrameInfo.stVFrame.u32TotalSize;
+    stPoolCfg.u32BufSize = pstFrameTemplate->stVFrame.u32TotalSize;
     stPoolCfg.eModId = MPP_ID_VI;
     stPoolCfg.eRemapMode = VBUF_REMAP_MODE_NOCACHE;
 
@@ -260,14 +175,12 @@ S32 MPI_VI_CreateOutBufPool(
     if (*pulPoolId == 0 || *pulPoolId == (UL)-1)
         return MPI_VI_ERR_BUSY;
 
-    s32Ret = VB_SetFrameInfo(*pulPoolId, &stFrameInfo);
+    s32Ret = VB_SetFrameInfo(*pulPoolId, pstFrameTemplate);
     if (s32Ret != MPI_VI_SUCCESS) {
         VB_DestroyPool(*pulPoolId);
         *pulPoolId = 0;
         return s32Ret;
     }
-
-    *pstFrameTemplate = stFrameInfo;
 
     for (i = 0; i < u32BufCnt; i++) {
         S32 s32Fd = -1;
