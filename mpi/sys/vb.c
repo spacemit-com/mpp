@@ -15,6 +15,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -77,9 +78,9 @@ extern "C" {
 
 /* ======================== Log Macros ======================== */
 
-#define VB_LOG_ERR(fmt, ...) fprintf(stderr, "[VB][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define VB_LOG_WARN(fmt, ...) fprintf(stderr, "[VB][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define VB_LOG_INFO(fmt, ...) fprintf(stdout, "[VB][INFO] " fmt "\n", ##__VA_ARGS__)
+#define VB_LOG_ERR(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "vb", fmt, ##__VA_ARGS__)
+#define VB_LOG_WARN(fmt, ...) MPP_LOG(MPP_LOG_WARN, "vb", fmt, ##__VA_ARGS__)
+#define VB_LOG_INFO(fmt, ...) MPP_LOG(MPP_LOG_INFO, "vb", fmt, ##__VA_ARGS__)
 
 typedef struct _VideoFrameFmt {
     MppPixelFormat ePixelFormat;

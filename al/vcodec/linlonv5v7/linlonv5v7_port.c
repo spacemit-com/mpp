@@ -9,7 +9,6 @@
  * @Description:
  */
 
-#define ENABLE_DEBUG 1
 
 #include "linlonv5v7_port.h"
 
@@ -611,48 +610,28 @@ Buffer *dequeueBuffer(Port *port) {
 }
 
 void printBuffer(Port *port, struct v4l2_buffer buf, const char *prefix) {
-    if (port->bEnableBufferPrint) {
-        debug_pre(
-            "%s type:%u, index:%u, sequence:%d, timestamp:[%ld, "
-            "%ld], flags:%x ",
-            prefix,
-            buf.type,
-            buf.index,
-            buf.sequence,
-            buf.timestamp.tv_sec,
-            buf.timestamp.tv_usec,
-            buf.flags);
+    if (!port->bEnableBufferPrint || !mpp_log_enabled(MPP_LOG_DEBUG, __FILE__))
+        return;
 
-        if (V4L2_TYPE_IS_MULTIPLANAR(buf.type)) {
-            debug_mid("num_planes:%d ", buf.length);
-            if (2 == buf.length) {
-                debug_after(
-                    "bytesused:[%u %u], length:[%u %u], offset:[%u "
-                    "%u]",
-                    buf.m.planes[0].bytesused,
-                    buf.m.planes[1].bytesused,
-                    buf.m.planes[0].length,
-                    buf.m.planes[1].length,
-                    buf.m.planes[0].data_offset,
-                    buf.m.planes[1].data_offset);
-            } else if (3 == buf.length) {
-                debug_after(
-                    "bytesused:[%u %u %u], length:[%u %u %u], offset:[%u "
-                    "%u %u]",
-                    buf.m.planes[0].bytesused,
-                    buf.m.planes[1].bytesused,
-                    buf.m.planes[2].bytesused,
-                    buf.m.planes[0].length,
-                    buf.m.planes[1].length,
-                    buf.m.planes[2].length,
-                    buf.m.planes[0].data_offset,
-                    buf.m.planes[1].data_offset,
-                    buf.m.planes[2].data_offset);
-            }
-        } else {
-            debug_after("bytesused:%u, length:%u", buf.bytesused, buf.length);
+    char detail[512] = {0};
+    if (V4L2_TYPE_IS_MULTIPLANAR(buf.type) && buf.m.planes) {
+        size_t used = 0;
+        for (unsigned i = 0; i < buf.length && i < VIDEO_MAX_PLANES; ++i) {
+            int n = snprintf(detail + used, sizeof(detail) - used,
+                "plane%u:[bytesused:%u length:%u offset:%u] ", i,
+                buf.m.planes[i].bytesused, buf.m.planes[i].length,
+                buf.m.planes[i].data_offset);
+            if (n < 0 || (size_t)n >= sizeof(detail) - used)
+                break;
+            used += (size_t)n;
         }
+    } else {
+        snprintf(detail, sizeof(detail), "bytesused:%u length:%u", buf.bytesused, buf.length);
     }
+    /* Emit the whole buffer description atomically as one log record. */
+    debug("%s type:%u index:%u sequence:%u timestamp:[%ld,%ld] flags:%x %s",
+        prefix, buf.type, buf.index, buf.sequence,
+        buf.timestamp.tv_sec, buf.timestamp.tv_usec, buf.flags, detail);
 }
 
 void streamon(Port *port) {

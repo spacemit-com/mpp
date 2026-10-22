@@ -14,6 +14,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,8 +57,8 @@ struct dma_buf_sync {
 #define DMA_HEAP_PATH "/dev/dma_heap/linux,cma"
 #define PAGE_SIZE_4K 4096
 
-#define DMA_LOG_ERR(fmt, ...) fprintf(stderr, "[DMA][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define DMA_LOG_INFO(fmt, ...) fprintf(stdout, "[DMA][INFO] " fmt "\n", ##__VA_ARGS__)
+#define DMA_LOG_ERR(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "sys", fmt, ##__VA_ARGS__)
+#define DMA_LOG_INFO(fmt, ...) MPP_LOG(MPP_LOG_INFO, "sys", fmt, ##__VA_ARGS__)
 
 /* ======================== State ======================== */
 

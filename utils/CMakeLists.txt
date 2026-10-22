@@ -12,12 +12,15 @@ set(MPP_UTILS_SRCS
     dmabufwrapper.c
     env.c
     log.c
+    log_syslog.c
     v4l2_utils.c
     os/linux/os_env.c
     os/linux/os_log.c
 )
 
 add_library(utils OBJECT ${MPP_UTILS_SRCS})
+
+install(FILES include/log.h DESTINATION include/sys)
 
 target_include_directories(utils
     PUBLIC

@@ -9,7 +9,6 @@
  * @Description: dlopen the video codec library dynamicly
  */
 
-#define ENABLE_DEBUG 1
 
 #include "module.h"
 
