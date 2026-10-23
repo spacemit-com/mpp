@@ -18,13 +18,10 @@
 
 S32 K1_VI_InitRawDumpCtx(VI_DEV ViDev, VI_CHN ViChn, K1_VI_RAW_CTX_S *pstRawCtx, const K1_VI_CHN_CTX_S *pstPhyChnCtx);
 S32 K1_VI_GetRawDumpAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr);
-S32 K1_VI_ImportRawDumpBuffer(
-    VI_DEV ViDev,
-    VI_CHN ViChn,
-    K1_VI_RAW_CTX_S *pstRawCtx,
-    const VideoFrameInfo *pstFrameInfo,
-    const IMAGE_BUFFER_S *pstImageBuffer);
+S32 K1_VI_AllocRawDumpBuffer(K1_VI_RAW_CTX_S *pstRawCtx);
+VOID K1_VI_FreeRawDumpBuffer(K1_VI_RAW_CTX_S *pstRawCtx);
 MppPixelFormat K1_VI_GetRawDumpPixelFormat(ViRawType eRawType);
+S32 K1_VI_CalcRawDumpFrameLayout(const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo);
 S32 K1_VI_StartRawCtx(K1_VI_RAW_CTX_S *pstRawCtx);
 S32 K1_VI_StopRawCtx(K1_VI_RAW_CTX_S *pstRawCtx);
 S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx);

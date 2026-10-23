@@ -302,6 +302,9 @@ static void VI_DemoInitConfig(VI_DEMO_CONFIG_S *pstCfg, VI_DEMO_MODE_E enMode) {
     pstCfg->stPhyAttr.ePixelFormat = MPP_PIXEL_FORMAT_NV12;
     pstCfg->stPhyAttr.u32Width = 1920;
     pstCfg->stPhyAttr.u32Height = 1080;
+    /* depth>0 enables VI_GetChnFrame pull (depth queue); the virtual chn
+     * attrs below copy this struct, so they inherit the setting too. */
+    pstCfg->stPhyAttr.u32Depth = 4;
     //    pstCfg->stPhyAttr.eStrideAlign = VI_STRIDE_ALIGN_64;
 
     pstCfg->stVirt1Attr = pstCfg->stPhyAttr;

@@ -19,17 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct _K1_VI_OFFLINE_CFG_VIEW_S {
-    BOOL bConfigured;
-    BOOL bStarted;
-    VI_DEV ViDev;
-    VI_CHN ViChn;
-    U8 *pu8RawVirAddr;
-    U32 u32RawSize;
-    ISP_PUB_ATTR_S stPubAttr;
-    ISP_OFFLINE_ATTR_S stOfflineAttr;
-} K1_VI_OFFLINE_CFG_VIEW_S;
-
 extern const VOID *K1_VI_OfflineGetCfg(VI_DEV ViDev);
 
 static VOID K1_VI_ResetMetaCache(K1_VI_CHN_CTX_S *pstChnCtx) {
@@ -272,14 +261,14 @@ static S32 K1_VI_ToCamRawType(ViRawType eRawType, CAM_SENSOR_RAWTYPE_E *penRawTy
 static S32 K1_VI_GetOfflineIspInitAttr(
     const K1_VI_DEV_CTX_S *pstDevCtx, ISP_PUB_ATTR_S *pstPubAttr, ISP_OFFLINE_ATTR_S *pstOfflineAttr
 ) {
-    const K1_VI_OFFLINE_CFG_VIEW_S *pstOfflineCfg = NULL;
+    const K1_VI_OFFLINE_CFG_S *pstOfflineCfg = NULL;
     CAM_SENSOR_RAWTYPE_E enRawType;
     S32 s32Ret;
 
     if (pstDevCtx == NULL || pstPubAttr == NULL || pstOfflineAttr == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
-    pstOfflineCfg = (const K1_VI_OFFLINE_CFG_VIEW_S *)K1_VI_OfflineGetCfg((VI_DEV)(pstDevCtx - g_stK1ViCtx.astDevCtx));
+    pstOfflineCfg = (const K1_VI_OFFLINE_CFG_S *)K1_VI_OfflineGetCfg((VI_DEV)(pstDevCtx - g_stK1ViCtx.astDevCtx));
     if (pstOfflineCfg != NULL && pstOfflineCfg->bConfigured == MPP_TRUE) {
         memcpy(pstPubAttr, &pstOfflineCfg->stPubAttr, sizeof(*pstPubAttr));
         memcpy(pstOfflineAttr, &pstOfflineCfg->stOfflineAttr, sizeof(*pstOfflineAttr));

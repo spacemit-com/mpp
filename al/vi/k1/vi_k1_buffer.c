@@ -91,6 +91,28 @@ static U32 K1_VI_CalcDwtTotalSize(U32 u32Width, U32 u32Height) {
     return u32Total;
 }
 
+/*
+ * ViAlOps.calc_frame_layout backend implementation.  MPI hands in the
+ * neutral pixel-math layout; K1 hardware writes 4-level DWT sub-band
+ * tails after the visible NV12/NV21 planes, so the allocation must grow
+ * by that tail.  This is the single source of the DWT size formula —
+ * K1_VI_FillDwtPlanes derives the plane offsets from the same helpers.
+ */
+S32 K1_VI_AdjustChnFrameLayout(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo) {
+    (VOID)ViDev;
+    (VOID)ViChn;
+
+    if (pstChnAttr == NULL || pstFrameInfo == NULL)
+        return K1_VI_ERR_INVALID_PARAM;
+
+    if (pstFrameInfo->stViFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_NV12 ||
+        pstFrameInfo->stViFrameInfo.stCommFrameInfo.ePixelFormat == MPP_PIXEL_FORMAT_NV21)
+        pstFrameInfo->stVFrame.u32TotalSize +=
+            K1_VI_CalcDwtTotalSize(pstChnAttr->u32Width, pstChnAttr->u32Height);
+
+    return K1_VI_SUCCESS;
+}
+
 static VOID K1_VI_FillDwtPlanes(
     IMAGE_BUFFER_S *pstImageBuffer, U32 u32BaseWidth, U32 u32BaseHeight, int iFd, void *pBaseVir, U32 *pu32Offset
 ) {

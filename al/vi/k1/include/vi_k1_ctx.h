@@ -18,6 +18,22 @@
 
 #define K1_VI_META_CACHE_DEPTH 64
 
+/* Offline ISP configuration, owned by the K1 backend (one per device).
+ * vi_k1_isp.c reads the pub/offline attrs through K1_VI_OfflineGetCfg(). */
+typedef struct _K1_VI_OFFLINE_CFG_S {
+    BOOL bConfigured;
+    BOOL bStarted;
+    VI_DEV ViDev;
+    VI_CHN ViChn;
+    U32 u32RawSize;
+    ISP_PUB_ATTR_S stPubAttr;
+    ISP_OFFLINE_ATTR_S stOfflineAttr;
+    S32 s32DmaFd;         /* backend-owned staging dma-buf, 0 = not allocated */
+    U32 u32DmaSize;       /* dma_alloc_buf aligned size, free pairing */
+    VideoFrameInfo stInputFrame;
+    IMAGE_BUFFER_S stInputImageBuffer;
+} K1_VI_OFFLINE_CFG_S;
+
 typedef struct _K1_VI_ISP_FRAMEINFO_NODE_S {
     BOOL bAllocated;
     IMAGE_BUFFER_S stImageBuffer;
@@ -86,8 +102,8 @@ typedef struct _K1_VI_RAW_CTX_S {
     VI_CHN ViChn;
     U32 u32AsrChn;
     ViChnAttrS stAttr;
-    UL ulVbPool;
-    UL ulBufferId;
+    S32 s32DmaFd;         /* backend-owned rawdump dma-buf, 0 = not allocated */
+    U32 u32DmaSize;       /* dma_alloc_buf aligned size, free pairing */
     BOOL bExternalBuf;
     IMAGE_BUFFER_S stImageBuffer;
     VideoFrameInfo stFrameInfo;
