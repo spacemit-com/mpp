@@ -16,6 +16,8 @@
 #include "include/vi_k1_common.h"
 #include "include/vi_k1_isp.h"
 #include "include/vi_k1_buffer.h"
+#include "include/vi_k1_raw.h"
+#include "dma_alloc.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,21 +33,6 @@
 #define K1_VI_OFFLINE_MAX_DEV_NUM VI_MAX_DEV_NUM
 #define K1_VI_RAW10_DUMP_SIZE(w, h) (((w) / 12 + ((w) % 12 ? 1 : 0)) * 16 * (h))
 #define K1_VI_RAW12_DUMP_SIZE(w, h) (((w) / 10 + ((w) % 10 ? 1 : 0)) * 16 * (h))
-
-typedef struct _K1_VI_OFFLINE_CFG_S {
-    BOOL bConfigured;
-    BOOL bStarted;
-    VI_DEV ViDev;
-    VI_CHN ViChn;
-    U8 *pu8RawVirAddr;
-    U32 u32RawSize;
-    ISP_PUB_ATTR_S stPubAttr;
-    ISP_OFFLINE_ATTR_S stOfflineAttr;
-    UL ulVbPool;
-    UL ulBufferId;
-    VideoFrameInfo stInputFrame;
-    IMAGE_BUFFER_S stInputImageBuffer;
-} K1_VI_OFFLINE_CFG_S;
 
 static K1_VI_OFFLINE_CFG_S g_astK1ViOfflineCfg[K1_VI_OFFLINE_MAX_DEV_NUM] = {0};
 
@@ -131,8 +118,13 @@ static VOID K1_VI_DestroyOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg) 
     if (pstOfflineCfg == NULL)
         return;
 
-    pstOfflineCfg->ulBufferId = 0;
-    pstOfflineCfg->ulVbPool = 0;
+    /* The staging buffer is owned by the K1 backend — release it here. */
+    if (pstOfflineCfg->s32DmaFd > 0)
+        dma_free_buf(pstOfflineCfg->s32DmaFd,
+            (void *)(uintptr_t)pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0], pstOfflineCfg->u32DmaSize);
+
+    pstOfflineCfg->s32DmaFd = 0;
+    pstOfflineCfg->u32DmaSize = 0;
     memset(&pstOfflineCfg->stInputFrame, 0, sizeof(pstOfflineCfg->stInputFrame));
     memset(&pstOfflineCfg->stInputImageBuffer, 0, sizeof(pstOfflineCfg->stInputImageBuffer));
 }
@@ -156,37 +148,91 @@ VOID K1_VI_ResetOfflineCfg(VI_DEV ViDev) {
     memset(pstOfflineCfg, 0, sizeof(*pstOfflineCfg));
 }
 
-static S32 K1_VI_FillOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg) {
-    VOID *pVirAddr = NULL;
+/*
+ * Allocate the offline staging buffer, sized by the device input raw
+ * format.  The staging buffer is owned by the K1 backend.
+ */
+static S32 K1_VI_AllocOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg) {
+    K1_VI_DEV_CTX_S *pstDevCtx = NULL;
+    ViChnAttrS stRawAttr;
+    VideoFrameInfo stFrameInfo;
+    S32 s32Fd = -1;
+    U64 u64Phy = 0;
+    VOID *pVir = NULL;
+    S32 s32Ret = 0;
+    U32 j;
 
-    if (pstOfflineCfg == NULL)
-        return K1_VI_ERR_INVALID_PARAM;
-    if (pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0] == 0) {
-        error(
-            "%s: offline input vir addr is null, bufId=%lu pool=%lu total=%u\n",
-            __func__,
-            pstOfflineCfg->ulBufferId,
-            pstOfflineCfg->ulVbPool,
-            pstOfflineCfg->u32RawSize);
-        return K1_VI_ERR_INVALID_PARAM;
+    pstDevCtx = &g_stK1ViCtx.astDevCtx[pstOfflineCfg->ViDev];
+
+    /* The offline input type follows eOfflineRawType (default 12BIT) — the
+     * same source the ISP pub attr uses — so the staging buffer, the ISP
+     * configuration and the driver's raw-read channel all agree.  The live
+     * sensor's raw type is irrelevant here: offline input is CPU-fed. */
+    memset(&stRawAttr, 0, sizeof(stRawAttr));
+    stRawAttr.ePixelFormat = K1_VI_OfflineRawTypeToPixelFormat(
+        pstDevCtx->eOfflineRawType == VI_RAW_TYPE_UNKNOWN ? VI_RAW_TYPE_12BIT : pstDevCtx->eOfflineRawType);
+    stRawAttr.u32Width = pstDevCtx->stAttr.u32Width;
+    stRawAttr.u32Height = pstDevCtx->stAttr.u32Height;
+
+    s32Ret = K1_VI_CalcRawDumpFrameLayout(&stRawAttr, &stFrameInfo);
+    if (s32Ret != K1_VI_SUCCESS) {
+        error("%s: raw layout calc failed, dev=%d fmt=%d ret=%d\n",
+            __func__, pstOfflineCfg->ViDev, stRawAttr.ePixelFormat, s32Ret);
+        return s32Ret;
     }
 
-    pVirAddr = (VOID *)(uintptr_t)pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0];
+    s32Ret = dma_alloc_buf(stFrameInfo.stVFrame.u32TotalSize, &s32Fd, &u64Phy, &pVir);
+    if (s32Ret != 0 || s32Fd <= 0 || pVir == NULL) {
+        error("%s: dma_alloc_buf failed, dev=%d size=%u ret=%d\n",
+            __func__, pstOfflineCfg->ViDev, stFrameInfo.stVFrame.u32TotalSize, s32Ret);
+        return K1_VI_ERR_BUSY;
+    }
 
-    if (pstOfflineCfg->pu8RawVirAddr == NULL)
-        return K1_VI_ERR_INVALID_PARAM;
+    pstOfflineCfg->s32DmaFd = s32Fd;
+    pstOfflineCfg->u32DmaSize = stFrameInfo.stVFrame.u32TotalSize;
 
-    memcpy(pVirAddr, pstOfflineCfg->pu8RawVirAddr, pstOfflineCfg->u32RawSize);
+    /* No VB round trip: the layout template is already in hand, fill the
+     * frame info directly with the dma-buf fd and mapped virtual address. */
+    memcpy(&pstOfflineCfg->stInputFrame, &stFrameInfo, sizeof(stFrameInfo));
+    pstOfflineCfg->stInputFrame.eFrameType = FRAME_TYPE_VI;
+    pstOfflineCfg->stInputFrame.eModId = MPP_ID_VI;
+    pstOfflineCfg->stInputFrame.u32Idx = 0;
+    pstOfflineCfg->stInputFrame.ulPoolId = 0;
+    pstOfflineCfg->stInputFrame.ulBufferId = (UL)s32Fd; /* opaque identity token */
+    pstOfflineCfg->stInputFrame.stVFrame.u32PrivateData =
+        ((U32)pstOfflineCfg->ViDev << 16) | (U32)pstOfflineCfg->ViChn;
+    pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0] = (UL)pVir;
+    for (j = 0; j < pstOfflineCfg->stInputFrame.stVFrame.u32PlaneNum && j < FRAME_MAX_PLANE; j++)
+        pstOfflineCfg->stInputFrame.stVFrame.u32Fd[j] = (UL)s32Fd;
+
+    K1_VI_FillImageBufferFromVideoFrame(&pstOfflineCfg->stInputFrame, &pstOfflineCfg->stInputImageBuffer);
+    pstOfflineCfg->stInputImageBuffer.type = 2;
+
     return K1_VI_SUCCESS;
 }
 
-static S32 K1_VI_ToOfflineInputImageBuffer(const K1_VI_OFFLINE_CFG_S *pstOfflineCfg, IMAGE_BUFFER_S *pstImageBuffer) {
-    if (pstOfflineCfg == NULL || pstImageBuffer == NULL)
+static S32 K1_VI_FillOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg, const U8 *pu8RawVirAddr, U32 u32RawSize) {
+    VOID *pVirAddr = NULL;
+    S32 s32Fd = (S32)pstOfflineCfg->stInputFrame.ulBufferId;
+    S32 s32Ret = 0;
+
+    if (pstOfflineCfg == NULL || pu8RawVirAddr == NULL)
         return K1_VI_ERR_INVALID_PARAM;
     if (pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0] == 0)
         return K1_VI_ERR_INVALID_PARAM;
 
-    memcpy(pstImageBuffer, &pstOfflineCfg->stInputImageBuffer, sizeof(*pstImageBuffer));
+    /* Single copy: user buffer → backend-owned staging buffer.  The ISP
+     * reads this buffer through its own mapping, so flush CPU dirty lines
+     * after the copy (cached dma-buf mapping). */
+    pVirAddr = (VOID *)(uintptr_t)pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0];
+    s32Ret = dma_sync_buf(s32Fd, DMA_SYNC_WRITE | DMA_SYNC_START);
+    if (s32Ret != 0)
+        return K1_VI_ERR_INVALID_PARAM;
+    memcpy(pVirAddr, pu8RawVirAddr, u32RawSize);
+    (void)dma_sync_buf(s32Fd, DMA_SYNC_WRITE | DMA_SYNC_END);
+    pstOfflineCfg->stInputFrame.stVFrame.u32PlaneSizeValid[0] = u32RawSize;
+    pstOfflineCfg->stInputFrame.stVFrame.u32TotalSize = u32RawSize;
+    pstOfflineCfg->u32RawSize = u32RawSize;
 
     return K1_VI_SUCCESS;
 }
@@ -235,27 +281,15 @@ static S32 K1_VI_FillDefaultOfflineAttr(ISP_OFFLINE_ATTR_S *pstOfflineAttr) {
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_OfflineSetInputAddr(
-    VI_DEV ViDev,
-    VI_CHN ViChn,
-    UL ulPoolId,
-    UL ulBufferId,
-    const VideoFrameInfo *pstFrameInfo,
-    const IMAGE_BUFFER_S *pstImageBuffer,
-    const U8 *pu8RawVirAddr,
-    U32 u32RawSize
-) {
+S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize) {
     K1_VI_OFFLINE_CFG_S *pstOfflineCfg = NULL;
     K1_VI_DEV_CTX_S *pstDevCtx = NULL;
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
-    IMAGE_BUFFER_S stInputImageBuffer;
     U32 u32RawReadChn = 0;
+    U32 u32StagingCapacity = 0;
     S32 s32Ret = 0;
-    BOOL bBayerReadPrepared = MPP_FALSE;
-    BOOL bOfflineIspStarted = MPP_FALSE;
-    BOOL bOfflineIspInited = MPP_FALSE;
 
-    if (pu8RawVirAddr == NULL || u32RawSize == 0 || pstFrameInfo == NULL || pstImageBuffer == NULL)
+    if (pu8RawVirAddr == NULL || u32RawSize == 0)
         return K1_VI_ERR_INVALID_PARAM;
     if (K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
@@ -279,56 +313,46 @@ S32 K1_VI_OfflineSetInputAddr(
     pstOfflineCfg->bConfigured = MPP_TRUE;
     pstOfflineCfg->ViDev = ViDev;
     pstOfflineCfg->ViChn = ViChn;
-    pstOfflineCfg->pu8RawVirAddr = (U8 *)pu8RawVirAddr;
-    pstOfflineCfg->u32RawSize = u32RawSize;
-    pstOfflineCfg->ulVbPool = ulPoolId;
-    pstOfflineCfg->ulBufferId = ulBufferId;
-    memcpy(&pstOfflineCfg->stInputFrame, pstFrameInfo, sizeof(*pstFrameInfo));
-    memcpy(&pstOfflineCfg->stInputImageBuffer, pstImageBuffer, sizeof(*pstImageBuffer));
     if (pstDevCtx->eOfflineRawType == VI_RAW_TYPE_UNKNOWN)
         pstDevCtx->eOfflineRawType = VI_RAW_TYPE_12BIT;
+
+    /* Backend-owned staging buffer, sized by the device input raw format. */
+    s32Ret = K1_VI_AllocOfflineInputBuffer(pstOfflineCfg);
+    if (s32Ret != K1_VI_SUCCESS)
+        goto fail;
+    u32StagingCapacity = pstOfflineCfg->stInputFrame.stVFrame.u32TotalSize;
+    if (u32RawSize > u32StagingCapacity) {
+        error("%s: raw size %u exceeds staging capacity %u, dev=%d\n",
+            __func__, u32RawSize, u32StagingCapacity, ViDev);
+        s32Ret = K1_VI_ERR_INVALID_PARAM;
+        goto fail;
+    }
+
     s32Ret = K1_VI_FillDefaultOfflinePubAttr(pstDevCtx, &pstOfflineCfg->stPubAttr);
     if (s32Ret != K1_VI_SUCCESS)
-        goto fail_reset;
+        goto fail;
     s32Ret = K1_VI_FillDefaultOfflineAttr(&pstOfflineCfg->stOfflineAttr);
     if (s32Ret != K1_VI_SUCCESS)
-        goto fail_reset;
+        goto fail;
 
     s32Ret = K1_VI_InitOfflineIsp(pstChnCtx);
     if (s32Ret != K1_VI_SUCCESS) {
         error("%s: K1_VI_InitOfflineIsp failed, dev=%d chn=%d ret=%d\n", __func__, ViDev, pstOfflineCfg->ViChn, s32Ret);
-        return s32Ret;
+        goto fail;
     }
-    bOfflineIspInited = MPP_TRUE;
 
     s32Ret = K1_VI_PrepareOfflineBayerRead(pstChnCtx);
     if (s32Ret != K1_VI_SUCCESS)
         goto fail;
-    bBayerReadPrepared = MPP_TRUE;
 
     s32Ret = K1_VI_StartOfflineIsp(pstChnCtx);
     if (s32Ret != K1_VI_SUCCESS) {
         error(
-            "%s: K1_VI_StartOfflineIsp failed, dev=%d chn=%d ret=%d\n", __func__, ViDev, pstOfflineCfg->ViChn, s32Ret);
-        goto fail;
-    }
-    bOfflineIspStarted = MPP_TRUE;
-
-    s32Ret = K1_VI_FillOfflineInputBuffer(pstOfflineCfg);
-    if (s32Ret != K1_VI_SUCCESS) {
-        error(
-            "%s: K1_VI_FillOfflineInputBuffer failed, dev=%d chn=%d bufId=%lu vir0=0x%llx fd0=%lu ret=%d\n",
-            __func__,
-            ViDev,
-            ViChn,
-            pstOfflineCfg->ulBufferId,
-            (uint64_t)pstOfflineCfg->stInputFrame.stVFrame.ulPlaneVirAddr[0],
-            pstOfflineCfg->stInputFrame.stVFrame.u32Fd[0],
-            s32Ret);
+            "%s: K1_VI_StartOfflineIsp failed, dev=%d chn=%d ret=%d\n", __func__, ViDev, ViChn, s32Ret);
         goto fail;
     }
 
-    s32Ret = K1_VI_ToOfflineInputImageBuffer(pstOfflineCfg, &stInputImageBuffer);
+    s32Ret = K1_VI_FillOfflineInputBuffer(pstOfflineCfg, pu8RawVirAddr, u32RawSize);
     if (s32Ret != K1_VI_SUCCESS)
         goto fail;
 
@@ -340,7 +364,7 @@ S32 K1_VI_OfflineSetInputAddr(
     if (s32Ret != K1_VI_SUCCESS)
         goto fail;
 
-    s32Ret = ASR_VI_ChnQueueBuffer(u32RawReadChn, &stInputImageBuffer);
+    s32Ret = ASR_VI_ChnQueueBuffer(u32RawReadChn, &pstOfflineCfg->stInputImageBuffer);
     if (s32Ret != SUCCESS) {
         error(
             "%s: ASR_VI_ChnQueueBuffer(raw-read) failed, dev=%d chn=%d rawReadChn=%u ret=%d\n",
@@ -356,13 +380,6 @@ S32 K1_VI_OfflineSetInputAddr(
     return K1_VI_SUCCESS;
 
 fail:
-    if (bBayerReadPrepared == MPP_TRUE || bOfflineIspStarted == MPP_TRUE || bOfflineIspInited == MPP_TRUE ||
-        pstOfflineCfg->ulVbPool != 0 || pstOfflineCfg->ulBufferId != 0)
-        K1_VI_ResetOfflineCfg(ViDev);
-
-fail_reset:
-    if (pstOfflineCfg != NULL)
-        memset(pstOfflineCfg, 0, sizeof(*pstOfflineCfg));
-
+    K1_VI_ResetOfflineCfg(ViDev);
     return s32Ret;
 }

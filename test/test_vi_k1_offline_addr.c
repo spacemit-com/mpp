@@ -295,6 +295,7 @@ int main(int argc, char *argv[]) {
     stChnAttr.u32Width = u32Width;
     stChnAttr.u32Height = u32Height;
     stChnAttr.eStrideAlign = VI_STRIDE_ALIGN_16;
+    stChnAttr.u32Depth = 1; /* enable VI_GetChnFrame pull (depth queue) */
 
     s32Ret = VI_SetChnAttr(OFFLINE_ADDR_DEMO_DEV, OFFLINE_ADDR_DEMO_PHY_CHN, &stChnAttr);
     if (s32Ret != 0) {

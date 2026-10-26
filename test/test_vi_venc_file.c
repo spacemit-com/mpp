@@ -124,6 +124,7 @@ static void init_config(ViVencDemoConfig *pstCfg) {
     pstCfg->stViChnAttr.u32Width = DEMO_DEFAULT_WIDTH;
     pstCfg->stViChnAttr.u32Height = DEMO_DEFAULT_HEIGHT;
     pstCfg->stViChnAttr.eStrideAlign = VI_STRIDE_ALIGN_16;
+    pstCfg->stViChnAttr.u32Depth = 4; /* enable VI_GetChnFrame pull (depth queue) */
 
     pstCfg->stVencAttr.eCodecType = MPP_STREAM_CODEC_H264;
     pstCfg->stVencAttr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;

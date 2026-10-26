@@ -170,10 +170,9 @@ static S32 K1_VI_HandleBoundFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *
         return K1_VI_ERR_INVALID_PARAM;
 
     /*
-     * SYS bind data forwarding hook.
-     * Real sink delivery will be added by SYS/process-flow implementation.
-     * Stub stage: simulate sink consumed frame immediately so buffers are
-     * not leaked while bind forwarding is still unimplemented.
+     * Frames bound through SYS are delivered by MPI's push thread; the
+     * backend only needs to keep the buffer owned by the capture side
+     * until the sink releases its reference.
      */
     if (pstChnCtx->bIsVirtual == MPP_TRUE) {
         pstBufNode->enState = K1_VI_BUF_STATE_IDLE;
@@ -518,6 +517,7 @@ S32 K1_VI_DisableDev(VI_DEV ViDev) {
         else if (pstDevCtx->stAttr.eWorkMode == VI_WORK_MODE_ONLINE)
             (void)K1_VI_DeInitIsp(&g_stK1ViCtx.astChnCtx[ViDev][i]);
         g_stK1ViCtx.astChnCtx[ViDev][i].bEnabled = MPP_FALSE;
+        K1_VI_FreeRawDumpBuffer(&g_stK1ViCtx.astRawCtx[ViDev][i]);
         memset(&g_stK1ViCtx.astRawCtx[ViDev][i], 0, sizeof(g_stK1ViCtx.astRawCtx[ViDev][i]));
     }
 
@@ -790,6 +790,7 @@ S32 K1_VI_DequeueDoneBuffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32M
     if (pstChnCtx->bSysBound == MPP_TRUE)
         return K1_VI_ERR_NOT_SUPPORT;
 
+
     s32Ret = K1_VI_DonePop(pstChnCtx, pu32Index);
     if (s32Ret != K1_VI_SUCCESS)
         return s32Ret;
@@ -913,6 +914,11 @@ static S32 k1_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index) {
     return K1_VI_QueueBufferByIndex(ViDev, ViChn, u32Index);
 }
 
+static S32 k1_vi_calc_frame_layout(
+    VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr, VideoFrameInfo *pstFrameInfo) {
+    return K1_VI_AdjustChnFrameLayout(ViDev, ViChn, pstChnAttr, pstFrameInfo);
+}
+
 static S32 k1_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     return K1_VI_AttachBindSink(ViDev, ViChn, pstSinkNode);
 }
@@ -933,58 +939,16 @@ static S32 k1_vi_release_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, const VideoF
     return K1_VI_ReleaseRawDumpFrame(ViDev, ViChn, pstVideoFrame);
 }
 
-static S32 k1_vi_get_rawdump_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstRawAttr) {
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
-
-    return K1_VI_GetRawDumpAttr(ViDev, ViChn, pstRawAttr);
+static S32 k1_vi_offline_set_input_addr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize) {
+    return K1_VI_OfflineSetInputAddr(ViDev, ViChn, pu8RawVirAddr, u32RawSize);
 }
 
-static S32 k1_vi_set_rawdump_buf(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstFrameInfo) {
-    K1_VI_RAW_CTX_S *pstRawCtx = NULL;
-    K1_VI_CHN_CTX_S *pstPhyChnCtx = NULL;
-    IMAGE_BUFFER_S stImageBuffer;
-    S32 s32Ret = 0;
-
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
-    if (pstFrameInfo == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    pstPhyChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstPhyChnCtx->bCreated != MPP_TRUE || pstPhyChnCtx->stAttr.eChnType != VI_CHN_TYPE_PHYSICAL)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    pstRawCtx = K1_VI_GetRawCtx(ViDev, ViChn);
-    if (pstRawCtx == NULL)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    if (pstRawCtx->bCreated != MPP_TRUE) {
-        s32Ret = K1_VI_InitRawDumpCtx(ViDev, ViChn, pstRawCtx, pstPhyChnCtx);
-        if (s32Ret != K1_VI_SUCCESS)
-            return s32Ret;
-    }
-
-    K1_VI_FillImageBufferFromVideoFrame(pstFrameInfo, &stImageBuffer);
-    return K1_VI_ImportRawDumpBuffer(ViDev, ViChn, pstRawCtx, pstFrameInfo, &stImageBuffer);
-}
-
-static S32 k1_vi_offline_set_input_addr(
-    VI_DEV ViDev,
-    VI_CHN ViChn,
-    UL ulPoolId,
-    UL ulBufferId,
-    const VideoFrameInfo *pstFrameInfo,
-    const U8 *pu8RawVirAddr,
-    U32 u32RawSize
-) {
-    IMAGE_BUFFER_S stImageBuffer;
-
-    K1_VI_FillImageBufferFromVideoFrame(pstFrameInfo, &stImageBuffer);
-    return K1_VI_OfflineSetInputAddr(
-        ViDev, ViChn, ulPoolId, ulBufferId, pstFrameInfo, &stImageBuffer, pu8RawVirAddr, u32RawSize);
-}
-
+/*
+ * ViAlOps.query_dqbuf_meta backend implementation.  The SDK buffer
+ * callback stamps each buf node with the capture timestamp and frame id
+ * (K1_VI_UpdateBufNodeMeta); report the values of the last frame completed
+ * on this slot so MPI can deliver real PTS instead of the import template.
+ */
 S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
@@ -1027,6 +991,7 @@ S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode)
     return K1_VI_SUCCESS;
 }
 
+
 S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec) {
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     (void)s32MilliSec;
@@ -1067,6 +1032,13 @@ S32 K1_VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn) {
         return K1_VI_ERR_INVALID_PARAM;
     if (pstRawCtx->bCreated != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
+
+    /* The rawdump buffer is owned by the backend; allocate it on first use. */
+    if (pstRawCtx->s32DmaFd <= 0) {
+        s32Ret = K1_VI_AllocRawDumpBuffer(pstRawCtx);
+        if (s32Ret != K1_VI_SUCCESS)
+            return s32Ret;
+    }
 
     pstPhyChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
 
@@ -1134,21 +1106,22 @@ static const ViAlOps k1_vi_ops = {
     .disable_chn = k1_vi_disable_chn,
     .dequeue_done_buffer = k1_vi_dequeue_done_buffer,
     .queue_buffer = k1_vi_queue_buffer,
+    .set_external_buf_pool = k1_vi_set_external_buf_pool,
     .attach_bind_sink = k1_vi_attach_bind_sink,
     .detach_bind_sink = k1_vi_detach_bind_sink,
-    .set_external_buf_pool = k1_vi_set_external_buf_pool,
 
-    /* Optional: rawdump — K1 supports all rawdump ops */
+    /* Optional: layout negotiation */
+    .calc_frame_layout = k1_vi_calc_frame_layout,
+
+    /* Optional: rawdump — K1 owns the rawdump buffer */
     .trigger_raw_dump = k1_vi_trigger_raw_dump,
     .get_raw_dump_frame = k1_vi_get_raw_dump_frame,
     .release_raw_dump_frame = k1_vi_release_raw_dump_frame,
-    .get_rawdump_attr = k1_vi_get_rawdump_attr,
-    .set_rawdump_buf = k1_vi_set_rawdump_buf,
 
-    /* Optional: offline — K1 supports */
+    /* Optional: offline — K1 owns the staging buffer */
     .offline_set_input_addr = k1_vi_offline_set_input_addr,
 
-    /* K3/K7 extensions — K1 does not support */
+    /* Optional: DQBUF metadata — K1 reports callback timestamp/frameId */
     .query_dqbuf_meta = NULL,
     .query_frame_meta = NULL,
 };

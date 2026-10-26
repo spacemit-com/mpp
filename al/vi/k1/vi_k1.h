@@ -53,15 +53,7 @@ S32 K1_VI_QueueBufferByIndex(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index);
 S32 K1_VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn);
 S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
 S32 K1_VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame);
-S32 K1_VI_OfflineSetInputAddr(
-    VI_DEV ViDev,
-    VI_CHN ViChn,
-    UL ulPoolId,
-    UL ulBufferId,
-    const VideoFrameInfo *pstFrameInfo,
-    const IMAGE_BUFFER_S *pstImageBuffer,
-    const U8 *pu8RawVirAddr,
-    U32 u32RawSize);
+S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize);
 S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
 S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
 

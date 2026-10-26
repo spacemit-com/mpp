@@ -229,6 +229,7 @@ static S32 k3_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr
     return K3_VI_GetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
+
 static S32 k3_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
     (void)ViDev;
     (void)ViChn;
@@ -396,16 +397,14 @@ static const ViAlOps k3_vi_ops = {
     .disable_chn = k3_vi_disable_chn,
     .dequeue_done_buffer = k3_vi_dequeue_done_buffer,
     .queue_buffer = k3_vi_queue_buffer,
+    .set_external_buf_pool = k3_vi_set_external_buf_pool,
     .attach_bind_sink = k3_vi_attach_bind_sink,
     .detach_bind_sink = k3_vi_detach_bind_sink,
-    .set_external_buf_pool = k3_vi_set_external_buf_pool,
 
     /* Optional: rawdump / offline — K3 does not support these */
     .trigger_raw_dump = NULL,
     .get_raw_dump_frame = NULL,
     .release_raw_dump_frame = NULL,
-    .get_rawdump_attr = NULL,
-    .set_rawdump_buf = NULL,
     .offline_set_input_addr = NULL,
 
     /* Optional: K3-specific extensions */
