@@ -316,7 +316,7 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     if (pstReq->u32InputBufNum > MAX_INPUT_BUF_NUM || pstReq->u32OutputBufNum > MAX_OUTPUT_BUF_NUM ||
         pstAttr->u32BufCnt > MAX_OUTPUT_BUF_NUM) {
         error("unsupported buffer counts: configured=%u input=%u output=%u max=%d",
-              pstAttr->u32BufCnt, pstReq->u32InputBufNum, pstReq->u32OutputBufNum, MAX_OUTPUT_BUF_NUM);
+            pstAttr->u32BufCnt, pstReq->u32InputBufNum, pstReq->u32OutputBufNum, MAX_OUTPUT_BUF_NUM);
         return MPP_CHECK_FAILED;
     }
 
@@ -394,8 +394,8 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
         return ret;
     }
     info("capture buffers (initial): configured=%u desired=%u driver_min=unknown requested=%u actual=%d",
-         pstAttr->u32BufCnt, context->nOutputBufferNum, context->nOutputBufferNum,
-         getBufNum(getOutputPort(context->stCodec)));
+        pstAttr->u32BufCnt, context->nOutputBufferNum, context->nOutputBufferNum,
+        getBufNum(getOutputPort(context->stCodec)));
 
     // pthread for handle event or something
     ret = pthread_create(&context->pollthread, NULL, runpoll, (void *)context);

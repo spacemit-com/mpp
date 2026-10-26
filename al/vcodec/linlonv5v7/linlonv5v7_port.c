@@ -414,7 +414,7 @@ S32 allocateBuffers(Port *port, S32 count) {
     if (reqbuf.count > MAX_BUF_NUM ||
         (count > 0 && (reqbuf.count == 0 || reqbuf.count < port->nMinBufNum))) {
         error("invalid driver buffer grant: requested=%d actual=%u min=%u max=%d",
-              count, reqbuf.count, port->nMinBufNum, MAX_BUF_NUM);
+            count, reqbuf.count, port->nMinBufNum, MAX_BUF_NUM);
         ret = MPP_CHECK_FAILED;
         goto failed;
     }
@@ -1870,7 +1870,7 @@ static S32 allocateSourceChangeBuffers(Port *port) {
         return ret;
     if (minimum > MAX_BUF_NUM - DECODER_OUTPUT_BUF_EXTRA || port->nNeededBufNum > MAX_BUF_NUM) {
         error("unsupported capture count: desired=%u min=%u extra=%d max=%d",
-              port->nNeededBufNum, minimum, DECODER_OUTPUT_BUF_EXTRA, MAX_BUF_NUM);
+            port->nNeededBufNum, minimum, DECODER_OUTPUT_BUF_EXTRA, MAX_BUF_NUM);
         return MPP_CHECK_FAILED;
     }
     U32 count = minimum + DECODER_OUTPUT_BUF_EXTRA;
@@ -1880,7 +1880,7 @@ static S32 allocateSourceChangeBuffers(Port *port) {
     ret = allocateBuffers(port, (S32)count);
     if (ret == MPP_OK)
         info("capture buffers (source change): desired=%u driver_min=%u extra=%d requested=%u actual=%d",
-             port->nNeededBufNum, minimum, DECODER_OUTPUT_BUF_EXTRA, count, port->nBufNum);
+            port->nNeededBufNum, minimum, DECODER_OUTPUT_BUF_EXTRA, count, port->nBufNum);
     return ret;
 }
 
