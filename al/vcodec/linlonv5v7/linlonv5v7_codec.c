@@ -306,7 +306,9 @@ S32 stream(Codec *codec) {
     enumerateFramesizes(codec, getFormatFourcc(codec->stOutputPort));
     setFormats(codec);
     subscribeEvents(codec);
-    allocateCodecBuffers(codec);
+    S32 ret = allocateCodecBuffers(codec);
+    if (ret != MPP_OK)
+        return ret;
     queueCodecBuffers(codec, MPP_FALSE);
     streamonCodec(codec);
 
@@ -451,9 +453,16 @@ void unsubscribeEvent(Codec *codec, U32 event) {
     }
 }
 
-void allocateCodecBuffers(Codec *codec) {
-    allocateBuffers(codec->stInputPort, codec->nInputBufferNum);
-    allocateBuffers(codec->stOutputPort, codec->nOutputBufferNum);
+S32 allocateCodecBuffers(Codec *codec) {
+    S32 ret = allocateBuffers(codec->stInputPort, codec->nInputBufferNum);
+    if (ret == MPP_OK)
+        ret = allocateBuffers(codec->stOutputPort, codec->nOutputBufferNum);
+    if (ret != MPP_OK) {
+        /* Release both driver queues, including a successfully allocated input. */
+        allocateBuffers(codec->stInputPort, 0);
+        allocateBuffers(codec->stOutputPort, 0);
+    }
+    return ret;
 }
 
 void freeCodecBuffers(Codec *codec) {

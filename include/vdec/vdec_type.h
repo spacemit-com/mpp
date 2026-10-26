@@ -78,7 +78,9 @@ typedef struct _VdecChnAttr {
     U32 u32RotateDegree;               /**< 0 / 90 / 180 / 270 */
     BOOL bDispErrorFrame;              /**< display error frames */
     VdecScale stScale;                 /**< scaling parameters */
-    U32 u32BufCnt;                     /**< output buffer count (0 = default 12) */
+    /** Desired total output buffers including headroom (0 = 8).
+     * Actual count depends on stream/backend; unsupported requests fail at EnableChn. */
+    U32 u32BufCnt;
     VdecOutputMode eOutputMode;        /**< PULL (default) or BIND; mutually exclusive */
 } VdecChnAttr;
 
