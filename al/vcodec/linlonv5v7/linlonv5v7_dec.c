@@ -261,6 +261,7 @@ ALBaseContext *al_dec_create(void) {
     }
 
     memset(context, 0, sizeof(ALLinlonv5v7DecContext));
+    context->nVideoFd = -1;
 
     debug("init create");
 
@@ -312,18 +313,17 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     context->nEosPts = -1;
     context->bPollThreadCreated = MPP_FALSE;
 
+    if (pstReq->u32InputBufNum > MAX_INPUT_BUF_NUM || pstReq->u32OutputBufNum > MAX_OUTPUT_BUF_NUM ||
+        pstAttr->u32BufCnt > MAX_OUTPUT_BUF_NUM) {
+        error("unsupported buffer counts: configured=%u input=%u output=%u max=%d",
+            pstAttr->u32BufCnt, pstReq->u32InputBufNum, pstReq->u32OutputBufNum, MAX_OUTPUT_BUF_NUM);
+        return MPP_CHECK_FAILED;
+    }
+
     /* caller-desired buffer counts; 0 means plugin default, and the port
      * layer can track at most MAX_INPUT/OUTPUT_BUF_NUM buffers */
     context->nInputBufferNum = pstReq->u32InputBufNum ? pstReq->u32InputBufNum : DECODER_INPUT_BUF_NUM;
-    if (context->nInputBufferNum > MAX_INPUT_BUF_NUM) {
-        error("input buffer num %d exceeds max %d, clamped", context->nInputBufferNum, MAX_INPUT_BUF_NUM);
-        context->nInputBufferNum = MAX_INPUT_BUF_NUM;
-    }
     context->nOutputBufferNum = pstReq->u32OutputBufNum ? pstReq->u32OutputBufNum : DECODER_OUTPUT_BUF_NUM;
-    if (context->nOutputBufferNum > MAX_OUTPUT_BUF_NUM) {
-        error("output buffer num %d exceeds max %d, clamped", context->nOutputBufferNum, MAX_OUTPUT_BUF_NUM);
-        context->nOutputBufferNum = MAX_OUTPUT_BUF_NUM;
-    }
 
     debug(
         "input para check: foramt:0x%x output format:0x%x input buffer num:%d "
@@ -384,7 +384,18 @@ S32 al_dec_init(ALBaseContext *ctx, const VdecChnAttr *pstAttr, AlDecBufferRequi
     }
 
     // setformat, allocate buffer, stream on
-    stream(context->stCodec);
+    ret = stream(context->stCodec);
+    if (ret != MPP_OK) {
+        error("decoder stream initialization failed: %d", ret);
+        destoryCodec(context->stCodec);
+        context->stCodec = NULL;
+        close(context->nVideoFd);
+        context->nVideoFd = -1;
+        return ret;
+    }
+    info("capture buffers (initial): configured=%u desired=%u driver_min=unknown requested=%u actual=%d",
+        pstAttr->u32BufCnt, context->nOutputBufferNum, context->nOutputBufferNum,
+        getBufNum(getOutputPort(context->stCodec)));
 
     // pthread for handle event or something
     ret = pthread_create(&context->pollthread, NULL, runpoll, (void *)context);
@@ -758,7 +769,7 @@ void al_dec_destory(ALBaseContext *ctx) {
     atomic_store(&context->bIsDestoryed, true);
     debug("destory start");
 
-    if (context->nVideoFd && context->stCodec) {
+    if (context->nVideoFd >= 0 && context->stCodec) {
         enum v4l2_buf_type input_type = getV4l2BufType(getInputPort(context->stCodec));
         enum v4l2_buf_type output_type = getV4l2BufType(getOutputPort(context->stCodec));
         mpp_v4l2_stream_off(context->nVideoFd, &input_type);
@@ -779,11 +790,12 @@ void al_dec_destory(ALBaseContext *ctx) {
         context->bPollThreadCreated = MPP_FALSE;
     }
 
-    if (context->nVideoFd && context->stCodec) {
+    if (context->stCodec) {
         destoryCodec(context->stCodec);
         debug("destory codec finish");
-        close(context->nVideoFd);
     }
+    if (context->nVideoFd >= 0)
+        close(context->nVideoFd);
     free(context);
     context = NULL;
 }

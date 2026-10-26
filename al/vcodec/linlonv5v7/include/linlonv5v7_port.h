@@ -190,7 +190,7 @@ void freeBuffers(Port *port);
  * @param {Port} *port: context of the port
  * @return {*}: num of buffer num
  */
-U32 getBufferCount(Port *port);
+S32 getBufferCount(Port *port, U32 *count);
 S32 getOutputRequirement(Port *port, AlDecOutputRequirement *req);
 
 /**

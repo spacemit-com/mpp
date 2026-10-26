@@ -30,7 +30,8 @@
 struct _Port {
     U32 nFormatFourcc;
     U32 nMemType;
-    U32 nNeededBufNum;
+    U32 nNeededBufNum; /* Desired total, never replaced by the driver grant. */
+    U32 nMinBufNum;    /* Valid after a successful source-change query. */
     enum v4l2_buf_type eBufType;  // V4L2_BUF_TYPE_VIDEO_OUTPUT/V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE
     struct v4l2_format stFormat;
     S32 nQueuedNum;
@@ -388,14 +389,13 @@ S32 allocateBuffers(Port *port, S32 count) {
     U32 i;
     S32 ret;
 
+    if (count < 0 || count > MAX_BUF_NUM) {
+        error("invalid buffer count %d, maximum is %d", count, MAX_BUF_NUM);
+        return MPP_CHECK_FAILED;
+    }
+
     /* Free existing meta buffer. */
     freeBuffers(port);
-
-    /* stBuf can track at most MAX_BUF_NUM buffers */
-    if (count > MAX_BUF_NUM) {
-        error("buffer count %d exceeds MAX_BUF_NUM(%d), clamped", count, MAX_BUF_NUM);
-        count = MAX_BUF_NUM;
-    }
 
     /* Request new buffer to be allocated. */
     reqbuf.count = count;
@@ -404,17 +404,19 @@ S32 allocateBuffers(Port *port, S32 count) {
     ret = ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
     if (ret) {
         error("Failed to request buffers.");
-        return MPP_IOCTL_FAILED;
+        ret = MPP_IOCTL_FAILED;
+        goto failed;
     }
 
     debug("Request buffers. type:%d count:%d(%d) memory:%d", reqbuf.type, reqbuf.count, count, reqbuf.memory);
 
     /* Preserve the driver's actual allocation. Never silently truncate it. */
-    if (reqbuf.count > MAX_BUF_NUM) {
-        error("driver granted %d buffers, maximum is %d", reqbuf.count, MAX_BUF_NUM);
-        reqbuf.count = 0;
-        ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf);
-        return MPP_CHECK_FAILED;
+    if (reqbuf.count > MAX_BUF_NUM ||
+        (count > 0 && (reqbuf.count == 0 || reqbuf.count < port->nMinBufNum))) {
+        error("invalid driver buffer grant: requested=%d actual=%u min=%u max=%d",
+            count, reqbuf.count, port->nMinBufNum, MAX_BUF_NUM);
+        ret = MPP_CHECK_FAILED;
+        goto failed;
     }
 
     port->nBufNum = reqbuf.count;
@@ -433,7 +435,8 @@ S32 allocateBuffers(Port *port, S32 count) {
         ret = ioctl(port->nVideoFd, VIDIOC_QUERYBUF, &buf);
         if (ret) {
             error("Failed to query buffer.");
-            return MPP_IOCTL_FAILED;
+            ret = MPP_IOCTL_FAILED;
+            goto failed;
         }
 
         printBuffer(port, buf, "Query");
@@ -441,12 +444,18 @@ S32 allocateBuffers(Port *port, S32 count) {
         port->stBuf[buf.index] = createBuffer(buf, port->nVideoFd, port->stFormat, port->eBufferType);
         if (!port->stBuf[buf.index]) {
             error("create buffer(index=%d) failed, please check!", buf.index);
-            // to do: some buffer not released
-            return MPP_INIT_FAILED;
+            ret = MPP_INIT_FAILED;
+            goto failed;
         }
     }
 
     return MPP_OK;
+failed:
+    freeBuffers(port);
+    reqbuf.count = 0;
+    if (ioctl(port->nVideoFd, VIDIOC_REQBUFS, &reqbuf) != 0)
+        error("Failed to release buffers after allocation error.");
+    return ret;
 }
 
 void freeBuffers(Port *port) {
@@ -458,16 +467,21 @@ void freeBuffers(Port *port) {
     port->nBufNum = 0;
 }
 
-U32 getBufferCount(Port *port) {
+S32 getBufferCount(Port *port, U32 *count) {
     struct v4l2_control control = {0};
 
     control.id =
         V4L2_TYPE_IS_OUTPUT(port->eBufType) ? V4L2_CID_MIN_BUFFERS_FOR_OUTPUT : V4L2_CID_MIN_BUFFERS_FOR_CAPTURE;
     if (-1 == ioctl(port->nVideoFd, VIDIOC_G_CTRL, &control)) {
-        error("Failed to get minimum buffers.");
+        error("Failed to get minimum buffers: %s", strerror(errno));
+        return MPP_IOCTL_FAILED;
     }
-
-    return control.value;
+    if (control.value <= 0) {
+        error("Invalid minimum buffer count: %d", control.value);
+        return MPP_CHECK_FAILED;
+    }
+    *count = (U32)control.value;
+    return MPP_OK;
 }
 
 void queueBuffers(Port *port, BOOL eof) {
@@ -1847,6 +1861,29 @@ S32 handleOutputBuffer(Port *port, BOOL eof, VideoFrameInfo *pstFrame) {
     return MPP_OK;
 }
 
+/* Called after the stream format is known; the configured total already
+ * includes application headroom. Keep it stable across repeated changes. */
+static S32 allocateSourceChangeBuffers(Port *port) {
+    U32 minimum;
+    S32 ret = getBufferCount(port, &minimum);
+    if (ret != MPP_OK)
+        return ret;
+    if (minimum > MAX_BUF_NUM - DECODER_OUTPUT_BUF_EXTRA || port->nNeededBufNum > MAX_BUF_NUM) {
+        error("unsupported capture count: desired=%u min=%u extra=%d max=%d",
+            port->nNeededBufNum, minimum, DECODER_OUTPUT_BUF_EXTRA, MAX_BUF_NUM);
+        return MPP_CHECK_FAILED;
+    }
+    U32 count = minimum + DECODER_OUTPUT_BUF_EXTRA;
+    if (count < port->nNeededBufNum)
+        count = port->nNeededBufNum;
+    port->nMinBufNum = minimum;
+    ret = allocateBuffers(port, (S32)count);
+    if (ret == MPP_OK)
+        info("capture buffers (source change): desired=%u driver_min=%u extra=%d requested=%u actual=%d",
+            port->nNeededBufNum, minimum, DECODER_OUTPUT_BUF_EXTRA, count, port->nBufNum);
+    return ret;
+}
+
 S32 handleResolutionChange(Port *port, BOOL eof) {
     streamoff(port);
     getPortFormat(port);
@@ -1859,13 +1896,7 @@ S32 handleResolutionChange(Port *port, BOOL eof) {
         port->stFormat.fmt.pix_mp.height,
         port->stFormat.fmt.pix_mp.pixelformat,
         MPP_FALSE);
-    U32 count = getBufferCount(port);
-    if (count < port->nNeededBufNum)
-        count = port->nNeededBufNum;
-    count += DECODER_OUTPUT_BUF_EXTRA;
-    if (count > MAX_BUF_NUM)
-        count = MAX_BUF_NUM;
-    ret = allocateBuffers(port, count);
+    ret = allocateSourceChangeBuffers(port);
     if (ret != MPP_OK)
         return ret;
     streamon(port);

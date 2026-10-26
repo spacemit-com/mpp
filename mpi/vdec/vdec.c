@@ -40,7 +40,7 @@
 
 #define MODULE_TAG "mpp_vdec"
 
-#define VDEC_DEFAULT_BUF_CNT 12
+#define VDEC_DEFAULT_BUF_CNT 8
 #define VDEC_INPUT_WAIT_SLICE_MS 10U
 
 /* ======================== Internal Channel Context ======================== */
@@ -657,8 +657,6 @@ S32 VDEC_EnableChn(S32 chn) {
         goto unlock;
     pChn->stBufReq.u32InputBufNum = 0;
     pChn->stBufReq.u32OutputBufNum = pChn->stAttr.u32BufCnt ? pChn->stAttr.u32BufCnt : VDEC_DEFAULT_BUF_CNT;
-    if (pChn->stBufReq.u32OutputBufNum > VDEC_MAX_EXT_BUF)
-        pChn->stBufReq.u32OutputBufNum = VDEC_MAX_EXT_BUF;
     ret = vdec_plugin_open(pChn);
     if (ret != MPP_OK)
         goto fail;

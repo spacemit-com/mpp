@@ -123,7 +123,7 @@ void subscribeEvent(Codec *codec, U32 event);
 void unsubscribeEvents(Codec *codec);
 void unsubscribeEvent(Codec *codec, U32 event);
 
-void allocateCodecBuffers(Codec *codec);
+S32 allocateCodecBuffers(Codec *codec);
 void freeCodecBuffers(Codec *codec);
 void queueCodecBuffers(Codec *codec, BOOL eof);
 

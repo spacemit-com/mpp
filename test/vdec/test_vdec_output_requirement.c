@@ -95,7 +95,7 @@ int main(void) {
     granted = 4;
     failQuery = 2;
     REQUIRE(allocateBuffers(&port, 4) == MPP_IOCTL_FAILED);
-    REQUIRE(live == 2 && getOutputRequirement(&port, &req) == MPP_CHECK_FAILED);
+    REQUIRE(live == 0 && getOutputRequirement(&port, &req) == MPP_CHECK_FAILED);
     freeBuffers(&port);
     freeBuffers(&port);
     REQUIRE(live == 0 && getBufNum(&port) == 0);
