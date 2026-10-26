@@ -17,6 +17,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,9 +42,9 @@ extern "C" {
 
 /* ======================== Log Macros ======================== */
 
-#define SYS_LOG_ERR(fmt, ...) fprintf(stderr, "[SYS][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SYS_LOG_WARN(fmt, ...) fprintf(stderr, "[SYS][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SYS_LOG_INFO(fmt, ...) fprintf(stdout, "[SYS][INFO] " fmt "\n", ##__VA_ARGS__)
+#define SYS_LOG_ERR(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "sys", fmt, ##__VA_ARGS__)
+#define SYS_LOG_WARN(fmt, ...) MPP_LOG(MPP_LOG_WARN, "sys", fmt, ##__VA_ARGS__)
+#define SYS_LOG_INFO(fmt, ...) MPP_LOG(MPP_LOG_INFO, "sys", fmt, ##__VA_ARGS__)
 
 /* ======================== Robust mutex helper ======================== */
 

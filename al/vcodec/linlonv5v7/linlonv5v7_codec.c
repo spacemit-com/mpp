@@ -9,7 +9,6 @@
  * @Description:
  */
 
-#define ENABLE_DEBUG 1
 
 #include "linlonv5v7_codec.h"
 

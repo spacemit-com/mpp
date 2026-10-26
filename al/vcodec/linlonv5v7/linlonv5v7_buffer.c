@@ -9,7 +9,6 @@
  * @Description:
  */
 
-#define ENABLE_DEBUG 0
 
 #include "linlonv5v7_buffer.h"
 

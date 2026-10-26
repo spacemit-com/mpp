@@ -16,7 +16,6 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#define ENABLE_DEBUG 0
 
 #include "vdec/vdec_api.h"
 

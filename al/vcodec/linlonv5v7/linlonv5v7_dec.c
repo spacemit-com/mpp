@@ -8,7 +8,6 @@
  *               VdecChnStatus / VideoFrameInfo / StreamBufferInfo).
  */
 
-#define ENABLE_DEBUG 1
 
 #include <errno.h>
 #include <fcntl.h>

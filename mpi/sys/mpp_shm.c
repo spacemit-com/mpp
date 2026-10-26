@@ -14,6 +14,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,9 +33,9 @@
 
 #include "sys/mpp_shm.h"
 
-#define SHM_LOG_ERR(fmt, ...) fprintf(stderr, "[SHM][ERR] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SHM_LOG_WARN(fmt, ...) fprintf(stderr, "[SHM][WARN] %s:%d " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
-#define SHM_LOG_INFO(fmt, ...) fprintf(stdout, "[SHM][INFO] " fmt "\n", ##__VA_ARGS__)
+#define SHM_LOG_ERR(fmt, ...) MPP_LOG(MPP_LOG_ERROR, "sys", fmt, ##__VA_ARGS__)
+#define SHM_LOG_WARN(fmt, ...) MPP_LOG(MPP_LOG_WARN, "sys", fmt, ##__VA_ARGS__)
+#define SHM_LOG_INFO(fmt, ...) MPP_LOG(MPP_LOG_INFO, "sys", fmt, ##__VA_ARGS__)
 #define MPP_SHM_INIT_LOCK_PATH "/tmp/mpp_shm_init.lock"
 
 static MppSharedMem *g_shm = NULL;
