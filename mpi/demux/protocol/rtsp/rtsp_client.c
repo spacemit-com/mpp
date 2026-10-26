@@ -5,6 +5,7 @@
  *------------------------------------------------------------------------------
  */
 
+#include "log.h"
 #include "rtsp_client.h"
 
 #include <pthread.h>
@@ -136,7 +137,7 @@ static void rtsp_parse_sps_from_annexb(RtspClient *pClient, const U8 *pu8Data, U
                     if (H264_ParseSps(pu8Data + nalStart, nalEnd - nalStart, &w, &h) == 0 && w > 0 && h > 0) {
                         pClient->stStreamInfo.u32Width = w;
                         pClient->stStreamInfo.u32Height = h;
-                        fprintf(stdout, "[RTSP] Parsed resolution from stream SPS: %ux%u\n", w, h);
+                        MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Parsed resolution from stream SPS: %ux%u\n", w, h);
                         return;
                     }
                 }
@@ -154,7 +155,7 @@ static void rtsp_parse_sps_from_annexb(RtspClient *pClient, const U8 *pu8Data, U
                     if (H265_ParseSps(pu8Data + nalStart, nalEnd - nalStart, &w, &h) == 0 && w > 0 && h > 0) {
                         pClient->stStreamInfo.u32Width = w;
                         pClient->stStreamInfo.u32Height = h;
-                        fprintf(stdout, "[RTSP] Parsed resolution from stream SPS: %ux%u\n", w, h);
+                        MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Parsed resolution from stream SPS: %ux%u\n", w, h);
                         return;
                     }
                 }
@@ -197,7 +198,7 @@ RtspClient *RtspClient_Create(VOID) {
     /* Allocate unique UDP port pair for this client (offset by 2 for RTP+RTCP) */
     int offset = atomic_fetch_add(&g_rtspPortOffset, 1);
     pClient->u16LocalRtpPort = RTSP_UDP_BASE_PORT + (offset * 2);
-    fprintf(stdout, "[RTSP] Allocated UDP ports %u-%u for client\n", pClient->u16LocalRtpPort,
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Allocated UDP ports %u-%u for client\n", pClient->u16LocalRtpPort,
         pClient->u16LocalRtpPort + 1);
 
     return pClient;
@@ -229,90 +230,90 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
     pClient->u32CSeq = 1;
 
     /* TCP connect */
-    fprintf(stdout, "[RTSP] Connecting to %s:%u...\n", pClient->stUrl.szHost, pClient->stUrl.u16Port);
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Connecting to %s:%u...\n", pClient->stUrl.szHost, pClient->stUrl.u16Port);
     pClient->s32Fd = Socket_TcpConnect(pClient->stUrl.szHost, pClient->stUrl.u16Port, u32TimeoutMs);
     if (pClient->s32Fd < 0) {
-        fprintf(stderr, "[RTSP] TCP connect failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] TCP connect failed\n");
         return ERR_DEMUX_OPEN_FAIL;
     }
-    fprintf(stdout, "[RTSP] TCP connected (fd=%d)\n", pClient->s32Fd);
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] TCP connected (fd=%d)\n", pClient->s32Fd);
 
     Socket_SetRecvTimeout(pClient->s32Fd, u32TimeoutMs);
     Socket_SetSendTimeout(pClient->s32Fd, u32TimeoutMs);
 
     /* RTSP handshake: OPTIONS (no auth required) */
-    fprintf(stdout, "[RTSP] Sending OPTIONS...\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Sending OPTIONS...\n");
     s32Ret = rtsp_send_options(pClient);
     if (s32Ret != 0) {
-        fprintf(stderr, "[RTSP] OPTIONS send failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] OPTIONS send failed\n");
         goto fail;
     }
 
     s32Ret = rtsp_recv_response(pClient, szResponse, sizeof(szResponse));
     if (s32Ret < 0) {
-        fprintf(stderr, "[RTSP] OPTIONS response failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] OPTIONS response failed\n");
         goto fail;
     }
     if (s32Ret != 200) {
-        fprintf(stderr, "[RTSP] OPTIONS returned %d\n", s32Ret);
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] OPTIONS returned %d\n", s32Ret);
         goto fail;
     }
-    fprintf(stdout, "[RTSP] OPTIONS OK\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] OPTIONS OK\n");
 
     /* DESCRIBE - first without auth to get challenge */
-    fprintf(stdout, "[RTSP] Sending DESCRIBE...\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Sending DESCRIBE...\n");
     s32Ret = rtsp_send_describe(pClient);
     if (s32Ret != 0) {
-        fprintf(stderr, "[RTSP] DESCRIBE send failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] DESCRIBE send failed\n");
         goto fail;
     }
 
     s32Ret = rtsp_recv_response(pClient, szResponse, sizeof(szResponse));
     if (s32Ret < 0) {
-        fprintf(stderr, "[RTSP] DESCRIBE response failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] DESCRIBE response failed\n");
         goto fail;
     }
 
     /* Handle 401 Unauthorized - parse challenge and retry with auth */
     if (s32Ret == 401) {
-        fprintf(stdout, "[RTSP] Got 401, parsing WWW-Authenticate...\n");
+        MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Got 401, parsing WWW-Authenticate...\n");
         rtsp_parse_www_authenticate(pClient, szResponse);
 
         if (!pClient->bAuthRequired) {
-            fprintf(stderr, "[RTSP] 401 but no auth challenge found\n");
+            MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] 401 but no auth challenge found\n");
             goto fail;
         }
         if (!pClient->stUrl.szUser[0]) {
-            fprintf(stderr, "[RTSP] Server requires auth but no credentials in URL\n");
+            MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] Server requires auth but no credentials in URL\n");
             goto fail;
         }
         if (pClient->eAuthType == RTSP_AUTH_DIGEST) {
-            fprintf(stdout, "[RTSP] Digest auth: realm=%s, nonce=%s, qop=%s\n", pClient->szRealm, pClient->szNonce,
+            MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Digest auth: realm=%s, nonce=%s, qop=%s\n", pClient->szRealm, pClient->szNonce,
                 pClient->szQop[0] ? pClient->szQop : "(none)");
         } else {
-            fprintf(stdout, "[RTSP] Basic auth: realm=%s\n", pClient->szRealm);
+            MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Basic auth: realm=%s\n", pClient->szRealm);
         }
 
         /* Retry DESCRIBE with auth */
-        fprintf(stdout, "[RTSP] Sending DESCRIBE with auth...\n");
+        MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Sending DESCRIBE with auth...\n");
         s32Ret = rtsp_send_describe(pClient);
         if (s32Ret != 0) {
-            fprintf(stderr, "[RTSP] DESCRIBE (auth) send failed\n");
+            MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] DESCRIBE (auth) send failed\n");
             goto fail;
         }
 
         s32Ret = rtsp_recv_response(pClient, szResponse, sizeof(szResponse));
         if (s32Ret < 0) {
-            fprintf(stderr, "[RTSP] DESCRIBE (auth) response failed\n");
+            MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] DESCRIBE (auth) response failed\n");
             goto fail;
         }
     }
 
     if (s32Ret != 200) {
-        fprintf(stderr, "[RTSP] DESCRIBE returned %d\n", s32Ret);
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] DESCRIBE returned %d\n", s32Ret);
         goto fail;
     }
-    fprintf(stdout, "[RTSP] DESCRIBE OK\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] DESCRIBE OK\n");
 
     /* Parse SDP from response body */
     const CHAR *pSdp = strstr(szResponse, "\r\n\r\n");
@@ -335,30 +336,30 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
     }
 
     /* SETUP */
-    fprintf(stdout, "[RTSP] Sending SETUP...\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Sending SETUP...\n");
     s32Ret = rtsp_send_setup(pClient);
     if (s32Ret != 0) {
-        fprintf(stderr, "[RTSP] SETUP send failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] SETUP send failed\n");
         goto fail;
     }
 
     s32Ret = rtsp_recv_response(pClient, szResponse, sizeof(szResponse));
     if (s32Ret < 0) {
-        fprintf(stderr, "[RTSP] SETUP response failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] SETUP response failed\n");
         goto fail;
     }
     if (s32Ret != 200) {
-        fprintf(stderr, "[RTSP] SETUP returned %d\n", s32Ret);
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] SETUP returned %d\n", s32Ret);
         goto fail;
     }
-    fprintf(stdout, "[RTSP] SETUP OK\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] SETUP OK\n");
 
     /* Extract Session ID */
     const CHAR *pSession = strstr(szResponse, "Session:");
     if (pSession) {
         sscanf(pSession + 8, "%63[^;\r\n]", pClient->szSession);
     }
-    fprintf(stdout, "[RTSP] Session: %s\n", pClient->szSession);
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Session: %s\n", pClient->szSession);
 
     /* Create RTP session */
     pClient->pRtpSession = RtpSession_Create(pClient->bTcpInterleaved, pClient->s32Fd);
@@ -368,7 +369,7 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
     /* For UDP mode, bind the local ports (unique per client) */
     if (!pClient->bTcpInterleaved) {
         if (RtpSession_SetUdpPorts(pClient->pRtpSession, pClient->u16LocalRtpPort, pClient->u16LocalRtpPort + 1) != 0) {
-            fprintf(stderr, "[RTSP] Failed to bind UDP ports %u-%u\n", pClient->u16LocalRtpPort,
+            MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] Failed to bind UDP ports %u-%u\n", pClient->u16LocalRtpPort,
                 pClient->u16LocalRtpPort + 1);
             goto fail;
         }
@@ -399,13 +400,13 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
                     if (H264_ParseSps(pClient->stSdp.au8Sps, pClient->stSdp.u32SpsLen, &w, &h) == 0) {
                         pClient->stStreamInfo.u32Width = w;
                         pClient->stStreamInfo.u32Height = h;
-                        fprintf(stdout, "[RTSP] Parsed resolution from SPS: %ux%u\n", w, h);
+                        MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Parsed resolution from SPS: %ux%u\n", w, h);
                     }
                 } else if (pClient->stSdp.eCodec == SDP_CODEC_H265) {
                     if (H265_ParseSps(pClient->stSdp.au8Sps, pClient->stSdp.u32SpsLen, &w, &h) == 0) {
                         pClient->stStreamInfo.u32Width = w;
                         pClient->stStreamInfo.u32Height = h;
-                        fprintf(stdout, "[RTSP] Parsed resolution from SPS: %ux%u\n", w, h);
+                        MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Parsed resolution from SPS: %ux%u\n", w, h);
                     }
                 }
             }
@@ -423,23 +424,23 @@ S32 RtspClient_Connect(RtspClient *pClient, const CHAR *pszUrl, BOOL bPreferTcp,
     }
 
     /* PLAY */
-    fprintf(stdout, "[RTSP] Sending PLAY...\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] Sending PLAY...\n");
     s32Ret = rtsp_send_play(pClient);
     if (s32Ret != 0) {
-        fprintf(stderr, "[RTSP] PLAY send failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] PLAY send failed\n");
         goto fail;
     }
 
     s32Ret = rtsp_recv_response(pClient, szResponse, sizeof(szResponse));
     if (s32Ret < 0) {
-        fprintf(stderr, "[RTSP] PLAY response failed\n");
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] PLAY response failed\n");
         goto fail;
     }
     if (s32Ret != 200) {
-        fprintf(stderr, "[RTSP] PLAY returned %d\n", s32Ret);
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] PLAY returned %d\n", s32Ret);
         goto fail;
     }
-    fprintf(stdout, "[RTSP] PLAY OK, streaming started\n");
+    MPP_LOG(MPP_LOG_INFO, "demux", "[RTSP] PLAY OK, streaming started\n");
 
     pClient->eState = RTSP_STATE_STREAMING;
     return 0;
@@ -786,7 +787,7 @@ static void rtsp_parse_www_authenticate(RtspClient *pClient, const CHAR *pszResp
     }
 
     if (!pClient->bAuthRequired) {
-        fprintf(stderr, "[RTSP] Unrecognized auth challenge, response was:\n%s\n", pszResponse);
+        MPP_LOG(MPP_LOG_ERROR, "demux", "[RTSP] Unrecognized auth challenge, response was:\n%s\n", pszResponse);
     }
 }
 

@@ -10,7 +10,6 @@
  */
 
 #define MODULE_TAG "mpp_v4l2_utils"
-#define ENABLE_DEBUG 0
 
 #include "v4l2_utils.h"
 
