@@ -296,7 +296,6 @@ static void VI_DemoInitConfig(VI_DEMO_CONFIG_S *pstCfg, VI_DEMO_MODE_E enMode) {
     pstCfg->stDevAttr.u32Width = 3864;
     pstCfg->stDevAttr.u32Height = 2192;
     pstCfg->stDevAttr.u32MipiLaneNum = 4;
-    pstCfg->stDevAttr.bCapture2Preview = MPP_FALSE;
 
     pstCfg->stPhyAttr.eChnType = VI_CHN_TYPE_PHYSICAL;
     pstCfg->stPhyAttr.ePixelFormat = MPP_PIXEL_FORMAT_NV12;
@@ -615,13 +614,6 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
         LOG_ERROR("VI_SetChnAttr phy failed, ret=%d\n", s32Ret);
         return s32Ret;
     }
-    if (pstCfg->bEnablePhyFrameRateCtrl == MPP_TRUE) {
-        s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViPhyChn, &pstCfg->stPhyFrameRateCtrl);
-        if (s32Ret != 0) {
-            LOG_ERROR("VI_SetChnFrameRate phy failed, ret=%d\n", s32Ret);
-            return s32Ret;
-        }
-    }
 
     LOG_INFO(
         "phy attr: %ux%u mirror=%d flip=%d rotate=%d crop=%d[%u,%u,%u,%u] align=%d\n",
@@ -642,13 +634,6 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
         if (s32Ret != 0) {
             LOG_ERROR("VI_SetChnAttr virt1 failed, ret=%d\n", s32Ret);
             return s32Ret;
-        }
-        if (pstCfg->bEnableVirt1FrameRateCtrl == MPP_TRUE) {
-            s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn1, &pstCfg->stVirt1FrameRateCtrl);
-            if (s32Ret != 0) {
-                LOG_ERROR("VI_SetChnFrameRate virt1 failed, ret=%d\n", s32Ret);
-                return s32Ret;
-            }
         }
 
         LOG_INFO(
@@ -672,13 +657,6 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
             LOG_ERROR("VI_SetChnAttr virt2 failed, ret=%d\n", s32Ret);
             return s32Ret;
         }
-        if (pstCfg->bEnableVirt2FrameRateCtrl == MPP_TRUE) {
-            s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn2, &pstCfg->stVirt2FrameRateCtrl);
-            if (s32Ret != 0) {
-                LOG_ERROR("VI_SetChnFrameRate virt2 failed, ret=%d\n", s32Ret);
-                return s32Ret;
-            }
-        }
 
         LOG_INFO(
             "virt2 attr: %ux%u mirror=%d flip=%d rotate=%d crop=%d[%u,%u,%u,%u] align=%d\n",
@@ -700,13 +678,6 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
         if (s32Ret != 0) {
             LOG_ERROR("VI_SetChnAttr virt3 failed, ret=%d\n", s32Ret);
             return s32Ret;
-        }
-        if (pstCfg->bEnableVirt3FrameRateCtrl == MPP_TRUE) {
-            s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn3, &pstCfg->stVirt3FrameRateCtrl);
-            if (s32Ret != 0) {
-                LOG_ERROR("VI_SetChnFrameRate virt3 failed, ret=%d\n", s32Ret);
-                return s32Ret;
-            }
         }
 
         LOG_INFO(
@@ -730,13 +701,6 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
             LOG_ERROR("VI_SetChnAttr virt4 failed, ret=%d\n", s32Ret);
             return s32Ret;
         }
-        if (pstCfg->bEnableVirt4FrameRateCtrl == MPP_TRUE) {
-            s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn4, &pstCfg->stVirt4FrameRateCtrl);
-            if (s32Ret != 0) {
-                LOG_ERROR("VI_SetChnFrameRate virt4 failed, ret=%d\n", s32Ret);
-                return s32Ret;
-            }
-        }
 
         LOG_INFO(
             "virt4 attr: %ux%u mirror=%d flip=%d rotate=%d crop=%d[%u,%u,%u,%u] align=%d\n",
@@ -758,13 +722,6 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
         if (s32Ret != 0) {
             LOG_ERROR("VI_SetChnAttr virt5 failed, ret=%d\n", s32Ret);
             return s32Ret;
-        }
-        if (pstCfg->bEnableVirt5FrameRateCtrl == MPP_TRUE) {
-            s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn5, &pstCfg->stVirt5FrameRateCtrl);
-            if (s32Ret != 0) {
-                LOG_ERROR("VI_SetChnFrameRate virt5 failed, ret=%d\n", s32Ret);
-                return s32Ret;
-            }
         }
 
         LOG_INFO(
@@ -794,10 +751,26 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
         return s32Ret;
     }
 
+    if (pstCfg->bEnablePhyFrameRateCtrl == MPP_TRUE) {
+        s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViPhyChn, &pstCfg->stPhyFrameRateCtrl);
+        if (s32Ret != 0) {
+            LOG_ERROR("VI_SetChnFrameRate phy failed, ret=%d\n", s32Ret);
+            return s32Ret;
+        }
+    }
+
     if (pstCfg->bEnableVirt1 == MPP_TRUE) {
         s32Ret = VI_EnableChn(pstCfg->ViDev, pstCfg->ViVirtChn1);
         if (s32Ret != 0) {
             LOG_ERROR("VI_EnableChn virt1 failed, ret=%d\n", s32Ret);
+            return s32Ret;
+        }
+    }
+
+    if (pstCfg->bEnableVirt1FrameRateCtrl == MPP_TRUE) {
+        s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn1, &pstCfg->stVirt1FrameRateCtrl);
+        if (s32Ret != 0) {
+            LOG_ERROR("VI_SetChnFrameRate virt1 failed, ret=%d\n", s32Ret);
             return s32Ret;
         }
     }
@@ -810,10 +783,26 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
         }
     }
 
+    if (pstCfg->bEnableVirt2FrameRateCtrl == MPP_TRUE) {
+        s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn2, &pstCfg->stVirt2FrameRateCtrl);
+        if (s32Ret != 0) {
+            LOG_ERROR("VI_SetChnFrameRate virt2 failed, ret=%d\n", s32Ret);
+            return s32Ret;
+        }
+    }
+
     if (pstCfg->bEnableVirt3 == MPP_TRUE) {
         s32Ret = VI_EnableChn(pstCfg->ViDev, pstCfg->ViVirtChn3);
         if (s32Ret != 0) {
             LOG_ERROR("VI_EnableChn virt3 failed, ret=%d\n", s32Ret);
+            return s32Ret;
+        }
+    }
+
+    if (pstCfg->bEnableVirt3FrameRateCtrl == MPP_TRUE) {
+        s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn3, &pstCfg->stVirt3FrameRateCtrl);
+        if (s32Ret != 0) {
+            LOG_ERROR("VI_SetChnFrameRate virt3 failed, ret=%d\n", s32Ret);
             return s32Ret;
         }
     }
@@ -826,10 +815,26 @@ static S32 VI_DemoSetup(const VI_DEMO_CONFIG_S *pstCfg) {
         }
     }
 
+    if (pstCfg->bEnableVirt4FrameRateCtrl == MPP_TRUE) {
+        s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn4, &pstCfg->stVirt4FrameRateCtrl);
+        if (s32Ret != 0) {
+            LOG_ERROR("VI_SetChnFrameRate virt4 failed, ret=%d\n", s32Ret);
+            return s32Ret;
+        }
+    }
+
     if (pstCfg->bEnableVirt5 == MPP_TRUE) {
         s32Ret = VI_EnableChn(pstCfg->ViDev, pstCfg->ViVirtChn5);
         if (s32Ret != 0) {
             LOG_ERROR("VI_EnableChn virt5 failed, ret=%d\n", s32Ret);
+            return s32Ret;
+        }
+    }
+
+    if (pstCfg->bEnableVirt5FrameRateCtrl == MPP_TRUE) {
+        s32Ret = VI_SetChnFrameRate(pstCfg->ViDev, pstCfg->ViVirtChn5, &pstCfg->stVirt5FrameRateCtrl);
+        if (s32Ret != 0) {
+            LOG_ERROR("VI_SetChnFrameRate virt5 failed, ret=%d\n", s32Ret);
             return s32Ret;
         }
     }

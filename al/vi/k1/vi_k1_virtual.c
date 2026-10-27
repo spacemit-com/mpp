@@ -49,16 +49,6 @@ static S32 K1_VI_OutputVirtualFrame(K1_VI_CHN_CTX_S *pstVirtChnCtx, K1_VI_BUF_NO
     if (pstVirtChnCtx == NULL || pstBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
 
-    if (pstVirtChnCtx->bSysBound == MPP_TRUE) {
-        /*
-         * SYS bind forwarding stub for virtual channels.
-         * Virtual frames use an independent pool, so recycle immediately
-         * until real sink delivery is wired in.
-         */
-        pstBufNode->enState = K1_VI_BUF_STATE_IDLE;
-        return K1_VI_SUCCESS;
-    }
-
     return K1_VI_HandleNormalCallback(pstVirtChnCtx, pstBufNode);
 }
 

@@ -51,16 +51,11 @@ typedef struct _ViAlOps {
 
     S32 (*set_chn_attr)(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr);
     S32 (*get_chn_attr)(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr);
-    S32 (*set_chn_framerate)(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl);
-    S32 (*get_chn_framerate)(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl);
     S32 (*enable_chn)(VI_DEV ViDev, VI_CHN ViChn);
     S32 (*disable_chn)(VI_DEV ViDev, VI_CHN ViChn);
 
     S32 (*dequeue_done_buffer)(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32MilliSec);
     S32 (*queue_buffer)(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index);
-
-    S32 (*attach_bind_sink)(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
-    S32 (*detach_bind_sink)(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
 
     /*
      * MPI passes the full VideoFrameInfo array (one entry per slot).

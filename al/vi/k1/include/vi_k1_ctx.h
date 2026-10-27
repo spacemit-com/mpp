@@ -77,8 +77,6 @@ typedef struct _K1_VI_CHN_CTX_S {
     ViChnAttrS stAttr;
     VI_CHN ViSrcChn;
     BOOL bIsVirtual;
-    BOOL bSysBound;
-    MppNode stBindSink;
     UL ulVbPool;
     U32 u32BufCnt;
     U32 u32DoneHead;
@@ -87,8 +85,6 @@ typedef struct _K1_VI_CHN_CTX_S {
     K1_VI_BUF_NODE_S astBufNode[K1_VI_MAX_BUF_CNT];
     U32 au32DoneQueue[K1_VI_MAX_BUF_CNT];
     U32 u32MetaWritePos;
-    ViFrameRateCtrlS stFrameRateCtrl;
-    U32 u32FrameRateSeq;
     K1_VI_FRAME_META_NODE_S astMetaCache[K1_VI_META_CACHE_DEPTH];
     K1_VI_ISP_FRAMEINFO_NODE_S astIspFrameInfoNode[K1_VI_META_CACHE_DEPTH];
 } K1_VI_CHN_CTX_S;

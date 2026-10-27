@@ -31,8 +31,6 @@
 #endif
 
 #define K1_VI_OFFLINE_MAX_DEV_NUM VI_MAX_DEV_NUM
-#define K1_VI_RAW10_DUMP_SIZE(w, h) (((w) / 12 + ((w) % 12 ? 1 : 0)) * 16 * (h))
-#define K1_VI_RAW12_DUMP_SIZE(w, h) (((w) / 10 + ((w) % 10 ? 1 : 0)) * 16 * (h))
 
 static K1_VI_OFFLINE_CFG_S g_astK1ViOfflineCfg[K1_VI_OFFLINE_MAX_DEV_NUM] = {0};
 
@@ -84,35 +82,7 @@ const VOID *K1_VI_OfflineGetCfg(VI_DEV ViDev) {
     return (const VOID *)K1_VI_GetOfflineCfg(ViDev);
 }
 
-static MppPixelFormat K1_VI_OfflineRawTypeToPixelFormat(CAM_SENSOR_RAWTYPE_E enRawType) {
-    switch (enRawType) {
-        case CAM_SENSOR_RAWTYPE_RAW8:
-            return MPP_PIXEL_FORMAT_RGB_BAYER_8BITS;
-        case CAM_SENSOR_RAWTYPE_RAW10:
-            return MPP_PIXEL_FORMAT_RGB_BAYER_10BITS;
-        case CAM_SENSOR_RAWTYPE_RAW12:
-            return MPP_PIXEL_FORMAT_RGB_BAYER_12BITS;
-        case CAM_SENSOR_RAWTYPE_RAW14:
-            return MPP_PIXEL_FORMAT_RGB_BAYER_14BITS;
-        default:
-            return MPP_PIXEL_FORMAT_MAX;
-    }
-}
 
-static PIXEL_FORMAT_E K1_VI_OfflinePixelFormatToAsr(MppPixelFormat ePixelFormat) {
-    switch (ePixelFormat) {
-        case MPP_PIXEL_FORMAT_RGB_BAYER_8BITS:
-            return PIXEL_FORMAT_RAW_8BPP;
-        case MPP_PIXEL_FORMAT_RGB_BAYER_10BITS:
-            return PIXEL_FORMAT_RAW_10BPP;
-        case MPP_PIXEL_FORMAT_RGB_BAYER_12BITS:
-            return PIXEL_FORMAT_RAW_12BPP;
-        case MPP_PIXEL_FORMAT_RGB_BAYER_14BITS:
-            return PIXEL_FORMAT_RAW_14BPP;
-        default:
-            return PIXEL_FORMAT_MAX;
-    }
-}
 
 static VOID K1_VI_DestroyOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg) {
     if (pstOfflineCfg == NULL)
@@ -169,7 +139,7 @@ static S32 K1_VI_AllocOfflineInputBuffer(K1_VI_OFFLINE_CFG_S *pstOfflineCfg) {
      * configuration and the driver's raw-read channel all agree.  The live
      * sensor's raw type is irrelevant here: offline input is CPU-fed. */
     memset(&stRawAttr, 0, sizeof(stRawAttr));
-    stRawAttr.ePixelFormat = K1_VI_OfflineRawTypeToPixelFormat(
+    stRawAttr.ePixelFormat = K1_VI_GetRawDumpPixelFormat(
         pstDevCtx->eOfflineRawType == VI_RAW_TYPE_UNKNOWN ? VI_RAW_TYPE_12BIT : pstDevCtx->eOfflineRawType);
     stRawAttr.u32Width = pstDevCtx->stAttr.u32Width;
     stRawAttr.u32Height = pstDevCtx->stAttr.u32Height;

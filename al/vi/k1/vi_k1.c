@@ -29,159 +29,6 @@
 
 extern VOID K1_VI_ResetOfflineCfg(VI_DEV ViDev);
 
-static VOID K1_VI_DumpPlaneToFile(const CHAR *pszPath, const IMAGE_BUFFER_PLANE_S *pstPlane) {
-    FILE *fp = NULL;
-
-    if (pszPath == NULL || pstPlane == NULL || pstPlane->virAddr == NULL || pstPlane->length == 0)
-        return;
-
-    fp = fopen(pszPath, "wb");
-    if (fp == NULL) {
-        info("[K1_VI_CB_DUMP] failed to open %s\n", pszPath);
-        return;
-    }
-
-    (void)fwrite(pstPlane->virAddr, 1, pstPlane->length, fp);
-    (void)fclose(fp);
-}
-
-static VOID K1_VI_DumpPlaneArray(
-    const CHAR *pszPrefix, U32 u32Level, const IMAGE_BUFFER_PLANE_S *pstPlanes, U32 u32PlaneCnt
-) {
-    CHAR szPath[256] = {0};
-    U32 i = 0;
-
-    if (pszPrefix == NULL || pstPlanes == NULL)
-        return;
-
-    for (i = 0; i < u32PlaneCnt; ++i) {
-        const IMAGE_BUFFER_PLANE_S *pstPlane = &pstPlanes[i];
-
-        if (pstPlane->virAddr == NULL || pstPlane->length == 0)
-            continue;
-
-        if (u32Level == 0)
-            (void)snprintf(szPath, sizeof(szPath), "k1_vi_cb_dump_%s_p%u.bin", pszPrefix, i);
-        else
-            (void)snprintf(szPath, sizeof(szPath), "k1_vi_cb_dump_%s%u_p%u.bin", pszPrefix, u32Level, i);
-
-        info(
-            "[K1_VI_CB_DUMP] dump %s: vir=%p fd=%d off=%u len=%u stride=%u scanline=%u %ux%u\n",
-            szPath,
-            pstPlane->virAddr,
-            pstPlane->fd,
-            pstPlane->offset,
-            pstPlane->length,
-            pstPlane->stride,
-            pstPlane->scanline,
-            pstPlane->width,
-            pstPlane->height);
-        K1_VI_DumpPlaneToFile(szPath, pstPlane);
-    }
-}
-
-static VOID K1_VI_DumpFirstCallbackFrame(
-    U32 u32AsrChn,
-    const K1_VI_CHN_CTX_S *pstChnCtx,
-    const VI_IMAGE_BUFFER_S *pstViBuffer,
-    const K1_VI_BUF_NODE_S *pstBufNode
-) {
-    static BOOL sbDumped = MPP_FALSE;
-
-    if (sbDumped == MPP_TRUE)
-        return;
-    if (pstChnCtx == NULL || pstViBuffer == NULL || pstBufNode == NULL)
-        return;
-
-    sbDumped = MPP_TRUE;
-
-    info(
-        "[K1_VI_CB_DUMP] asrChn=%u viDev=%d viChn=%d bufIndex=%u frameId=%d fmt=%d numPlanes=%u timestamp=%llu\n",
-        u32AsrChn,
-        pstChnCtx->ViDev,
-        pstChnCtx->ViChn,
-        pstBufNode->u32Index,
-        pstBufNode->stImageBuffer.frameId,
-        pstBufNode->stImageBuffer.format,
-        pstBufNode->stImageBuffer.numPlanes,
-        (uint64_t)pstBufNode->stImageBuffer.timeStamp);
-    info(
-        "[K1_VI_CB_DUMP] image size=%ux%u m.fd=%d pool=%llu block=%llu\n",
-        pstBufNode->stImageBuffer.size.width,
-        pstBufNode->stImageBuffer.size.height,
-        pstBufNode->stImageBuffer.m.fd,
-        (uint64_t)pstBufNode->ulPoolId,
-        (uint64_t)pstBufNode->ulBufferId);
-
-    // K1_VI_DumpPlaneArray("main", 0, pstBufNode->stImageBuffer.planes, pstBufNode->stImageBuffer.numPlanes);
-    // K1_VI_DumpPlaneArray("dwt", 1, pstBufNode->stImageBuffer.dwt1, DWT_MAX_PLANES);
-    // K1_VI_DumpPlaneArray("dwt", 2, pstBufNode->stImageBuffer.dwt2, DWT_MAX_PLANES);
-    // K1_VI_DumpPlaneArray("dwt", 3, pstBufNode->stImageBuffer.dwt3, DWT_MAX_PLANES);
-    // K1_VI_DumpPlaneArray("dwt", 4, pstBufNode->stImageBuffer.dwt4, DWT_MAX_PLANES);
-}
-
-static BOOL K1_VI_IsBindSupported(const K1_VI_CHN_CTX_S *pstChnCtx) {
-    if (pstChnCtx == NULL)
-        return MPP_FALSE;
-
-    if (pstChnCtx->stAttr.eChnType == VI_CHN_TYPE_PHYSICAL)
-        return MPP_TRUE;
-
-    if (pstChnCtx->stAttr.eChnType == VI_CHN_TYPE_VIRTUAL)
-        return MPP_TRUE;
-
-    return MPP_FALSE;
-}
-
-static VOID K1_VI_InitFrameRateCtrl(K1_VI_CHN_CTX_S *pstChnCtx) {
-    if (pstChnCtx == NULL)
-        return;
-
-    pstChnCtx->stFrameRateCtrl.u32InputFrameStep = 1;
-    pstChnCtx->stFrameRateCtrl.u32OutputFrameStep = 1;
-    pstChnCtx->u32FrameRateSeq = 0;
-}
-
-static BOOL K1_VI_ShouldKeepFrame(K1_VI_CHN_CTX_S *pstChnCtx) {
-    U32 u32InputStep;
-    U32 u32OutputStep;
-    U32 u32CurIdx;
-
-    if (pstChnCtx == NULL)
-        return MPP_FALSE;
-
-    u32InputStep = pstChnCtx->stFrameRateCtrl.u32InputFrameStep;
-    u32OutputStep = pstChnCtx->stFrameRateCtrl.u32OutputFrameStep;
-
-    if (u32InputStep == 0 || u32OutputStep == 0)
-        return MPP_FALSE;
-
-    if (u32OutputStep >= u32InputStep)
-        return MPP_TRUE;
-
-    u32CurIdx = pstChnCtx->u32FrameRateSeq % u32InputStep;
-    pstChnCtx->u32FrameRateSeq++;
-
-    return (u32CurIdx < u32OutputStep) ? MPP_TRUE : MPP_FALSE;
-}
-
-static S32 K1_VI_HandleBoundFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode) {
-    if (pstChnCtx == NULL || pstBufNode == NULL)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    /*
-     * Frames bound through SYS are delivered by MPI's push thread; the
-     * backend only needs to keep the buffer owned by the capture side
-     * until the sink releases its reference.
-     */
-    if (pstChnCtx->bIsVirtual == MPP_TRUE) {
-        pstBufNode->enState = K1_VI_BUF_STATE_IDLE;
-        return K1_VI_SUCCESS;
-    }
-
-    return K1_VI_QueueBufNode(pstChnCtx, pstBufNode);
-}
-
 static S32 K1_VI_HandleDroppedFrame(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode) {
     if (pstChnCtx == NULL || pstBufNode == NULL)
         return K1_VI_ERR_INVALID_PARAM;
@@ -324,7 +171,6 @@ S32 K1_VI_StopChnCtx(VI_DEV ViDev, K1_VI_CHN_CTX_S *pstChnCtx, BOOL bDestroyPool
 }
 
 int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer) {
-    // info("Received buffer callback for ASR VI channel %u\n", nChn);
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
     K1_VI_BUF_NODE_S *pstBufNode = NULL;
@@ -349,12 +195,8 @@ int32_t K1_VI_BufferCallback(uint32_t nChn, VI_IMAGE_BUFFER_S *vi_buffer) {
         return K1_VI_ERR_INVALID_PARAM;
 
     K1_VI_UpdateBufNodeMeta(pstBufNode, vi_buffer);
-    // K1_VI_DumpFirstCallbackFrame(nChn, pstChnCtx, vi_buffer, pstBufNode);
 
     K1_VI_DispatchVirtualFrames(pstChnCtx, vi_buffer, &pstBufNode->stFrameInfo);
-
-    if (pstChnCtx->bSysBound == MPP_TRUE)
-        return K1_VI_HandleBoundFrame(pstChnCtx, pstBufNode);
 
     return K1_VI_HandleNormalCallback(pstChnCtx, pstBufNode);
 }
@@ -431,7 +273,6 @@ S32 K1_VI_SetDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr) {
         return s32Ret;
 
     s32Ret = ASR_VI_SetDevAttr((U32)ViDev, &stAsrDevAttr);
-    // info("%s: ASR_VI_SetDevAttr devId %d, workMode %d, rawType %d, %dx%d, lane_num %d, bindSensorIdx %d, ret = %d\n",
     //        __func__, ViDev, stAsrDevAttr.enWorkMode, stAsrDevAttr.enRawType, stAsrDevAttr.width, stAsrDevAttr.height,
     //        stAsrDevAttr.mipi_lane_num, stAsrDevAttr.bindSensorIdx, s32Ret);
     if (s32Ret != SUCCESS)
@@ -573,9 +414,6 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
         pstChnCtx->ViChn = ViChn;
         pstChnCtx->ViSrcChn = 0;
         pstChnCtx->bIsVirtual = MPP_TRUE;
-        pstChnCtx->bSysBound = MPP_FALSE;
-        memset(&pstChnCtx->stBindSink, 0, sizeof(pstChnCtx->stBindSink));
-        K1_VI_InitFrameRateCtrl(pstChnCtx);
         pstChnCtx->bCreated = MPP_TRUE;
         return K1_VI_SUCCESS;
     }
@@ -591,11 +429,8 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
         pstChnCtx->ViChn = ViChn;
         pstChnCtx->ViSrcChn = ViChn;
         pstChnCtx->bIsVirtual = MPP_FALSE;
-        pstChnCtx->bSysBound = MPP_FALSE;
-        memset(&pstChnCtx->stBindSink, 0, sizeof(pstChnCtx->stBindSink));
         pstChnCtx->u32AsrChn = u32AsrChn;
         pstChnCtx->u32IspPipeline = (U32)ViDev;
-        K1_VI_InitFrameRateCtrl(pstChnCtx);
         pstChnCtx->bCreated = MPP_TRUE;
         return K1_VI_SUCCESS;
     }
@@ -609,7 +444,6 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
         return s32Ret;
 
     s32Ret = ASR_VI_SetChnAttr(u32AsrChn, &stAsrChnAttr);
-    // info("%s: ASR_VI_SetChnAttr chnId %d, %dx%d, pixFormat %d, ret = %d\n",
     //        __func__, u32AsrChn, stAsrChnAttr.width, stAsrChnAttr.height, stAsrChnAttr.enPixFormat, s32Ret);
     if (s32Ret != SUCCESS)
         return s32Ret;
@@ -619,51 +453,13 @@ S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
     pstChnCtx->ViChn = ViChn;
     pstChnCtx->ViSrcChn = ViChn;
     pstChnCtx->bIsVirtual = MPP_FALSE;
-    pstChnCtx->bSysBound = MPP_FALSE;
-    memset(&pstChnCtx->stBindSink, 0, sizeof(pstChnCtx->stBindSink));
     pstChnCtx->u32AsrChn = u32AsrChn;
     pstChnCtx->u32IspPipeline = (U32)ViDev;
-    K1_VI_InitFrameRateCtrl(pstChnCtx);
     pstChnCtx->bCreated = MPP_TRUE;
     return K1_VI_SUCCESS;
 }
 
-S32 K1_VI_SetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
-    K1_VI_CHN_CTX_S *pstChnCtx = NULL;
 
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
-    if (pstFrameRateCtrl == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-    if (pstFrameRateCtrl->u32InputFrameStep == 0 || pstFrameRateCtrl->u32OutputFrameStep == 0)
-        return K1_VI_ERR_INVALID_PARAM;
-    if (pstFrameRateCtrl->u32OutputFrameStep > pstFrameRateCtrl->u32InputFrameStep)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    pstChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstChnCtx->bCreated != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    pstChnCtx->stFrameRateCtrl = *pstFrameRateCtrl;
-    pstChnCtx->u32FrameRateSeq = 0;
-    return K1_VI_SUCCESS;
-}
-
-S32 K1_VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) {
-    K1_VI_CHN_CTX_S *pstChnCtx = NULL;
-
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
-    if (pstFrameRateCtrl == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    pstChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstChnCtx->bCreated != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    *pstFrameRateCtrl = pstChnCtx->stFrameRateCtrl;
-    return K1_VI_SUCCESS;
-}
 
 S32 K1_VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) {
     K1_VI_CHN_CTX_S *pstChnCtx = NULL;
@@ -787,9 +583,6 @@ S32 K1_VI_DequeueDoneBuffer(VI_DEV ViDev, VI_CHN ViChn, U32 *pu32Index, S32 s32M
     pstChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
     if (g_stK1ViCtx.astDevCtx[ViDev].bEnabled != MPP_TRUE || pstChnCtx->bEnabled != MPP_TRUE)
         return K1_VI_ERR_INVALID_PARAM;
-    if (pstChnCtx->bSysBound == MPP_TRUE)
-        return K1_VI_ERR_NOT_SUPPORT;
-
 
     s32Ret = K1_VI_DonePop(pstChnCtx, pu32Index);
     if (s32Ret != K1_VI_SUCCESS)
@@ -875,13 +668,7 @@ static S32 k1_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr
     return K1_VI_GetChnAttr(ViDev, ViChn, pstChnAttr);
 }
 
-static S32 k1_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
-    return K1_VI_SetChnFrameRate(ViDev, ViChn, pstFrameRateCtrl);
-}
 
-static S32 k1_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) {
-    return K1_VI_GetChnFrameRate(ViDev, ViChn, pstFrameRateCtrl);
-}
 
 static S32 k1_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn) {
     return K1_VI_EnableChn(ViDev, ViChn);
@@ -919,14 +706,6 @@ static S32 k1_vi_calc_frame_layout(
     return K1_VI_AdjustChnFrameLayout(ViDev, ViChn, pstChnAttr, pstFrameInfo);
 }
 
-static S32 k1_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    return K1_VI_AttachBindSink(ViDev, ViChn, pstSinkNode);
-}
-
-static S32 k1_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    return K1_VI_DetachBindSink(ViDev, ViChn, pstSinkNode);
-}
-
 static S32 k1_vi_trigger_raw_dump(VI_DEV ViDev, VI_CHN ViChn) {
     return K1_VI_TriggerRawDump(ViDev, ViChn);
 }
@@ -942,55 +721,6 @@ static S32 k1_vi_release_raw_dump_frame(VI_DEV ViDev, VI_CHN ViChn, const VideoF
 static S32 k1_vi_offline_set_input_addr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize) {
     return K1_VI_OfflineSetInputAddr(ViDev, ViChn, pu8RawVirAddr, u32RawSize);
 }
-
-/*
- * ViAlOps.query_dqbuf_meta backend implementation.  The SDK buffer
- * callback stamps each buf node with the capture timestamp and frame id
- * (K1_VI_UpdateBufNodeMeta); report the values of the last frame completed
- * on this slot so MPI can deliver real PTS instead of the import template.
- */
-S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    K1_VI_CHN_CTX_S *pstChnCtx = NULL;
-
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
-    if (pstSinkNode == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    pstChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstChnCtx->bCreated != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-    if (K1_VI_IsBindSupported(pstChnCtx) != MPP_TRUE)
-        return K1_VI_ERR_NOT_SUPPORT;
-    if (pstChnCtx->bSysBound == MPP_TRUE)
-        return K1_VI_ERR_BUSY;
-
-    memcpy(&pstChnCtx->stBindSink, pstSinkNode, sizeof(*pstSinkNode));
-    pstChnCtx->bSysBound = MPP_TRUE;
-    return K1_VI_SUCCESS;
-}
-
-S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    K1_VI_CHN_CTX_S *pstChnCtx = NULL;
-
-    if (g_stK1ViCtx.bInit != MPP_TRUE)
-        return K1_VI_ERR_NOT_INIT;
-    if (pstSinkNode == NULL || K1_VI_IsValidDev(ViDev) != MPP_TRUE || K1_VI_IsValidChn(ViChn) != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    pstChnCtx = &g_stK1ViCtx.astChnCtx[ViDev][ViChn];
-    if (pstChnCtx->bCreated != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-    if (pstChnCtx->bSysBound != MPP_TRUE)
-        return K1_VI_ERR_INVALID_PARAM;
-    if (memcmp(&pstChnCtx->stBindSink, pstSinkNode, sizeof(*pstSinkNode)) != 0)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    memset(&pstChnCtx->stBindSink, 0, sizeof(pstChnCtx->stBindSink));
-    pstChnCtx->bSysBound = MPP_FALSE;
-    return K1_VI_SUCCESS;
-}
-
 
 S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec) {
     K1_VI_RAW_CTX_S *pstRawCtx = NULL;
@@ -1100,15 +830,11 @@ static const ViAlOps k1_vi_ops = {
     .disable_dev = k1_vi_disable_dev,
     .set_chn_attr = k1_vi_set_chn_attr,
     .get_chn_attr = k1_vi_get_chn_attr,
-    .set_chn_framerate = k1_vi_set_chn_framerate,
-    .get_chn_framerate = k1_vi_get_chn_framerate,
     .enable_chn = k1_vi_enable_chn,
     .disable_chn = k1_vi_disable_chn,
     .dequeue_done_buffer = k1_vi_dequeue_done_buffer,
     .queue_buffer = k1_vi_queue_buffer,
     .set_external_buf_pool = k1_vi_set_external_buf_pool,
-    .attach_bind_sink = k1_vi_attach_bind_sink,
-    .detach_bind_sink = k1_vi_detach_bind_sink,
 
     /* Optional: layout negotiation */
     .calc_frame_layout = k1_vi_calc_frame_layout,
