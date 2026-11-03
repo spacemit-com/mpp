@@ -1357,13 +1357,6 @@ static int run_api_suite(void) {
         return -1;
     }
 
-    r = VDEC_Init();
-    if (r != ERR_VDEC_ALREADY_INIT) {
-        fprintf(stderr, "double VDEC_Init: got %d expect ALREADY_INIT\n", r);
-        (void)VDEC_Exit();
-        return -1;
-    }
-
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = MPP_STREAM_CODEC_MJPEG;
     attr.eOutputMode = VDEC_OUTPUT_PULL;
@@ -1472,6 +1465,11 @@ static int run_api_suite(void) {
         (void)VDEC_Exit();
         return -1;
     }
+    if (VDEC_Init() != ERR_VDEC_OK || VDEC_Exit() != ERR_VDEC_OK ||
+        VDEC_Exit() != ERR_VDEC_BUSY) {
+        fprintf(stderr, "Unexpected VDEC init/exit result with a live channel\n");
+        return -1;
+    }
     r = VDEC_DestroyChn(0);
     if (r != 0) {
         fprintf(stderr, "DestroyChn after create: %d\n", r);
@@ -1479,7 +1477,8 @@ static int run_api_suite(void) {
         return -1;
     }
 
-    (void)VDEC_Exit();
+    if (VDEC_Exit() != ERR_VDEC_OK)
+        return -1;
     r = VDEC_Exit();
     if (r != ERR_VDEC_NOT_INIT) {
         fprintf(stderr, "VDEC_Exit double: %d\n", r);

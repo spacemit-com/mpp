@@ -28,14 +28,14 @@ extern "C" {
 
 /**
  * @brief  Initialize VENC module global resources.
- *         Must be called once before any other VENC API.
+ *         Each successful call acquires one reference and requires a matching VENC_Exit().
  * @return 0 on success, error code on failure
  */
 S32 VENC_Init(VOID);
 
 /**
- * @brief  Deinitialize VENC module, release global resources.
- *         All channels must be destroyed first.
+ * @brief  Release one VENC module reference.
+ *         The final exit returns ERR_VENC_BUSY and retains the reference while channels exist.
  * @return 0 on success, error code on failure
  */
 S32 VENC_Exit(VOID);

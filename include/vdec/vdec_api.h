@@ -29,14 +29,14 @@ extern "C" {
 
 /**
  * @brief  Initialize VDEC module global resources.
- *         Must be called once before any other VDEC API.
+ *         Each successful call acquires one reference and requires a matching VDEC_Exit().
  * @return 0 on success, error code on failure
  */
 S32 VDEC_Init(VOID);
 
 /**
- * @brief  Deinitialize VDEC module, release global resources.
- *         All channels must be destroyed first.
+ * @brief  Release one VDEC module reference.
+ *         The final exit returns ERR_VDEC_BUSY and retains the reference while channels exist.
  * @return 0 on success, error code on failure
  */
 S32 VDEC_Exit(VOID);

@@ -93,7 +93,7 @@ typedef struct _VencChnCtx {
 
 /* ======================== Global State ======================== */
 
-static BOOL g_bVencInited = MPP_FALSE;
+static U32 g_venc_init_ref = 0;
 static VencChnCtx g_stChn[VENC_MAX_CHN];
 static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -451,9 +451,10 @@ static void *venc_frame_input_task(void *arg) {
 S32 VENC_Init(VOID) {
     pthread_mutex_lock(&g_stGlobalLock);
 
-    if (g_bVencInited) {
+    if (g_venc_init_ref > 0) {
+        g_venc_init_ref++;
         pthread_mutex_unlock(&g_stGlobalLock);
-        return ERR_VENC_ALREADY_INIT;
+        return ERR_VENC_OK;
     }
 
     memset(g_stChn, 0, sizeof(g_stChn));
@@ -462,7 +463,7 @@ S32 VENC_Init(VOID) {
         pthread_mutex_init(&g_stChn[i].pluginIoLock, NULL);
     }
 
-    g_bVencInited = MPP_TRUE;
+    g_venc_init_ref = 1;
     pthread_mutex_unlock(&g_stGlobalLock);
     return ERR_VENC_OK;
 }
@@ -470,9 +471,14 @@ S32 VENC_Init(VOID) {
 S32 VENC_Exit(VOID) {
     pthread_mutex_lock(&g_stGlobalLock);
 
-    if (!g_bVencInited) {
+    if (g_venc_init_ref == 0) {
         pthread_mutex_unlock(&g_stGlobalLock);
         return ERR_VENC_NOT_INIT;
+    }
+    if (g_venc_init_ref > 1) {
+        g_venc_init_ref--;
+        pthread_mutex_unlock(&g_stGlobalLock);
+        return ERR_VENC_OK;
     }
 
     /* Check all channels are destroyed */
@@ -489,7 +495,7 @@ S32 VENC_Exit(VOID) {
         pthread_mutex_destroy(&g_stChn[i].lock);
     }
 
-    g_bVencInited = MPP_FALSE;
+    g_venc_init_ref = 0;
     pthread_mutex_unlock(&g_stGlobalLock);
     return ERR_VENC_OK;
 }
