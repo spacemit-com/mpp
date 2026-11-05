@@ -94,6 +94,22 @@ S32 VENC_DisableChn(S32 s32ChnId);
 S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutMs);
 
 /**
+ * @brief  Borrow input pixels without copying and wait until the encoder is done.
+ *         On any return, the caller may release or reuse the input storage.
+ *         Rejected submissions return an error; accepted input waits without a
+ *         timeout for input completion or safe cancellation, deferring thread
+ *         cancellation until the borrow ends. Empty EOS returns after submission.
+ *         No callback, frame ID or input-return operation is required. Completion
+ *         does not guarantee an output packet. Other threads may retrieve output
+ *         or disable/destroy the channel while this call waits. Channel shutdown
+ *         assumes INPUT STREAMOFF succeeds.
+ * @param  s32ChnId  Channel ID
+ * @param  pstFrame  Input descriptor and storage, valid for the duration of the call
+ * @return 0 after completion/cancellation, error code if submission is rejected
+ */
+S32 VENC_SendFrameSync(S32 s32ChnId, const VideoFrameInfo *pstFrame);
+
+/**
  * @brief  Receive an encoded stream packet (zero-copy).
  *         Returns a read-only VB mapping with CPU read access already started.
  *         Caller MUST call VENC_ReleaseStream after use; do not free the pointer

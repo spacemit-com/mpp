@@ -1005,7 +1005,7 @@ S32 al_enc_flush(ALBaseContext *ctx) {
     if (!ctx)
         return MPP_NULL_POINTER;
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
-    UL aulBufferIds[ENCODER_INPUT_BUF_NUM];
+    UL aulBufferIds[MAX_BUF_NUM];
     U32 u32BufferCount;
 
     debug("Flush start ========================================");
@@ -1029,7 +1029,7 @@ void al_enc_destory(ALBaseContext *ctx) {
     if (!ctx)
         return;
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
-    UL aulBufferIds[ENCODER_INPUT_BUF_NUM];
+    UL aulBufferIds[MAX_BUF_NUM];
     U32 u32BufferCount = 0;
 
     debug("destory start");
@@ -1045,10 +1045,6 @@ void al_enc_destory(ALBaseContext *ctx) {
         pthread_mutex_unlock(&context->inputLock);
         debug("stream off finish");
 
-        for (U32 i = 0; i < u32BufferCount; ++i) {
-            notifyInputBufferDone(context, aulBufferIds[i]);
-        }
-
         destoryCodec(context->stCodec);
         context->stCodec = NULL;
         debug("destory codec finish");
@@ -1056,6 +1052,10 @@ void al_enc_destory(ALBaseContext *ctx) {
     if (context->nVideoFd >= 0) {
         close(context->nVideoFd);
         context->nVideoFd = -1;
+    }
+    /* Notify cancelled inputs after the device has been closed. */
+    for (U32 i = 0; i < u32BufferCount; ++i) {
+        notifyInputBufferDone(context, aulBufferIds[i]);
     }
     if (context->pHeader) {
         free(context->pHeader);

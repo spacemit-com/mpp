@@ -53,6 +53,18 @@ typedef struct _VencAlOps {
     void (*destory)(ALBaseContext *ctx);
 } VencAlOps;
 
+typedef struct _VencInputWaiter {
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    BOOL done;
+} VencInputWaiter;
+
+/* Preserve the real VB handle while the AL carries a completion token. */
+typedef struct _VencInputToken {
+    UL ulBufferId;
+    VencInputWaiter *pWaiter;
+} VencInputToken;
+
 typedef struct _VencChnCtx {
     BOOL bUsed;
     VencChnState eState;
@@ -103,17 +115,52 @@ static inline BOOL venc_chn_valid(S32 s32ChnId) {
     return (s32ChnId >= 0 && s32ChnId < VENC_MAX_CHN);
 }
 
-static VOID venc_input_buffer_done(VOID *pUserData, UL ulBufferId) {
+static VOID venc_input_buffer_done(VOID *pUserData, UL ulToken) {
     VencChnCtx *pChn = (VencChnCtx *)pUserData;
-    S32 ret = VB_ModRefSub(ulBufferId, MPP_ID_VENC);
-
-    if (ret != 0) {
-        error(
-            "chn %d failed to release completed input buffer 0x%" PRIx64 ": %d",
-            pChn ? pChn->s32ChnId : -1,
-            (U64)ulBufferId,
-            ret);
+    VencInputToken *token = (VencInputToken *)(uintptr_t)ulToken;
+    VencInputWaiter *waiter = token->pWaiter;
+    if (token->ulBufferId != 0) {
+        S32 ret = VB_ModRefSub(token->ulBufferId, MPP_ID_VENC);
+        if (ret != 0) {
+            error(
+                "chn %d failed to release completed input buffer 0x%" PRIx64 ": %d",
+                pChn->s32ChnId, (U64)token->ulBufferId, ret);
+        }
     }
+    if (!waiter) {
+        free(token);
+        return;
+    }
+    pthread_mutex_lock(&waiter->lock);
+    waiter->done = MPP_TRUE;
+    pthread_cond_signal(&waiter->cond);
+    pthread_mutex_unlock(&waiter->lock);
+    /* The caller may now destroy the stack token and waiter. */
+}
+
+static BOOL venc_empty_eos(const VideoFrameInfo *pstFrame) {
+    return (pstFrame->stVFrame.u32FrameFlag & MPP_FRAME_FLAG_EOS) && pstFrame->stVFrame.u32PlaneNum == 0;
+}
+
+/* Channel lock held. Accepted input may complete before this call returns. */
+static S32 venc_submit_input(VencChnCtx *pChn, const VideoFrameInfo *pstFrame, VencInputToken *token) {
+    if (venc_empty_eos(pstFrame))
+        return pChn->stOps.send_input_frame(pChn->pAlCtx, pstFrame);
+
+    BOOL allocated = token == NULL;
+    if (allocated) {
+        token = malloc(sizeof(*token));
+        if (!token)
+            return ERR_VENC_NOMEM;
+        token->pWaiter = NULL;
+    }
+    token->ulBufferId = pstFrame->ulBufferId;
+    VideoFrameInfo input = *pstFrame;
+    input.ulBufferId = (UL)(uintptr_t)token;
+    S32 ret = pChn->stOps.send_input_frame(pChn->pAlCtx, &input);
+    if (ret != MPP_OK && allocated)
+        free(token);
+    return ret;
 }
 
 static S32 venc_plugin_flush(VencChnCtx *pChn) {
@@ -428,11 +475,11 @@ static void *venc_frame_input_task(void *arg) {
         BOOL bSubmitted = MPP_FALSE;
         pthread_mutex_lock(&pChn->lock);
         if (pChn->eState == VENC_CHN_STATE_STARTED) {
-            ret = pChn->stOps.send_input_frame(pChn->pAlCtx, &stFrame);
+            ret = venc_submit_input(pChn, &stFrame, NULL);
             if (ret != MPP_OK) {
                 error("frame input task: send_input_frame failed %d, chn %d", ret, s32ChnId);
             } else {
-                bSubmitted = MPP_TRUE;
+                bSubmitted = !venc_empty_eos(&stFrame);
             }
         }
         pthread_mutex_unlock(&pChn->lock);
@@ -665,7 +712,7 @@ S32 VENC_DisableChn(S32 s32ChnId) {
     return ERR_VENC_OK;
 }
 
-S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutMs) {
+static S32 venc_send_frame(S32 s32ChnId, const VideoFrameInfo *pstFrame, VencInputToken *token) {
     if (!pstFrame)
         return ERR_VENC_NULL_PTR;
     if (!venc_chn_valid(s32ChnId))
@@ -686,7 +733,7 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
 
     BOOL bRefHeld = MPP_FALSE;
     S32 ret = ERR_VENC_OK;
-    if (pstFrame->ulBufferId != 0) {
+    if (pstFrame->ulBufferId != 0 && !venc_empty_eos(pstFrame)) {
         ret = VB_ModRefAdd(pstFrame->ulBufferId, MPP_ID_VENC);
         if (ret != 0) {
             pthread_mutex_unlock(&pChn->lock);
@@ -695,12 +742,43 @@ S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutM
         bRefHeld = MPP_TRUE;
     }
 
-    ret = pChn->stOps.send_input_frame(pChn->pAlCtx, pstFrame);
+    ret = venc_submit_input(pChn, pstFrame, token);
     if (ret != MPP_OK && bRefHeld)
         VB_ModRefSub(pstFrame->ulBufferId, MPP_ID_VENC);
 
     pthread_mutex_unlock(&pChn->lock);
     return (ret == MPP_OK) ? ERR_VENC_OK : ret;
+}
+
+S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutMs) {
+    return venc_send_frame(s32ChnId, pstFrame, NULL);
+}
+
+S32 VENC_SendFrameSync(S32 s32ChnId, const VideoFrameInfo *pstFrame) {
+    VencInputWaiter waiter = {.done = MPP_FALSE};
+    if (pthread_mutex_init(&waiter.lock, NULL) != 0)
+        return ERR_VENC_NOMEM;
+    if (pthread_cond_init(&waiter.cond, NULL) != 0) {
+        pthread_mutex_destroy(&waiter.lock);
+        return ERR_VENC_NOMEM;
+    }
+
+    /* A cancelled thread must not leave the AL with a dangling stack token. */
+    int oldCancelState;
+    pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldCancelState);
+    VencInputToken token = {.pWaiter = &waiter};
+    S32 ret = venc_send_frame(s32ChnId, pstFrame, &token);
+    if (ret == ERR_VENC_OK && !venc_empty_eos(pstFrame)) {
+        /* Do not hold the channel lock while output or teardown needs to run. */
+        pthread_mutex_lock(&waiter.lock);
+        while (!waiter.done)
+            pthread_cond_wait(&waiter.cond, &waiter.lock);
+        pthread_mutex_unlock(&waiter.lock);
+    }
+    pthread_cond_destroy(&waiter.cond);
+    pthread_mutex_destroy(&waiter.lock);
+    pthread_setcancelstate(oldCancelState, NULL);
+    return ret;
 }
 
 S32 VENC_GetStream(S32 s32ChnId, StreamBufferInfo *pstStream, U32 u32TimeoutMs) {
