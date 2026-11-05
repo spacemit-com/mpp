@@ -1,5 +1,5 @@
 # Test executables (SYS + VB + integration + multi-process)
-# Link libmpp, including the shared logging implementation.
+# Link libspacemit_mpp, including the shared logging implementation.
 
 set(MPP_TEST_COMMON_DEFS _GNU_SOURCE)
 

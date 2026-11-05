@@ -1,5 +1,6 @@
-mpp2 (1.0.0) lunar; urgency=medium
+mpp (1.0.0) lunar; urgency=medium
 
-  * Rename package to mpp2.
+  * Restore original package name and Debian packaging configuration.
+  * Restore spacemit_mpp pkg-config metadata.
 
  -- mengbinghan <binghan.meng@spacemit.com>  Thu, 12 Jun 2026 12:00:00 +0800

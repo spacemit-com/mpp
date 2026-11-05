@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/vdec  →  mpp_vdec (OBJECT, aggregated into libmpp.so)
+# mpi/vdec  →  mpp_vdec (OBJECT, aggregated into libspacemit_mpp.so)
 # ============================================================
 
 set(VDEC_SRCS

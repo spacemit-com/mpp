@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/vi  →  mpp_vi (OBJECT, aggregated into libmpp.so)
+# mpi/vi  →  mpp_vi (OBJECT, aggregated into libspacemit_mpp.so)
 # ============================================================
 
 set(VI_SRCS

@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/uvc  →  mpp_uvc (OBJECT, aggregated into libmpp.so)
+# mpi/uvc  →  mpp_uvc (OBJECT, aggregated into libspacemit_mpp.so)
 # ============================================================
 
 set(UVC_SRCS

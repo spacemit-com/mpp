@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/venc  →  mpp_venc (OBJECT, aggregated into libmpp.so)
+# mpi/venc  →  mpp_venc (OBJECT, aggregated into libspacemit_mpp.so)
 # ============================================================
 
 set(VENC_SRCS
