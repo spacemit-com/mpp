@@ -106,7 +106,7 @@ struct _ALLinlonv5v7EncContext {
 
     /***
      * enum v4l2_memory
-     * nInputMemType: always V4L2_MEMORY_DMABUF
+     * nInputMemType: V4L2_MEMORY_DMABUF or V4L2_MEMORY_USERPTR
      * nOutputMemType: always V4L2_MEMORY_MMAP
      */
     U32 nInputMemType;
@@ -548,6 +548,9 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
         return MPP_NULL_POINTER;
     }
 
+    if (pstAttr->eFrameBufMode < VENC_FRAME_BUF_DMABUF_INTERNAL || pstAttr->eFrameBufMode >= VENC_FRAME_BUF_MAX)
+        return ERR_VENC_NOT_SUPPORT;
+
     ALLinlonv5v7EncContext *context = (ALLinlonv5v7EncContext *)ctx;
 
     context->stCallbacks = *pstCallbacks;
@@ -561,7 +564,8 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
     context->nHeight = (S32)pstAttr->u32Height;
     context->nAlign = pstAttr->u32Align == 0 ? 1 : (S32)pstAttr->u32Align;
     context->nRotation = (S32)pstAttr->u32RotateDegree;
-    context->nInputMemType = V4L2_MEMORY_DMABUF;
+    context->nInputMemType = pstAttr->eFrameBufMode == VENC_FRAME_BUF_USERPTR_EXTERNAL
+        ? V4L2_MEMORY_USERPTR : V4L2_MEMORY_DMABUF;
     context->nOutputMemType = V4L2_MEMORY_MMAP;
     context->nInputType = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
     context->nOutputType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -598,7 +602,8 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
         ENCODER_INPUT_BUF_NUM,
         ENCODER_OUTPUT_BUF_NUM,
         context->bIsBlockMode,
-        MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL);
+        context->nInputMemType == V4L2_MEMORY_USERPTR
+            ? MPP_FRAME_BUFFERTYPE_NORMAL_EXTERNAL : MPP_FRAME_BUFFERTYPE_DMABUF_EXTERNAL);
     if (!context->stCodec) {
         error("create Codec failed, please check!");
         return MPP_INIT_FAILED;
@@ -613,9 +618,11 @@ S32 al_enc_init(ALBaseContext *ctx, const VencChnAttr *pstAttr, const AlEncCallb
     setEncoderRotation(context, context->nRotation);
 
     // setformat, allocate buffer, stream on
-    stream(context->stCodec);
+    S32 ret = stream(context->stCodec);
+    if (ret != MPP_OK)
+        return ret;
 
-    S32 ret = startInputBufferDoneTask(context);
+    ret = startInputBufferDoneTask(context);
     if (ret != MPP_OK)
         return ret;
 
@@ -754,30 +761,41 @@ S32 al_enc_set_para(ALBaseContext *ctx, VencCmd cmd, const void *pParam) {
 /**
  * @brief Wire one input frame's planes into a V4L2 buffer slot.
  */
-static void setupInputFrame(ALLinlonv5v7EncContext *context, Buffer *buf, const VideoFrameInfo *pstFrame) {
+static S32 setupInputFrame(ALLinlonv5v7EncContext *context, Buffer *buf, const VideoFrameInfo *pstFrame) {
     S32 frameId = (S32)pstFrame->u32Idx;
     const VideoFrame *pstV = &pstFrame->stVFrame;
+    S32 ret;
 
     if (context->nInputMemType == V4L2_MEMORY_USERPTR) {
-        if (context->ePixelFormat == MPP_PIXEL_FORMAT_NV12 || context->ePixelFormat == MPP_PIXEL_FORMAT_NV21) {
-            setExternalUserPtrFrame(buf, (U8 *)pstV->ulPlaneVirAddr[0], (U8 *)pstV->ulPlaneVirAddr[1], NULL, frameId);
-        } else if (context->ePixelFormat == MPP_PIXEL_FORMAT_I420) {
-            setExternalUserPtrFrame(
-                buf,
-                (U8 *)pstV->ulPlaneVirAddr[0],
-                (U8 *)pstV->ulPlaneVirAddr[1],
-                (U8 *)pstV->ulPlaneVirAddr[2],
-                frameId);
-        } else if (
-            context->ePixelFormat == MPP_PIXEL_FORMAT_RGBA || context->ePixelFormat == MPP_PIXEL_FORMAT_ARGB ||
-            context->ePixelFormat == MPP_PIXEL_FORMAT_BGRA || context->ePixelFormat == MPP_PIXEL_FORMAT_ABGR ||
-            context->ePixelFormat == MPP_PIXEL_FORMAT_YUYV || context->ePixelFormat == MPP_PIXEL_FORMAT_UYVY) {
-            setExternalUserPtrFrame(buf, (U8 *)pstV->ulPlaneVirAddr[0], NULL, NULL, frameId);
+        const struct v4l2_buffer *vbuf = getV4l2Buffer(buf);
+        const struct v4l2_pix_format_mplane *format = &getFormat(buf)->fmt.pix_mp;
+        if (vbuf->length == 0 || vbuf->length > 3 || pstV->u32PlaneNum != vbuf->length) {
+            error("USERPTR plane count %u does not match encoder count %u", pstV->u32PlaneNum, vbuf->length);
+            return MPP_CHECK_FAILED;
         }
-    } else if (context->nInputMemType == V4L2_MEMORY_DMABUF) {
-        setExternalDmaBuf(buf, (S32)pstV->u32Fd[0], (U8 *)pstV->ulPlaneVirAddr[0], frameId);
+        for (U32 i = 0; i < vbuf->length; ++i) {
+            U32 required = format->plane_fmt[i].sizeimage;
+            S32 capacity = getLength(buf, i);
+            if (capacity <= 0)
+                return MPP_CHECK_FAILED;
+            if (required < (U32)capacity)
+                required = (U32)capacity;
+            if (!pstV->ulPlaneVirAddr[i] || required == 0 || pstV->u32PlaneSize[i] < required ||
+                (pstV->u32PlaneStride[i] != 0 && pstV->u32PlaneStride[i] != format->plane_fmt[i].bytesperline)) {
+                error("invalid USERPTR plane %u: size=%u required=%u stride=%u expected=%u",
+                    i, pstV->u32PlaneSize[i], required, pstV->u32PlaneStride[i], format->plane_fmt[i].bytesperline);
+                return MPP_CHECK_FAILED;
+            }
+        }
+        ret = setExternalUserPtrFrame(buf, (U8 *)pstV->ulPlaneVirAddr[0],
+            (U8 *)pstV->ulPlaneVirAddr[1], (U8 *)pstV->ulPlaneVirAddr[2], frameId);
+    } else {
+        ret = setExternalDmaBuf(buf, (S32)pstV->u32Fd[0], (U8 *)pstV->ulPlaneVirAddr[0], frameId);
     }
+    if (ret != MPP_OK)
+        return ret;
     setTimeStamp(buf, (S64)pstV->u64PTS);
+    return MPP_OK;
 }
 
 S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) {
@@ -795,11 +813,6 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) 
     S32 ret = 0;
 
     BOOL bEosFlag = (pstFrame->stVFrame.u32FrameFlag & MPP_FRAME_FLAG_EOS) ? MPP_TRUE : MPP_FALSE;
-
-    if (bEosFlag && pstFrame->stVFrame.u32PlaneNum > 0) {
-        debug("eos flag of input frame with data is set, EOS is coming");
-        context->bInputEos = MPP_TRUE;
-    }
 
     if (bEosFlag && pstFrame->stVFrame.u32PlaneNum == 0) {
         debug("eos flag of input frame without data is set, EOS is coming");
@@ -834,8 +847,12 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) 
         return MPP_CODER_NO_DATA;
     }
 
-    setupInputFrame(context, buffer, pstFrame);
-    setEndOfStream(buffer, context->bInputEos);
+    ret = setupInputFrame(context, buffer, pstFrame);
+    if (ret != MPP_OK) {
+        pthread_mutex_unlock(&context->inputLock);
+        return ret;
+    }
+    setEndOfStream(buffer, bEosFlag || context->bInputEos);
     setInputBufferId(buffer, pstFrame->ulBufferId);
     ret = queueBuffer(input, buffer);
     if (ret != MPP_OK) {
@@ -844,6 +861,8 @@ S32 al_enc_send_input_frame(ALBaseContext *ctx, const VideoFrameInfo *pstFrame) 
         return ret;
     }
 
+    if (bEosFlag)
+        context->bInputEos = MPP_TRUE;
     setIsQueued(buffer, MPP_TRUE);
     context->nInputQueuedCount++;
     pthread_cond_signal(&context->inputCond);

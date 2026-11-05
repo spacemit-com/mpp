@@ -176,31 +176,25 @@ S32 setExternalDmaBufSinglePlanar(Buffer *buf, S32 fd, U8 *ptr, S32 length, S32 
 }
 
 S32 setExternalUserPtrFrame(Buffer *buf, U8 *ptr0, U8 *ptr1, U8 *ptr2, S32 extra_id) {
-    // set info for plane[0]
-    buf->nPlaneOffset[0] = 0;
-    buf->stBufArr.m.planes[0].m.userptr = (uintptr_t)ptr0;
-    buf->stBufArr.m.planes[0].bytesused = buf->nPlaneLength[0];
+    U8 *ptrs[] = {ptr0, ptr1, ptr2};
+    if (!buf || buf->nMemType != V4L2_MEMORY_USERPTR || !V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type) ||
+        buf->stBufArr.length == 0 || buf->stBufArr.length > NUM_OF(ptrs))
+        return MPP_CHECK_FAILED;
 
-    // set info for plane[1] and plane[2](YUV420p have plane[2])
-    for (U32 j = 1; j < buf->stBufArr.length; j++) {
-        struct v4l2_plane *p = &(buf->stBufArr.m.planes[j]);
-        S32 k;
-        S32 offset = 0;
-        for (k = j; k > 0; k--) {
-            offset += buf->nPlaneLength[j - k];
-        }
-        buf->nPlaneOffset[j] = offset;
-        if (p->length > 0) {
-            if (1 == j)
-                buf->stBufArr.m.planes[j].m.userptr = (uintptr_t)(ptr1);
-            else if (2 == j)
-                buf->stBufArr.m.planes[j].m.userptr = (uintptr_t)(ptr2);
-            buf->stBufArr.m.planes[j].bytesused = buf->nPlaneLength[j];
-        }
+    for (U32 i = 0; i < buf->stBufArr.length; ++i) {
+        if (!ptrs[i] || buf->nPlaneLength[i] <= 0)
+            return MPP_CHECK_FAILED;
     }
-
+    for (U32 i = 0; i < buf->stBufArr.length; ++i) {
+        struct v4l2_plane *plane = &buf->stBufArr.m.planes[i];
+        plane->m.userptr = (uintptr_t)ptrs[i];
+        plane->length = buf->nPlaneLength[i];
+        plane->bytesused = buf->nPlaneLength[i];
+        plane->data_offset = 0;
+        buf->pUserPtr[i] = ptrs[i];
+        buf->nPlaneOffset[i] = 0;
+    }
     buf->nExtraId = extra_id;
-
     return MPP_OK;
 }
 
@@ -578,11 +572,11 @@ S32 memoryUnmap(Buffer *buf) {
 
 S32 getLength(Buffer *buf, U32 plane) {
     if (V4L2_TYPE_IS_MULTIPLANAR(buf->stBufArr.type)) {
-        if (buf->stBufArr.length >= plane) {
+        if (plane >= buf->stBufArr.length) {
             return 0;
         }
 
-        return buf->stBufArr.m.planes[plane].length;
+        return buf->nPlaneLength[plane];
     } else {
         if (plane > 0) {
             return 0;

@@ -506,6 +506,9 @@ S32 VENC_CreateChn(S32 s32ChnId, const VencChnAttr *pstAttr) {
     if (!venc_chn_valid(s32ChnId))
         return ERR_VENC_INVALID_CHN;
 
+    if (pstAttr->eFrameBufMode < VENC_FRAME_BUF_DMABUF_INTERNAL || pstAttr->eFrameBufMode >= VENC_FRAME_BUF_MAX)
+        return ERR_VENC_NOT_SUPPORT;
+
     VencChnCtx *pChn = &g_stChn[s32ChnId];
     pthread_mutex_lock(&pChn->lock);
 

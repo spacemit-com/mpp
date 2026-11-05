@@ -63,9 +63,10 @@ typedef enum _VencCmd {
  * @brief Frame buffer input mode for encoder
  */
 typedef enum _VencFrameBufMode {
-    VENC_FRAME_BUF_DMABUF_INTERNAL = 0, /**< unused */
-    VENC_FRAME_BUF_NORMAL_INTERNAL,     /**< unused */
-    VENC_FRAME_BUF_DMABUF_EXTERNAL,     /**< unused */
+    VENC_FRAME_BUF_DMABUF_INTERNAL = 0, /**< legacy alias for external DMA-BUF */
+    VENC_FRAME_BUF_NORMAL_INTERNAL,    /**< legacy alias for external DMA-BUF */
+    VENC_FRAME_BUF_DMABUF_EXTERNAL,     /**< caller supplies DMA-BUF fds */
+    VENC_FRAME_BUF_USERPTR_EXTERNAL,   /**< caller supplies per-plane virtual addresses */
     VENC_FRAME_BUF_MAX
 } VencFrameBufMode;
 
@@ -145,7 +146,7 @@ typedef struct _VencChnAttr {
     U32 u32Gop;                       /**< GOP size */
     U32 u32Profile;                   /**< codec profile (0 = default) */
     U32 u32RotateDegree;              /**< 0 / 90 / 180 / 270 */
-    VencFrameBufMode eFrameBufMode;   /**< unused, ignored */
+    VencFrameBufMode eFrameBufMode;   /**< input memory mode; zero keeps legacy DMA-BUF behavior */
     VencRcMode eRcMode;               /**< rate control mode */
     U32 u32MinQp;                     /**< min QP for RC */
     U32 u32MaxQp;                     /**< max QP for RC */

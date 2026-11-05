@@ -73,12 +73,22 @@ S32 VENC_EnableChn(S32 s32ChnId);
 S32 VENC_DisableChn(S32 s32ChnId);
 
 /**
- * @brief  Send a video frame to the encoder (zero-copy).
- *         The caller's dma-buf fd in pstFrame is passed directly to the
- *         AL layer without memcpy at the MPI level.
- *         Caller must keep the buffer valid until this call returns.
+ * @brief  Queue a video frame to the encoder without copying its pixels.
+ *         DMA-BUF modes use stVFrame.u32Fd[0]. USERPTR_EXTERNAL uses
+ *         stVFrame.ulPlaneVirAddr[] and does not require DMA-BUF fds.
+ *         USERPTR frames must describe every plane with u32PlaneNum,
+ *         u32PlaneSize[] and virtual addresses matching the configured format.
+ *         Each plane must cover the driver-required size, including padding;
+ *         nonzero u32PlaneStride[] must match the negotiated stride (zero means
+ *         the caller already uses that stride).
+ *         Submission is asynchronous: return does not mean input completion.
+ *         With ulBufferId != 0, VENC retains a VB reference until input completes;
+ *         the caller may release its reference but must not modify the pixels.
+ *         Without a VB handle, keep all input memory valid and unchanged until
+ *         the channel has been successfully disabled and destroyed.
  * @param  s32ChnId   Channel ID
- * @param  pstFrame   Input frame info (width, height, pixel format, dma-buf fd, etc.)
+ * @param  pstFrame   Input frame info (format, per-plane layout and backing memory)
+ * @param  u32TimeoutMs Reserved; submission currently returns immediately if full.
  * @return 0 on success, error code on failure
  */
 S32 VENC_SendFrame(S32 s32ChnId, const VideoFrameInfo *pstFrame, U32 u32TimeoutMs);
