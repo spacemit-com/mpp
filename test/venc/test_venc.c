@@ -951,13 +951,6 @@ static int run_api_suite(void) {
         return -1;
     }
 
-    r = VENC_Init();
-    if (r != ERR_VENC_ALREADY_INIT) {
-        fprintf(stderr, "double VENC_Init: got %d expect ALREADY_INIT\n", r);
-        (void)VENC_Exit();
-        return -1;
-    }
-
     memset(&attr, 0, sizeof(attr));
     attr.eCodecType = MPP_STREAM_CODEC_H264;
     attr.eInputPixelFormat = MPP_PIXEL_FORMAT_NV12;
@@ -1087,6 +1080,11 @@ static int run_api_suite(void) {
         (void)VENC_Exit();
         return -1;
     }
+    if (VENC_Init() != ERR_VENC_OK || VENC_Exit() != ERR_VENC_OK ||
+        VENC_Exit() != ERR_VENC_BUSY) {
+        fprintf(stderr, "Unexpected VENC init/exit result with a live channel\n");
+        return -1;
+    }
     r = VENC_DestroyChn(0);
     if (r != ERR_VENC_OK) {
         fprintf(stderr, "DestroyChn after create: %d\n", r);
@@ -1094,7 +1092,8 @@ static int run_api_suite(void) {
         return -1;
     }
 
-    (void)VENC_Exit();
+    if (VENC_Exit() != ERR_VENC_OK)
+        return -1;
     r = VENC_Exit();
     if (r != ERR_VENC_NOT_INIT) {
         fprintf(stderr, "VENC_Exit double: %d\n", r);

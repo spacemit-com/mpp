@@ -91,7 +91,7 @@ typedef struct _VdecChnCtx {
 
 /* ======================== Global State ======================== */
 
-static BOOL g_bVdecInited = MPP_FALSE;
+static U32 g_vdec_init_ref = 0;
 static VdecChnCtx g_stChn[VDEC_MAX_CHN];
 static pthread_mutex_t g_stGlobalLock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -522,9 +522,10 @@ static S32 vdec_control(S32 chn, BOOL reset) {
 
 S32 VDEC_Init(VOID) {
     pthread_mutex_lock(&g_stGlobalLock);
-    if (g_bVdecInited) {
+    if (g_vdec_init_ref > 0) {
+        g_vdec_init_ref++;
         pthread_mutex_unlock(&g_stGlobalLock);
-        return ERR_VDEC_ALREADY_INIT;
+        return ERR_VDEC_OK;
     }
 
     memset(g_stChn, 0, sizeof(g_stChn));
@@ -536,16 +537,21 @@ S32 VDEC_Init(VOID) {
         atomic_init(&g_stChn[i].eState, VDEC_CHN_STATE_IDLE);
     }
 
-    g_bVdecInited = MPP_TRUE;
+    g_vdec_init_ref = 1;
     pthread_mutex_unlock(&g_stGlobalLock);
     return ERR_VDEC_OK;
 }
 
 S32 VDEC_Exit(VOID) {
     pthread_mutex_lock(&g_stGlobalLock);
-    if (!g_bVdecInited) {
+    if (g_vdec_init_ref == 0) {
         pthread_mutex_unlock(&g_stGlobalLock);
         return ERR_VDEC_NOT_INIT;
+    }
+    if (g_vdec_init_ref > 1) {
+        g_vdec_init_ref--;
+        pthread_mutex_unlock(&g_stGlobalLock);
+        return ERR_VDEC_OK;
     }
 
     for (S32 i = 0; i < VDEC_MAX_CHN; i++) {
@@ -562,7 +568,7 @@ S32 VDEC_Exit(VOID) {
     }
     memset(g_stChn, 0, sizeof(g_stChn));
 
-    g_bVdecInited = MPP_FALSE;
+    g_vdec_init_ref = 0;
     pthread_mutex_unlock(&g_stGlobalLock);
     return ERR_VDEC_OK;
 }
@@ -574,7 +580,7 @@ S32 VDEC_CreateChn(S32 s32ChnId, const VdecChnAttr *pstAttr) {
         return ERR_VDEC_INVALID_CHN;
 
     pthread_mutex_lock(&g_stGlobalLock);
-    if (!g_bVdecInited) {
+    if (g_vdec_init_ref == 0) {
         pthread_mutex_unlock(&g_stGlobalLock);
         return ERR_VDEC_NOT_INIT;
     }
