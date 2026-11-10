@@ -26,10 +26,10 @@ add_library(v4l2_linlonv5v7_codec SHARED ${LINLONV5V7_SRCS})
 target_link_libraries(v4l2_linlonv5v7_codec PRIVATE
     -Wl,--no-as-needed mpp -Wl,--as-needed)
 
-# Post-build: try copying to /usr/lib first; if no permission, fall back to $HOME/.mpp/plugins
-add_custom_command(TARGET v4l2_linlonv5v7_codec POST_BUILD
-    COMMAND /bin/sh ${CMAKE_CURRENT_SOURCE_DIR}/install_plugin.sh $<TARGET_FILE:v4l2_linlonv5v7_codec>
-    COMMENT "Installing libv4l2_linlonv5v7_codec.so to system or user plugin directory"
+# Build-tree plugins sit next to libspacemit_mpp.so so that MPP_PLUGIN_DIR
+# can point at a single directory (see al/module.c).
+set_target_properties(v4l2_linlonv5v7_codec PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
 
 install(TARGETS v4l2_linlonv5v7_codec

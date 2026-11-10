@@ -105,10 +105,11 @@ codec device. The Sync regression covers delayed completion, failed submissions,
 VB references, cancellation and safe teardown.
 
 On the target device, build `test_venc_userptr_hw` and run with matching MPP and
-Linlon plugin builds, for example:
+Linlon plugin builds. `MPP_PLUGIN_DIR` makes the loader pick the plugin from the
+build tree instead of an installed copy, for example:
 
 ```sh
-LD_LIBRARY_PATH="$PWD/build/lib" timeout 45s \
+LD_LIBRARY_PATH="$PWD/build/lib" MPP_PLUGIN_DIR="$PWD/build/lib" timeout 45s \
     ./build/test/test_venc_userptr_hw h264 /tmp/userptr.h264 nv12
 ffmpeg -v error -i /tmp/userptr.h264 -f null -
 ```

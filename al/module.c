@@ -26,60 +26,76 @@ struct _MppModule {
     void *load_so;
 };
 
-#define FIND_PLUGIN(TYPE, type, name)                                                                          \
-    S32 find_##type##_plugin(U8 *path) {                                                                       \
-        if (0 == access("/usr/lib/lib" #name ".so", F_OK)) {                                                   \
-            debug("yeah! we have " #name " plugin---------------");                                            \
-            char *tmp = "/usr/lib/lib" #name ".so";                                                            \
-            S32 len = strlen(tmp);                                                                             \
-            memcpy(path, tmp, len);                                                                            \
-            path[len] = '\0';                                                                                  \
-            return 1;                                                                                          \
-        }                                                                                                      \
-                                                                                                                \
-        if (0 == access("/usr/local/lib/lib" #name ".so", F_OK)) {                                             \
-            debug("yeah! have " #name " plugin---------------");                                               \
-            char *tmp = "/usr/local/lib/lib" #name ".so";                                                      \
-            S32 len = strlen(tmp);                                                                             \
-            memcpy(path, tmp, len);                                                                            \
-            path[len] = '\0';                                                                                  \
-            return 1;                                                                                          \
-        }                                                                                                      \
-                                                                                                                \
-        {                                                                                                      \
-            const char *home = getenv("HOME");                                                                 \
-            if (home) {                                                                                        \
-                char user_plugin_path[MAX_PATH_LENGTH];                                                        \
-                snprintf(user_plugin_path, sizeof(user_plugin_path), "%s/.mpp/plugins/lib" #name ".so", home); \
-                if (0 == access(user_plugin_path, F_OK)) {                                                     \
-                    debug("found " #name " plugin in user dir: %s", user_plugin_path);                         \
-                    S32 len = strlen(user_plugin_path);                                                        \
-                    memcpy(path, user_plugin_path, len);                                                       \
-                    path[len] = '\0';                                                                          \
-                    return 1;                                                                                  \
-                }                                                                                              \
-            }                                                                                                  \
-        }                                                                                                      \
-                                                                                                                \
-        if (0 == access("/system/lib64/lib" #name ".z.so", F_OK)) {                                            \
-            debug("yeah! we have " #name " plugin---------------");                                            \
-            char *tmp = "/system/lib64/lib" #name ".z.so";                                                     \
-            S32 len = strlen(tmp);                                                                             \
-            memcpy(path, tmp, len);                                                                            \
-            path[len] = '\0';                                                                                  \
-            return 1;                                                                                          \
-        }                                                                                                      \
-                                                                                                                \
-        if (0 == access("/vendor/lib64/lib" #name ".z.so", F_OK)) {                                            \
-            debug("yeah! we have " #name " plugin---------------");                                            \
-            char *tmp = "/vendor/lib64/lib" #name ".z.so";                                                     \
-            S32 len = strlen(tmp);                                                                             \
-            memcpy(path, tmp, len);                                                                            \
-            path[len] = '\0';                                                                                  \
-            return 1;                                                                                          \
-        }                                                                                                      \
-                                                                                                                \
-        return 0;                                                                                              \
+/*
+ * Locate the plugin library "lib<name>.so" for a module.
+ *
+ * Search order (first match wins):
+ *   1. $MPP_PLUGIN_DIR: colon-separated directories. Lets a build tree or a
+ *      test plugin take precedence without installing into system dirs.
+ *   2. /usr/lib, /usr/local/lib
+ *   3. /system/lib64, /vendor/lib64 as "lib<name>.z.so" (OpenHarmony)
+ */
+static S32 plugin_exists(const char *candidate, U8 *path) {
+    S32 len = strlen(candidate);
+
+    if (0 != access(candidate, F_OK)) {
+        return 0;
+    }
+
+    memcpy(path, candidate, len);
+    path[len] = '\0';
+    return 1;
+}
+
+static S32 find_plugin_so(const char *name, U8 *path) {
+    static const char *const system_dirs[] = {"/usr/lib", "/usr/local/lib"};
+    static const char *const ohos_dirs[] = {"/system/lib64", "/vendor/lib64"};
+    char candidate[MAX_PATH_LENGTH];
+    const char *dir = getenv("MPP_PLUGIN_DIR");
+    S32 ret;
+    U32 i;
+
+    while (dir && *dir) {
+        const char *sep = strchr(dir, ':');
+        S32 dir_len = sep ? (S32)(sep - dir) : (S32)strlen(dir);
+
+        if (dir_len > 0) {
+            ret = snprintf(candidate, sizeof(candidate), "%.*s/lib%s.so", dir_len, dir, name);
+            if (ret > 0 && ret < (S32)sizeof(candidate) && plugin_exists(candidate, path)) {
+                debug("found %s plugin via MPP_PLUGIN_DIR: %s", name, candidate);
+                return 1;
+            }
+        }
+
+        if (!sep) {
+            break;
+        }
+
+        dir = sep + 1;
+    }
+
+    for (i = 0; i < sizeof(system_dirs) / sizeof(system_dirs[0]); i++) {
+        snprintf(candidate, sizeof(candidate), "%s/lib%s.so", system_dirs[i], name);
+        if (plugin_exists(candidate, path)) {
+            debug("found %s plugin: %s", name, candidate);
+            return 1;
+        }
+    }
+
+    for (i = 0; i < sizeof(ohos_dirs) / sizeof(ohos_dirs[0]); i++) {
+        snprintf(candidate, sizeof(candidate), "%s/lib%s.z.so", ohos_dirs[i], name);
+        if (plugin_exists(candidate, path)) {
+            debug("found %s plugin: %s", name, candidate);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+#define FIND_PLUGIN(TYPE, type, name)       \
+    S32 find_##type##_plugin(U8 *path) {    \
+        return find_plugin_so(#name, path); \
     }
 
 FIND_PLUGIN(OPENH264, openh264, soft_openh264)
@@ -111,18 +127,6 @@ FIND_PLUGIN(VI_FILE, vi_file, vi_file_plugin)
             (0 == access("/vendor/lib64/lib" #name ".so", F_OK))) {                                                 \
             debug("yeah! have " #type "---------------");                                                           \
             return 1;                                                                                               \
-        }                                                                                                           \
-                                                                                                                    \
-        {                                                                                                           \
-            const char *home = getenv("HOME");                                                                      \
-            if (home) {                                                                                             \
-                char user_lib_path[MAX_PATH_LENGTH];                                                                \
-                snprintf(user_lib_path, sizeof(user_lib_path), "%s/.mpp/plugins/lib" #name ".so", home);            \
-                if (0 == access(user_lib_path, F_OK)) {                                                             \
-                    debug("found " #type " in user dir: %s", user_lib_path);                                        \
-                    return 1;                                                                                       \
-                }                                                                                                   \
-            }                                                                                                       \
         }                                                                                                           \
                                                                                                                     \
         return 0;                                                                                                   \
