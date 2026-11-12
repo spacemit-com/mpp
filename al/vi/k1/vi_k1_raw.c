@@ -322,7 +322,6 @@ S32 K1_VI_QueueRawBuffer(K1_VI_RAW_CTX_S *pstRawCtx) {
     if (pstRawCtx->s32DmaFd > 0)
         (void)dma_sync_buf(pstRawCtx->s32DmaFd, DMA_SYNC_READ | DMA_SYNC_END);
 
-    // info("[rawdump-queue] dev=%d chn=%d asrChn=%u fmt=%d type=%d idx=%d mfd=%d size=%ux%u planes=%d stride0=%u
     // scan0=%u len0=%u pfd0=%d state=%d ext=%d bufId=%lu\n",
     //        pstRawCtx->ViDev,
     //        pstRawCtx->ViChn,

@@ -160,8 +160,6 @@ static void ccic_demo_fill_default_config(CCIC_DEMO_CONFIG_S *pstCfg) {
     pstCfg->stDevAttr.u32Width = pstCfg->u32Width;
     pstCfg->stDevAttr.u32Height = pstCfg->u32Height;
     pstCfg->stDevAttr.u32MipiLaneNum = pstCfg->u32MipiLaneNum;
-    pstCfg->stDevAttr.u32mbps = pstCfg->u32Mbps;
-    pstCfg->stDevAttr.bCapture2Preview = MPP_FALSE;
 
     pstCfg->stChnAttr.eChnType = VI_CHN_TYPE_PHYSICAL;
     pstCfg->stChnAttr.ePixelFormat = pstCfg->ePixelFormat;

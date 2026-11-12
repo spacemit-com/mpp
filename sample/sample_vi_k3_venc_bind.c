@@ -98,7 +98,6 @@ int main(int argc, char **argv) {
     devAttr.u32Width     = DEFAULT_WIDTH;
     devAttr.u32Height    = DEFAULT_HEIGHT;
     devAttr.u32MipiLaneNum = 4;
-    devAttr.u32mbps      = 800;
 
     ret = VI_SetDevAttr(VI_DEV_ID, &devAttr);
     if (ret != 0) {

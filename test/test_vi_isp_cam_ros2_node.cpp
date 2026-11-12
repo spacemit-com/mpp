@@ -119,8 +119,6 @@ private:
         devAttr.u32Width = static_cast<U32>(sensorWidth_);
         devAttr.u32Height = static_cast<U32>(sensorHeight_);
         devAttr.u32MipiLaneNum = static_cast<U32>(mipiLanes_);
-        devAttr.u32mbps = static_cast<U32>(mbps_);
-        devAttr.bCapture2Preview = MPP_FALSE;
         ret = VI_SetDevAttr(viDev_, &devAttr);
         if (ret != 0) {
             RCLCPP_ERROR(get_logger(), "VI_SetDevAttr failed: %d", ret);

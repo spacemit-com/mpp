@@ -289,7 +289,6 @@ int main(int argc, char *argv[]) {
     stDevAttr.u32Width = FRAME_WIDTH;
     stDevAttr.u32Height = FRAME_HEIGHT;
     stDevAttr.u32MipiLaneNum = 4;
-    stDevAttr.u32mbps = 800;
 
     ret = VI_SetDevAttr(VI_DEV_ID, &stDevAttr);
     if (ret != 0) {
