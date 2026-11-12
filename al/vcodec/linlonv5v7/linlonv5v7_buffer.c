@@ -157,6 +157,17 @@ S32 setExternalDmaBuf(Buffer *buf, S32 fd, U8 *ptr, S32 extra_id) {
         }
     }
 
+    if (buf->stBufArr.type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+        /* MVX reconstructs capture offsets by summing preceding plane lengths.
+         * Keep each length independent; capture payload fields are driver-owned. */
+        for (U32 j = 0; j < buf->stBufArr.length; j++) {
+            struct v4l2_plane *p = &buf->stBufArr.m.planes[j];
+            p->length = buf->nPlaneLength[j];
+            p->bytesused = 0;
+            p->data_offset = 0;
+        }
+    }
+
     buf->nExtraId = extra_id;
     buf->nExtraFd = fd;
 
