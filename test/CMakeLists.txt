@@ -120,7 +120,7 @@ add_test(NAME test_venc COMMAND $<TARGET_FILE:test_venc> --test api)
 
 # Hardware-independent regressions against the actual plugin implementation.
 # Unused hardware entry points are discarded; the layout test scripts ioctl.
-foreach(name test_venc_rgb_mapping test_venc_rgb_layout)
+foreach(name test_venc_rgb_mapping test_venc_rgb_layout test_venc_userptr)
     add_executable(${name} venc/${name}.c)
     target_compile_definitions(${name} PRIVATE ${MPP_TEST_COMMON_DEFS})
     target_include_directories(${name} PRIVATE ${MPP_INCLUDE_DIRS}
@@ -128,6 +128,12 @@ foreach(name test_venc_rgb_mapping test_venc_rgb_layout)
     target_link_options(${name} PRIVATE -Wl,--gc-sections)
     add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
 endforeach()
+
+# Hardware-only USERPTR input regression; invoke explicitly on the codec device.
+add_executable(test_venc_userptr_hw venc/test_venc_userptr_hw.c)
+target_compile_definitions(test_venc_userptr_hw PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_venc_userptr_hw PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_venc_userptr_hw PRIVATE mpp)
 
 # VDEC: API / multi-codec / scale regression (select suites via --test)
 # Paths are relative to this directory (test/), not project root.
@@ -298,7 +304,7 @@ target_link_libraries(test_stream_vb_pipeline PRIVATE mpp dl pthread)
 target_link_options(test_stream_vb_pipeline PRIVATE -Wl,--export-dynamic)
 
 # Standalone implementation tests share the runtime logging core.
-foreach(log_test test_venc_rgb_mapping test_venc_rgb_layout
+foreach(log_test test_venc_rgb_mapping test_venc_rgb_layout test_venc_userptr
         test_vdec_input test_vdec_input_poll test_vdec_input_port test_vdec_output
         test_vdec_output_requirement test_vdec_buffer_payload
         test_sys_stream_ref test_vdec_stream_ref)

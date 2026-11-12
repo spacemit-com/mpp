@@ -27,9 +27,11 @@ disable and recreate the channel with the new attributes. Input stream bindings
 (`DEMUX/UVC -> VDEC`) work in either output mode. Establish output bindings before
 sending input if initial frames must not be dropped.
 
-The current Linlon VENC implementation always uses external DMA-BUF input and
-ignores `VencChnAttr.eFrameBufMode`. In `VDEC -> VENC` pipelines, the input frames
-belong to the VDEC VB pool; no buffer-mode setting is required.
+Linlon VENC defaults to external DMA-BUF input. In `VDEC -> VENC` pipelines,
+the input frames belong to the VDEC VB pool; no buffer-mode setting is required.
+Set `VencChnAttr.eFrameBufMode` to `VENC_FRAME_BUF_USERPTR_EXTERNAL` to submit
+caller-owned virtual addresses instead. See [VENC input memory](venc_input.md)
+for plane layout and lifetime requirements.
 
 `GetLatestFrame` waits for the first frame, then probes a bounded batch of ready
 frames without waiting for more input. It retains the latest candidate across
