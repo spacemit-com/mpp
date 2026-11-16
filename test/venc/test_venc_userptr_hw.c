@@ -4,7 +4,7 @@
  * that can be found in the LICENSE file.
  *
  * Hardware regression: encode distinct anonymous mappings, without input VB or
- * dma-buf fds. Keep mappings alive until successful channel stop and destruction.
+ * dma-buf fds. Unmap each input immediately after SendFrameSync returns.
  * Usage: test_venc_userptr_hw h264|h265|mjpeg output.es [nv12|i420|yv12|rgba]
  */
 #include <stdio.h>
@@ -23,16 +23,22 @@
 #define HEIGHT 480U
 #define FRAME_COUNT 24U
 
-static VideoFrameInfo frames[FRAME_COUNT];
+static VideoFrameInfo input;
 
-static void free_frame(U32 index) {
-    for (U32 plane = 0; plane < frames[index].stVFrame.u32PlaneNum; ++plane) {
-        UL addr = frames[index].stVFrame.ulPlaneVirAddr[plane];
+static int free_frame(void) {
+    int result = 0;
+    for (U32 plane = 0; plane < input.stVFrame.u32PlaneNum; ++plane) {
+        UL addr = input.stVFrame.ulPlaneVirAddr[plane];
         if (addr) {
-            munmap((void *)addr, frames[index].stVFrame.u32PlaneSize[plane]);
-            frames[index].stVFrame.ulPlaneVirAddr[plane] = 0;
+            if (munmap((void *)addr, input.stVFrame.u32PlaneSize[plane]) != 0) {
+                perror("munmap input");
+                result = -1;
+            } else {
+                input.stVFrame.ulPlaneVirAddr[plane] = 0;
+            }
         }
     }
+    return result;
 }
 
 static U64 monotonic_ms(void) {
@@ -41,41 +47,35 @@ static U64 monotonic_ms(void) {
     return (U64)ts.tv_sec * 1000 + (U64)ts.tv_nsec / 1000000;
 }
 
-static int prepare_frames(MppPixelFormat format) {
+static int prepare_frame(MppPixelFormat format, U32 i) {
     U32 page = (U32)sysconf(_SC_PAGESIZE);
     U32 planes = format == MPP_PIXEL_FORMAT_RGBA ? 1 : format == MPP_PIXEL_FORMAT_NV12 ? 2 : 3;
-    for (U32 i = 0; i < FRAME_COUNT; ++i) {
-        VideoFrameInfo *frame = &frames[i];
-        frame->eFrameType = FRAME_TYPE_VENC;
-        frame->eModId = MPP_ID_VENC;
-        frame->u32Idx = i;
-        frame->stCommFrameInfo.u32Width = WIDTH;
-        frame->stCommFrameInfo.u32Height = HEIGHT;
-        frame->stCommFrameInfo.u32Align = 16;
-        frame->stCommFrameInfo.ePixelFormat = format;
-        frame->stVFrame.u32PlaneNum = planes;
-        frame->stVFrame.u64PTS = (U64)i * 33333;
-        for (U32 j = 0; j < planes; ++j) {
-            U32 stride = format == MPP_PIXEL_FORMAT_RGBA ? WIDTH * 4 : j && planes == 3 ? WIDTH / 2 : WIDTH;
-            U32 size = stride * (j ? HEIGHT / 2 : HEIGHT);
-            U32 allocation = ((size + page - 1) / page) * page;
-            U8 *data = mmap(NULL, allocation, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-            if (data == MAP_FAILED)
-                return -1;
-            frame->stVFrame.ulPlaneVirAddr[j] = (UL)data;
-            frame->stVFrame.u32PlaneStride[j] = stride;
-            frame->stVFrame.u32PlaneSize[j] = allocation;
-            frame->stVFrame.u32PlaneSizeValid[j] = size;
-            frame->stVFrame.u32Fd[j] = (UL)-1;
-            memset(data, j ? 128 : 32 + i * 7, allocation);
-        }
+    VideoFrameInfo *frame = &input;
+    memset(frame, 0, sizeof(*frame));
+    frame->eFrameType = FRAME_TYPE_VENC;
+    frame->eModId = MPP_ID_VENC;
+    frame->u32Idx = i;
+    frame->stCommFrameInfo.u32Width = WIDTH;
+    frame->stCommFrameInfo.u32Height = HEIGHT;
+    frame->stCommFrameInfo.u32Align = 16;
+    frame->stCommFrameInfo.ePixelFormat = format;
+    frame->stVFrame.u32PlaneNum = planes;
+    frame->stVFrame.u64PTS = (U64)i * 33333;
+    for (U32 j = 0; j < planes; ++j) {
+        U32 stride = format == MPP_PIXEL_FORMAT_RGBA ? WIDTH * 4 : j && planes == 3 ? WIDTH / 2 : WIDTH;
+        U32 size = stride * (j ? HEIGHT / 2 : HEIGHT);
+        U32 allocation = ((size + page - 1) / page) * page;
+        U8 *data = mmap(NULL, allocation, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (data == MAP_FAILED)
+            return -1;
+        frame->stVFrame.ulPlaneVirAddr[j] = (UL)data;
+        frame->stVFrame.u32PlaneStride[j] = stride;
+        frame->stVFrame.u32PlaneSize[j] = allocation;
+        frame->stVFrame.u32PlaneSizeValid[j] = size;
+        frame->stVFrame.u32Fd[j] = (UL)-1;
+        memset(data, j ? 128 : 32 + i * 7, allocation);
     }
     return 0;
-}
-
-static void free_frames(void) {
-    for (U32 i = 0; i < FRAME_COUNT; ++i)
-        free_frame(i);
 }
 
 static int drain(FILE *output, U32 timeout, U32 *packets, BOOL *eos) {
@@ -134,11 +134,10 @@ int main(int argc, char **argv) {
     int result = 1;
     BOOL sys = MPP_FALSE, vb = MPP_FALSE, venc = MPP_FALSE;
     BOOL created = MPP_FALSE, enabled = MPP_FALSE, eos = MPP_FALSE;
-    BOOL stopped = MPP_TRUE;
     U32 packets = 0;
     U32 submitted = 0;
     FILE *output = fopen(argv[2], "wb");
-    if (!output || prepare_frames(attr.eInputPixelFormat) != 0)
+    if (!output)
         goto cleanup;
     if (SYS_Init() != 0)
         goto cleanup;
@@ -158,24 +157,30 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     enabled = MPP_TRUE;
-    stopped = MPP_FALSE;
     U64 deadline = monotonic_ms() + 30000;
     for (U32 i = 0; i < FRAME_COUNT; ++i) {
-        while ((ret = VENC_SendFrame(0, &frames[i], 0)) != ERR_VENC_OK) {
-            if ((ret != MPP_CODER_NO_DATA && ret != ERR_VENC_BUSY) || monotonic_ms() >= deadline) {
-                fprintf(stderr, "SendFrame %u failed: %d\n", i, ret);
-                goto cleanup;
-            }
-            if (drain(output, 20, &packets, &eos) != 0)
-                goto cleanup;
+        if (prepare_frame(attr.eInputPixelFormat, i) != 0)
+            goto cleanup;
+        ret = VENC_SendFrameSync(0, &input);
+        if (free_frame() != 0)
+            goto cleanup;
+        if (ret != ERR_VENC_OK) {
+            fprintf(stderr, "SendFrameSync %u failed: %d\n", i, ret);
+            goto cleanup;
         }
         submitted++;
-        if (drain(output, 0, &packets, &eos) != 0)
+        while (packets < submitted && monotonic_ms() < deadline) {
+            if (drain(output, 100, &packets, &eos) != 0)
+                goto cleanup;
+        }
+        if (packets != submitted) {
+            fprintf(stderr, "Missing output after input %u\n", i);
             goto cleanup;
+        }
     }
     VideoFrameInfo end = {0};
     end.stVFrame.u32FrameFlag = MPP_FRAME_FLAG_EOS;
-    if (VENC_SendFrame(0, &end, 0) != ERR_VENC_OK)
+    if (VENC_SendFrameSync(0, &end) != ERR_VENC_OK)
         goto cleanup;
     while (!eos && monotonic_ms() < deadline) {
         if (drain(output, 100, &packets, &eos) != 0)
@@ -193,8 +198,6 @@ cleanup:
         if (ret != ERR_VENC_OK) {
             fprintf(stderr, "DisableChn failed: %d\n", ret);
             result = 1;
-        } else {
-            stopped = MPP_TRUE;
         }
     }
     if (created) {
@@ -202,14 +205,10 @@ cleanup:
         if (ret != ERR_VENC_OK) {
             fprintf(stderr, "DestroyChn failed: %d\n", ret);
             result = 1;
-        } else {
-            created = MPP_FALSE;
         }
     }
-    /* Baseline API has no external-input completion query. Keep every mapping
-     * until both stop and destruction succeed, including error cleanup. */
-    if (!created && stopped)
-        free_frames();
+    if (free_frame() != 0)
+        result = 1;
     if (venc && VENC_Exit() != ERR_VENC_OK)
         result = 1;
     if (vb && VB_Exit() != 0)
@@ -219,7 +218,7 @@ cleanup:
     if (output && fclose(output) != 0)
         result = 1;
     if (result == 0) {
-        printf("PASS: USERPTR %s %s, %u frames, %u inputs retained through stop and destroy, no input VB or dma-buf fd\n",
+        printf("PASS: USERPTR sync %s %s, %u frames, %u inputs unmapped before GetStream, no input VB or dma-buf fd\n",
             argv[1], argc == 4 ? argv[3] : "nv12", packets, submitted);
     }
     return result;

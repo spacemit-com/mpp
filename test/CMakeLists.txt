@@ -129,6 +129,15 @@ foreach(name test_venc_rgb_mapping test_venc_rgb_layout test_venc_userptr)
     add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
 endforeach()
 
+# Synchronous borrowing and asynchronous input ownership with a fake AL.
+add_executable(test_venc_input_sync venc/test_venc_input_sync.c)
+target_compile_definitions(test_venc_input_sync PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_venc_input_sync PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_venc_input_sync PRIVATE mpp)
+target_link_options(test_venc_input_sync PRIVATE -Wl,--gc-sections)
+add_test(NAME test_venc_input_sync COMMAND $<TARGET_FILE:test_venc_input_sync>)
+set_tests_properties(test_venc_input_sync PROPERTIES TIMEOUT 10)
+
 # Hardware-only USERPTR input regression; invoke explicitly on the codec device.
 add_executable(test_venc_userptr_hw venc/test_venc_userptr_hw.c)
 target_compile_definitions(test_venc_userptr_hw PRIVATE ${MPP_TEST_COMMON_DEFS})

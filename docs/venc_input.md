@@ -47,11 +47,10 @@ VENC retain a VB reference until the input queue reports completion. The caller
 can release its own reference after successful submission, but cannot overwrite
 the pixels while the encoder owns them.
 
-For external input with `ulBufferId == 0`, retain all pixel storage and keep it
-unchanged until the channel has been successfully disabled and destroyed. The
-current public API does not report per-frame external input completion. Receiving
-an encoded packet does not establish that its input memory is no longer accessed.
-The encoder does not free caller-owned storage.
+When using asynchronous `VENC_SendFrame` with `ulBufferId == 0`, retain all pixel
+storage unchanged until successful channel destruction. Receiving an encoded
+packet does not establish input completion. To release each input after one call,
+use synchronous borrowing as described below.
 
 An EOS-only frame (`MPP_FRAME_FLAG_EOS`, `u32PlaneNum == 0`) does not need pixel
 storage. A frame carrying both pixels and EOS must pass the normal plane checks;
@@ -60,9 +59,33 @@ not accepted by the encoder, so the caller keeps ownership and can correct or
 release it. `VENC_SendFrame` currently returns immediately when no input slot is
 available; its timeout parameter does not wait for a slot.
 
-The internal `AlEncInputBufferDoneCb` releases VENC's reference for VB-backed
-input after driver input completion. It is not an application completion API and
-does not return external inputs without VB handles.
+The internal `AlEncInputBufferDoneCb` releases VB references and wakes synchronous
+senders after input completion; applications do not register a callback.
+
+## Synchronous input borrowing
+
+```c
+/* frame references caller-owned USERPTR pixels or external DMA-BUF storage. */
+S32 ret = VENC_SendFrameSync(chn, &frame);
+/* On any return, release/reuse that storage, then check ret. */
+```
+
+This submits the original storage without copying pixels. Rejected input returns
+an error immediately. Accepted data waits without a timeout for input completion
+or safe cancellation; thread cancellation is deferred until the borrow ends.
+No frame ID, input-return API or application synchronization is required. VB-backed
+input is also supported, with VENC's reference released before the call returns.
+An empty EOS returns after submission because it borrows no pixels.
+
+A successful call ends the borrow but does not guarantee an output packet. A serial
+caller uses `SendFrameSync -> release input -> GetStream -> ReleaseStream`. Codec
+configurations that retain input until later frames or need concurrent output
+consumption require another producer/consumer thread or the asynchronous API.
+
+The channel lock is released while waiting, so other threads may retrieve output
+or disable/destroy the channel. Channel shutdown assumes INPUT STREAMOFF succeeds.
+Serialize lifecycle calls with each other and stop new submissions before Disable.
+Use matching MPP headers, library and codec plugin builds.
 
 ## Validation
 
@@ -71,14 +94,15 @@ USERPTR regression:
 
 ```sh
 cmake -S . -B build -DBUILD_TESTS=ON
-cmake --build build --target test_venc_userptr
-ctest --test-dir build --output-on-failure -R '^test_venc_userptr$'
+cmake --build build --target test_venc_userptr test_venc_input_sync
+ctest --test-dir build --output-on-failure -R '^test_venc_(userptr|input_sync)$'
 ```
 
 The test exercises the actual AL implementation with fake driver operations:
 per-plane addresses, negotiated stride and capacity checks, invalid layouts,
 buffer-slot reuse, submission failures and EOS state. It does not require a
-codec device.
+codec device. The Sync regression covers delayed completion, failed submissions,
+VB references, cancellation and safe teardown.
 
 On the target device, build `test_venc_userptr_hw` and run with matching MPP and
 Linlon plugin builds, for example:
@@ -90,7 +114,7 @@ ffmpeg -v error -i /tmp/userptr.h264 -f null -
 ```
 
 The hardware test submits 24 frames using anonymous per-plane mappings without
-input VB handles or DMA-BUF fds, drains encoded output and EOS, then destroys the
-channel before unmapping input storage. It accepts `h264`, `h265` or `mjpeg`, and
-optional input formats `nv12`, `i420`, `yv12` or `rgba`; availability depends on the
-driver. The saved stream can be decoded independently to verify its frame count.
+input VB handles or DMA-BUF fds. Each mapping is unmapped immediately after
+SendFrameSync returns, before retrieving that frame's output. It accepts `h264`,
+`h265` or `mjpeg`, and optional formats `nv12`, `i420`, `yv12` or `rgba`; availability
+depends on the driver. The saved stream can be decoded independently to verify its frame count.
