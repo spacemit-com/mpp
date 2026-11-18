@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/v2d  →  mpp_v2d (OBJECT, aggregated into libmpp.so)
+# mpi/v2d  →  mpp_v2d (OBJECT, aggregated into libspacemit_mpp.so)
 # ============================================================
 
 set(V2D_SRCS

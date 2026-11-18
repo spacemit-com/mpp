@@ -14,12 +14,12 @@ add_subdirectory(cpp)
 add_subdirectory(uvc)
 
 # ============================================================
-# libmpp.so  –  unified shared library aggregating all OBJECT modules
+# libspacemit_mpp.so  –  unified shared library aggregating all OBJECT modules
 # ============================================================
 
 add_library(mpp SHARED)
 
-# Aggregate all OBJECT libraries into a single libmpp.so
+# Aggregate all OBJECT libraries into a single libspacemit_mpp.so
 target_sources(mpp PRIVATE
     $<TARGET_OBJECTS:mpp_sys>
     $<TARGET_OBJECTS:mpp_al_module>
@@ -72,7 +72,7 @@ endif()
 
 # ---- Output & install ----
 set_target_properties(mpp PROPERTIES
-    OUTPUT_NAME "mpp"
+    OUTPUT_NAME "spacemit_mpp"
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"

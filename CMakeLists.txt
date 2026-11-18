@@ -5,7 +5,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(mpp2
+project(spacemit_mpp
     VERSION 1.0.0
     DESCRIPTION "SPACEMIT Media Processing Platform"
     LANGUAGES C CXX
@@ -163,6 +163,16 @@ add_subdirectory(sample)
 if(BUILD_TESTS)
 	add_subdirectory(test)
 endif()
+
+# Generate pkg-config metadata for the installed library and public headers.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/spacemit_mpp.pc.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/spacemit_mpp.pc"
+    @ONLY
+)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/spacemit_mpp.pc"
+    DESTINATION lib/pkgconfig
+)
 
 # ────────────────────────────────────────────────────────────
 # Summary

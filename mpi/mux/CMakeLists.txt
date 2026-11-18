@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/mux  →  mpp_mux (OBJECT, aggregated into libmpp.so)
+# mpi/mux  →  mpp_mux (OBJECT, aggregated into libspacemit_mpp.so)
 # ============================================================
 
 set(MUX_SRCS
@@ -24,7 +24,7 @@ target_include_directories(mpp_mux
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         # Reuse demux codec/common/protocol/container helpers (compiled into the
-        # same libmpp.so): codec/h26x_utils.h, common/socket_utils.h,
+        # same libspacemit_mpp.so): codec/h26x_utils.h, common/socket_utils.h,
         # protocol/rtmp/*.h, container/ts/pat_pmt.h, common/url_parser.h.
         ${CMAKE_SOURCE_DIR}/mpi/demux
 )

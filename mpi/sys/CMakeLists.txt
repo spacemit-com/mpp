@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/sys  →  mpp_sys (OBJECT, aggregated into libmpp.so)
+# mpi/sys  →  mpp_sys (OBJECT, aggregated into libspacemit_mpp.so)
 # Covers: SYS module + VB (Video Buffer) module
 # ============================================================
 

@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/vo  →  mpp_vo (OBJECT, aggregated into libmpp.so)
+# mpi/vo  →  mpp_vo (OBJECT, aggregated into libspacemit_mpp.so)
 # ============================================================
 
 set(VO_SRCS

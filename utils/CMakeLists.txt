@@ -1,6 +1,6 @@
 # ============================================================
 # utils  →  shared helpers (log, v4l2, dma-buf, …)
-# Built as an OBJECT library, aggregated into libmpp.so.
+# Built as an OBJECT library, aggregated into libspacemit_mpp.so.
 # ============================================================
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")

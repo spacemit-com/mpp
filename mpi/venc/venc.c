@@ -209,7 +209,7 @@ static S32 venc_plugin_open(VencChnCtx *pChn) {
         error(
             "legacy codec plugin detected (exports al_enc_encode / "
             "al_enc_get_output_stream); rebuild and redeploy the plugin to "
-            "match this libmpp");
+            "match this libspacemit_mpp");
         module_destory(pChn->pModule);
         pChn->pModule = NULL;
         return MPP_INIT_FAILED;

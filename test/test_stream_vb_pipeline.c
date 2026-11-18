@@ -22,7 +22,7 @@ void *dlopen(const char *path, int flags) {
     static void *(*real_open)(const char *, int);
     if (!real_open) real_open = dlsym(RTLD_NEXT, "dlopen");
     const char *override = getenv("MPP_TEST_CODEC_PLUGIN");
-    if (path && override && strstr(path, "libv4l2_linlonv5v7_codec2.so")) path = override;
+    if (path && override && strstr(path, "libv4l2_linlonv5v7_codec.so")) path = override;
     return real_open(path, flags);
 }
 

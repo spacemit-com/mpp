@@ -1,5 +1,5 @@
 # ============================================================
-# mpi/cpp  →  mpp_cpp (OBJECT, aggregated into libmpp.so)
+# mpi/cpp  →  mpp_cpp (OBJECT, aggregated into libspacemit_mpp.so)
 # CPP wrapper backed by real k1x-cam cpp implementation
 # ============================================================
 
@@ -27,7 +27,7 @@ if(CPP_LIB)
             "${K1X_CAM_INCLUDE_DIR}"
     )
 
-    # Export cpp link info to parent scope for libmpp.so aggregation
+    # Export cpp link info to parent scope for libspacemit_mpp.so aggregation
     set(MPP_CPP_AVAILABLE ON PARENT_SCOPE)
     set(MPP_CPP_LIB_DIR "${K1X_CAM_LIB_DIR}" PARENT_SCOPE)
     set(MPP_CPP_LINK_LIBS cpp PARENT_SCOPE)

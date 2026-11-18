@@ -1,4 +1,4 @@
-Source: mpp2
+Source: mpp
 Section: unknown
 Priority: optional
 Maintainer: mengbinghan <binghan.meng@spacemit.com>
@@ -6,10 +6,10 @@ Build-Depends: cmake, debhelper (>=11~), libsdl2-dev
 Standards-Version: 4.1.4
 Homepage: <insert the upstream URL, if relevant>
 
-Package: mpp2
+Package: mpp
 Architecture: any
 Multi-Arch: foreign
 Depends: k1x-cam|k3x-cam,k1x-vpu-firmware|k3x-vpu-firmware, ${misc:Depends}, ${shlibs:Depends}
-Description: SPACEMIT Media Processing Platform (dev branch)
+Description: SPACEMIT Media Processing Platform
  MPP development branch package for hardware-accelerated
  media processing on RISC-V systems.

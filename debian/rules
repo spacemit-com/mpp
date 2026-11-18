@@ -8,6 +8,10 @@
 %:
 	dh $@  
 
+# Require consumers to use at least this MPP upstream version.
+override_dh_makeshlibs:
+	dh_makeshlibs -V
+
 #override_dh_auto_configure:
 #	dh_auto_configure -- \
 #	      -DCMAKE_LIBRARY_ARCHITECTURE="$(DEB_TARGET_MULTIARCH)"

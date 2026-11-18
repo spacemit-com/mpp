@@ -32,15 +32,15 @@ link_directories(
 
 add_executable(mpp_isp_camera_node "${MPP_ROOT}/test/test_vi_isp_cam_ros2_node.cpp")
 ament_target_dependencies(mpp_isp_camera_node rclcpp sensor_msgs mpp_msgs)
-target_link_libraries(mpp_isp_camera_node mpp)
+target_link_libraries(mpp_isp_camera_node spacemit_mpp)
 
 add_executable(mpp_uvc_camera_node "${MPP_ROOT}/test/test_uvc_ros2_node.cpp")
 ament_target_dependencies(mpp_uvc_camera_node rclcpp sensor_msgs mpp_msgs)
-target_link_libraries(mpp_uvc_camera_node mpp)
+target_link_libraries(mpp_uvc_camera_node spacemit_mpp)
 
 add_executable(mpp_frame_consumer_node "${MPP_ROOT}/test/test_vi_isp_cam_ros2_consumer.cpp")
 ament_target_dependencies(mpp_frame_consumer_node rclcpp mpp_msgs)
-target_link_libraries(mpp_frame_consumer_node mpp)
+target_link_libraries(mpp_frame_consumer_node spacemit_mpp)
 
 install(TARGETS
   mpp_isp_camera_node
