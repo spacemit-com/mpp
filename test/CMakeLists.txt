@@ -333,3 +333,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         set_tests_properties(test_log_syslog PROPERTIES TIMEOUT 30)
     endif()
 endif()
+
+# Plugins are no longer installed as a build side effect, so point the loader
+# at this build tree (MPP_PLUGIN_DIR, see al/module.c). Otherwise CTest would
+# silently exercise whatever plugin copies happen to be in /usr/lib.
+get_property(mpp_ctest_names DIRECTORY PROPERTY TESTS)
+if(mpp_ctest_names)
+    set_property(TEST ${mpp_ctest_names} APPEND PROPERTY ENVIRONMENT
+        "MPP_PLUGIN_DIR=${CMAKE_BINARY_DIR}/lib"
+    )
+endif()
