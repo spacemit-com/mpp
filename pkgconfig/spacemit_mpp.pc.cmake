@@ -13,4 +13,4 @@ Requires.private:
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -lspacemit_mpp
 Libs.private:
-Cflags: -I${includedir} -I${includedir}/sys -I${includedir}/vi -I${includedir}/vo -I${includedir}/venc -I${includedir}/vdec -I${includedir}/demux -I${includedir}/mux -I${includedir}/v2d -I${includedir}/cpp -I${includedir}/uvc
+Cflags: -I${includedir} -I${includedir}/sys -I${includedir}/vi -I${includedir}/vo -I${includedir}/venc -I${includedir}/vdec -I${includedir}/demux -I${includedir}/mux -I${includedir}/v2d@MPP_CPP_CFLAGS@ -I${includedir}/uvc
