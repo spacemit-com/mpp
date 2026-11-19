@@ -165,6 +165,11 @@ if(BUILD_TESTS)
 endif()
 
 # Generate pkg-config metadata for the installed library and public headers.
+set(MPP_CPP_CFLAGS "")
+if(TARGET mpp_cpp)
+    set(MPP_CPP_CFLAGS " -I\${includedir}/cpp")
+endif()
+
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/spacemit_mpp.pc.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/spacemit_mpp.pc"
