@@ -82,8 +82,6 @@ typedef struct _ViDevAttrS {
     U32 u32Width;
     U32 u32Height;
     U32 u32MipiLaneNum;
-    U32 u32mbps;  // 保留 or 去掉都可 配置mipi 速率
-    BOOL bCapture2Preview;
 } ViDevAttrS;
 
 typedef struct _ViChnAttrS {

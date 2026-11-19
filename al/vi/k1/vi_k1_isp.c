@@ -131,7 +131,6 @@ static VOID K1_VI_MetaCacheInsert(K1_VI_CHN_CTX_S *pstChnCtx, const FRAME_INFO_S
 
     pstChnCtx->u32MetaWritePos = (pstChnCtx->u32MetaWritePos + 1U) % K1_VI_META_CACHE_DEPTH;
 
-    // info("[debug] MetaCacheInsert: frameId=%u stored at pos=%u\n", pstNode->u32FrameId, u32Pos);
 }
 
 static VOID K1_VI_FillPublicFrameMeta(const FRAME_INFO_S *pstSrc, ViFrameMetaInfo *pstDst) {
@@ -234,29 +233,6 @@ S32 K1_VI_QueryFrameMeta(VI_DEV ViDev, VI_CHN ViChn, U32 u32FrameId, ViFrameMeta
     return K1_VI_MetaCacheQuery(pstChnCtx, u32FrameId, pstFrameInfo);
 }
 
-static S32 K1_VI_ToCamRawType(ViRawType eRawType, CAM_SENSOR_RAWTYPE_E *penRawType) {
-    if (penRawType == NULL)
-        return K1_VI_ERR_INVALID_PARAM;
-
-    switch (eRawType) {
-        case VI_RAW_TYPE_8BIT:
-            *penRawType = CAM_SENSOR_RAWTYPE_RAW8;
-            break;
-        case VI_RAW_TYPE_10BIT:
-            *penRawType = CAM_SENSOR_RAWTYPE_RAW10;
-            break;
-        case VI_RAW_TYPE_12BIT:
-            *penRawType = CAM_SENSOR_RAWTYPE_RAW12;
-            break;
-        case VI_RAW_TYPE_14BIT:
-            *penRawType = CAM_SENSOR_RAWTYPE_RAW14;
-            break;
-        default:
-            return K1_VI_ERR_NOT_SUPPORT;
-    }
-
-    return K1_VI_SUCCESS;
-}
 
 static S32 K1_VI_GetOfflineIspInitAttr(
     const K1_VI_DEV_CTX_S *pstDevCtx, ISP_PUB_ATTR_S *pstPubAttr, ISP_OFFLINE_ATTR_S *pstOfflineAttr
@@ -282,7 +258,7 @@ static S32 K1_VI_GetOfflineIspInitAttr(
     pstPubAttr->stOutSize.height = pstDevCtx->stAttr.u32Height;
     pstPubAttr->enBayerFmt = ISP_BAYER_PATTERN_BGGR;
 
-    s32Ret = K1_VI_ToCamRawType(
+    s32Ret = K1_VI_ToAsrRawType(
         pstDevCtx->eOfflineRawType != VI_RAW_TYPE_UNKNOWN ? pstDevCtx->eOfflineRawType : VI_RAW_TYPE_12BIT, &enRawType);
     if (s32Ret != K1_VI_SUCCESS)
         return s32Ret;
@@ -384,7 +360,6 @@ S32 K1_VI_InitIsp(K1_VI_CHN_CTX_S *pstChnCtx) {
     memset(&stSensorAttr, 0, sizeof(stSensorAttr));
     stSensorAttr.u32SensorId = (U32)pstChnCtx->ViDev;
     s32Ret = ASR_ISP_RegSensorCallBack(pstChnCtx->u32IspPipeline, &stSensorAttr, &pstDevCtx->stSensorOps);
-    // info("%s: ASR_ISP_RegSensorCallBack firmwareId %d, sensorId %d, ret = %d\n", __func__, pstChnCtx->u32IspPipeline,
     // stSensorAttr.u32SensorId, s32Ret);
     if (s32Ret != SUCCESS)
         goto fail_destruct;
@@ -398,7 +373,6 @@ S32 K1_VI_InitIsp(K1_VI_CHN_CTX_S *pstChnCtx) {
     }
 
     s32Ret = ASR_ISP_SetPubAttr(pstChnCtx->u32IspPipeline, CAM_ISP_CH_ID_PREVIEW, &stIspPubAttr);
-    // info("%s: ASR_ISP_SetPubAttr firmwareId %d, CH_ID_PREVIEW, input %dx%d, output %dx%d, bayerFmt %d, rawType %d,
     // ret = %d\n",
     //        __func__, pstChnCtx->u32IspPipeline, stIspPubAttr.stInputSize.width, stIspPubAttr.stInputSize.height,
     //        stIspPubAttr.stOutSize.width, stIspPubAttr.stOutSize.height,
@@ -411,7 +385,6 @@ S32 K1_VI_InitIsp(K1_VI_CHN_CTX_S *pstChnCtx) {
         pstChnCtx->u32IspPipeline,
         CAM_ISP_CH_ID_PREVIEW,
         pstChnCtx->u32IspPipeline == 0 ? ISP_HW_PIPE_ID_ID_0 : ISP_HW_PIPE_ID_ID_1);
-    // info("%s: ASR_ISP_SetChHwPipeID firmwareId %d, CH_ID_PREVIEW, pipeID %d, ret = %d\n",
     //        __func__, pstChnCtx->u32IspPipeline, pstChnCtx->u32IspPipeline == 0 ? ISP_HW_PIPE_ID_ID_0 :
     //        ISP_HW_PIPE_ID_ID_1, s32Ret);
     if (s32Ret != SUCCESS)
@@ -436,7 +409,6 @@ S32 K1_VI_InitIsp(K1_VI_CHN_CTX_S *pstChnCtx) {
 
     s32Ret = ASR_ISP_SetFps(
         pstChnCtx->u32IspPipeline, (int)pstDevCtx->pstSensorCfg->minFps, (int)pstDevCtx->pstSensorCfg->maxFps);
-    // info("%s: ASR_ISP_SetFps %d, minFps: %f, maxFps: %f, ret = %d\n", __func__, pstChnCtx->u32IspPipeline,
     // pstDevCtx->pstSensorCfg->minFps,        pstDevCtx->pstSensorCfg->maxFps, s32Ret);
 
     if (s32Ret != SUCCESS)

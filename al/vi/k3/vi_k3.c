@@ -230,22 +230,7 @@ static S32 k3_vi_get_chn_attr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr
 }
 
 
-static S32 k3_vi_set_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl) {
-    (void)ViDev;
-    (void)ViChn;
-    (void)pstFrameRateCtrl;
-    return K3_VI_SUCCESS;
-}
 
-static S32 k3_vi_get_chn_framerate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl) {
-    (void)ViDev;
-    (void)ViChn;
-    if (pstFrameRateCtrl != NULL) {
-        pstFrameRateCtrl->u32InputFrameStep = 1;
-        pstFrameRateCtrl->u32OutputFrameStep = 1;
-    }
-    return K3_VI_SUCCESS;
-}
 
 static S32 k3_vi_enable_chn(VI_DEV ViDev, VI_CHN ViChn) {
     return K3_VI_EnableChn(ViDev, ViChn);
@@ -281,20 +266,6 @@ static S32 k3_vi_queue_buffer(VI_DEV ViDev, VI_CHN ViChn, U32 u32Index) {
         return K3_VI_ERR_BAD_STATE;
 
     return K3_V4L2_QBuf_DmaBuf(ViDev, ViChn, pChn, u32Index);
-}
-
-static S32 k3_vi_attach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    (void)ViDev;
-    (void)ViChn;
-    (void)pstSinkNode;
-    return K3_VI_SUCCESS;
-}
-
-static S32 k3_vi_detach_bind_sink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    (void)ViDev;
-    (void)ViChn;
-    (void)pstSinkNode;
-    return K3_VI_SUCCESS;
 }
 
 /*
@@ -391,15 +362,11 @@ static const ViAlOps k3_vi_ops = {
     .disable_dev = k3_vi_disable_dev,
     .set_chn_attr = k3_vi_set_chn_attr,
     .get_chn_attr = k3_vi_get_chn_attr,
-    .set_chn_framerate = k3_vi_set_chn_framerate,
-    .get_chn_framerate = k3_vi_get_chn_framerate,
     .enable_chn = k3_vi_enable_chn,
     .disable_chn = k3_vi_disable_chn,
     .dequeue_done_buffer = k3_vi_dequeue_done_buffer,
     .queue_buffer = k3_vi_queue_buffer,
     .set_external_buf_pool = k3_vi_set_external_buf_pool,
-    .attach_bind_sink = k3_vi_attach_bind_sink,
-    .detach_bind_sink = k3_vi_detach_bind_sink,
 
     /* Optional: rawdump / offline — K3 does not support these */
     .trigger_raw_dump = NULL,

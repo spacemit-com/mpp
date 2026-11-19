@@ -276,7 +276,6 @@ int main(int argc, char *argv[]) {
     stDevAttr.eWorkMode = VI_WORK_MODE_OFFLINE;
     stDevAttr.u32Width = u32Width;
     stDevAttr.u32Height = u32Height;
-    stDevAttr.bCapture2Preview = MPP_FALSE;
 
     s32Ret = VI_SetDevAttr(OFFLINE_ADDR_DEMO_DEV, &stDevAttr);
     if (s32Ret != 0) {

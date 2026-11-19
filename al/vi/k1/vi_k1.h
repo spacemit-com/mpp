@@ -36,8 +36,6 @@ S32 K1_VI_DisableDev(VI_DEV ViDev);
 
 S32 K1_VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr);
 S32 K1_VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr);
-S32 K1_VI_SetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, const ViFrameRateCtrlS *pstFrameRateCtrl);
-S32 K1_VI_GetChnFrameRate(VI_DEV ViDev, VI_CHN ViChn, ViFrameRateCtrlS *pstFrameRateCtrl);
 S32 K1_VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn);
 S32 K1_VI_DisableChn(VI_DEV ViDev, VI_CHN ViChn);
 S32 K1_VI_SetExternalBufPool(
@@ -54,8 +52,6 @@ S32 K1_VI_TriggerRawDump(VI_DEV ViDev, VI_CHN ViChn);
 S32 K1_VI_GetRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, VideoFrameInfo *pstVideoFrame, S32 s32MilliSec);
 S32 K1_VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pstVideoFrame);
 S32 K1_VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize);
-S32 K1_VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
-S32 K1_VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode);
 
 #ifdef __cplusplus
 #if __cplusplus

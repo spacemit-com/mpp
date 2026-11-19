@@ -365,9 +365,11 @@ S32 K1_VI_ToAsrDevAttr(VI_DEV ViDev, const ViDevAttrS *pstDevAttr, K1_ASR_VI_DEV
     pstAsrDevAttr->height = pstDevAttr->u32Height;
     pstAsrDevAttr->bindSensorIdx = (U32)ViDev;
     pstAsrDevAttr->mipi_lane_num = pstDevAttr->u32MipiLaneNum;
-    pstAsrDevAttr->bCapture2Preview = pstDevAttr->bCapture2Preview ? true : false;
-    pstAsrDevAttr->bOfflineSlice =
-        (pstDevAttr->eWorkMode == VI_WORK_MODE_OFFLINE && pstDevAttr->bCapture2Preview) ? true : false;
+    /* bOfflineSlice (offline capture-mode slicing) stays false: the SDK
+     * demo drives it from its isCaptureMode flag, and the public API has
+     * no knob for it.  Reintroduce it as a K1-private config if a product
+     * needs offline capture mode. */
+    pstAsrDevAttr->bOfflineSlice = false;
     return K1_VI_SUCCESS;
 }
 
@@ -385,9 +387,7 @@ S32 K1_VI_FromAsrDevAttr(const K1_ASR_VI_DEV_ATTR_S *pstAsrDevAttr, ViDevAttrS *
 
     pstDevAttr->u32Width = pstAsrDevAttr->width;
     pstDevAttr->u32Height = pstAsrDevAttr->height;
-    pstDevAttr->u32mbps = 0;
     pstDevAttr->u32MipiLaneNum = pstAsrDevAttr->mipi_lane_num;
-    pstDevAttr->bCapture2Preview = pstAsrDevAttr->bCapture2Preview ? MPP_TRUE : MPP_FALSE;
     return K1_VI_SUCCESS;
 }
 
