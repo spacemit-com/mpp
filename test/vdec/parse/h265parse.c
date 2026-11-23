@@ -284,6 +284,17 @@ S32 PARSE_H265_Parse(
             break;
     }
 
+    /* A complete file needs no following NAL to delimit its final frame.
+     * Streaming callers must keep complete_file disabled and supply more data. */
+    if (ctx && ctx->complete_file && num_start_code == 1 && start_pos) {
+        S32 tail_size = stream_size - (S32)(start_pos - stream_start_addr);
+        if (tail_size <= 0 || tail_size > STREAM_BUFFER_SIZE)
+            return -1;
+        *frame_size = tail_size;
+        memcpy(frame_start_addr, start_pos, *frame_size);
+        return 0;
+    }
+
     if (2 == num_start_code) {
         memcpy(frame_start_addr, start_pos, *frame_size);
         return 0;

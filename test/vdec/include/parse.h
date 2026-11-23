@@ -31,6 +31,8 @@ typedef struct _ParseOps {
 
 struct _MppParseContext {
     ParseOps *ops;
+    /* Set only when each parse call receives all bytes remaining to file EOF. */
+    S32 complete_file;
 };
 
 /**

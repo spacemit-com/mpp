@@ -25,6 +25,7 @@ MppParseContext *PARSE_Create(MppCodingType type) {
         return NULL;
     }
 
+    parse_context->complete_file = 0;
     parse_context->ops = (ParseOps *)malloc(sizeof(ParseOps));
     if (!parse_context->ops) {
         error("can not malloc MppParseContext->ops, please check!");
