@@ -279,6 +279,26 @@ S32 aio_check_dev_attr(const char *pszTag, const AioDevAttrS *pstAttr, AudioPcmF
     return SYS_ERR_OK;
 }
 
+/*
+ * The card wakes its thread once per hardware period and moves that much in
+ * between. Transfers in whole frames leave the level up to one frame, less
+ * the common divisor of the two sizes, off its target. One more frame is the
+ * margin for the thread to get scheduled: what the smallest legal setup, two
+ * frames with the period equal to the frame, has.
+ */
+U32 aio_min_device_frames(U32 u32HwPeriod, U32 u32Frame) {
+    U32 u32Gcd = u32HwPeriod, u32Rem = u32Frame;
+
+    while (u32Rem != 0) {
+        U32 u32Tmp = u32Gcd % u32Rem;
+
+        u32Gcd = u32Rem;
+        u32Rem = u32Tmp;
+    }
+
+    return u32HwPeriod + 2 * u32Frame - u32Gcd;
+}
+
 U32 aio_scale_frames(U32 u32Period, U32 u32FromRate, U32 u32ToRate) {
     return (U32)(((U64)u32Period * u32ToRate + u32FromRate / 2) / u32FromRate);
 }

@@ -725,7 +725,8 @@ static void test_hardware_limits(void) {
     REQUIRE_EQ(AO_DeInit(), SYS_ERR_OK);
 
     /* A card that works in periods of 1024 frames plays that much between
-     * two wake-ups: a fill level of 4 x 320 frames would run dry every time. */
+     * two wake-ups: a fill level of 4 x 320 frames does not last that long.
+     * Periods of 512 frames need 1088 frames queued, which 1280 covers. */
     fake_reset();
     fake_set_geometry(1024, 8192);
     REQUIRE_EQ(AO_Init(), SYS_ERR_OK);

@@ -247,6 +247,10 @@ static S32 alsa_pcm_open(const AioAlPcmCfg *pstCfg, AioAlPcm **ppstPcm, AioAlPcm
     /* The hardware may round both. I/O is done in MPI frames whatever the
      * period turns out to be; MPI checks that the outcome is usable. */
     err = snd_pcm_hw_params_set_period_size_near(pstPcm->pstPcm, pstHw, &ulPeriod, NULL);
+    /* A capture buffer adds no delay, so it is not kept tight: it has to
+     * take a hardware period on top of the frames that are still unread. */
+    if (err >= 0 && bCapture && ulBuffer < 2 * (ulPeriod + pstCfg->u32PeriodFrames))
+        ulBuffer = 2 * (ulPeriod + pstCfg->u32PeriodFrames);
     if (err >= 0)
         err = snd_pcm_hw_params_set_buffer_size_near(pstPcm->pstPcm, pstHw, &ulBuffer);
     if (err >= 0)

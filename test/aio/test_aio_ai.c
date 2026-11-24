@@ -910,12 +910,13 @@ static void test_hardware_limits(void) {
     REQUIRE_EQ(AI_SetDevAttr(0, &stAttr), SYS_ERR_OK);
     REQUIRE_EQ(AI_EnableDev(0), SYS_ERR_INVAL);
 
-    /* Nor is one that cannot hold a hardware period on top of a frame. */
-    fake_set_geometry(1024, 1024 + PERIOD - 1);
+    /* Nor is one that cannot take a hardware period of 1024 frames on top of
+     * what is unread, see aio_min_device_frames(). */
+    fake_set_geometry(1024, 1599);
     REQUIRE_EQ(AI_EnableDev(0), SYS_ERR_INVAL);
     REQUIRE_EQ(fake_stats()->u32Opens, 1);
     REQUIRE_EQ(fake_stats()->u32Closes, 1);
-    fake_set_geometry(1024, 1024 + PERIOD);
+    fake_set_geometry(1024, 1600);
     REQUIRE_EQ(AI_EnableDev(0), SYS_ERR_OK);
     REQUIRE_EQ(AI_DisableDev(0), SYS_ERR_OK);
     REQUIRE_EQ(AI_DeInit(), SYS_ERR_OK);

@@ -752,13 +752,13 @@ S32 AI_EnableDev(AI_DEV AiDev) {
             stCfg.s32Card, stCfg.u32Rate, stCfg.u32Channels, (S32)stCfg.ePcmFormat, s32AlRet);
         AI_CTL_LEAVE(aio_backend_err_to_sys(s32AlRet));
     }
-    /* The card hands over a hardware period at a time: its buffer has to
-     * hold one of those on top of a frame that is still unread. */
-    if (stActual.u32BufferFrames < stActual.u32PeriodFrames + stCfg.u32PeriodFrames) {
+    /* The card hands over a hardware period at a time and its buffer has to
+     * take that on top of what is unread, see aio_min_device_frames(). */
+    if (stActual.u32BufferFrames < aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames)) {
         AI_LOG_ERR("dev %d: the card captures in periods of %u frames, so its buffer has to hold %u frames but "
                    "holds %u; raise u32FrmNum or u32PtNumPerFrm",
-            AiDev, stActual.u32PeriodFrames, stActual.u32PeriodFrames + stCfg.u32PeriodFrames,
-            stActual.u32BufferFrames);
+            AiDev, stActual.u32PeriodFrames,
+            aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames), stActual.u32BufferFrames);
         ai_dev_close(pstDev);
         AI_CTL_LEAVE(SYS_ERR_INVAL);
     }

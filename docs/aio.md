@@ -131,7 +131,8 @@ AO_EnableReSmp(0, 0, AUDIO_SAMPLE_RATE_16000); /* 该通道接收 16 kHz 的帧 
   `SYS_ERR_BUSY`；声卡不支持所设的采样率、声道数或格式 `SYS_ERR_INVAL`，日志里会列出声卡实际
   支持的范围。
 - 声卡按自己的硬件周期工作，周期可能比一帧大（例如最小 512 点）。`u32FrmNum × u32PtNumPerFrm`
-  必须不小于「一个硬件周期 + 一帧」，否则播放每个周期都会断，`EnableDev` 直接返回
+  必须不小于「一个硬件周期 + 两帧 − 周期与帧长的最大公约数」（周期等于帧长时就是两帧），
+  否则缓冲撑不到声卡下一次唤醒，播放会反复断。不满足时 `EnableDev` 直接返回
   `SYS_ERR_INVAL`，日志里给出需要的点数。遇到时加大 `u32FrmNum` 或 `u32PtNumPerFrm`。
 - `DisableChn` / `DisableDev` 会唤醒阻塞的调用（返回 `ABORTED`）。停用时仍未归还的采集帧
   保持有效，归还后才释放；`DeInit` 时仍未归还的帧被直接释放并告警。

@@ -633,14 +633,13 @@ S32 AO_EnableDev(AO_DEV AoDev) {
             stCfg.s32Card, stCfg.u32Rate, stCfg.u32Channels, (S32)stCfg.ePcmFormat, s32AlRet);
         AO_CTL_LEAVE(aio_backend_err_to_sys(s32AlRet));
     }
-    /* The card takes a hardware period at a time: between two of its
-     * wake-ups it plays that much of what is queued, and the queue may
-     * be up to one frame short of its fill level when that starts. */
-    if (stActual.u32BufferFrames < stActual.u32PeriodFrames + stCfg.u32PeriodFrames) {
+    /* The card takes a hardware period at a time: what is queued has to
+     * last that long between two wake-ups, see aio_min_device_frames(). */
+    if (stActual.u32BufferFrames < aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames)) {
         AO_LOG_ERR("dev %d: the card plays in periods of %u frames, which needs %u frames queued but u32FrmNum x "
                    "u32PtNumPerFrm allows %u; raise u32FrmNum or u32PtNumPerFrm",
-            AoDev, stActual.u32PeriodFrames, stActual.u32PeriodFrames + stCfg.u32PeriodFrames,
-            stActual.u32BufferFrames);
+            AoDev, stActual.u32PeriodFrames,
+            aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames), stActual.u32BufferFrames);
         ao_dev_close(pstDev);
         AO_CTL_LEAVE(SYS_ERR_INVAL);
     }

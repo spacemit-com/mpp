@@ -67,6 +67,12 @@ U32 aio_format_bytes(AudioPcmFormat eFormat);
 /* Resolve AUDIO_PCM_DEFAULT and check the format against the bit width. */
 S32 aio_resolve_format(AudioBitWidth eBitWidth, AudioPcmFormat eFormat, AudioPcmFormat *peResolved);
 S32 aio_check_dev_attr(const char *pszTag, const AioDevAttrS *pstAttr, AudioPcmFormat *peResolved);
+/*
+ * Frames the device has to buffer (capture) or keep queued (playback) when
+ * the card works in hardware periods of u32HwPeriod and I/O is done in
+ * frames of u32Frame.
+ */
+U32 aio_min_device_frames(U32 u32HwPeriod, U32 u32Frame);
 /* Frame size of a channel that converts u32Period frames between rates. */
 U32 aio_scale_frames(U32 u32Period, U32 u32FromRate, U32 u32ToRate);
 

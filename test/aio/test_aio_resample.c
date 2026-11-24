@@ -433,6 +433,14 @@ static void test_format_helpers(void) {
     REQUIRE_EQ(aio_scale_frames(441, 44100, 48000), 480);
     REQUIRE_EQ(aio_scale_frames(320, 16000, 48000), 960);
 
+    /* Device level needed next to a hardware period: period + 2 frames - gcd. */
+    REQUIRE_EQ(aio_min_device_frames(320, 320), 640);   /* period == frame: two frames */
+    REQUIRE_EQ(aio_min_device_frames(960, 480), 1440);  /* period a multiple of the frame: period + frame */
+    REQUIRE_EQ(aio_min_device_frames(512, 160), 800);
+    REQUIRE_EQ(aio_min_device_frames(512, 240), 976);
+    REQUIRE_EQ(aio_min_device_frames(1024, 320), 1600);
+    REQUIRE_EQ(aio_min_device_frames(48, 960), 1920);
+
     /* About eight months of audio must not overflow the nanosecond math. */
     REQUIRE(aio_frames_to_ns(1000000000000ULL, 48000) == 20833333333333333ULL);
     REQUIRE(aio_frames_to_ns(16000, 16000) == AIO_NS_PER_SEC);
