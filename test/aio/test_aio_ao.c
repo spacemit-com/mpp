@@ -697,12 +697,20 @@ static void test_hardware_limits(void) {
     REQUIRE_EQ(AO_EnableDev(0), SYS_ERR_INVAL);
     REQUIRE_EQ(AO_DeInit(), SYS_ERR_OK);
 
-    /* A larger hardware buffer is not filled beyond u32FrmNum frames: the
-     * playback delay stays what the attribute asked for. */
+    /* A card that works in periods of 1024 frames plays that much between
+     * two wake-ups: a fill level of 4 x 320 frames would run dry every time. */
     fake_reset();
     fake_set_geometry(1024, 8192);
     REQUIRE_EQ(AO_Init(), SYS_ERR_OK);
     REQUIRE_EQ(AO_SetDevAttr(0, &stAttr), SYS_ERR_OK);
+    REQUIRE_EQ(AO_EnableDev(0), SYS_ERR_INVAL);
+    REQUIRE_EQ(fake_stats()->u32Opens, 1);
+    REQUIRE_EQ(fake_stats()->u32Closes, 1);
+    REQUIRE_EQ(AO_EnableChn(0, 0), SYS_ERR_NOT_INIT);
+
+    /* A larger hardware buffer is not filled beyond u32FrmNum frames: the
+     * playback delay stays what the attribute asked for. */
+    fake_set_geometry(512, 8192);
     REQUIRE_EQ(AO_EnableDev(0), SYS_ERR_OK);
     REQUIRE_EQ(AO_EnableChn(0, 0), SYS_ERR_OK);
     REQUIRE(fake_wait_idle(AIO_AL_DIR_PLAYBACK));
