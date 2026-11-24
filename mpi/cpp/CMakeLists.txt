@@ -35,7 +35,7 @@ if(CPP_LIB)
     install(FILES
         "${CMAKE_SOURCE_DIR}/include/cpp/cpp_api.h"
         "${CMAKE_SOURCE_DIR}/include/cpp/cpp_type.h"
-        DESTINATION include/cpp
+        DESTINATION "${MPP_INSTALL_INCLUDEDIR}/cpp"
     )
 else()
     message(STATUS "K1 cpp library NOT found, skipping mpp_cpp")

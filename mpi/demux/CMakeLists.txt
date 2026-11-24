@@ -139,6 +139,6 @@ target_include_directories(mpp_demux
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/demux/demux_api.h"
     "${CMAKE_SOURCE_DIR}/include/demux/demux_type.h"
-    DESTINATION include/demux
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/demux"
     OPTIONAL
 )

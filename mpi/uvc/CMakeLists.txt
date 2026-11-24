@@ -16,6 +16,6 @@ target_include_directories(mpp_uvc
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/uvc/uvc_api.h"
     "${CMAKE_SOURCE_DIR}/include/uvc/uvc_type.h"
-    DESTINATION include/uvc
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/uvc"
     OPTIONAL
 )

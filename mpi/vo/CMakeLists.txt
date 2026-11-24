@@ -16,6 +16,6 @@ target_include_directories(mpp_vo
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/vo/vo_api.h"
     "${CMAKE_SOURCE_DIR}/include/vo/vo_type.h"
-    DESTINATION include/vo
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/vo"
     OPTIONAL
 )
