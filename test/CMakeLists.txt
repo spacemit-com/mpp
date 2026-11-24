@@ -360,8 +360,9 @@ foreach(name test_aio_resample test_aio_ai test_aio_ao test_aio_concurrency)
     set_tests_properties(${name} PROPERTIES TIMEOUT 120)
 endforeach()
 
-# Allocation / thread-creation failures on the enable paths. The
-# implementation is compiled into the test so that calloc can be intercepted.
+# Allocation / thread-creation failures on the enable paths, and a device lost
+# while a channel is being enabled. The implementation is compiled into the
+# test so that calloc and pthread_mutex_lock can be intercepted.
 add_executable(test_aio_alloc aio/test_aio_alloc.c aio/fake/aio_fake_backend.c)
 target_compile_definitions(test_aio_alloc PRIVATE ${MPP_TEST_COMMON_DEFS})
 target_include_directories(test_aio_alloc PRIVATE ${TEST_AIO_INCLUDE_DIRS})

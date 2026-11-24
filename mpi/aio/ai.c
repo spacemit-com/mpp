@@ -849,6 +849,14 @@ S32 AI_EnableChn(AI_DEV AiDev, AI_CHN AiChn) {
     u32DevRate = (U32)pstDev->stAttr.eSampleRate;
 
     pthread_mutex_lock(&pstChn->stLock);
+    /* Looked at again under the channel lock: the capture thread raises the
+     * flag before it tells the enabled channels, each under this lock, so a
+     * channel that is enabled from here on cannot miss the loss. */
+    if (atomic_load(&pstDev->bLost)) {
+        pthread_mutex_unlock(&pstChn->stLock);
+        AI_LOG_ERR("dev %d was lost, disable and enable it again", AiDev);
+        AI_CTL_LEAVE(SYS_ERR_NOT_FOUND);
+    }
     if (pstChn->bEnabled) {
         pthread_mutex_unlock(&pstChn->stLock);
         AI_CTL_LEAVE(SYS_ERR_OK);

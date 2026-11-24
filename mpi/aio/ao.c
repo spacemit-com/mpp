@@ -731,6 +731,14 @@ S32 AO_EnableChn(AO_DEV AoDev, AO_CHN AoChn) {
     u32DevRate = (U32)pstDev->stAttr.eSampleRate;
 
     pthread_mutex_lock(&pstChn->stLock);
+    /* Looked at again under the channel lock: the playback thread raises the
+     * flag before it tells the enabled channels, each under this lock, so a
+     * channel that is enabled from here on cannot miss the loss. */
+    if (atomic_load(&pstDev->bLost)) {
+        pthread_mutex_unlock(&pstChn->stLock);
+        AO_LOG_ERR("dev %d was lost, disable and enable it again", AoDev);
+        AO_CTL_LEAVE(SYS_ERR_NOT_FOUND);
+    }
     u32InRate = pstChn->bReSmp ? (U32)pstChn->eReSmpRate : u32DevRate;
     u32InFrames = u32Period;
     if (u32InRate != u32DevRate) {
