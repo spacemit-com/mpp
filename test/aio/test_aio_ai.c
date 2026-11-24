@@ -724,6 +724,17 @@ static void test_xrun_recovery(void) {
     REQUIRE_EQ(AI_GetFrame(0, 0, &stFrame, NULL, AIO_NO_BLOCK), SYS_ERR_OK);
     REQUIRE_EQ(stFrame.u32Flags, AUDIO_FRAME_DISCONTINUITY);
     REQUIRE_EQ(AI_ReleaseFrame(0, 0, &stFrame, NULL), SYS_ERR_OK);
+
+    /* An overrun reported by the read itself: the period being read goes
+     * with it, capture carries on with the next one. */
+    fake_inject_io(AIO_AL_DIR_CAPTURE, AIO_AL_ERR_XRUN);
+    REQUIRE(fake_capture_advance(1));
+    REQUIRE_EQ(fake_stats()->u32Recovers, 4);
+    REQUIRE_EQ(AI_GetFrame(0, 0, &stFrame, NULL, AIO_NO_BLOCK), AI_ERR_BUF_EMPTY);
+    REQUIRE(fake_capture_advance(1));
+    REQUIRE_EQ(AI_GetFrame(0, 0, &stFrame, NULL, AIO_NO_BLOCK), SYS_ERR_OK);
+    REQUIRE_EQ(stFrame.u32Flags, AUDIO_FRAME_DISCONTINUITY);
+    REQUIRE_EQ(AI_ReleaseFrame(0, 0, &stFrame, NULL), SYS_ERR_OK);
     ai_down();
 }
 

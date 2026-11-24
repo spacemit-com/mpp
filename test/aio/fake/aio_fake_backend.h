@@ -45,6 +45,8 @@ VOID fake_set_support(U32 u32Rate, U32 u32Channels, AudioPcmFormat eFormat);
 VOID fake_set_geometry(U32 u32Period, U32 u32Buffer);
 /* The next pcm_wait/read/write of that direction fails once with s32Err. */
 VOID fake_inject(AioAlDir eDir, S32 s32Err);
+/* The next pcm_read/pcm_write of that direction fails once with s32Err; pcm_wait does not see it. */
+VOID fake_inject_io(AioAlDir eDir, S32 s32Err);
 /* pcm_recover returns this from now on. */
 VOID fake_set_recover_error(S32 s32Err);
 

@@ -652,6 +652,30 @@ static void test_xrun_recovery(void) {
     ao_down();
 }
 
+/*
+ * An underrun that only shows while a period is being written. That period
+ * has left the channel queue already and still has to be played.
+ */
+static void test_xrun_while_writing(void) {
+    U32 i;
+
+    ao_up(RATE, 1, PERIOD);
+    REQUIRE_EQ(AO_EnableChn(0, 0), SYS_ERR_OK);
+    REQUIRE(fake_wait_idle(AIO_AL_DIR_PLAYBACK));
+    for (i = 0; i < 3; i++)
+        REQUIRE_EQ(send_ramp(i * PERIOD, AIO_NO_BLOCK), SYS_ERR_OK);
+
+    fake_inject_io(AIO_AL_DIR_PLAYBACK, AIO_AL_ERR_XRUN);
+    REQUIRE(fake_playback_advance(4));
+    REQUIRE_EQ(fake_stats()->u32Recovers, 1);
+    REQUIRE_EQ(fake_playback_frames(), 2 * PREFILL + 3 * PERIOD);
+    for (i = 0; i < PREFILL; i++)
+        REQUIRE_EQ(played_s16(PREFILL + i), 0); /* the silence that restarts the stream */
+    for (i = 0; i < 3 * PERIOD; i++)
+        REQUIRE_EQ(played_s16(2 * PREFILL + i), (int16_t)i);
+    ao_down();
+}
+
 static void test_device_lost(void) {
     Sender stSender;
 
@@ -813,6 +837,7 @@ int main(void) {
     RUN(test_format_passthrough);
     RUN(test_resample);
     RUN(test_xrun_recovery);
+    RUN(test_xrun_while_writing);
     RUN(test_device_lost);
     RUN(test_hardware_limits);
     RUN(test_stubs);

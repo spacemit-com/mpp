@@ -34,6 +34,7 @@ struct _AioAlPcm {
     BOOL bWaiting; /* the device thread sits in pcm_wait with nothing to do */
     BOOL bXrun;    /* stopped by an overrun / underrun until pcm_recover */
     S32 s32Inject;
+    S32 s32InjectIo;
     S32 s32EvtFd;
     U64 u64Produced; /* capture: frames the device has captured */
     U64 u64Consumed; /* capture: frames read by the framework */
@@ -152,6 +153,12 @@ VOID fake_inject(AioAlDir eDir, S32 s32Err) {
     pthread_mutex_lock(&g_stLock);
     g_astPcm[eDir].s32Inject = s32Err;
     fake_kick(&g_astPcm[eDir]);
+    pthread_mutex_unlock(&g_stLock);
+}
+
+VOID fake_inject_io(AioAlDir eDir, S32 s32Err) {
+    pthread_mutex_lock(&g_stLock);
+    g_astPcm[eDir].s32InjectIo = s32Err;
     pthread_mutex_unlock(&g_stLock);
 }
 
@@ -337,6 +344,18 @@ static S32 fake_take_error(struct _AioAlPcm *pstPcm) {
     return pstPcm->bXrun ? AIO_AL_ERR_XRUN : AIO_AL_OK;
 }
 
+/* The same for pcm_read / pcm_write, which can be given a failure of their own. */
+static S32 fake_take_io_error(struct _AioAlPcm *pstPcm) {
+    S32 ret = pstPcm->s32InjectIo;
+
+    if (ret != 0) {
+        pstPcm->s32InjectIo = 0;
+        return ret;
+    }
+
+    return fake_take_error(pstPcm);
+}
+
 static S32 fake_pcm_wait(AioAlPcm *pstPcm, U32 u32Frames, S32 s32WakeFd, S32 s32TimeoutMs) {
     const U64 u64Deadline = aio_mono_ns() + (U64)(s32TimeoutMs > 0 ? s32TimeoutMs : 0) * AIO_NS_PER_MS;
 
@@ -414,7 +433,7 @@ static S32 fake_pcm_read(AioAlPcm *pstPcm, VOID *pBuf, U32 u32Frames) {
     S32 ret;
 
     pthread_mutex_lock(&g_stLock);
-    ret = fake_take_error(pstPcm);
+    ret = fake_take_io_error(pstPcm);
     if (ret != AIO_AL_OK) {
         pthread_mutex_unlock(&g_stLock);
         return ret;
@@ -450,7 +469,7 @@ static S32 fake_pcm_write(AioAlPcm *pstPcm, const VOID *pBuf, U32 u32Frames) {
     S32 ret;
 
     pthread_mutex_lock(&g_stLock);
-    ret = fake_take_error(pstPcm);
+    ret = fake_take_io_error(pstPcm);
     if (ret != AIO_AL_OK) {
         pthread_mutex_unlock(&g_stLock);
         return ret;

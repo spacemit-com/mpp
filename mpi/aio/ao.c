@@ -98,6 +98,7 @@ typedef struct _AoDevCtx {
     U32 u32FrameBytes;
     U32 u32Prefill; /* frames of silence that start the stream */
     U8 *pu8Out;
+    U8 *pu8Silence; /* one frame of silence, to start the stream with */
 
     atomic_ullong u64Xruns;
     U64 u64LogNs;
@@ -266,9 +267,9 @@ static S32 ao_dev_prefill(AoDevCtx *pstDev) {
     const U32 u32Period = pstDev->stAttr.u32PtNumPerFrm;
     U32 u32Left = pstDev->u32Prefill;
 
-    aio_fill_silence(pstDev->pu8Out, u32Period * pstDev->stAttr.u32ChnCnt, pstDev->eFormat);
     while (u32Left > 0) {
-        S32 s32Ret = pstOps->pcm_write(pstDev->pstPcm, pstDev->pu8Out, u32Left < u32Period ? u32Left : u32Period);
+        S32 s32Ret = pstOps->pcm_write(pstDev->pstPcm, pstDev->pu8Silence,
+            u32Left < u32Period ? u32Left : u32Period);
 
         if (s32Ret == AIO_AL_ERR_AGAIN || s32Ret == 0)
             break;
@@ -328,6 +329,7 @@ static VOID *ao_playback_thread(VOID *pArg) {
     pthread_setname_np(pthread_self(), szName);
 
     while (atomic_load(&pstDev->bRun)) {
+        BOOL bLost = MPP_FALSE;
         U32 u32Written = 0;
         S32 s32Ret;
 
@@ -350,24 +352,27 @@ static VOID *ao_playback_thread(VOID *pArg) {
             pthread_mutex_unlock(&pstChn->stLock);
         }
 
+        /* The frame has left the channel queue: all of it gets written, across
+         * a recovery if need be, unless the device is being disabled or is lost. */
         while (u32Written < u32Period && atomic_load(&pstDev->bRun)) {
             s32Ret = pstOps->pcm_write(pstDev->pstPcm, pstDev->pu8Out + (size_t)u32Written * pstDev->u32FrameBytes,
                 u32Period - u32Written);
-            if (s32Ret == AIO_AL_ERR_AGAIN || s32Ret == 0) {
+            if (s32Ret > 0) {
+                u32Written += (U32)s32Ret;
+                continue;
+            }
+            if (s32Ret == AIO_AL_ERR_AGAIN || s32Ret == 0)
                 s32Ret = pstOps->pcm_wait(pstDev->pstPcm, u32Period - u32Written, pstDev->s32WakeFd,
                     AIO_WAIT_SLICE_MS);
-                if (s32Ret == AIO_AL_OK || s32Ret == AIO_AL_ERR_TIMEOUT)
-                    continue;
+            if (s32Ret == AIO_AL_OK || s32Ret == AIO_AL_ERR_TIMEOUT || s32Ret == AIO_AL_ERR_WAKE)
+                continue;
+            if (!ao_dev_recover(pstDev, s32Ret)) {
+                bLost = MPP_TRUE;
                 break;
             }
-            if (s32Ret < 0)
-                break;
-            u32Written += (U32)s32Ret;
         }
-        if (s32Ret < 0 && s32Ret != AIO_AL_ERR_WAKE && s32Ret != AIO_AL_ERR_TIMEOUT && atomic_load(&pstDev->bRun)) {
-            if (!ao_dev_recover(pstDev, s32Ret))
-                break;
-        }
+        if (bLost)
+            break;
     }
 
     return NULL;
@@ -413,6 +418,8 @@ static VOID ao_dev_close(AoDevCtx *pstDev) {
     }
     free(pstDev->pu8Out);
     pstDev->pu8Out = NULL;
+    free(pstDev->pu8Silence);
+    pstDev->pu8Silence = NULL;
 }
 
 static VOID ao_dev_disable(AoDevCtx *pstDev) {
@@ -641,12 +648,14 @@ S32 AO_EnableDev(AO_DEV AoDev) {
     pstDev->u32FrameBytes = stCfg.u32Channels * aio_format_bytes(stCfg.ePcmFormat);
     pstDev->u32Prefill = stActual.u32BufferFrames;
     pstDev->pu8Out = (U8 *)calloc(stCfg.u32PeriodFrames, pstDev->u32FrameBytes);
+    pstDev->pu8Silence = (U8 *)calloc(stCfg.u32PeriodFrames, pstDev->u32FrameBytes);
     pstDev->s32WakeFd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    if (pstDev->pu8Out == NULL || pstDev->s32WakeFd < 0) {
+    if (pstDev->pu8Out == NULL || pstDev->pu8Silence == NULL || pstDev->s32WakeFd < 0) {
         AO_LOG_ERR("dev %d: out of memory", AoDev);
         ao_dev_close(pstDev);
         AO_CTL_LEAVE(SYS_ERR_NOMEM);
     }
+    aio_fill_silence(pstDev->pu8Silence, stCfg.u32PeriodFrames * stCfg.u32Channels, stCfg.ePcmFormat);
 
     atomic_store(&pstDev->u64Xruns, 0);
     atomic_store(&pstDev->bLost, MPP_FALSE);
