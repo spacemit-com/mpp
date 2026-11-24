@@ -136,9 +136,10 @@ static S32 alsa_init(VOID) {
 }
 
 static S32 alsa_deinit(VOID) {
+    /* The handler must not outlive the plugin. The configuration tree that
+     * alsa-lib caches is left alone: it is shared by every user of ALSA in
+     * the process. */
     snd_lib_error_set_handler(NULL);
-    /* Drop the configuration tree alsa-lib caches for the whole process. */
-    snd_config_update_free_global();
     return AIO_AL_OK;
 }
 
@@ -243,10 +244,14 @@ static S32 alsa_pcm_open(const AioAlPcmCfg *pstCfg, AioAlPcm **ppstPcm, AioAlPcm
         alsa_pcm_close(pstPcm);
         return AIO_AL_ERR_UNSUP;
     }
-    /* Any period will do: I/O is done in MPI frames, whatever the hardware period. */
-    if (snd_pcm_hw_params_set_period_size_near(pstPcm->pstPcm, pstHw, &ulPeriod, NULL) < 0 ||
-        snd_pcm_hw_params_set_buffer_size_near(pstPcm->pstPcm, pstHw, &ulBuffer) < 0 ||
-        (err = snd_pcm_hw_params(pstPcm->pstPcm, pstHw)) < 0) {
+    /* The hardware may round both. I/O is done in MPI frames whatever the
+     * period turns out to be; MPI checks that the outcome is usable. */
+    err = snd_pcm_hw_params_set_period_size_near(pstPcm->pstPcm, pstHw, &ulPeriod, NULL);
+    if (err >= 0)
+        err = snd_pcm_hw_params_set_buffer_size_near(pstPcm->pstPcm, pstHw, &ulBuffer);
+    if (err >= 0)
+        err = snd_pcm_hw_params(pstPcm->pstPcm, pstHw);
+    if (err < 0) {
         ALSA_LOG_ERR("%s: cannot set period %u / buffer %u frames: %s", pstPcm->szName, pstCfg->u32PeriodFrames,
             pstCfg->u32BufferFrames, snd_strerror(err));
         alsa_pcm_close(pstPcm);
