@@ -338,6 +338,7 @@ static void test_get_frame(void) {
 
 typedef struct _Reader {
     pthread_t stThread;
+    atomic_int iTid;
     AudioFrameS stFrame;
     S32 s32MilliSec;
     S32 s32Ret;
@@ -346,6 +347,7 @@ typedef struct _Reader {
 static void *reader_thread(void *pArg) {
     Reader *pstReader = (Reader *)pArg;
 
+    atomic_store(&pstReader->iTid, test_gettid());
     pstReader->s32Ret = AI_GetFrame(0, 0, &pstReader->stFrame, NULL, pstReader->s32MilliSec);
     return NULL;
 }
@@ -353,9 +355,10 @@ static void *reader_thread(void *pArg) {
 static void reader_start(Reader *pstReader, S32 s32MilliSec) {
     pstReader->s32MilliSec = s32MilliSec;
     pstReader->s32Ret = 12345;
+    atomic_store(&pstReader->iTid, 0);
     REQUIRE(pthread_create(&pstReader->stThread, NULL, reader_thread, pstReader) == 0);
-    /* Give it time to block; the outcome does not depend on it. */
-    usleep(20000);
+    /* Go on only once it sleeps inside AI_GetFrame. */
+    REQUIRE(test_wait_blocked(&pstReader->iTid));
 }
 
 static void test_get_frame_blocking(void) {
@@ -774,6 +777,66 @@ static void test_xrun_with_resample(void) {
     ai_down();
 }
 
+/* ======================== Capture clock ======================== */
+
+static void next_frame(AudioFrameS *pstFrame) {
+    REQUIRE(fake_capture_advance(1));
+    REQUIRE_EQ(AI_GetFrame(0, 0, pstFrame, NULL, AIO_NO_BLOCK), SYS_ERR_OK);
+    REQUIRE_EQ(AI_ReleaseFrame(0, 0, pstFrame, NULL), SYS_ERR_OK);
+}
+
+static void test_capture_clock(void) {
+    const U64 u64FrameMs = 1000ULL * PERIOD / RATE;
+    AudioFrameS stFrame;
+    U64 u64Prev, u64Now;
+    U32 i;
+
+    ai_up(RATE, 1, PERIOD);
+    REQUIRE_EQ(AI_EnableChn(0, 0), SYS_ERR_OK);
+    for (i = 0; i < 5; i++)
+        next_frame(&stFrame);
+    REQUIRE_EQ(stFrame.u64PTS, fake_capture_pts_ms(4ULL * PERIOD, RATE));
+
+    /* The device clock turns out to be 16 ms ahead of the sample count. The
+     * PTS follows it gradually: no jump, no frame out of step by more than 1 ms. */
+    fake_capture_set_clock(MPP_TRUE, 16 * (S64)AIO_NS_PER_MS);
+    u64Prev = stFrame.u64PTS;
+    for (i = 5; i < 305; i++) {
+        next_frame(&stFrame);
+        REQUIRE_EQ(stFrame.u32Seq, i);
+        REQUIRE_EQ(stFrame.u32Flags, 0);
+        REQUIRE(stFrame.u64PTS - u64Prev == u64FrameMs || stFrame.u64PTS - u64Prev == u64FrameMs + 1);
+        u64Prev = stFrame.u64PTS;
+    }
+    REQUIRE(stFrame.u64PTS - fake_capture_pts_ms(304ULL * PERIOD, RATE) >= 15);
+    REQUIRE(stFrame.u64PTS - fake_capture_pts_ms(304ULL * PERIOD, RATE) <= 16);
+
+    /* A step of half a second is not followed, the timeline starts over:
+     * the frame is marked and carries the new time; the sequence goes on. */
+    fake_capture_set_clock(MPP_TRUE, 516 * (S64)AIO_NS_PER_MS);
+    next_frame(&stFrame);
+    REQUIRE_EQ(stFrame.u32Seq, 305);
+    REQUIRE_EQ(stFrame.u32Flags, AUDIO_FRAME_DISCONTINUITY);
+    REQUIRE_EQ(stFrame.u64PTS, fake_capture_pts_ms(305ULL * PERIOD, RATE) + 516);
+    u64Prev = stFrame.u64PTS;
+    next_frame(&stFrame);
+    REQUIRE_EQ(stFrame.u32Flags, 0);
+    REQUIRE_EQ(stFrame.u64PTS, u64Prev + u64FrameMs);
+
+    /* A driver without timestamps: the frame is dated by its arrival, one
+     * frame duration back. (The fake card delivers at once, so "now".) */
+    fake_capture_set_clock(MPP_FALSE, 0);
+    next_frame(&stFrame);
+    u64Now = aio_ns_to_pts(aio_mono_ns());
+    REQUIRE_EQ(stFrame.u32Flags, AUDIO_FRAME_DISCONTINUITY); /* the fake clock was nowhere near the real one */
+    REQUIRE(stFrame.u64PTS <= u64Now && stFrame.u64PTS + 2000 >= u64Now);
+    u64Prev = stFrame.u64PTS;
+    next_frame(&stFrame);
+    REQUIRE_EQ(stFrame.u32Flags, 0);
+    REQUIRE(stFrame.u64PTS >= u64Prev + u64FrameMs - 5 && stFrame.u64PTS <= u64Prev + u64FrameMs + 5);
+    ai_down();
+}
+
 static void test_device_lost(void) {
     AudioFrameS stFrame;
     Reader stReader;
@@ -942,6 +1005,7 @@ int main(void) {
     RUN(test_resample);
     RUN(test_xrun_recovery);
     RUN(test_xrun_with_resample);
+    RUN(test_capture_clock);
     RUN(test_device_lost);
     RUN(test_hardware_limits);
     RUN(test_stubs);

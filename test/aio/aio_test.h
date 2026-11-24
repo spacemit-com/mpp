@@ -10,10 +10,13 @@
 #define AIO_TEST_H
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #include "aio_type.h"
 #include "sys_type.h"
@@ -45,6 +48,42 @@
     } while (0)
 
 #define TEST_PI 3.14159265358979323846
+
+static inline int test_gettid(void) {
+    return (int)syscall(SYS_gettid);
+}
+
+/*
+ * Wait until the thread that stored its test_gettid() in *piTid sleeps in
+ * the kernel. A thread that does so right before a call that is expected to
+ * block is then known to be blocked in it, without guessing a delay.
+ */
+static inline BOOL test_wait_blocked(atomic_int *piTid) {
+    char szPath[64], szStat[512];
+    int i;
+
+    for (i = 0; i < 5000; i++) {
+        int iTid = atomic_load(piTid);
+        const char *pszState = NULL;
+        FILE *pf;
+
+        if (iTid != 0) {
+            snprintf(szPath, sizeof(szPath), "/proc/self/task/%d/stat", iTid);
+            pf = fopen(szPath, "r");
+            if (pf != NULL) {
+                /* "<tid> (<comm>) <state> ...": the state follows the last ')'. */
+                if (fgets(szStat, sizeof(szStat), pf) != NULL)
+                    pszState = strrchr(szStat, ')');
+                fclose(pf);
+            }
+            if (pszState != NULL && pszState[1] == ' ' && pszState[2] == 'S')
+                return MPP_TRUE;
+        }
+        usleep(1000);
+    }
+
+    return MPP_FALSE;
+}
 
 static inline AioDevAttrS test_dev_attr(U32 u32Rate, U32 u32Channels, U32 u32Period, U32 u32FrmNum) {
     AioDevAttrS stAttr;

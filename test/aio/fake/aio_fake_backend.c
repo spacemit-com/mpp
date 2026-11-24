@@ -58,6 +58,8 @@ static AudioPcmFormat g_eSupFormat;
 static U32 g_u32GeoPeriod;
 static U32 g_u32GeoBuffer;
 static FakeSourceFn g_pfnSource = fake_ramp_source;
+static BOOL g_bCapTsValid = MPP_TRUE;
+static S64 g_s64CapTsOffsetNs;
 
 static VOID fake_once(VOID) {
     aio_cond_init(&g_stCond);
@@ -111,6 +113,8 @@ VOID fake_reset(VOID) {
     g_u32GeoPeriod = 0;
     g_u32GeoBuffer = 0;
     g_pfnSource = fake_ramp_source;
+    g_bCapTsValid = MPP_TRUE;
+    g_s64CapTsOffsetNs = 0;
     pthread_mutex_unlock(&g_stLock);
 }
 
@@ -143,6 +147,13 @@ VOID fake_set_recover_error(S32 s32Err) {
 
 VOID fake_capture_set_source(FakeSourceFn pfnSource) {
     g_pfnSource = pfnSource ? pfnSource : fake_ramp_source;
+}
+
+VOID fake_capture_set_clock(BOOL bValid, S64 s64OffsetNs) {
+    pthread_mutex_lock(&g_stLock);
+    g_bCapTsValid = bValid;
+    g_s64CapTsOffsetNs = s64OffsetNs;
+    pthread_mutex_unlock(&g_stLock);
 }
 
 U64 fake_capture_pts_ms(U64 u64Frame, U32 u32Rate) {
@@ -522,13 +533,15 @@ static S32 fake_pcm_get_status(AioAlPcm *pstPcm, AioAlPcmStatus *pstStatus) {
     if (pstPcm->stCfg.eDir == AIO_AL_DIR_CAPTURE) {
         pstStatus->u32AvailFrames = (U32)(pstPcm->u64Produced - pstPcm->u64Consumed);
         pstStatus->s64DelayFrames = 0;
-        pstStatus->u64TimestampNs = FAKE_BASE_NS + aio_frames_to_ns(pstPcm->u64Produced, pstPcm->stCfg.u32Rate);
+        pstStatus->u64TimestampNs = (U64)((S64)(FAKE_BASE_NS +
+            aio_frames_to_ns(pstPcm->u64Produced, pstPcm->stCfg.u32Rate)) + g_s64CapTsOffsetNs);
+        pstStatus->bTimestampValid = g_bCapTsValid;
     } else {
         pstStatus->s64DelayFrames = (S64)(pstPcm->u64Written - pstPcm->u64Played);
         pstStatus->u32AvailFrames = pstPcm->u32Buffer - (U32)pstStatus->s64DelayFrames;
         pstStatus->u64TimestampNs = FAKE_BASE_NS + aio_frames_to_ns(pstPcm->u64Played, pstPcm->stCfg.u32Rate);
+        pstStatus->bTimestampValid = MPP_TRUE;
     }
-    pstStatus->bTimestampValid = MPP_TRUE;
     pthread_mutex_unlock(&g_stLock);
 
     return AIO_AL_OK;

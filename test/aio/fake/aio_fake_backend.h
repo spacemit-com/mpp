@@ -53,7 +53,12 @@ VOID fake_set_recover_error(S32 s32Err);
 /* Default source: frame index + 1000 * channel, as a 16-bit ramp. */
 VOID fake_capture_set_source(FakeSourceFn pfnSource);
 float fake_ramp_source(U64 u64Frame, U32 u32Ch);
-/* PTS in the public unit (ms) the framework gives capture frame u64Frame. */
+/*
+ * The capture device clock as pcm_get_status reports it: shifted against
+ * the sample count by s64OffsetNs, or not available at all (bValid false).
+ */
+VOID fake_capture_set_clock(BOOL bValid, S64 s64OffsetNs);
+/* PTS in the public unit (ms) the framework gives capture frame u64Frame while the clock is not shifted. */
 U64 fake_capture_pts_ms(U64 u64Frame, U32 u32Rate);
 
 /*

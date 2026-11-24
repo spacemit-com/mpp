@@ -355,6 +355,7 @@ static void test_send_full_and_timeout(void) {
 
 typedef struct _Sender {
     pthread_t stThread;
+    atomic_int iTid;
     S32 s32MilliSec;
     S32 s32Ret;
 } Sender;
@@ -362,6 +363,7 @@ typedef struct _Sender {
 static void *sender_thread(void *pArg) {
     Sender *pstSender = (Sender *)pArg;
 
+    atomic_store(&pstSender->iTid, test_gettid());
     pstSender->s32Ret = send_ramp(30000, pstSender->s32MilliSec);
     return NULL;
 }
@@ -369,9 +371,10 @@ static void *sender_thread(void *pArg) {
 static void sender_start(Sender *pstSender, S32 s32MilliSec) {
     pstSender->s32MilliSec = s32MilliSec;
     pstSender->s32Ret = 12345;
+    atomic_store(&pstSender->iTid, 0);
     REQUIRE(pthread_create(&pstSender->stThread, NULL, sender_thread, pstSender) == 0);
-    /* Give it time to block; the outcome does not depend on it. */
-    usleep(20000);
+    /* Go on only once it sleeps inside AO_SendFrame. */
+    REQUIRE(test_wait_blocked(&pstSender->iTid));
 }
 
 static void fill_queue(void) {

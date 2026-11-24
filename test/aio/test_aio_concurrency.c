@@ -204,21 +204,31 @@ static void test_multi_sender(void) {
 
 /* ======================== Blocked calls against Disable ======================== */
 
+typedef struct _Blocked {
+    pthread_t stThread;
+    atomic_int iTid;
+    S32 s32Ret;
+} Blocked;
+
 static void *blocked_reader_thread(void *pArg) {
+    Blocked *pstBlocked = (Blocked *)pArg;
     AudioFrameS stFrame;
 
-    *(S32 *)pArg = AI_GetFrame(0, 0, &stFrame, NULL, AIO_BLOCK_INFINITE);
+    atomic_store(&pstBlocked->iTid, test_gettid());
+    pstBlocked->s32Ret = AI_GetFrame(0, 0, &stFrame, NULL, AIO_BLOCK_INFINITE);
     return NULL;
 }
 
 static void *blocked_sender_thread(void *pArg) {
-    *(S32 *)pArg = send_const(1, AIO_BLOCK_INFINITE);
+    Blocked *pstBlocked = (Blocked *)pArg;
+
+    atomic_store(&pstBlocked->iTid, test_gettid());
+    pstBlocked->s32Ret = send_const(1, AIO_BLOCK_INFINITE);
     return NULL;
 }
 
 static void test_disable_wakes_everyone(void) {
-    pthread_t astReader[THREADS], astSender[THREADS];
-    S32 as32Reader[THREADS], as32Sender[THREADS];
+    static Blocked astReader[THREADS], astSender[THREADS];
     U32 i;
 
     both_up();
@@ -227,17 +237,23 @@ static void test_disable_wakes_everyone(void) {
     while (send_const(1, AIO_NO_BLOCK) == SYS_ERR_OK) {
     }
     for (i = 0; i < THREADS; i++) {
-        REQUIRE(pthread_create(&astReader[i], NULL, blocked_reader_thread, &as32Reader[i]) == 0);
-        REQUIRE(pthread_create(&astSender[i], NULL, blocked_sender_thread, &as32Sender[i]) == 0);
+        atomic_store(&astReader[i].iTid, 0);
+        atomic_store(&astSender[i].iTid, 0);
+        REQUIRE(pthread_create(&astReader[i].stThread, NULL, blocked_reader_thread, &astReader[i]) == 0);
+        REQUIRE(pthread_create(&astSender[i].stThread, NULL, blocked_sender_thread, &astSender[i]) == 0);
     }
-    usleep(50000);
+    /* Disable only once every one of them sleeps inside its call. */
+    for (i = 0; i < THREADS; i++) {
+        REQUIRE(test_wait_blocked(&astReader[i].iTid));
+        REQUIRE(test_wait_blocked(&astSender[i].iTid));
+    }
     REQUIRE_EQ(AI_DisableDev(0), SYS_ERR_OK);
     REQUIRE_EQ(AO_DisableDev(0), SYS_ERR_OK);
     for (i = 0; i < THREADS; i++) {
-        pthread_join(astReader[i], NULL);
-        pthread_join(astSender[i], NULL);
-        REQUIRE_EQ(as32Reader[i], AI_ERR_ABORTED);
-        REQUIRE_EQ(as32Sender[i], AO_ERR_ABORTED);
+        pthread_join(astReader[i].stThread, NULL);
+        pthread_join(astSender[i].stThread, NULL);
+        REQUIRE_EQ(astReader[i].s32Ret, AI_ERR_ABORTED);
+        REQUIRE_EQ(astSender[i].s32Ret, AO_ERR_ABORTED);
     }
     both_down();
 }
