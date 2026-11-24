@@ -197,7 +197,11 @@ int main(int argc, char **argv) {
         /* The last frame is padded with silence to full length. */
         memset(ps16Src, 0, (size_t)u32FramePoints * u32SrcChannels * sizeof(int16_t));
         if (pf != NULL) {
-            if (fread(ps16Src, (size_t)u32SrcChannels * 2, u32FramePoints, pf) == 0)
+            /* Never read past the data chunk: other chunks may follow it. */
+            U64 u64Left = u64Total - u64Sample;
+
+            if (fread(ps16Src, (size_t)u32SrcChannels * 2, u64Left < u32FramePoints ? (size_t)u64Left : u32FramePoints,
+                    pf) == 0)
                 break;
         } else {
             for (i = 0; i < u32FramePoints && u64Sample + i < u64Total; i++)
