@@ -1,7 +1,7 @@
 # AL plugins
 
-Codec and VI backends are shared libraries (`libv4l2_linlonv5v7_codec.so`,
-`libvi_k3_cam_plugin.so`, ...) loaded at runtime by `al/module.c`.
+Codec, VI and audio backends are shared libraries (`libv4l2_linlonv5v7_codec.so`,
+`libvi_k3_cam_plugin.so`, `libaio_alsa_plugin.so`, ...) loaded at runtime by `al/module.c`.
 
 ## Lookup order
 

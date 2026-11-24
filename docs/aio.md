@@ -90,7 +90,8 @@ AO_DeInit();
 - `AO_SendFrame` 成功只表示已入队。没有数据时设备播放静音而不会停，通道断流记入
   `AO_QueryChnStat` 的 `u64UnderrunPeriods`。
 - 目前没有排空接口：发完后轮询 `AO_QueryChnStat` 直到 `u32ChnBusyNum` 为 0，再等
-  `u32FrmNum` 帧的时间让声卡缓冲播完，然后再停用。
+  `u32FrmNum + 2` 帧的时间，然后再停用。`u32FrmNum` 帧是声卡缓冲里还没播完的部分，
+  多出的两帧是启用重采样时转换器里留着的尾巴。
 - 每个 AO 设备同一时间只能使能一个通道（多路同时播放需要混音，尚未实现），第二个返回
   `SYS_ERR_BUSY`。
 
@@ -129,6 +130,9 @@ AO_EnableReSmp(0, 0, AUDIO_SAMPLE_RATE_16000); /* 该通道接收 16 kHz 的帧 
 - `EnableDev` 的失败原因：声卡不存在 `SYS_ERR_NOT_FOUND`；被其他进程或另一个逻辑设备占用
   `SYS_ERR_BUSY`；声卡不支持所设的采样率、声道数或格式 `SYS_ERR_INVAL`，日志里会列出声卡实际
   支持的范围。
+- 声卡按自己的硬件周期工作，周期可能比一帧大（例如最小 512 点）。`u32FrmNum × u32PtNumPerFrm`
+  必须不小于「一个硬件周期 + 一帧」，否则播放每个周期都会断，`EnableDev` 直接返回
+  `SYS_ERR_INVAL`，日志里给出需要的点数。遇到时加大 `u32FrmNum` 或 `u32PtNumPerFrm`。
 - `DisableChn` / `DisableDev` 会唤醒阻塞的调用（返回 `ABORTED`）。停用时仍未归还的采集帧
   保持有效，归还后才释放；`DeInit` 时仍未归还的帧被直接释放并告警。
 
@@ -157,6 +161,6 @@ ctest --test-dir build -R '^test_aio_' --output-on-failure
 | `test_aio_ai` | AI 生命周期、取帧、丢帧、借出帧的所有权、重采样、XRUN 和设备丢失 |
 | `test_aio_ao` | AO 生命周期、起始静音、逐比特播放、断流、帧校验、重采样、XRUN 和设备丢失 |
 | `test_aio_concurrency` | 多线程取帧/送帧、阻塞调用与停用竞争、运行中反复启停 |
-| `test_aio_alloc` | 使能路径上每个内存分配点和线程创建失败时的回滚 |
+| `test_aio_alloc` | 使能路径上每个内存分配点和线程创建失败时的回滚；使能通道的瞬间设备丢失 |
 
 真实声卡上的检查用 `test_aio_hw`（不注册到 CTest），用法见 `test/aio/test_aio_hw.c` 开头。
