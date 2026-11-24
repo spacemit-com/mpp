@@ -533,7 +533,6 @@ S32 memoryUnmap(Buffer *buf) {
                     return MPP_MUNMAP_FAILED;
                 }
                 freeDmaBuf(buf->pDmaBufWrapper);
-                close(buf->stBufArr.m.planes[0].m.fd);
             } else {
                 debug(
                     "maybe dmabuf external, not free dmabuf here, always used for "
@@ -560,7 +559,6 @@ S32 memoryUnmap(Buffer *buf) {
                     return MPP_MUNMAP_FAILED;
                 }
                 freeDmaBuf(buf->pDmaBufWrapper);
-                close(buf->stBufArr.m.fd);
             } else {
                 debug(
                     "maybe dmabuf external, not free dmabuf here, always used for "
