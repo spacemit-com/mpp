@@ -365,9 +365,9 @@ static atomic_bool g_bPlayStop;
 static VOID play_run(PlayResult *pstRes, U32 u32Seconds) {
     const U32 u32Points = ao_points();
     const U32 u32Frames = (U32)(((U64)u32Seconds * g_stCfg.u32AoInRate + u32Points - 1) / u32Points);
-    U64 u64Start = now_ms();
+    U64 u64Start = now_ms(), u64Moved;
     AoChnStateS stStat;
-    U32 i;
+    U32 u32Busy = 0, i;
 
     memset(pstRes, 0, sizeof(*pstRes));
     memset(&stStat, 0, sizeof(stStat));
@@ -382,11 +382,24 @@ static VOID play_run(PlayResult *pstRes, U32 u32Seconds) {
     }
     if (AO_QueryChnStat(0, 0, &stStat) == SYS_ERR_OK)
         pstRes->u64UnderrunsBeforeEnd = stStat.u64UnderrunPeriods;
-    /* There is no drain call yet: watch the queue, then give the device buffer time. */
-    while (AO_QueryChnStat(0, 0, &stStat) == SYS_ERR_OK && stStat.u32ChnBusyNum > 0)
+    /*
+     * There is no drain call yet: watch the queue, then give the device
+     * buffer time. A queue that does not move for a second (a frame lasts
+     * 512 ms at most) will never empty: the card is gone.
+     */
+    u64Moved = now_ms();
+    while (pstRes->s32Err == SYS_ERR_OK && AO_QueryChnStat(0, 0, &stStat) == SYS_ERR_OK && stStat.u32ChnBusyNum > 0) {
+        if (stStat.u32ChnBusyNum != u32Busy) {
+            u32Busy = stStat.u32ChnBusyNum;
+            u64Moved = now_ms();
+        } else if (now_ms() - u64Moved >= 1000) {
+            pstRes->s32Err = AO_ERR_ABORTED;
+        }
         usleep(5000);
+    }
     pstRes->u64ElapsedMs = now_ms() - u64Start;
-    usleep((HW_FRM_NUM + 2) * 1000000ULL * g_stCfg.u32PlayPoints / g_stCfg.u32PlayRate);
+    if (pstRes->s32Err == SYS_ERR_OK)
+        usleep((HW_FRM_NUM + 2) * 1000000ULL * g_stCfg.u32PlayPoints / g_stCfg.u32PlayRate);
 }
 
 static VOID play_report(const PlayResult *pstRes, U32 u32Seconds) {
