@@ -83,6 +83,7 @@ set(MPP_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include/mux"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/v2d"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/uvc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/aio"
     "${CMAKE_CURRENT_SOURCE_DIR}/mpi/sys"
 )
 
