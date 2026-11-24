@@ -594,6 +594,7 @@ static int decode_media_with_parse(
         goto err;
     }
 
+    pctx->complete_file = 1;
     frame_buf = (U8 *)malloc(STREAM_BUFFER_SIZE);
     if (!frame_buf) {
         fprintf(stderr, "malloc frame buf\n");
@@ -812,6 +813,7 @@ static int decode_media_with_parse_ex(
         goto err;
     }
 
+    pctx->complete_file = 1;
     frame_buf = (U8 *)malloc(STREAM_BUFFER_SIZE);
     if (!frame_buf) {
         fprintf(stderr, "malloc frame buf\n");
@@ -998,6 +1000,7 @@ static int run_multichn_suite(
             fprintf(stderr, "parse init failed ch %d\n", i);
             goto fail_free;
         }
+        st[i].pctx->complete_file = 1;
         st[i].frame_buf = (U8 *)malloc(STREAM_BUFFER_SIZE);
         if (!st[i].frame_buf) {
             goto fail_free;
