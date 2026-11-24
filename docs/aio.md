@@ -88,7 +88,8 @@ AO_DeInit();
 - 发送队列深度是 4 × `u32FrmNum` 帧。队列满时：`AIO_NO_BLOCK` 返回 `SYS_ERR_FULL`，
   带超时返回 `SYS_ERR_TIMEOUT`，`AIO_BLOCK_INFINITE` 等到有空位。
 - `AO_SendFrame` 成功只表示已入队。没有数据时设备播放静音而不会停，通道断流记入
-  `AO_QueryChnStat` 的 `u64UnderrunPeriods`。
+  `AO_QueryChnStat` 的 `u64UnderrunPeriods`。这个计数目前是断流的**次数**，不是周期数，
+  见「与头文件的已知差异」。
 - 目前没有排空接口：发完后轮询 `AO_QueryChnStat` 直到 `u32ChnBusyNum` 为 0，再等
   `u32FrmNum + 2` 帧的时间，然后再停用。`u32FrmNum` 帧是声卡缓冲里还没播完的部分，
   多出的两帧是启用重采样时转换器里留着的尾巴。
@@ -144,6 +145,30 @@ AO_EnableReSmp(0, 0, AUDIO_SAMPLE_RATE_16000); /* 该通道接收 16 kHz 的帧 
 
 环境变量 `MPP_AI_PCM` / `MPP_AO_PCM` 可以把采集 / 播放的 PCM 名字换成别的，例如
 `MPP_AO_PCM=plughw:1,0` 让 alsa-lib 做格式和声道转换。setuid 程序忽略这两个变量。
+
+## 与头文件的已知差异
+
+下面的行为与 `include/aio` 头文件的字面定义不同，是有意保留的，条件具备后要改回来。
+
+### `u64UnderrunPeriods` 按断流次数计
+
+- **头文件的定义**：`AoChnStateS.u64UnderrunPeriods` 是通道在活动状态下断流的**周期数**，
+  不含暂停和流结束之后（`ao_type.h`：「channel starved while active, excludes pause/EOS」）。
+- **现在的实现**：每次由「有数据」变成「没数据」记 1 次，不论之后空了多少个周期。例如送入
+  2 帧后停 8 个周期，头文件的定义是 8，现在得到 1。计数不为 0 仍然表示出现过断流。
+- **原因**：本版本没有 `AO_SendEndOfStream`、`AO_DrainChn`、`AO_PauseChn`，框架分不清
+  「应用来不及送数据」和「应用已经送完了」。按周期计的话，播放正常结束后计数会一直增长，
+  这个数字就失去了意义。
+- **什么时候改**：实现了流结束（`AO_SendEndOfStream` 或 `AO_DrainChn`）和暂停
+  （`AO_PauseChn`）之后，改成通道活动期间每个空周期加 1，流结束之后和暂停期间不计。
+- **改的时候要一起动的地方**：
+  - `mpi/aio/ao.c` 的 `ao_chn_pull()`：两处 `u64Underruns++` 现在都由 `bPlaying` 把关，
+    只在断流开始时计一次。
+  - `test/aio/test_aio_ao.c`：`test_underrun` 和 `test_resample` 里对
+    `u64UnderrunPeriods` 的预期值是按次数写的（1、2）。
+  - `test/aio/test_aio_hw.c`：「the channel never starved while sending」这项检查读的是
+    发送结束那一刻的计数，改成按周期计之后仍然成立，但发送结束后的读数会变。
+  - 本节和「播放」一节里的说明。
 
 ## 测试
 
