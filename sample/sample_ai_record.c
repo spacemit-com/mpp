@@ -72,6 +72,7 @@ int main(int argc, char **argv) {
     AudioFrameS stFrame;
     MicAttrS stMicAttr;
     S32 s32Card = 0, ret;
+    BOOL bFailed = MPP_FALSE;
     FILE *pf;
     int opt;
 
@@ -147,7 +148,9 @@ int main(int argc, char **argv) {
         if (ret == SYS_ERR_TIMEOUT)
             continue;
         if (ret != SYS_ERR_OK) {
+            /* AI_ERR_ABORTED here means the sound card is gone (e.g. unplugged). */
             printf("AI_GetFrame failed: %d\n", ret);
+            bFailed = MPP_TRUE;
             break;
         }
         /* pu8Data belongs to AI and is only valid until AI_ReleaseFrame. */
@@ -169,5 +172,5 @@ int main(int argc, char **argv) {
     AI_DisableDev(AiDev);
     AI_DeInit();
 
-    return 0;
+    return bFailed ? 1 : 0;
 }

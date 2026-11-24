@@ -93,6 +93,9 @@ AO_DeInit();
 - 目前没有排空接口：发完后轮询 `AO_QueryChnStat` 直到 `u32ChnBusyNum` 为 0，再等
   `u32FrmNum + 2` 帧的时间，然后再停用。`u32FrmNum` 帧是声卡缓冲里还没播完的部分，
   多出的两帧是启用重采样时转换器里留着的尾巴。
+- 轮询要有退出条件：声卡消失后队列不会再变空，`AO_QueryChnStat` 也不会报错。
+  `AO_SendFrame` 已经返回 `AO_ERR_ABORTED`、或者 `u32ChnBusyNum` 超过一帧的时间没有减少，
+  就不要再等。
 - 每个 AO 设备同一时间只能使能一个通道（多路同时播放需要混音，尚未实现），第二个返回
   `SYS_ERR_BUSY`。
 

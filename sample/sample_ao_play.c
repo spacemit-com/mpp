@@ -83,7 +83,8 @@ int main(int argc, char **argv) {
     const AO_DEV AoDev = 0;
     const AO_CHN AoChn = 0;
     U32 u32Rate = 48000, u32Channels = 2, u32Points = 0, u32SrcRate = 0, u32Seconds = 3;
-    U32 u32SrcChannels = 1, u32DataBytes = 0, u32FramePoints, u32Sent = 0, i, c;
+    U32 u32SrcChannels = 1, u32DataBytes = 0, u32FramePoints, u32Sent = 0, u32Busy = 0, u32StalledMs = 0, i, c;
+    BOOL bFailed = MPP_FALSE;
     int16_t *ps16Src = NULL, *ps16Frame = NULL;
     const char *pszFile = NULL;
     AioDevAttrS stDevAttr;
@@ -216,17 +217,32 @@ int main(int argc, char **argv) {
         /* Blocks while the send queue is full; the payload is copied. */
         ret = AO_SendFrame(AoDev, AoChn, &stFrame, AIO_BLOCK_INFINITE);
         if (ret != SYS_ERR_OK) {
+            /* AO_ERR_ABORTED here means the sound card is gone (e.g. unplugged). */
             printf("AO_SendFrame failed: %d\n", ret);
+            bFailed = MPP_TRUE;
             break;
         }
         u64Sample += u32FramePoints;
         u32Sent++;
     }
 
-    /* Let the queue and then the device buffer play out before closing. */
-    while (!g_bStop && AO_QueryChnStat(AoDev, AoChn, &stStat) == SYS_ERR_OK && stStat.u32ChnBusyNum > 0)
+    /*
+     * Let the queue and then the device buffer play out before closing. A
+     * queue that has not moved for a second will not empty any more: the
+     * card went away after the last frame was sent. A frame lasts 512 ms at
+     * most, so a working card takes a frame out well within that second.
+     */
+    while (!g_bStop && !bFailed && AO_QueryChnStat(AoDev, AoChn, &stStat) == SYS_ERR_OK &&
+        stStat.u32ChnBusyNum > 0) {
+        u32StalledMs = stStat.u32ChnBusyNum == u32Busy ? u32StalledMs + 10 : 0;
+        u32Busy = stStat.u32ChnBusyNum;
+        if (u32StalledMs >= 1000) {
+            printf("playback stalled with %u frame(s) queued, the sound card is gone\n", u32Busy);
+            bFailed = MPP_TRUE;
+        }
         usleep(10000);
-    if (!g_bStop)
+    }
+    if (!g_bStop && !bFailed)
         usleep((useconds_t)((stDevAttr.u32FrmNum + 2) * 1000000ULL * u32Points / u32Rate));
     printf("sent %u frame(s)\n", u32Sent);
 
@@ -238,5 +254,5 @@ int main(int argc, char **argv) {
     if (pf != NULL)
         fclose(pf);
 
-    return 0;
+    return bFailed ? 1 : 0;
 }
