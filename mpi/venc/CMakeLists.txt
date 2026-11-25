@@ -16,5 +16,5 @@ target_include_directories(mpp_venc BEFORE PUBLIC
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/venc/venc_api.h"
     "${CMAKE_SOURCE_DIR}/include/venc/venc_type.h"
-    DESTINATION include/venc
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/venc"
 )

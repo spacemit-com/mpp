@@ -36,6 +36,12 @@ endif()
 
 # Install the license with the library distribution.
 include(GNUInstallDirs)
+
+# Public headers live under a project directory so that module folders such as
+# "sys/" never land directly in <prefix>/include (e.g. /usr/include/sys, which
+# belongs to libc).
+set(MPP_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}/spacemit_mpp")
+
 install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
     DESTINATION "${CMAKE_INSTALL_DOCDIR}"

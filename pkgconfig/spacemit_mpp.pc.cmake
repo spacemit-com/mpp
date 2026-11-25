@@ -5,7 +5,7 @@
 prefix=@CMAKE_INSTALL_PREFIX@
 exec_prefix=${prefix}
 libdir=${prefix}/lib
-includedir=${prefix}/include
+includedir=${prefix}/@MPP_INSTALL_INCLUDEDIR@
 
 Name: mpp
 Description: Spacemit Media Process Platform
