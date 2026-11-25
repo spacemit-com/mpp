@@ -199,8 +199,8 @@ static void *mpi_vi_push_task(void *arg) {
             continue;
         }
 
-        /* Build frame info: copy template, fill PTS/sequence from DQBUF metadata,
-         * convert frame type so VENC can accept it directly. */
+        /* Build frame info: copy the channel template and fill PTS/sequence
+         * from the DQBUF metadata. */
         VideoFrameInfo stFrame = pstBufCtx->astFrameInfo[u32Index];
 
         if (g_pViOps->query_dqbuf_meta != NULL) {
@@ -270,11 +270,6 @@ static void *mpi_vi_push_task(void *arg) {
             /* Release raw capture buffer — recycle thread re-queues it to V4L2 */
             VB_ModReleaseBuffer(ulBuf, MPP_ID_VI);
 
-            CommonFrameInfo stV2dCommInfo = stV2dFrame.stViFrameInfo.stCommFrameInfo;
-            stV2dFrame.eFrameType = FRAME_TYPE_VENC;
-            stV2dFrame.eModId     = MPP_ID_VENC;
-            stV2dFrame.stVencFrameInfo.stCommFrameInfo = stV2dCommInfo;
-
             VB_UpdateBufferFrameInfo(ulV2dBuf, &stV2dFrame);
             (void)SYS_SendFrame(&stSrcNode, ulV2dBuf);
 
@@ -301,15 +296,6 @@ static void *mpi_vi_push_task(void *arg) {
 
             continue;
         }
-
-        /* Convert to VENC frame type so VENC's frame input thread can handle it.
-         * stViFrameInfo and stVencFrameInfo share the same union storage; save
-         * stCommFrameInfo to a local copy before reinterpreting the union to
-         * avoid a self-assignment that is fragile against layout changes. */
-        CommonFrameInfo stCommInfo = stFrame.stViFrameInfo.stCommFrameInfo;
-        stFrame.eFrameType = FRAME_TYPE_VENC;
-        stFrame.eModId     = MPP_ID_VENC;
-        stFrame.stVencFrameInfo.stCommFrameInfo = stCommInfo;
 
         VB_UpdateBufferFrameInfo(ulBuf, &stFrame);
 
@@ -407,7 +393,7 @@ static void *mpi_vi_recycle_task(void *arg) {
              * misconfiguration is visible, while teardown EINVAL noise is not
              * repeated.  Keep ref=1 — MPI_VI_DestroyOutBufPool releases it. */
             if (!(pstBufCtx->u32BadSlotMask & (1u << slot))) {
-                error("vi recycle: slot %u (dev=%d chn=%d) QBUF failed; "
+                info("vi recycle: slot %u (dev=%d chn=%d) QBUF failed; "
                     "marking bad, capture continues on remaining slots",
                     slot, ViDev, ViChn);
                 pstBufCtx->u32BadSlotMask |= (1u << slot);
@@ -423,12 +409,6 @@ static void *mpi_vi_recycle_task(void *arg) {
  * Channel buffer context helpers
  * ============================================================ */
 
-static VOID mpi_vi_reset_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn) {
-    if (mpi_vi_is_valid_dev_chn(ViDev, ViChn) != MPP_TRUE)
-        return;
-    memset(&g_astViBufCtx[ViDev][ViChn], 0, sizeof(g_astViBufCtx[ViDev][ViChn]));
-}
-
 static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     MpiViChnBufCtx *pstBufCtx = NULL;
 
@@ -441,10 +421,10 @@ static VOID mpi_vi_destroy_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn) {
     if (pstBufCtx->ulPoolId != 0)
         MPI_VI_DestroyOutBufPool(pstBufCtx->ulPoolId, pstBufCtx->u32BufCnt, pstBufCtx->aulBufferId);
 
-    mpi_vi_reset_chn_buf_ctx(ViDev, ViChn);
+    memset(pstBufCtx, 0, sizeof(*pstBufCtx));
 }
 
-static S32 mpi_vi_rebuild_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
+static S32 mpi_vi_setup_chn_buf_ctx(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
     MpiViChnBufCtx *pstBufCtx = NULL;
     U32 u32BufCnt = 4;
     S32 s32Ret;
@@ -566,10 +546,8 @@ static S32 vi_load_plugin(VOID) {
 
     if (g_pViOps->init == NULL || g_pViOps->deinit == NULL || g_pViOps->set_dev_attr == NULL ||
         g_pViOps->get_dev_attr == NULL || g_pViOps->enable_dev == NULL || g_pViOps->disable_dev == NULL ||
-        g_pViOps->set_chn_attr == NULL || g_pViOps->get_chn_attr == NULL || g_pViOps->set_chn_framerate == NULL ||
-        g_pViOps->get_chn_framerate == NULL || g_pViOps->enable_chn == NULL || g_pViOps->disable_chn == NULL ||
-        g_pViOps->dequeue_done_buffer == NULL || g_pViOps->queue_buffer == NULL ||
-        g_pViOps->attach_bind_sink == NULL || g_pViOps->detach_bind_sink == NULL ||
+        g_pViOps->set_chn_attr == NULL || g_pViOps->get_chn_attr == NULL || g_pViOps->enable_chn == NULL ||
+        g_pViOps->disable_chn == NULL || g_pViOps->dequeue_done_buffer == NULL || g_pViOps->queue_buffer == NULL ||
         g_pViOps->set_external_buf_pool == NULL) {
         error("required VI ops missing from plugin");
         module_destory(g_pViModule);
@@ -651,7 +629,7 @@ S32 VI_SetChnAttr(VI_DEV ViDev, VI_CHN ViChn, const ViChnAttrS *pstChnAttr) {
     pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
     pstBufCtx->stChnAttr = *pstChnAttr;
 
-    return mpi_vi_rebuild_chn_buf_ctx(ViDev, ViChn, pstChnAttr);
+    return mpi_vi_setup_chn_buf_ctx(ViDev, ViChn, pstChnAttr);
 }
 
 S32 VI_GetChnAttr(VI_DEV ViDev, VI_CHN ViChn, ViChnAttrS *pstChnAttr) {
@@ -704,7 +682,7 @@ S32 VI_EnableChn(VI_DEV ViDev, VI_CHN ViChn) {
 
     pstBufCtx = &g_astViBufCtx[ViDev][ViChn];
     if (pstBufCtx->ulPoolId == 0) {
-        s32Ret = mpi_vi_rebuild_chn_buf_ctx(ViDev, ViChn, &stChnAttr);
+        s32Ret = mpi_vi_setup_chn_buf_ctx(ViDev, ViChn, &stChnAttr);
         if (s32Ret != MPP_OK)
             return s32Ret;
     }
@@ -924,21 +902,6 @@ S32 VI_ReleaseRawDumpFrame(VI_DEV ViDev, VI_CHN ViChn, const VideoFrameInfo *pst
     if (pstVideoFrame == NULL)
         return MPP_NULL_POINTER;
     return g_pViOps->release_raw_dump_frame(ViDev, ViChn, pstVideoFrame);
-}
-
-S32 VI_AttachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    if (vi_load_plugin() != MPP_OK)
-        return MPP_INIT_FAILED;
-    /* Threads already running from VI_EnableChn; the plugin op only records
-     * that the channel type accepts a bound sink.  Applications establish
-     * the actual binding through SYS_Bind(). */
-    return g_pViOps->attach_bind_sink(ViDev, ViChn, pstSinkNode);
-}
-
-S32 VI_DetachBindSink(VI_DEV ViDev, VI_CHN ViChn, const MppNode *pstSinkNode) {
-    if (vi_load_plugin() != MPP_OK)
-        return MPP_INIT_FAILED;
-    return g_pViOps->detach_bind_sink(ViDev, ViChn, pstSinkNode);
 }
 
 S32 VI_OfflineSetInputAddr(VI_DEV ViDev, VI_CHN ViChn, const U8 *pu8RawVirAddr, U32 u32RawSize) {

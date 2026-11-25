@@ -126,7 +126,6 @@ int main(int argc, char **argv) {
     devAttr.u32Width     = K3_YUV_DEFAULT_WIDTH;
     devAttr.u32Height    = K3_YUV_DEFAULT_HEIGHT;
     devAttr.u32MipiLaneNum = K3_YUV_DEFAULT_LANES;
-    devAttr.u32mbps      = K3_YUV_DEFAULT_MBPS;
 
     ret = VI_SetDevAttr(K3_YUV_DEV, &devAttr);
     if (ret != 0) {

@@ -303,21 +303,16 @@ S32 K1_VI_QueueBufNode(K1_VI_CHN_CTX_S *pstChnCtx, K1_VI_BUF_NODE_S *pstBufNode)
 
     pstBufNode->stImageBuffer.type = 2;
 
-    // info("Queueing buffer node index %u with buffer ID %lu for VI channel context...\n", pstBufNode->u32Index,
     // pstBufNode->ulBufferId);
     //  info("pstChnCtx->ulVbPool: %lu\n", pstChnCtx->ulVbPool);
     //  info("pstChnCtx->u32AsrChn: %u\n", pstChnCtx->u32AsrChn);
 
-    // info("test_buffer_prepare: buffer fd %d, width %d, height %d, stride %d\n",
     // pstBufNode->stImageBuffer.m.fd,pstBufNode->stImageBuffer.planes[0].width,
     // pstBufNode->stImageBuffer.planes[0].height, pstBufNode->stImageBuffer.planes[0].stride);
-    // info("test_buffer_prepare: type %d, format %d\n", pstBufNode->stImageBuffer.type,
     // pstBufNode->stImageBuffer.format); info("test_buffer_prepare: buffer plane0 size %d plane1 size %d\n",
     // pstBufNode->stImageBuffer.planes[0].length, pstBufNode->stImageBuffer.planes[1].length);
-    // info("test_buffer_prepare: buffer plane0 virAddr %p plane1 virAddr %p\n",
     // pstBufNode->stImageBuffer.planes[0].virAddr, pstBufNode->stImageBuffer.planes[1].virAddr);
 
-    // info("test_buffer_prepare: buffer width %d, height %d, format %d\n", pstBufNode->stImageBuffer.size.width,
     // pstBufNode->stImageBuffer.size.height, pstBufNode->stImageBuffer.format);
     s32Ret = ASR_VI_ChnQueueBuffer(pstChnCtx->u32AsrChn, &pstBufNode->stImageBuffer);
     if (s32Ret != SUCCESS)
@@ -335,7 +330,6 @@ S32 K1_VI_QueueAllBuffers(K1_VI_CHN_CTX_S *pstChnCtx) {
         return K1_VI_ERR_INVALID_PARAM;
 
     for (i = 0; i < pstChnCtx->u32BufCnt; i++) {
-        // info("Queueing buffer %u for VI channel context...\n", i);
         K1_VI_BUF_NODE_S *pstBufNode = &pstChnCtx->astBufNode[i];
 
         if (pstBufNode->bValid != MPP_TRUE)

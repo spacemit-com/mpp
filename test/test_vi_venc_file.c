@@ -117,7 +117,6 @@ static void init_config(ViVencDemoConfig *pstCfg) {
     pstCfg->stDevAttr.u32Width = 3864;
     pstCfg->stDevAttr.u32Height = 2192;
     pstCfg->stDevAttr.u32MipiLaneNum = 4;
-    pstCfg->stDevAttr.bCapture2Preview = MPP_FALSE;
 
     pstCfg->stViChnAttr.eChnType = VI_CHN_TYPE_PHYSICAL;
     pstCfg->stViChnAttr.ePixelFormat = MPP_PIXEL_FORMAT_NV12;
