@@ -91,8 +91,10 @@ static inline AioDevAttrS test_dev_attr(U32 u32Rate, U32 u32Channels, U32 u32Per
     memset(&stAttr, 0, sizeof(stAttr));
     stAttr.eSampleRate = (AudioSampleRate)u32Rate;
     stAttr.eBitWidth = AUDIO_BIT_WIDTH_16;
-    stAttr.eSoundMode = u32Channels == 1 ? AUDIO_SOUND_MODE_MONO
-                                         : (u32Channels == 2 ? AUDIO_SOUND_MODE_STEREO : AUDIO_SOUND_MODE_RAW);
+    if (u32Channels == 1)
+        stAttr.eSoundMode = AUDIO_SOUND_MODE_MONO;
+    else
+        stAttr.eSoundMode = u32Channels == 2 ? AUDIO_SOUND_MODE_STEREO : AUDIO_SOUND_MODE_RAW;
     stAttr.u32FrmNum = u32FrmNum;
     stAttr.u32PtNumPerFrm = u32Period;
     stAttr.u32ChnCnt = u32Channels;

@@ -756,7 +756,7 @@ S32 AI_EnableDev(AI_DEV AiDev) {
      * take that on top of what is unread, see aio_min_device_frames(). */
     if (stActual.u32BufferFrames < aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames)) {
         AI_LOG_ERR("dev %d: the card captures in periods of %u frames, so its buffer has to hold %u frames but "
-                   "holds %u; raise u32FrmNum or u32PtNumPerFrm",
+            "holds %u; raise u32FrmNum or u32PtNumPerFrm",
             AiDev, stActual.u32PeriodFrames,
             aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames), stActual.u32BufferFrames);
         ai_dev_close(pstDev);
@@ -1087,8 +1087,9 @@ S32 AI_ReleaseFrame(AI_DEV AiDev, AI_CHN AiChn, const AudioFrameS *pstFrame, con
     }
 
     /* The whole descriptor has to match what AI_GetFrame handed out. */
-    pstSlot = (pstPool != NULL && pstFrame->u32SlotId < pstPool->u32SlotCnt) ? &pstPool->pstSlots[pstFrame->u32SlotId]
-                                                                             : NULL;
+    pstSlot = NULL;
+    if (pstPool != NULL && pstFrame->u32SlotId < pstPool->u32SlotCnt)
+        pstSlot = &pstPool->pstSlots[pstFrame->u32SlotId];
     if (pstSlot == NULL || pstSlot->eState != AI_SLOT_HELD || pstSlot->u32Seq != pstFrame->u32Seq ||
         pstFrame->pu8Data != pstPool->pu8Mem + (size_t)pstFrame->u32SlotId * pstPool->u32SlotBytes) {
         pthread_mutex_unlock(&pstChn->stLock);

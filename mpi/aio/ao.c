@@ -637,7 +637,7 @@ S32 AO_EnableDev(AO_DEV AoDev) {
      * last that long between two wake-ups, see aio_min_device_frames(). */
     if (stActual.u32BufferFrames < aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames)) {
         AO_LOG_ERR("dev %d: the card plays in periods of %u frames, which needs %u frames queued but u32FrmNum x "
-                   "u32PtNumPerFrm allows %u; raise u32FrmNum or u32PtNumPerFrm",
+            "u32PtNumPerFrm allows %u; raise u32FrmNum or u32PtNumPerFrm",
             AoDev, stActual.u32PeriodFrames,
             aio_min_device_frames(stActual.u32PeriodFrames, stCfg.u32PeriodFrames), stActual.u32BufferFrames);
         ao_dev_close(pstDev);
@@ -897,7 +897,7 @@ S32 AO_SendFrame(AO_DEV AoDev, AO_CHN AoChn, const AudioFrameS *pstData, S32 s32
     }
     if (!ao_frame_matches(pstChn, pstData)) {
         AO_LOG_ERR("dev %d chn %d: frame (%d Hz, %d ch, format %d/%d, %u bytes) does not match the channel "
-                   "(%u Hz, %u ch, format %d, %u bytes)",
+            "(%u Hz, %u ch, format %d, %u bytes)",
             AoDev, AoChn, (S32)pstData->eSampleRate, pstData->s32Channels, (S32)pstData->eBitWidth,
             (S32)pstData->ePcmFormat, pstData->u32Len, pstChn->u32InRate, pstChn->u32Channels, (S32)pstChn->eFormat,
             pstChn->u32FrameBytes);

@@ -109,8 +109,10 @@ static S32 ai_start(void) {
     stMic.stMicAttr.s32Chns = (S32)g_stCfg.u32CapCh;
     if ((ret = AI_SetMicAttr(0, &stMic)) != SYS_ERR_OK || (ret = AI_SetDevAttr(0, &stAttr)) != SYS_ERR_OK)
         return ret;
-    ret = g_stCfg.u32AiOutRate != g_stCfg.u32CapRate ? AI_EnableReSmp(0, 0, (AudioSampleRate)g_stCfg.u32AiOutRate)
-                                                     : AI_DisableReSmp(0, 0);
+    if (g_stCfg.u32AiOutRate != g_stCfg.u32CapRate)
+        ret = AI_EnableReSmp(0, 0, (AudioSampleRate)g_stCfg.u32AiOutRate);
+    else
+        ret = AI_DisableReSmp(0, 0);
     if (ret != SYS_ERR_OK || (ret = AI_EnableDev(0)) != SYS_ERR_OK)
         return ret;
     if ((ret = AI_EnableChn(0, 0)) != SYS_ERR_OK)
@@ -129,8 +131,10 @@ static S32 ao_start(void) {
     stSpk.stSpkAttr.s32Chns = (S32)g_stCfg.u32PlayCh;
     if ((ret = AO_SetSpkAttr(0, &stSpk)) != SYS_ERR_OK || (ret = AO_SetDevAttr(0, &stAttr)) != SYS_ERR_OK)
         return ret;
-    ret = g_stCfg.u32AoInRate != g_stCfg.u32PlayRate ? AO_EnableReSmp(0, 0, (AudioSampleRate)g_stCfg.u32AoInRate)
-                                                     : AO_DisableReSmp(0, 0);
+    if (g_stCfg.u32AoInRate != g_stCfg.u32PlayRate)
+        ret = AO_EnableReSmp(0, 0, (AudioSampleRate)g_stCfg.u32AoInRate);
+    else
+        ret = AO_DisableReSmp(0, 0);
     if (ret != SYS_ERR_OK || (ret = AO_EnableDev(0)) != SYS_ERR_OK)
         return ret;
     if ((ret = AO_EnableChn(0, 0)) != SYS_ERR_OK)
@@ -522,7 +526,7 @@ static VOID cmd_duplex(void) {
         }
         dFreq = peak_frequency(stCap.ps16Data + (size_t)u32Best * u32Ch, u32Win, u32Ch, u32Rate, &dLevel);
         printf("       %.0f Hz is strongest %.1f s into the capture: %.1f dBFS; the peak of that window is %.0f Hz "
-               "at %.1f dBFS\n",
+            "at %.1f dBFS\n",
             g_stCfg.dToneHz, (double)u32Best / u32Rate, dBestTone, dFreq, dLevel);
         if (g_stCfg.bExpectTone)
             /* A wrong rate on either side would move the tone; a 200 ms window resolves 5 Hz. */
@@ -652,7 +656,7 @@ static VOID cmd_errors(void) {
 
 static VOID usage(void) {
     printf("usage: test_aio_hw <capture|play|duplex|cycle|errors> [-C card] [-P card] [-r Hz] [-R Hz] [-n ch] [-m ch]\n"
-           "                   [-p points] [-q points] [-o Hz] [-i Hz] [-d sec] [-t Hz] [-w file.wav] [-N cycles] [-e]\n");
+        "                   [-p points] [-q points] [-o Hz] [-i Hz] [-d sec] [-t Hz] [-w file.wav] [-N cycles] [-e]\n");
 }
 
 int main(int argc, char **argv) {

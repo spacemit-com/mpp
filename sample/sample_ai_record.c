@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
             case 'f': pszFile = optarg; break;
             default:
                 printf("usage: %s [-c card] [-r rate] [-n channels] [-p points] [-o out_rate] [-d seconds] "
-                       "[-f file.wav]\n", argv[0]);
+                    "[-f file.wav]\n", argv[0]);
                 return 1;
         }
     }

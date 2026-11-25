@@ -205,8 +205,8 @@ typedef struct _AioDevAttrS {
     AudioSoundMode eSoundMode;   /* MONO for 1, STEREO for 2, RAW for >2 channels */
     U32 u32FrmNum;               /* pcm device buffer depth in frames, [2, 10] */
     U32 u32PtNumPerFrm;          /* sample points per frame (single channel) */
-    U32 u32ChnCnt;               /* physical PCM channels, 1..AUDIO_MAX_PCM_CHANNELS;
-                                 * must agree with MIC/SPK route s32Chns */
+    U32 u32ChnCnt;               /* physical PCM channels, 1..AUDIO_MAX_PCM_CHANNELS; */
+                                 /* must agree with MIC/SPK route s32Chns */
     AudioPcmFormat ePcmFormat;   /* DEFAULT: derive from eBitWidth */
 } AioDevAttrS;
 
@@ -291,8 +291,8 @@ typedef struct _AudioEvent {
     U64 u64PTS; /* monotonic milliseconds at event generation */
     U64 u64Epoch; /* device generation; changes on reopen/recovery */
     S32 s32Reason; /* error code, or 0 */
-    U64 u64Value; /* DROP: lost frames; UNDERRUN: starved periods;
-                   * XRUN: occurrences; OVERFLOW: lost events; otherwise 0 */
+    U64 u64Value; /* DROP: lost frames; UNDERRUN: starved periods; */
+                  /* XRUN: occurrences; OVERFLOW: lost events; otherwise 0 */
 } AudioEventS;
 
 /* dB values are integer dB; BOOL values are 0/1; INDEX values are route IDs.
@@ -301,8 +301,8 @@ typedef struct _AudioEvent {
 typedef struct _AudioControlCaps {
     AudioControlId eControlId;
     AudioControlUnit eUnit;
-    U32 u32ChannelMask; /* CHN_*: bit n is logical channel n; hardware
-                         * controls: physical channel n; 0: device-wide */
+    U32 u32ChannelMask; /* CHN_*: bit n is logical channel n; hardware */
+                        /* controls: physical channel n; 0: device-wide */
     S32 s32MinValue;
     S32 s32MaxValue;
     S32 s32Step;
