@@ -18,6 +18,6 @@ target_include_directories(mpp_v2d
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/v2d/v2d_api.h"
     "${CMAKE_SOURCE_DIR}/include/v2d/v2d_type.h"
-    DESTINATION include/v2d
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/v2d"
     OPTIONAL
 )

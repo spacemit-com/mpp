@@ -25,5 +25,5 @@ install(FILES
     "${CMAKE_SOURCE_DIR}/include/sys/type.h"
     "${CMAKE_SOURCE_DIR}/include/sys/mpp_shm.h"
     "${CMAKE_SOURCE_DIR}/include/sys/dma_alloc.h"
-    DESTINATION include/sys
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/sys"
 )

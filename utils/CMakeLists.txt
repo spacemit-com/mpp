@@ -20,7 +20,7 @@ set(MPP_UTILS_SRCS
 
 add_library(utils OBJECT ${MPP_UTILS_SRCS})
 
-install(FILES include/log.h DESTINATION include/sys)
+install(FILES include/log.h DESTINATION "${MPP_INSTALL_INCLUDEDIR}/sys")
 
 target_include_directories(utils
     PUBLIC

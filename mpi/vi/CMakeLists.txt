@@ -21,5 +21,5 @@ target_include_directories(mpp_vi
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/vi/vi_api.h"
     "${CMAKE_SOURCE_DIR}/include/vi/vi_type.h"
-    DESTINATION include/vi
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/vi"
 )

@@ -17,6 +17,6 @@ target_include_directories(mpp_vdec BEFORE PUBLIC
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/vdec/vdec_api.h"
     "${CMAKE_SOURCE_DIR}/include/vdec/vdec_type.h"
-    DESTINATION include/vdec
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/vdec"
     OPTIONAL
 )

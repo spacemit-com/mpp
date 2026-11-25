@@ -32,6 +32,6 @@ target_include_directories(mpp_mux
 install(FILES
     "${CMAKE_SOURCE_DIR}/include/mux/mux_api.h"
     "${CMAKE_SOURCE_DIR}/include/mux/mux_type.h"
-    DESTINATION include/mux
+    DESTINATION "${MPP_INSTALL_INCLUDEDIR}/mux"
     OPTIONAL
 )
