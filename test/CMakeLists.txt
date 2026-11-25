@@ -334,6 +334,49 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# AI / AO (audio). Hardware-independent: mpi/aio is linked with a scripted pcm
+# backend (aio/fake) in place of the plugin loader, so the tests drive the
+# "sound card" period by period and check every sample.
+set(TEST_AIO_INCLUDE_DIRS
+    ${MPP_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/mpi/aio
+    ${CMAKE_SOURCE_DIR}/al/aio/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/aio
+    ${CMAKE_CURRENT_SOURCE_DIR}/aio/fake)
+set(TEST_AIO_CORE_SRCS
+    ${CMAKE_SOURCE_DIR}/mpi/aio/ai.c
+    ${CMAKE_SOURCE_DIR}/mpi/aio/ai_stub.c
+    ${CMAKE_SOURCE_DIR}/mpi/aio/ao.c
+    ${CMAKE_SOURCE_DIR}/mpi/aio/ao_stub.c
+    ${CMAKE_SOURCE_DIR}/mpi/aio/aio_common.c
+    ${CMAKE_SOURCE_DIR}/mpi/aio/aio_resample.c
+    aio/fake/aio_fake_backend.c)
+foreach(name test_aio_resample test_aio_ai test_aio_ao test_aio_concurrency)
+    add_executable(${name} aio/${name}.c ${TEST_AIO_CORE_SRCS})
+    target_compile_definitions(${name} PRIVATE ${MPP_TEST_COMMON_DEFS})
+    target_include_directories(${name} PRIVATE ${TEST_AIO_INCLUDE_DIRS})
+    target_link_libraries(${name} PRIVATE utils Threads::Threads m)
+    add_test(NAME ${name} COMMAND $<TARGET_FILE:${name}>)
+    set_tests_properties(${name} PROPERTIES TIMEOUT 120)
+endforeach()
+
+# Allocation / thread-creation failures on the enable paths, and a device lost
+# while a channel is being enabled. The implementation is compiled into the
+# test so that calloc and pthread_mutex_lock can be intercepted.
+add_executable(test_aio_alloc aio/test_aio_alloc.c aio/fake/aio_fake_backend.c)
+target_compile_definitions(test_aio_alloc PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_aio_alloc PRIVATE ${TEST_AIO_INCLUDE_DIRS})
+target_link_libraries(test_aio_alloc PRIVATE utils Threads::Threads m)
+add_test(NAME test_aio_alloc COMMAND $<TARGET_FILE:test_aio_alloc>)
+set_tests_properties(test_aio_alloc PROPERTIES TIMEOUT 60)
+
+# Hardware-only: needs a sound card and the ALSA plugin; intentionally not
+# registered with CTest. See the usage at the top of the source file.
+add_executable(test_aio_hw aio/test_aio_hw.c)
+target_compile_definitions(test_aio_hw PRIVATE ${MPP_TEST_COMMON_DEFS})
+target_include_directories(test_aio_hw PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(test_aio_hw PRIVATE mpp Threads::Threads m)
+
 # Plugins are no longer installed as a build side effect, so point the loader
 # at this build tree (MPP_PLUGIN_DIR, see al/module.c). Otherwise CTest would
 # silently exercise whatever plugin copies happen to be in /usr/lib.

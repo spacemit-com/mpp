@@ -12,6 +12,7 @@ add_subdirectory(mux)
 add_subdirectory(v2d)
 add_subdirectory(cpp)
 add_subdirectory(uvc)
+add_subdirectory(aio)
 
 # ============================================================
 # libspacemit_mpp.so  –  unified shared library aggregating all OBJECT modules
@@ -31,6 +32,7 @@ target_sources(mpp PRIVATE
     $<TARGET_OBJECTS:mpp_mux>
     $<TARGET_OBJECTS:mpp_v2d>
     $<TARGET_OBJECTS:mpp_uvc>
+    $<TARGET_OBJECTS:mpp_aio>
 )
 
 # Conditionally add utils (Linux-only) and mpp_cpp (platform-dependent)
@@ -62,6 +64,8 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(mpp PUBLIC ${CMAKE_DL_LIBS} rt)
+    # mpi/aio: resampler filter design and float <-> PCM rounding
+    target_link_libraries(mpp PRIVATE m)
 endif()
 
 # K1 cpp library (from mpi/cpp)

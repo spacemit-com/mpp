@@ -26,3 +26,4 @@ target_include_directories(mpp_al_module
 add_subdirectory(vi/k1)
 add_subdirectory(vi/k3)
 add_subdirectory(vcodec)
+add_subdirectory(aio/alsa)

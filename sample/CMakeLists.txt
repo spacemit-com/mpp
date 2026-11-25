@@ -97,3 +97,15 @@ add_executable(sample_uvc_record_rtmp sample_uvc_record_rtmp.c)
 target_compile_definitions(sample_uvc_record_rtmp PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
 target_include_directories(sample_uvc_record_rtmp PRIVATE ${MPP_INCLUDE_DIRS})
 target_link_libraries(sample_uvc_record_rtmp PRIVATE mpp)
+
+# AI: capture from a sound card (optionally resampled) into a WAV file
+add_executable(sample_ai_record sample_ai_record.c)
+target_compile_definitions(sample_ai_record PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
+target_include_directories(sample_ai_record PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(sample_ai_record PRIVATE mpp)
+
+# AO: play a WAV file or a test tone (optionally resampled) on a sound card
+add_executable(sample_ao_play sample_ao_play.c)
+target_compile_definitions(sample_ao_play PRIVATE ${MPP_SAMPLE_COMMON_DEFS})
+target_include_directories(sample_ao_play PRIVATE ${MPP_INCLUDE_DIRS})
+target_link_libraries(sample_ao_play PRIVATE mpp m)

@@ -46,6 +46,10 @@ typedef enum _MppModuleType {
     VPS_AUTO = 300,
     VPS_K1_V2D,
     VPS_MAX,
+
+    AIO_AUTO = 400,
+    AIO_ALSA,
+    AIO_MAX,
 } MppModuleType;
 
 /* ======================== Coding Type ======================== */

@@ -114,6 +114,7 @@ FIND_PLUGIN(VI_V4L2, vi_v4l2, vi_v4l2_plugin)
 FIND_PLUGIN(VI_K1_CAM, vi_k1_cam, vi_k1_cam_plugin)
 FIND_PLUGIN(VI_K3_CAM, vi_k3_cam, vi_k3_cam_plugin)
 FIND_PLUGIN(VI_FILE, vi_file, vi_file_plugin)
+FIND_PLUGIN(AIO_ALSA, aio_alsa, aio_alsa_plugin)
 
 #define CHECK_LIBRARY(TYPE, type, name, path1, path2)                                                               \
     S32 check_##type() {                                                                                            \
@@ -147,6 +148,7 @@ CHECK_LIBRARY(VI_V4L2, vi_v4l2, c, /, /)
 CHECK_LIBRARY(VI_K1_CAM, vi_k1_cam, c, /, /)
 CHECK_LIBRARY(VI_K3_CAM, vi_k3_cam, c, /, /)
 CHECK_LIBRARY(VI_FILE, vi_file, c, /, /)
+CHECK_LIBRARY(AIO_ALSA, aio_alsa, c, /, /)
 
 #define CHECKMODULE_BY_TYPE(TYPE, type)                                                          \
     {                                                                                            \
@@ -215,6 +217,8 @@ MppModule *module_init(MppModuleType module_type) {
         CHECKMODULE_BY_TYPE(VI_FILE, vi_file);
     } else if (VPS_K1_V2D == module_type) {
         CHECKMODULE_BY_TYPE(K1_V2D, k1_v2d);
+    } else if (AIO_ALSA == module_type) {
+        CHECKMODULE_BY_TYPE(AIO_ALSA, aio_alsa);
     } else {
         error("need auto detect load_so");
     }

@@ -24,3 +24,20 @@ round trip. Both tests fail before the fix.
 Hardware validation is separate: encode known BGRA color bars and asymmetric
 top/bottom stripes through DMA-BUF input, then decode and check channel order
 and row alignment. Do not treat the software tests as a VPU encode test.
+
+## AI / AO audio regression (no hardware)
+
+```bash
+cmake -S . -B build -DBUILD_TESTS=ON -DBUILD_ROS2_EXAMPLES=OFF
+cmake --build build --target test_aio_resample test_aio_ai test_aio_ao test_aio_concurrency test_aio_alloc --parallel 2
+ctest --test-dir build -R '^test_aio_' --output-on-failure
+```
+
+These tests link `mpi/aio` with a scripted pcm backend (`test/aio/fake`) in
+place of the ALSA plugin: the test drives the "sound card" period by period
+and checks every sample, no sound card is opened. `docs/aio.md` lists what
+each of them covers.
+
+Hardware validation is separate: `test_aio_hw` is built but not registered
+with CTest. Run it on a board with a sound card and the ALSA plugin; the
+usage is at the top of `test/aio/test_aio_hw.c`.

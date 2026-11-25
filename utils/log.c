@@ -33,11 +33,12 @@ enum MppLogModule {
     MPP_LOG_MOD_SYS, MPP_LOG_MOD_VB, MPP_LOG_MOD_VI, MPP_LOG_MOD_VO,
     MPP_LOG_MOD_UVC, MPP_LOG_MOD_VDEC, MPP_LOG_MOD_VENC, MPP_LOG_MOD_DEMUX,
     MPP_LOG_MOD_MUX, MPP_LOG_MOD_V2D, MPP_LOG_MOD_AL, MPP_LOG_MOD_UTILS,
-    MPP_LOG_MOD_CPP, MPP_LOG_MOD_OTHER, MPP_LOG_MOD_COUNT
+    MPP_LOG_MOD_CPP, MPP_LOG_MOD_AI, MPP_LOG_MOD_AO, MPP_LOG_MOD_AIO,
+    MPP_LOG_MOD_OTHER, MPP_LOG_MOD_COUNT
 };
 static const char *const mpp_log_module_names[MPP_LOG_MOD_COUNT] = {
     "sys", "vb", "vi", "vo", "uvc", "vdec", "venc", "demux",
-    "mux", "v2d", "al", "utils", "cpp", "other"
+    "mux", "v2d", "al", "utils", "cpp", "ai", "ao", "aio", "other"
 };
 
 static const char *basename_of(const char *path) {
